@@ -1,0 +1,29 @@
+[package]
+name = "prb-pcap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+
+# Error handling
+thiserror.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bytes.workspace = true
+
+# PCAP parsing
+pcap-parser = "0.17.0"
+
+# Network parsing for test fixtures
+etherparse = "0.19.0"
+
+# Hex encoding for TLS keys
+hex = "0.4"
+
+[dev-dependencies]
+tempfile.workspace = true
