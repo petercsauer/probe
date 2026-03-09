@@ -103,6 +103,16 @@ pub struct EventSource {
     pub network: Option<NetworkAddr>,
 }
 
+impl fmt::Display for EventSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ref network) = self.network {
+            write!(f, "{}", network.src)
+        } else {
+            write!(f, "{}", self.origin)
+        }
+    }
+}
+
 /// Transport protocol kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -130,6 +140,22 @@ impl fmt::Display for TransportKind {
             Self::RawTcp => write!(f, "TCP"),
             Self::RawUdp => write!(f, "UDP"),
             Self::JsonFixture => write!(f, "JSON-Fixture"),
+        }
+    }
+}
+
+impl std::str::FromStr for TransportKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "grpc" => Ok(Self::Grpc),
+            "zmq" => Ok(Self::Zmq),
+            "dds-rtps" | "ddsrtps" => Ok(Self::DdsRtps),
+            "raw-tcp" | "rawtcp" | "tcp" => Ok(Self::RawTcp),
+            "raw-udp" | "rawudp" | "udp" => Ok(Self::RawUdp),
+            "json-fixture" | "jsonfixture" => Ok(Self::JsonFixture),
+            _ => Err(format!("Unknown transport kind: {}", s)),
         }
     }
 }
