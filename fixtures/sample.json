@@ -1,0 +1,32 @@
+{
+  "id": 1,
+  "timestamp": 1678901234567890123,
+  "source": {
+    "adapter": "json-fixture",
+    "origin": "fixtures/sample.json"
+  },
+  "transport": "grpc",
+  "direction": "inbound",
+  "payload": {
+    "type": "decoded",
+    "raw": "CAEQAhgD",
+    "fields": {
+      "field1": 1,
+      "field2": 2,
+      "field3": 3
+    },
+    "schema_name": "example.TestMessage"
+  },
+  "metadata": {
+    "grpc.method": "/example.Service/Method",
+    "h2.stream_id": "3"
+  },
+  "correlation_keys": [
+    {
+      "type": "stream-id",
+      "id": 3
+    }
+  ],
+  "sequence": 1,
+  "warnings": []
+}

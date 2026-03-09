@@ -1,0 +1,17 @@
+[package]
+name = "prb-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "prb"
+path = "src/main.rs"
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
