@@ -3,8 +3,11 @@
 //! This crate provides the foundational data model, error types, and traits
 //! used throughout the PRB ecosystem.
 
+pub mod decode;
 pub mod error;
 pub mod event;
+pub mod flow;
+pub mod schema;
 pub mod traits;
 
 #[cfg(test)]

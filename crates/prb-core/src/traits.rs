@@ -4,6 +4,10 @@
 
 use crate::{CoreError, DebugEvent, TransportKind};
 
+pub use crate::decode::DecodeContext;
+pub use crate::flow::Flow;
+pub use crate::schema::ResolvedSchema;
+
 /// Reads from a capture source and produces DebugEvents.
 ///
 /// Implemented by:
@@ -80,95 +84,4 @@ pub trait CorrelationStrategy {
     ///
     /// Returns a vector of flows, each containing references to related events.
     fn correlate<'a>(&self, events: &'a [DebugEvent]) -> Result<Vec<Flow<'a>>, CoreError>;
-}
-
-/// Decoding context for ProtocolDecoder.
-#[derive(Debug, Clone)]
-pub struct DecodeContext {
-    /// Source address information (e.g., "192.168.1.1:8080").
-    pub src_addr: Option<String>,
-    /// Destination address information.
-    pub dst_addr: Option<String>,
-    /// Additional context metadata.
-    pub metadata: std::collections::BTreeMap<String, String>,
-}
-
-impl DecodeContext {
-    /// Create a new empty context.
-    pub fn new() -> Self {
-        Self {
-            src_addr: None,
-            dst_addr: None,
-            metadata: std::collections::BTreeMap::new(),
-        }
-    }
-
-    /// Set source address.
-    pub fn with_src_addr(mut self, addr: impl Into<String>) -> Self {
-        self.src_addr = Some(addr.into());
-        self
-    }
-
-    /// Set destination address.
-    pub fn with_dst_addr(mut self, addr: impl Into<String>) -> Self {
-        self.dst_addr = Some(addr.into());
-        self
-    }
-
-    /// Add metadata entry.
-    pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
-    }
-}
-
-impl Default for DecodeContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Resolved schema information.
-#[derive(Debug, Clone)]
-pub struct ResolvedSchema {
-    /// Schema name.
-    pub name: String,
-    /// Schema content (e.g., protobuf FileDescriptorSet bytes, JSON schema).
-    pub content: bytes::Bytes,
-    /// Schema format identifier (e.g., "protobuf", "json-schema").
-    pub format: String,
-}
-
-/// A correlation flow grouping related events.
-#[derive(Debug, Clone)]
-pub struct Flow<'a> {
-    /// Unique flow identifier.
-    pub id: String,
-    /// Events in this flow (ordered by timestamp).
-    pub events: Vec<&'a DebugEvent>,
-    /// Flow metadata (e.g., connection info, topic name).
-    pub metadata: std::collections::BTreeMap<String, String>,
-}
-
-impl<'a> Flow<'a> {
-    /// Create a new flow with the given ID.
-    pub fn new(id: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            events: Vec::new(),
-            metadata: std::collections::BTreeMap::new(),
-        }
-    }
-
-    /// Add an event to the flow.
-    pub fn add_event(mut self, event: &'a DebugEvent) -> Self {
-        self.events.push(event);
-        self
-    }
-
-    /// Add metadata to the flow.
-    pub fn add_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
-    }
 }
