@@ -828,10 +828,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "base64",
  "camino",
  "clap",
  "insta",
  "prb-core",
+ "prb-decode",
  "prb-fixture",
  "prb-schema",
  "prb-storage",
@@ -853,6 +855,20 @@ dependencies = [
  "bytes",
  "insta",
  "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "prb-decode"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bytes",
+ "prost",
+ "prost-reflect",
+ "prost-types",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

@@ -44,6 +44,10 @@ pub struct InspectArgs {
     /// Filter by transport kind
     #[arg(long)]
     pub filter: Option<String>,
+
+    /// Decode protobuf payloads as wire-format (best-effort, no schema)
+    #[arg(long)]
+    pub wire_format: bool,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone)]

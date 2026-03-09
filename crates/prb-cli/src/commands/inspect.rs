@@ -3,7 +3,8 @@
 use crate::cli::{InspectArgs, OutputFormat};
 use crate::output;
 use anyhow::{Context, Result};
-use prb_core::{DebugEvent, TransportKind};
+use prb_core::{DebugEvent, Payload, TransportKind};
+use prb_decode::decode_wire_format;
 use prb_storage::SessionReader;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -38,13 +39,35 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
 
     tracing::info!("Loaded {} events", events.len());
 
-    // Format and output
-    match args.format {
-        OutputFormat::Table => {
-            output::format_table(&events);
+    // If wire-format decoding is requested, decode payloads and print
+    if args.wire_format {
+        for event in &events {
+            println!("=== Event {} at {} ===", event.id, event.timestamp);
+            println!("Transport: {} | Direction: {}", event.transport, event.direction);
+
+            if let Payload::Raw { raw } = &event.payload {
+                match decode_wire_format(raw) {
+                    Ok(msg) => {
+                        println!("{}", msg);
+                    }
+                    Err(e) => {
+                        println!("Wire-format decode error: {}", e);
+                    }
+                }
+            } else {
+                println!("(Payload already decoded)");
+            }
+            println!();
         }
-        OutputFormat::Json => {
-            output::format_json(&events)?;
+    } else {
+        // Format and output normally
+        match args.format {
+            OutputFormat::Table => {
+                output::format_table(&events);
+            }
+            OutputFormat::Json => {
+                output::format_json(&events)?;
+            }
         }
     }
 
