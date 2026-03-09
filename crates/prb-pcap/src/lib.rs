@@ -5,7 +5,9 @@
 //! Decryption Secrets Blocks (DSB).
 
 mod error;
+mod normalize;
 mod reader;
 
 pub use error::PcapError;
+pub use normalize::{NormalizedPacket, PacketNormalizer, TransportInfo};
 pub use reader::{PcapFileReader, TlsKeyStore};
