@@ -18,6 +18,8 @@ pub enum Commands {
     Ingest(IngestArgs),
     /// Inspect debug events from NDJSON format
     Inspect(InspectArgs),
+    /// Manage protobuf schemas
+    Schemas(SchemasArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -48,4 +50,46 @@ pub struct InspectArgs {
 pub enum OutputFormat {
     Table,
     Json,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SchemasArgs {
+    #[command(subcommand)]
+    pub command: SchemasCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SchemasCommand {
+    /// Load schema from a .proto or .desc file
+    Load(SchemaLoadArgs),
+    /// List message types in a session's embedded schemas
+    List(SchemaListArgs),
+    /// Export schemas from a session to a .desc file
+    Export(SchemaExportArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SchemaLoadArgs {
+    /// Path to .proto or .desc file
+    pub path: Utf8PathBuf,
+
+    /// Include paths for resolving imports (only for .proto files)
+    #[arg(short = 'I', long = "include-path")]
+    pub include_paths: Vec<Utf8PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SchemaListArgs {
+    /// Path to MCAP session file
+    pub session: Utf8PathBuf,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SchemaExportArgs {
+    /// Path to MCAP session file
+    pub session: Utf8PathBuf,
+
+    /// Output path for exported .desc file
+    #[arg(short, long)]
+    pub output: Utf8PathBuf,
 }

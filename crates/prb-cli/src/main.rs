@@ -25,5 +25,6 @@ fn main() -> Result<()> {
     match cli.command {
         cli::Commands::Ingest(args) => commands::run_ingest(args),
         cli::Commands::Inspect(args) => commands::run_inspect(args),
+        cli::Commands::Schemas(args) => commands::run_schemas(args),
     }
 }

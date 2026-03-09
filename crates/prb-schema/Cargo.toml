@@ -1,0 +1,20 @@
+[package]
+name = "prb-schema"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+prost = "0.14"
+prost-reflect = "0.16"
+prost-types = "0.14"
+protox = "0.9"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+camino = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

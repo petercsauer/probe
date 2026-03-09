@@ -2,6 +2,9 @@
 
 use super::*;
 use prb_core::{DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind};
+use prb_schema::SchemaRegistry;
+use prost::Message as ProstMessage;
+use prost_types::{FileDescriptorProto, FileDescriptorSet, DescriptorProto, FieldDescriptorProto};
 use std::fs::File;
 use tempfile::TempDir;
 
@@ -186,4 +189,90 @@ fn test_large_session() {
     for i in 0..events.len() - 1 {
         assert!(events[i].timestamp.as_nanos() <= events[i + 1].timestamp.as_nanos());
     }
+}
+
+#[test]
+fn test_schema_roundtrip_mcap() {
+    let tempdir = TempDir::new().unwrap();
+    let session_path = tempdir.path().join("session.mcap");
+
+    // Create a test schema
+    let file_desc = FileDescriptorProto {
+        name: Some("test.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![
+            DescriptorProto {
+                name: Some("TestMessage1".to_string()),
+                field: vec![FieldDescriptorProto {
+                    name: Some("id".to_string()),
+                    number: Some(1),
+                    label: Some(prost_types::field_descriptor_proto::Label::Optional as i32),
+                    r#type: Some(prost_types::field_descriptor_proto::Type::Int32 as i32),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            DescriptorProto {
+                name: Some("TestMessage2".to_string()),
+                field: vec![FieldDescriptorProto {
+                    name: Some("name".to_string()),
+                    number: Some(1),
+                    label: Some(prost_types::field_descriptor_proto::Label::Optional as i32),
+                    r#type: Some(prost_types::field_descriptor_proto::Type::String as i32),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    let fds = FileDescriptorSet {
+        file: vec![file_desc],
+    };
+
+    let mut fds_bytes = Vec::new();
+    fds.encode(&mut fds_bytes).unwrap();
+
+    // Load into a registry
+    let mut registry = SchemaRegistry::new();
+    registry.load_descriptor_set(&fds_bytes).unwrap();
+
+    // Verify messages before writing
+    let messages_before = registry.list_messages();
+    assert!(messages_before.iter().any(|m| m == "test.TestMessage1"));
+    assert!(messages_before.iter().any(|m| m == "test.TestMessage2"));
+
+    // Write session with embedded schemas
+    {
+        let file = File::create(&session_path).unwrap();
+        let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
+
+        // Embed schemas
+        writer.embed_schemas(&registry).unwrap();
+
+        // Write a test event
+        let event = create_test_event("test", "test.fixture", 1000);
+        writer.write_event(&event).unwrap();
+
+        writer.finish().unwrap();
+    }
+
+    // Read session and extract schemas
+    let reader = SessionReader::open(&session_path).unwrap();
+    let extracted_registry = reader.extract_schemas().unwrap();
+
+    // Verify schemas were recovered
+    let messages_after = extracted_registry.list_messages();
+    assert!(messages_after.iter().any(|m| m == "test.TestMessage1"),
+        "TestMessage1 should be found after extraction");
+    assert!(messages_after.iter().any(|m| m == "test.TestMessage2"),
+        "TestMessage2 should be found after extraction");
+
+    // Verify we can look up messages
+    let msg1 = extracted_registry.get_message("test.TestMessage1");
+    assert!(msg1.is_some(), "Should be able to look up TestMessage1");
+
+    let msg2 = extracted_registry.get_message("test.TestMessage2");
+    assert!(msg2.is_some(), "Should be able to look up TestMessage2");
 }

@@ -4,6 +4,7 @@ use crate::error::{Result, StorageError};
 use crate::metadata::SessionMetadata;
 use mcap::MessageStream;
 use prb_core::DebugEvent;
+use prb_schema::SchemaRegistry;
 use std::fs::File;
 use std::path::Path;
 
@@ -100,5 +101,29 @@ impl SessionReader {
         }
 
         Ok(channels)
+    }
+
+    /// Extract embedded schemas from the MCAP file.
+    ///
+    /// Returns a SchemaRegistry populated with all protobuf schemas found in the session.
+    pub fn extract_schemas(&self) -> Result<SchemaRegistry> {
+        use mcap::read::LinearReader;
+        use mcap::records::Record;
+
+        let mut registry = SchemaRegistry::new();
+
+        let reader = LinearReader::new(&self.mapped)?;
+        for record in reader {
+            let record = record?;
+            if let Record::Schema { header, data } = record {
+                // Only load protobuf schemas
+                if header.encoding == "protobuf" {
+                    registry.load_descriptor_set(&data)
+                        .map_err(|e| StorageError::InvalidSession(format!("Failed to load embedded schema: {}", e)))?;
+                }
+            }
+        }
+
+        Ok(registry)
     }
 }

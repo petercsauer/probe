@@ -22,5 +22,9 @@ pub enum CoreError {
         #[from]
         source: serde_json::Error,
     },
+
+    /// Schema resolution error.
+    #[error("schema error: {0}")]
+    Schema(String),
 }
 

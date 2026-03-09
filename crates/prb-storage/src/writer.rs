@@ -5,6 +5,7 @@ use crate::metadata::SessionMetadata;
 use mcap::records::MessageHeader;
 use mcap::Writer;
 use prb_core::DebugEvent;
+use prb_schema::SchemaRegistry;
 use std::collections::BTreeMap;
 use std::io::{Seek, Write};
 
@@ -89,6 +90,19 @@ impl<W: Write + Seek> SessionWriter<W> {
 
         self.writer.write_to_known_channel(&header, &data)?;
 
+        Ok(())
+    }
+
+    /// Embed schemas from a registry into the session.
+    ///
+    /// This should be called before `finish()` to ensure schemas are available when
+    /// the session is read.
+    pub fn embed_schemas(&mut self, registry: &SchemaRegistry) -> Result<()> {
+        // Get all descriptor sets from the registry
+        for (idx, desc_bytes) in registry.descriptor_sets().iter().enumerate() {
+            let schema_name = format!("protobuf_descriptors_{}", idx);
+            self.writer.add_schema(&schema_name, "protobuf", desc_bytes)?;
+        }
         Ok(())
     }
 

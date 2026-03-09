@@ -222,3 +222,90 @@ fn test_cli_pipe_end_to_end() {
     let stdout = String::from_utf8_lossy(&inspect_output.stdout);
     insta::assert_snapshot!(stdout);
 }
+
+#[test]
+fn test_cli_schemas_load_proto() {
+    use std::io::Write;
+    let temp_dir = tempfile::tempdir().unwrap();
+    let proto_path = temp_dir.path().join("test.proto");
+
+    // Write a simple .proto file
+    let proto_content = r#"
+syntax = "proto3";
+package test;
+
+message TestMessage {
+    int32 id = 1;
+    string name = 2;
+}
+"#;
+    let mut file = fs::File::create(&proto_path).unwrap();
+    file.write_all(proto_content.as_bytes()).unwrap();
+    drop(file);
+
+    prb()
+        .arg("schemas")
+        .arg("load")
+        .arg(&proto_path)
+        .arg("--include-path")
+        .arg(temp_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Successfully loaded schema"))
+        .stdout(predicate::str::contains("test.TestMessage"));
+}
+
+#[test]
+fn test_cli_schemas_list() {
+    use prost::Message as ProstMessage;
+    use std::io::Write;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let session_path = temp_dir.path().join("session.mcap");
+
+    // Create a test schema using prost_types
+    let file_desc = prost_types::FileDescriptorProto {
+        name: Some("test.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![prost_types::DescriptorProto {
+            name: Some("TestMessage".to_string()),
+            field: vec![prost_types::FieldDescriptorProto {
+                name: Some("id".to_string()),
+                number: Some(1),
+                label: Some(prost_types::field_descriptor_proto::Label::Optional as i32),
+                r#type: Some(prost_types::field_descriptor_proto::Type::Int32 as i32),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let fds = prost_types::FileDescriptorSet {
+        file: vec![file_desc],
+    };
+
+    let mut fds_bytes = Vec::new();
+    fds.encode(&mut fds_bytes).unwrap();
+
+    // Create a session with embedded schema
+    use prb_schema::SchemaRegistry;
+    use prb_storage::{SessionWriter, SessionMetadata};
+
+    let mut registry = SchemaRegistry::new();
+    registry.load_descriptor_set(&fds_bytes).unwrap();
+
+    let file = fs::File::create(&session_path).unwrap();
+    let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
+    writer.embed_schemas(&registry).unwrap();
+    writer.finish().unwrap();
+
+    // Test list command
+    prb()
+        .arg("schemas")
+        .arg("list")
+        .arg(&session_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test.TestMessage"));
+}

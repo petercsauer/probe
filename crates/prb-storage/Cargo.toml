@@ -8,6 +8,7 @@ repository.workspace = true
 [dependencies]
 # Core dependencies
 prb-core = { path = "../prb-core" }
+prb-schema = { path = "../prb-schema" }
 
 # MCAP storage
 mcap = "0.24.0"
@@ -35,3 +36,5 @@ itertools = "0.13"
 
 [dev-dependencies]
 tempfile = { workspace = true }
+prost = "0.14"
+prost-types = "0.14"

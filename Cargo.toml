@@ -5,6 +5,7 @@ members = [
     "crates/prb-cli",
     "crates/prb-fixture",
     "crates/prb-storage",
+    "crates/prb-schema",
 ]
 
 [workspace.package]

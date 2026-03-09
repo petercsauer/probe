@@ -13,6 +13,7 @@ path = "src/main.rs"
 prb-core = { path = "../prb-core" }
 prb-fixture = { path = "../prb-fixture" }
 prb-storage = { path = "../prb-storage" }
+prb-schema = { path = "../prb-schema" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }
@@ -26,3 +27,5 @@ assert_cmd = "2.0"
 insta = "1.41"
 predicates = "3.1"
 tempfile = "3.13"
+prost = "0.14"
+prost-types = "0.14"
