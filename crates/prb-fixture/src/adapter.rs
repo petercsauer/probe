@@ -145,7 +145,7 @@ impl CaptureAdapter for JsonFixtureAdapter {
 
         Box::new(events.into_iter().map(|event| {
             self.convert_event(event)
-                .map_err(|e| Self::map_error(e))
+                .map_err(Self::map_error)
         }))
     }
 }

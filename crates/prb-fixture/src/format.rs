@@ -1,10 +1,10 @@
 //! JSON fixture file format definitions.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Root fixture file structure.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FixtureFile {
     /// Fixture format version (must be 1).
     pub version: u64,
@@ -16,7 +16,7 @@ pub struct FixtureFile {
 }
 
 /// A single event in a fixture file.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FixtureEvent {
     /// Timestamp in nanoseconds since Unix epoch.
     pub timestamp_ns: u64,
@@ -38,7 +38,7 @@ pub struct FixtureEvent {
 }
 
 /// Source information for a fixture event.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FixtureSource {
     /// Source network address (e.g., "192.168.1.1:8080").
     pub src: Option<String>,
