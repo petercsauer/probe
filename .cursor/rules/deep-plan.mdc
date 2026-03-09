@@ -1,0 +1,372 @@
+---
+description: Agent-requested deep-plan mode -- research-driven plan decomposition with evidence-based issue analysis, pre-mortem risk scoring, and iterative-builder handoff contracts
+alwaysApply: false
+---
+
+# Deep Plan Mode
+
+When the user asks to use "deep-plan" mode, follow this workflow to decompose a large piece of work into multiple independent segments. Each segment becomes a self-contained iterative-builder handoff contract. This rule is designed for Plan Mode -- read-only analysis, no code changes.
+
+Deep-plan produces briefs comprehensive enough that the orchestration agent can launch `iterative-builder` subagents directly.
+
+## Step 1: Understand the Big Picture
+
+Deep-plan supports two entry points. Determine which applies and follow it.
+
+### Entry Point A: Fresh Goal
+
+1. Restate the user's overall goal and confirm understanding.
+2. Ask clarifying questions about scope, priorities, constraints, and non-goals.
+3. Identify the major functional areas the work touches (not files -- subsystems, capabilities, interfaces).
+4. Determine whether there is a preferred delivery order or if the user wants you to propose one.
+
+### Entry Point B: Enrich Existing Plan
+
+When the user already has a rough plan with suggested fixes:
+
+1. Ingest the existing plan. Parse out each suggested fix, the areas it touches, and any stated rationale.
+2. Confirm understanding: "I see N issues in the existing plan. Here is my reading of each. Is this correct?"
+3. Ask whether the issue list is complete or whether the landscape scan (Step 2) should look for additional issues.
+4. Ask whether any issues have ordering constraints or priority overrides.
+
+Both entry points converge at Step 2.
+
+## Step 2: Map the Landscape
+
+Use explore subagents (parallel where possible) to build a high-level map:
+
+1. **Architecture scan.** Identify the relevant modules, their boundaries, and how they communicate. Look for existing abstractions, shared interfaces, and integration points.
+2. **Existing test coverage.** Find what tests exist for the affected areas. Note gaps -- areas with no tests are higher risk and may need their own segment.
+3. **Dependency graph.** Determine which parts of the work depend on others. A segment that defines a new interface must come before segments that implement against it.
+4. **Risk inventory.** Flag areas that are fragile, poorly understood, tightly coupled, or performance-sensitive. These deserve their own segments so failures are contained.
+
+Present findings as a structured summary. Wait for user acknowledgement before proceeding.
+
+## Step 3: Deep Issue Research
+
+For **each** issue identified in Steps 1-2, conduct four-source research. Use parallel explore subagents where issues are independent.
+
+### Source 1: Codebase Context
+
+- Read the actual implementation, callers, tests, and related modules.
+- Understand not just *what* exists but *why* it was built that way.
+- Look for prior art: has this pattern been solved elsewhere in the repo?
+- Identify implicit contracts, invariants, and coupling.
+
+### Source 2: Project Conventions
+
+- Check `.cursor/rules/`, README files, docs directories, and any CONVENTIONS or CONTRIBUTING files.
+- Check the build system (BUILD.bazel, CMakeLists.txt, package.json, etc.) for existing test targets and patterns.
+- Check for project-specific workspace rules that specify build/test/deploy conventions.
+
+### Source 3: Existing Solutions and Prior Art
+
+**Applicability check:** If the issue is purely internal refactoring (extract class, rename, reorganize, migrate between standard library features) with no conceivable external tool or library that addresses it, mark Source 3 as: "N/A -- internal refactoring. No external tools address [brief justification]." This must include a one-sentence justification. Do not skip Source 3 for issues that involve new functionality, protocols, data formats, or infrastructure -- those always have potential external solutions.
+
+Before planning a custom implementation, search for existing tools, libraries, or scripts that already accomplish the goal. This prevents reinventing the wheel and surfaces battle-tested solutions.
+
+- **Package registries:** Search PyPI, npm, crates.io, or the relevant registry for maintained packages that solve the problem.
+- **GitHub search:** Look for repos, scripts, or tools that address the same problem. Filter by recent activity, star count, and maintenance status (last commit, open issues ratio).
+- **Awesome lists and curated collections:** Check relevant "awesome-*" lists or community-curated tool directories.
+- **Evaluate fitness:** For each candidate, assess:
+  - Is it actively maintained? (commits in last 6 months, responsive maintainers)
+  - Does it cover the full scope of the problem, or only part of it?
+  - Is the license compatible with this project?
+  - What are the transitive dependencies and their health?
+  - Does it integrate cleanly with the project's existing stack and build system?
+- **Adopt-or-build decision:** Present findings with a clear recommendation: adopt an existing solution (possibly with thin wrappers), adapt/fork an existing solution, or build from scratch with rationale for why existing solutions are inadequate.
+
+### Source 4: External Best Practices
+
+Web search for the specific technical problem. Prioritize:
+
+- Official documentation for relevant libraries/frameworks
+- Stack Overflow answers (high-vote, accepted)
+- GitHub issues and PRs on relevant repos
+- Published engineering blog posts or RFCs on the pattern
+- Reference implementations in well-maintained open-source projects
+
+**Output:** A concise research summary per issue, organized by source. This feeds directly into the Issue Analysis Brief. Present to user for acknowledgement before proceeding to briefs.
+
+## Step 4: Issue Analysis Briefs
+
+Each issue gets a structured brief. This is the core analytical output of deep-plan -- do not rush it.
+
+```
+### Issue N: [Short title]
+
+**Core Problem:**
+[2-3 sentences. What is broken, missing, or suboptimal. Cite specific files/lines.]
+
+**Root Cause:**
+[1-2 sentences. Why this problem exists -- not symptoms, causes.]
+
+**Proposed Fix:**
+[Technical description with implementation details:
+- What code changes are needed (files, functions, patterns)
+- What new abstractions or interfaces are introduced
+- What existing code is modified vs. replaced
+- Pseudocode or API sketch if non-obvious]
+
+**Existing Solutions Evaluated:**
+[Libraries, tools, or scripts found in Source 3 that address this problem.
+For each candidate: name, repo/package link, maintenance status, and why it
+was adopted, adapted, or rejected. If nothing suitable exists, state what was
+searched and why results were inadequate. This prevents the builder from
+wasting time rediscovering or reimplementing solved problems.]
+
+**Alternatives Considered:**
+[1-2 alternative approaches that were evaluated and rejected, with short
+rationale for each. Modeled on ADR "Abandoned Ideas" -- prevents the subagent
+from re-discovering and re-evaluating approaches you already ruled out.]
+
+**Pre-Mortem -- What Could Go Wrong:**
+[Imagine this fix has shipped and failed. What caused the failure?
+- Coupling risks (what else breaks when this changes?)
+- Behavioral regressions (what subtle behavior might change?)
+- Performance/resource implications
+- Edge cases that are easy to miss
+- Build system / dependency complications]
+
+**Risk Factor:** N/10
+[Use this rubric:
+- 1-3: Isolated change, well-tested area, clear implementation path
+- 4-6: Touches shared interfaces or has moderate coupling, some ambiguity
+- 7-8: Cross-cutting change, fragile area, limited existing test coverage
+- 9-10: Architectural change, high coupling, could cascade failures]
+
+**Evidence for Optimality:**
+[Why this fix is the best option. Cite at least two of the four research
+sources:
+- Codebase evidence: existing patterns, conventions, or prior art in this repo
+- Project conventions: rules, docs, or build patterns that support this approach
+- Existing solutions: well-maintained libraries/tools evaluated and why this
+  approach was chosen over (or in conjunction with) them
+- External evidence: best practice from docs, SO, RFCs, or reference impls
+Each source gets a 1-sentence summary of what it supports.]
+
+**Blast Radius:**
+- Direct changes: [files/modules that will be modified]
+- Potential ripple: [files/modules that may need consequential updates]
+```
+
+Present all issue briefs to the user. Wait for acknowledgement and any corrections before slicing.
+
+## Step 5: Slice into Segments
+
+Group issues into **vertical slices** -- each segment cuts through all necessary layers (interface, logic, tests) rather than building one layer at a time. This step is simpler than it would otherwise be because the analysis is already done in Step 4.
+
+### Slicing Principles
+
+- **Independent.** Each segment can be built, tested, and committed without waiting for future segments. It may depend on prior segments, but never on later ones.
+- **Testable.** Each segment has clear exit criteria verifiable with automated tests.
+- **Small.** A segment should be completable in a single iterative-builder session (20 iteration budget). If it would need more, split further.
+- **Valuable.** Each segment leaves the codebase in a better state. No partial scaffolding that only makes sense once a future segment lands.
+- **Ordered.** Segments are numbered. Earlier segments establish foundations that later segments build on.
+
+### Segment Brief Format (Iterative-Builder Handoff Contract)
+
+Each segment brief is a self-contained handoff contract for the domain-specific content (goal, scope, approach, exit criteria). The orchestration agent reads the operational preamble and build environment instructions from rule files at launch time per `orchestration-protocol.mdc` -- these are NOT inlined into the segment brief. This keeps plan files focused and avoids stale instructions.
+
+**The plan output must state at the top of each segment brief that it is to be executed by an iterative-builder subagent.**
+
+```
+## Segment N: [Short title]
+> **Execution method:** Launch as an `iterative-builder` subagent (Task tool, subagent_type="iterative-builder"). The orchestration agent reads and prepends `iterative-builder-prompt.mdc` and `devcontainer-exec.mdc` at launch time per `orchestration-protocol.mdc`.
+
+**Goal:** [One sentence -- what this segment accomplishes]
+
+**Depends on:** [Prior segment numbers, or "None"]
+
+**Issues addressed:** [Issue N, Issue M -- references to Issue Analysis Briefs]
+
+**Cycle budget:** [Set by the planner based on estimated complexity:
+- Low complexity: 10 cycles
+- Medium complexity: 15 cycles
+- High complexity: 20 cycles]
+
+**Scope:**
+- [Subsystem / module / area]
+
+**Key files and context:**
+[Specific files, functions, contracts, invariants, and coupling risks the builder
+needs to know. Pasted directly -- never "see Step 2" or "see Issue 3."]
+
+**Implementation approach:**
+[Concrete enough that the builder knows what pattern to follow, but not so
+prescriptive that it cannot adapt to discoveries during implementation.]
+
+**Alternatives ruled out:**
+[Approaches already evaluated and rejected. Prevents the builder from wasting
+iterations re-discovering dead ends.]
+
+**Pre-mortem risks:**
+[Things the builder should watch for and write defensive tests against.]
+
+**Segment-specific commands:**
+[Only the project-specific build/test commands for THIS segment. Do NOT include
+generic docker exec boilerplate or operational preamble -- those are injected at
+launch time from rule files.]
+- Build: [exact build command with target]
+- Test (targeted): [exact test command for targeted tests only]
+- Test (regression): [exact test command for regression targets]
+- Test (full gate): [exact test command for full module]
+
+**Exit criteria:**
+
+All of the following must be satisfied:
+
+1. **Targeted tests:**
+   - [Test name/description: what it validates]
+   - [Test name/description: what it validates]
+2. **Regression tests:** [Existing test targets that must continue passing]
+3. **Full build gate:** [Exact build command]
+4. **Full test gate:** [Exact test command for all module tests]
+5. **Self-review gate:** No dead code, no commented-out blocks, no TODO hacks,
+   no changes outside stated scope.
+6. **Scope verification gate:** Changed files match the segment's stated scope.
+   Out-of-scope supporting changes are documented in the builder's final report.
+
+**Risk factor:** N/10
+
+**Estimated complexity:** Low | Medium | High
+
+**Commit message:**
+`type(scope): short description`
+[Pre-written conventional-commit subject line. Under 72 chars. The orchestration
+agent commits using this exact message after the segment passes all exit gates.]
+```
+
+## Step 6: Build Exit Criteria
+
+This step exists separately from slicing because constructing correct exit criteria requires:
+
+- Exploring the build system to find the right test targets and build commands
+- Determining the correct broad regression targets (not just the tests for this segment)
+- Formulating commands with correct flags, paths, and environment setup
+- Ensuring commands are copy-pasteable (including devcontainer exec wrappers if needed)
+
+The exit criteria follow a tiered gate model:
+
+- **Gate 1 -- Targeted tests:** All new tests pass (proves the fix works)
+- **Gate 2 -- Regression tests:** All pre-existing tests in the affected module pass (no regressions)
+- **Gate 3 -- Full build:** The full module target builds cleanly (no compilation/linking breaks)
+- **Gate 4 -- Full test suite:** All tests for the affected module pass
+- **Gate 5 -- Self-review:** No dead code, no scope creep, no hacks
+
+## Step 7: Determine Execution Order
+
+Present the dependency DAG and ask the user to choose an ordering strategy:
+
+- **Fail-fast (highest-risk first).** Tackle the riskiest segments first. If the hard part is infeasible, you find out before wasting time on easy segments. Best when the plan has a critical uncertainty.
+- **Confidence-first (lowest-risk first).** Start with safe, well-understood segments. Builds momentum and validates the infrastructure. Best when the plan is mostly straightforward with a few tricky parts.
+- **Dependency-order (topological).** Pure dependency ordering. No strategic preference -- just do things in the order they must be done.
+- **User-specified.** The user provides an explicit ordering.
+
+Note which segments are independent and could be run as parallel iterative-builder subagents (up to 4 concurrent).
+
+## Step 8: Validate the Decomposition
+
+Before presenting the final plan, run these checks:
+
+1. **Dependency chain is acyclic.** No circular dependencies. The segment graph is a DAG.
+2. **No orphan work.** Every piece of the original goal is covered by at least one segment. Nothing was dropped.
+3. **No oversized segments.** Any segment with more than 3 subsystems in scope or "High" complexity should be considered for further splitting.
+4. **Integration points are explicit.** If segment M defines an interface that segment N consumes, the interface is in M's exit criteria and its consumption is in N's.
+5. **First segment is a walking skeleton.** When possible, the first segment should establish a minimal end-to-end path that later segments flesh out. This validates the architecture early.
+6. **Risk budget check.** If more than 2 segments are at risk 8+, flag to the user. Discuss re-scoping or re-sequencing to reduce concurrent risk.
+7. **Handoff completeness.** Every segment brief is self-contained. Spot-check: could a subagent reading only one brief begin work without any other context? If not, add the missing context.
+8. **Exit criteria are concrete.** Every segment has all five gates with actual commands, not placeholders.
+
+## Step 9: Present and Materialize the Plan
+
+Present the full plan with:
+
+1. **Overview.** One paragraph summarizing the overall approach, delivery order, and ordering strategy.
+2. **Dependency diagram.** A text or mermaid diagram showing segment order and dependencies.
+3. **Issue Analysis Briefs.** All briefs from Step 4, in order.
+4. **Segment briefs.** All handoff contracts from Step 5, in execution order.
+5. **Parallelization opportunities.** Which segments are independent and can run as concurrent iterative-builder subagents.
+6. **Execution instructions.** An explicit block stating: "To execute this plan, switch to Agent Mode. For each segment in order, launch an `iterative-builder` subagent (Task tool, subagent_type='iterative-builder') with the full segment brief as the prompt. Do not implement segments directly -- always delegate to iterative-builder subagents. After all segments are built, run `deep-verify` against this plan file. If verification finds gaps, re-enter `deep-plan` on the unresolved items."
+7. **Total estimated scope.** Segment count, estimated overall complexity, total risk budget, and any caveats.
+
+### No Back-References in the Plan File
+
+The materialized plan file must be readable top-to-bottom without back-references. Do not use "[See Step N above]" or "[See Issue N]" in the plan file. Duplicate the content or restructure so each section stands alone. Issue Analysis Briefs and Segment Briefs must both appear in full in the plan file.
+
+### Materialization
+
+If the plan has more than 4 segments or more than 6 issues, **save it to a plan file** rather than keeping it only in conversation context. This prevents context window exhaustion during execution. The orchestration agent reads segment briefs from the file one at a time as it launches builders.
+
+**Plan file naming convention:** Save plans to `.cursor/plans/` using a descriptive slug derived from the goal and a date stamp, e.g. `.cursor/plans/comms-manager-refactor-2026-02-08.md`. Never use a generic name like `plan.md` or overwrite `deep-plan.md`. Each plan goal gets its own file. If a plan for the same goal is regenerated, append a revision suffix (e.g. `-v2`). This ensures plans from different chats or different goals never collide.
+
+**Plan file metadata header:** Every materialized plan file must start with:
+
+```
+# [Plan Title]
+
+**Goal:** [One-sentence goal]
+**Generated:** YYYY-MM-DD
+**Rules version:** [Date of newest rule file used during planning]
+**Entry point:** A (Fresh Goal) | B (Enrich Existing Plan)
+**Status:** Planning | Ready for execution | In progress | Complete
+```
+
+**Execution log:** Every materialized plan file must include an Execution Log section (initially empty) that the orchestration agent fills in during execution:
+
+```
+## Execution Log
+
+| Segment | Est. Complexity | Risk | Cycles Used | Status | Notes |
+|---------|----------------|------|-------------|--------|-------|
+| 1: [title] | Medium | 4/10 | -- | -- | -- |
+| 2: [title] | Low | 2/10 | -- | -- | -- |
+
+**Deep-verify result:** --
+**Follow-up plans:** --
+```
+
+Ask the user to review, reorder, split, merge, or approve segments before any execution begins.
+
+## Execution
+
+When the user approves the plan and switches to Agent Mode, read and follow `orchestration-protocol.mdc` for the full execution protocol. That rule contains:
+
+- Pre-launch preamble injection (how to assemble builder prompts from rule files)
+- Segment-by-segment execution (launch, monitor, verify, commit)
+- PARTIAL/BLOCKED escalation to `iterative-debugger`
+- Resume protocol after debugger resolution
+- WIP commit squash instructions
+- Post-execution deep-verify loop
+- Follow-up plan cycle for unresolved gaps
+
+## Guardrails
+
+### Planning discipline:
+
+- **This is Plan Mode.** Do not write code, create files, or run builds. Analysis and planning only.
+- **Vertical slices, not horizontal layers.** Never produce a segment that is "build all the database models" or "write all the interfaces." Each segment delivers testable functionality end-to-end.
+- **Respect the user's priorities.** If the user cares about a specific capability first, order segments to deliver it early, even if a different order would be more technically convenient.
+- **Surface uncertainty.** If you are unsure how to slice an area, say so. Propose two alternatives and let the user choose rather than guessing.
+- **Keep briefs concrete.** Acceptance criteria must be specific enough that someone could write a test from them. "Works correctly" is not an acceptance criterion. "Returns 404 when resource does not exist" is.
+
+### Research and evidence:
+
+- **Evidence required.** Every proposed fix must cite at least two sources of evidence (from codebase, project conventions, existing solutions, or external best practice). "I think this is right" is not evidence.
+- **Adopt-or-build required.** Every issue must include an explicit evaluation of existing libraries, tools, or scripts, unless it is purely internal refactoring (in which case Source 3 is marked N/A with justification). Building from scratch when a well-maintained solution exists is a planning failure. If no suitable solution exists, document what was searched and why.
+- **Pre-mortem required.** Every issue must have a pre-mortem analysis. If you cannot think of what could go wrong, you do not understand the change well enough.
+
+### Risk management:
+
+- **Risk budget.** If the total plan has more than 2 segments at risk 8+, flag this to the user and discuss re-scoping or re-sequencing.
+
+### Handoff quality:
+
+- **Self-contained handoffs.** Segment briefs must be self-contained. A subagent reading only the brief should have enough context to begin work. Key context is duplicated into each brief, not referenced by section number.
+- **Exit criteria are non-negotiable.** Every segment must include all five gates with actual commands. A segment without explicit test commands is not ready for handoff.
+- **Commit message required.** Every segment must include a pre-written conventional-commit subject line. The orchestration agent commits using this exact message after the segment passes all exit gates.
+- **Build commands are project-specific.** Never assume bazel, npm, or any particular build system. Pull build/test commands from the project's workspace rules, BUILD files, or Makefiles. Include environment setup (devcontainer exec, nix shell, etc.) if applicable.
+
+### Scale management:
+
+- **Materialize large plans.** Plans with 4+ segments must be saved to a file to prevent context exhaustion during execution.

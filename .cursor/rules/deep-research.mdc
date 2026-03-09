@@ -1,0 +1,310 @@
+---
+description: Agent-requested deep-research mode -- parallel codebase and web research with structured evidence gathering, cross-source verification, and materialized research reports
+alwaysApply: false
+---
+
+# Deep Research Mode
+
+When the user asks to use "deep-research" mode (or "research this"), follow this workflow to investigate a technical question by combining codebase exploration with external research. This rule produces structured research reports with cited evidence -- it answers questions rather than planning implementation work.
+
+Deep-research is standalone. It does not depend on `deep-plan.mdc`, `orchestration-protocol.mdc`, or any builder/debugger rules. However, a research report can serve as input for a subsequent deep-plan session (Entry Point B with the report as context).
+
+**This is a read-only workflow.** Do not write code, create source files, or run builds. The only file output is the research report itself.
+
+---
+
+## Phase 1: Scope and Decompose
+
+1. **Restate the question.** Repeat the user's research question back in your own words. Confirm understanding.
+
+2. **Classify complexity.** The complexity tier controls subagent count, report depth, and follow-up round budget:
+
+   | Tier | Sub-questions | Subagents | Follow-up rounds | When to use |
+   |------|--------------|-----------|-----------------|-------------|
+   | **Focused** | 1-2 | 1-2 | 1 | "How does module X handle Y?" Single-topic deep dive. |
+   | **Comparative** | 3-5 | 2-4 | 2 | "What are our options for Y? Compare trade-offs." Multiple alternatives evaluated. |
+   | **Exploratory** | 5-10 | 4 | 2 | "How does our entire auth system work?" or "Design a migration strategy for X." Broad investigation. |
+
+3. **Decompose into sub-questions.** Break the research question into numbered sub-questions. Tag each with its primary source type:
+   - `[codebase]` -- answerable by reading code, tests, build files, or project docs
+   - `[external]` -- answerable by searching the web (official docs, Stack Overflow, GitHub issues, engineering blogs, RFCs)
+   - `[hybrid]` -- requires both codebase evidence and external context to answer fully
+
+   Example:
+   ```
+   Research question: "Should we migrate from std::map to absl::flat_hash_map in the comms layer?"
+
+   Complexity: Comparative (3 sub-questions, 3 subagents)
+
+   Sub-questions:
+   1. [codebase] Where is std::map used in the comms layer, and what access patterns does each usage have?
+   2. [external] What are the performance characteristics of absl::flat_hash_map vs std::map for common access patterns?
+   3. [hybrid] Are there ordering or iterator-stability requirements in the comms layer that would break with an unordered container?
+   ```
+
+4. **User checkpoint.** Present the decomposition and complexity classification. Wait for confirmation before proceeding. The user may add, remove, or rephrase sub-questions.
+
+---
+
+## Phase 2: Parallel Gathering
+
+Launch parallel `explore` subagents (Task tool, subagent_type="explore") to collect evidence for each sub-question. Group sub-questions by source type and assign to subagents.
+
+### Subagent assignment
+
+- **Codebase subagents** handle `[codebase]` and `[hybrid]` sub-questions. Instruct them to:
+  - Scan architecture: modules, boundaries, communication patterns
+  - Trace code paths end-to-end (read implementations, not just signatures)
+  - Check test coverage for the area under investigation
+  - Map dependencies (what depends on what, what would break if X changes)
+
+- **Web subagents** handle `[external]` and `[hybrid]` sub-questions. Instruct them to:
+  - Search official documentation first
+  - Search Stack Overflow for high-vote, accepted answers
+  - Search GitHub issues and PRs on relevant repos
+  - Search engineering blogs and RFCs for design rationale
+  - Note the publication date of every source (stale sources are flagged in Phase 3)
+
+### Subagent instructions
+
+Each subagent prompt must include:
+
+1. The specific sub-question(s) it is responsible for
+2. The required output format (see below)
+3. The **broad-to-narrow strategy**: start with short, broad queries to understand the landscape. Inspect results. Then narrow focus to specific details. Do not start with long, hyper-specific queries -- they miss results.
+4. A reminder that the subagent must cite every claim with a file:line or URL
+
+### Required subagent output format
+
+Each subagent must return findings in this structure:
+
+```
+## Sub-question N: [question text]
+
+### Sources consulted
+- [codebase] [file:lines] -- [what was checked]
+- [web] [URL] -- [what was found]
+
+### Key findings
+1. [Finding with inline citation.] [1]
+2. [Finding with inline citation.] [2]
+
+### Confidence: High | Medium | Low
+[One sentence justifying the confidence level.]
+
+### Open questions
+- [Anything that could not be answered or needs further investigation]
+```
+
+### Parallel execution limits
+
+- Launch up to 4 subagents in parallel (same limit as deep-plan and deep-verify).
+- If there are more than 4 sub-questions, batch them: assign multiple related sub-questions to a single subagent.
+- For **Focused** complexity: 1-2 subagents. Do not over-parallelize simple questions.
+
+---
+
+## Phase 3: Evidence Assembly and Cross-Verification
+
+After all subagents complete, merge their outputs and verify the evidence.
+
+### 3a. Merge findings
+
+Combine all subagent outputs into a single evidence table:
+
+```
+| # | Sub-question | Source type | Finding | Citation | Confidence |
+|---|-------------|-------------|---------|----------|------------|
+| 1 | [text] | codebase | [finding] | [file:lines] | High |
+| 2 | [text] | external | [finding] | [URL] | Medium |
+```
+
+### 3b. Cross-source verification
+
+For each key finding that has both codebase and external evidence:
+- **Aligned:** Codebase behavior matches external documentation. Note as verified.
+- **Contradictory:** Codebase behavior differs from what external sources describe. Flag explicitly: "docs say X but implementation does Y." This is a critical finding, not an error to resolve.
+- **Supplementary:** External source adds context that cannot be verified in the codebase (e.g., performance benchmarks, design rationale). Note as "external-only, not verified in codebase."
+
+### 3c. Gap detection
+
+Identify sub-questions where:
+- Confidence is Low
+- No evidence was found
+- All sources are stale (older than 2 years for fast-moving topics)
+
+For each gap, decide:
+- **Launch follow-up round:** Spawn targeted subagents with refined queries to fill the gap. Budget: 1 follow-up round for Focused, 2 for Comparative/Exploratory.
+- **Mark as insufficient evidence:** If the gap cannot be filled (topic is too niche, no sources exist), mark it explicitly in the report.
+
+### 3d. User checkpoint
+
+Present the assembled evidence table and any contradictions or gaps to the user. Wait for acknowledgement before proceeding to synthesis. The user may:
+- Request a follow-up round for specific gaps
+- Provide additional context that resolves a contradiction
+- Approve proceeding to synthesis
+
+---
+
+## Phase 4: Synthesis and Analysis
+
+Turn raw evidence into coherent analysis. This phase does NOT launch subagents -- it is performed by the orchestrating agent directly.
+
+### For each sub-question:
+
+Write a synthesis paragraph that integrates all evidence (codebase and external) into a coherent answer. Every factual claim must have an inline citation (e.g., `[1]`, `[2]`).
+
+**Distinguish facts from interpretations:**
+- **Facts** are directly supported by cited evidence. State them declaratively.
+- **Interpretations** are inferences drawn from evidence. Mark them: "Based on [evidence], this suggests..." or "Interpretation:"
+
+### For comparative questions:
+
+Produce a comparison table with explicit criteria:
+
+```
+| Criterion | Option A | Option B | Winner | Evidence |
+|-----------|----------|----------|--------|----------|
+| Performance | [assessment] | [assessment] | [A/B/tie] | [citations] |
+| Complexity | [assessment] | [assessment] | [A/B/tie] | [citations] |
+| Risk | [assessment] | [assessment] | [A/B/tie] | [citations] |
+```
+
+### For exploratory questions:
+
+Produce an architecture or flow description. Use mermaid diagrams where they add clarity (component relationships, data flows, state machines). Do not use diagrams for simple linear sequences.
+
+### Implications and recommendations:
+
+Identify what the findings mean for the project:
+- What should change (if anything)?
+- What risks exist?
+- What further investigation is needed?
+
+Recommendations must be supported by evidence from the findings. Do not introduce new claims in this section.
+
+---
+
+## Phase 5: Research Report
+
+Produce the final report and materialize it to disk.
+
+### Report template
+
+```
+# Research Report: [Title]
+
+**Question:** [Original research question]
+**Date:** YYYY-MM-DD
+**Complexity:** Focused | Comparative | Exploratory
+**Sub-questions:** N
+**Sources:** N codebase / N external
+
+## Executive Summary
+
+[3-5 sentences answering the original question. This should be readable standalone
+-- someone who reads only this section should understand the answer and its confidence
+level.]
+
+## Detailed Findings
+
+### Sub-question 1: [text]
+
+[Synthesis paragraph with inline citations [1], [2], ...]
+
+### Sub-question 2: [text]
+
+[Synthesis paragraph with inline citations]
+
+...
+
+## Comparison Table
+
+[Only for Comparative complexity. Omit for Focused/Exploratory.]
+
+| Criterion | Option A | Option B | Winner | Evidence |
+|-----------|----------|----------|--------|----------|
+| ... | ... | ... | ... | ... |
+
+## Architecture / Flow
+
+[Only for Exploratory complexity. Omit for Focused/Comparative. Mermaid diagrams
+or structured descriptions of systems, components, data flows.]
+
+## Contradictions and Caveats
+
+- [Any conflicts between codebase and external sources]
+- [Areas of low confidence with explanation]
+- [Assumptions made during analysis]
+- [Sources that may be stale or unreliable]
+
+[If no contradictions or caveats exist, state "None identified."]
+
+## Implications and Recommendations
+
+1. [Actionable recommendation with supporting evidence]
+2. [Actionable recommendation with supporting evidence]
+...
+
+## Sources
+
+### Codebase
+
+| # | File | Lines | Description |
+|---|------|-------|-------------|
+| [1] | [path] | [range] | [what it shows] |
+| [2] | [path] | [range] | [what it shows] |
+
+### External
+
+| # | URL | Title | Accessed |
+|---|-----|-------|----------|
+| [N] | [url] | [title] | [date] |
+```
+
+### Materialization
+
+Save the report to `.cursor/research/[slug]-YYYY-MM-DD.md`. The slug is derived from the research question (e.g., `stdmap-vs-absl-flat-hash-map-2026-02-10.md`).
+
+**Naming conventions:**
+- Use lowercase with hyphens. No spaces, no underscores.
+- Include the date stamp.
+- Never use a generic name like `research.md`.
+- If a report for the same question is regenerated, append a revision suffix (e.g., `-v2`).
+- Create the `.cursor/research/` directory if it does not exist.
+
+Present the report to the user. Offer to dive deeper into any specific finding or to transition into deep-plan mode if the user wants to act on the findings.
+
+---
+
+## Guardrails
+
+### Mode discipline:
+
+- **Read-only.** Do not write code, create source files, or run builds. The only file output is the research report.
+- **No implementation.** If the user asks to implement something during research, surface this and suggest switching to deep-plan or agent mode.
+- **Stay on topic.** Answer the research question. Do not expand scope beyond what the user asked unless a critical related finding surfaces (in which case, note it in Contradictions and Caveats).
+
+### Evidence standards:
+
+- **Cite everything.** Every factual claim in the report must have an inline citation referencing a codebase file:line or an external URL. Unsupported claims must be explicitly marked as interpretations.
+- **No fabrication.** If evidence is insufficient, say so. Do not invent sources, fabricate file paths, or hallucinate API details. "Insufficient evidence" is a valid and valuable finding.
+- **Distinguish codebase from external.** Never conflate what the code does with what documentation says it should do. These are separate evidence sources that may contradict each other. Both are valuable.
+- **Date your sources.** External sources must include access dates. Flag sources older than 2 years on fast-moving topics (libraries, frameworks, cloud services).
+
+### Search strategy:
+
+- **Broad-to-narrow.** Instruct subagents to start with short, broad queries before narrowing. Long, hyper-specific queries miss results.
+- **Multiple angles.** For each sub-question, search from at least two angles (e.g., official docs + community discussion, or architecture scan + test coverage scan).
+
+### Effort scaling:
+
+- **Match subagent count to complexity.** Do not spawn 4 subagents for a Focused question. Do not limit an Exploratory question to 1 subagent.
+- **Budget follow-up rounds.** Maximum 1 follow-up round for Focused, 2 for Comparative/Exploratory. If gaps remain after the budget, mark them as "insufficient evidence" rather than continuing indefinitely.
+- **Respect subagent limits.** Maximum 4 explore subagents in parallel (consistent with the rest of the rule system).
+
+### Objectivity:
+
+- **Stay neutral.** Present findings factually in the Detailed Findings section. Save opinions and judgments for Implications and Recommendations.
+- **Present trade-offs.** For comparative questions, present both sides fairly. Do not advocate for one option in the findings -- the recommendation section is for that.
+- **Acknowledge uncertainty.** If confidence is low, say so. A report that accurately captures what is unknown is more valuable than one that overstates certainty.

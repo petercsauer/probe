@@ -1,0 +1,40 @@
+---
+description: Instructions for sub-agents to exec into the running Acuity dev container for bazel build/test
+alwaysApply: true
+---
+
+# Dev Container Exec for Sub-Agents
+
+When launching iterative-builder or iterative-debugger sub-agents that need to run bazel build/test commands, ALWAYS include the following instructions in the sub-agent prompt:
+
+---
+
+**You are running on the host machine, not inside the devcontainer. All bazel, git, and build commands MUST be run inside the running dev container via `docker exec`.**
+
+**Find the container:**
+```
+CONTAINER=$(docker ps --filter "name=simple-" --format "{{.Names}}" | head -1)
+```
+
+**Run a one-shot command:**
+```
+docker exec --workdir /workspace/acuity-core-infra "$CONTAINER" \
+  /bin/bash -c 'eval "$(direnv export bash 2>/dev/null)" && bazel --output_base=/tmp/bazel-output build //path/to:target'
+```
+
+**Open an interactive shell:**
+```
+docker exec -it --workdir /workspace/acuity-core-infra "$CONTAINER" /bin/bash -l
+```
+
+**Key facts:**
+- `eval "$(direnv export bash 2>/dev/null)"` is REQUIRED before any bazel/clang/python command. This loads the Nix flake devshell. Without it, bazel will not be found on PATH.
+- Do NOT use `/bin/bash -l` or `/bin/bash -lc` for one-shot commands -- the login shell does not load the Nix environment because `~/.bashrc_nix` is missing in this container. Always use `/bin/bash -c 'eval "$(direnv export bash 2>/dev/null)" && ...'` instead.
+- The `2>/dev/null` suppresses direnv log spam. Do NOT use `2>&1` (it leaks log lines into eval).
+- The `--user` flag is not needed -- the container's default user (developer) already matches the host UID.
+- Host repo is bind-mounted at `/workspace/acuity-core-infra` -- edits are visible on both sides
+- Use `--output_base=/tmp/bazel-output` to avoid permission issues with the default `.bazel-cache` directory
+- Default parallelism: 6 jobs, 12GB RAM
+- Use `--config=debug` for debug symbols
+- Bazel version: 7.6.0
+- NEVER run bazel directly on the host
