@@ -45,10 +45,10 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
             .with_context(|| format!("Failed to parse JSON on line {}", line_num + 1))?;
 
         // Apply filter if specified
-        if let Some(ref transport) = filter {
-            if &event.transport != transport {
-                continue;
-            }
+        if let Some(ref transport) = filter
+            && &event.transport != transport
+        {
+            continue;
         }
 
         events.push(event);

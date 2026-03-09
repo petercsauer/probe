@@ -24,3 +24,4 @@ camino = { workspace = true }
 assert_cmd = "2.0"
 insta = "1.41"
 predicates = "3.1"
+tempfile = "3.13"

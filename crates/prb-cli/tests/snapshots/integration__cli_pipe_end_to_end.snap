@@ -1,0 +1,9 @@
+---
+source: crates/prb-cli/tests/integration.rs
+assertion_line: 223
+expression: stdout
+---
+TIMESTAMP            TRANSPORT  DIR   SOURCE                    METADATA
+----------------------------------------------------------------------------------------------------
+1700000000000000000ns grpc       OUT   10.0.0.1:52341            grpc.method=/example.Service/GetUser
+1700000000100000000ns grpc       IN    10.0.0.2:8080             grpc.method=/example.Service/GetUser

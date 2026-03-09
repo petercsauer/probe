@@ -12,8 +12,8 @@ pub fn format_table(events: &[DebugEvent]) {
 
     // Print header
     println!(
-        "{:<20} {:<10} {:<5} {:<25} {}",
-        "TIMESTAMP", "TRANSPORT", "DIR", "SOURCE", "METADATA"
+        "{:<20} {:<10} {:<5} {:<25} METADATA",
+        "TIMESTAMP", "TRANSPORT", "DIR", "SOURCE"
     );
     println!("{}", "-".repeat(100));
 
