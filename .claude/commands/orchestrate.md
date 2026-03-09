@@ -1,4 +1,4 @@
-Execute the approved deep-plan by following the orchestration protocol from `.cursor/rules/orchestration-protocol.mdc`.
+Execute the approved deep-plan. This skill is the authoritative orchestration protocol.
 
 **CRITICAL: Every segment MUST be executed by launching an `iterative-builder` subagent via the Agent tool (subagent_type="iterative-builder"). The orchestration agent does NOT implement segments directly.**
 
@@ -14,7 +14,7 @@ Detect which format the plan uses:
 
 ### Pre-Execution: Cross-Plan Verification
 
-If sibling plans exist in the same parent directory, run cross-plan verification first (follow `restructure-plan.mdc` Step 7). Present any inconsistencies to the user before launching builders.
+If sibling plans exist in the same parent directory, run cross-plan verification first (use the `/restructure-plan` skill, Step 7: Cross-Plan Verification). Present any inconsistencies to the user before launching builders.
 
 ---
 
@@ -22,17 +22,17 @@ If sibling plans exist in the same parent directory, run cross-plan verification
 
 Before launching ANY builder subagent, assemble the full prompt from three sources:
 
-1. **Read `.cursor/rules/iterative-builder-prompt.mdc`** — prepend its full contents. Provides iteration budget, structured reporting, checkpoint strategy, behavioral steering, scope verification.
+1. **Read `.claude/commands/iterative-builder.md`** — prepend its full contents. Provides iteration budget, structured reporting, checkpoint strategy, behavioral steering, scope verification.
 
-2. **Read `.cursor/rules/devcontainer-exec.mdc`** — include its contents (if project uses devcontainer). Provides docker exec pattern, direnv setup, environment facts.
+2. **Read `.claude/commands/devcontainer-exec.md`** — include its contents. Provides the build environment: Rust/Cargo commands, workspace structure, crate naming conventions, and error-handling conventions.
 
 3. **Read the segment brief:**
    - Restructured: read `segments/{NN}-{slug}.md` directly — the entire file IS the brief.
    - Monolithic: extract `### Segment N:` block from the plan file.
 
-**Assembled prompt = `[iterative-builder-prompt.mdc]` + `[devcontainer-exec.mdc]` + `[segment brief]`**
+**Assembled prompt = `[iterative-builder.md]` + `[devcontainer-exec.md]` + `[segment brief]`**
 
-Always inject from rule files — do NOT rely on inline preamble in old plan files.
+Always inject from skill files — do NOT rely on inline preamble in old plan files.
 
 ---
 
@@ -59,7 +59,7 @@ Always inject from rule files — do NOT rely on inline preamble in old plan fil
    - Restructured: update `execution-log.md` and segment frontmatter `status` field + manifest Segment Index.
    - Monolithic: update Execution Log table in plan file (cycles used, status, notes).
 
-9. **Incremental verification:** For segments with risk ≥ 7/10 or High complexity, run an incremental segment verification per `deep-verify.mdc` before proceeding.
+9. **Incremental verification:** For segments with risk ≥ 7/10 or High complexity, run an incremental segment verification per `/deep-verify skill` before proceeding.
 
 10. **Adapt if needed.** If a builder's implementation changes assumptions for a later segment, update that segment's brief before launching it.
 
@@ -70,8 +70,8 @@ Always inject from rule files — do NOT rely on inline preamble in old plan fil
 ## If Builder Reports PARTIAL or BLOCKED:
 
 1. **Launch an `iterative-debugger` subagent** with:
-   - Full contents of `.cursor/rules/iterative-debugger-prompt.mdc`
-   - Full contents of `.cursor/rules/devcontainer-exec.mdc`
+   - Full contents of `.claude/commands/iterative-debugger.md`
+   - Full contents of `.claude/commands/devcontainer-exec.md`
    - The builder's structured final report
    - The segment brief
    - Specific failure details (failing test names, error output)

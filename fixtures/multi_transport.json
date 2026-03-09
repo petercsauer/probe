@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Mixed transport types",
+  "events": [
+    {
+      "timestamp_ns": 1700000000000000000,
+      "transport": "grpc",
+      "direction": "outbound",
+      "payload_base64": "CgRUZXN0"
+    },
+    {
+      "timestamp_ns": 1700000001000000000,
+      "transport": "zmq",
+      "direction": "inbound",
+      "payload_utf8": "test message",
+      "metadata": {
+        "zmq.topic": "events"
+      }
+    },
+    {
+      "timestamp_ns": 1700000002000000000,
+      "transport": "dds-rtps",
+      "direction": "unknown",
+      "payload_base64": "AwABAgM=",
+      "metadata": {
+        "dds.domain_id": "0",
+        "dds.topic_name": "sensor_data"
+      }
+    },
+    {
+      "timestamp_ns": 1700000003000000000,
+      "transport": "tcp",
+      "direction": "outbound",
+      "payload_utf8": "raw tcp data"
+    }
+  ]
+}

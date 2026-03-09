@@ -1,0 +1,173 @@
+{
+  "plan": "/Volumes/Local/Development/prb/.claude/plans/prb-phase1-master-2026-03-09.md",
+  "started": "2026-03-09T00:00:00Z",
+  "current_wave": 2,
+  "fail_fast": false,
+  "segments": {
+    "S1.1": {
+      "status": "pass",
+      "subsection": "Sub1",
+      "title": "Workspace + Core Types",
+      "risk": "2/10",
+      "complexity": "Low",
+      "cycles_budget": 10,
+      "cycles_used": 3,
+      "commit": "8d927f3",
+      "completed": "2026-03-09T01:00:00Z",
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-1-foundation-core-model.md"
+    },
+    "S1.2": {
+      "status": "pending",
+      "subsection": "Sub1",
+      "title": "Traits + Fixture Adapter",
+      "risk": "3/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-1-foundation-core-model.md"
+    },
+    "S1.3": {
+      "status": "pending",
+      "subsection": "Sub1",
+      "title": "CLI + Walking Skeleton",
+      "risk": "3/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-1-foundation-core-model.md"
+    },
+    "S2.1": {
+      "status": "pending",
+      "subsection": "Sub2",
+      "title": "MCAP Session Storage",
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-2-storage-schema-engine.md"
+    },
+    "S2.2": {
+      "status": "pending",
+      "subsection": "Sub2",
+      "title": "Protobuf Schema Registry",
+      "risk": "3/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-2-storage-schema-engine.md"
+    },
+    "S2.3": {
+      "status": "pending",
+      "subsection": "Sub2",
+      "title": "Schema-backed Decode",
+      "risk": "5/10",
+      "complexity": "High",
+      "cycles_budget": 20,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-2-storage-schema-engine.md"
+    },
+    "S2.4": {
+      "status": "pending",
+      "subsection": "Sub2",
+      "title": "Wire-format Decode",
+      "risk": "3/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-2-storage-schema-engine.md"
+    },
+    "S3.1": {
+      "status": "pending",
+      "subsection": "Sub3",
+      "title": "PCAP/pcapng Reader",
+      "risk": "3/10",
+      "complexity": "Low",
+      "cycles_budget": 10,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+    },
+    "S3.2": {
+      "status": "pending",
+      "subsection": "Sub3",
+      "title": "Packet Normalization",
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+    },
+    "S3.3": {
+      "status": "pending",
+      "subsection": "Sub3",
+      "title": "TCP Reassembly",
+      "risk": "5/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+    },
+    "S3.4": {
+      "status": "pending",
+      "subsection": "Sub3",
+      "title": "TLS Decryption",
+      "risk": "8/10",
+      "complexity": "High",
+      "cycles_budget": 20,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+    },
+    "S3.5": {
+      "status": "pending",
+      "subsection": "Sub3",
+      "title": "Pipeline Integration + CLI",
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+    },
+    "S4.1": {
+      "status": "pending",
+      "subsection": "Sub4",
+      "title": "gRPC/HTTP2 Decoder",
+      "risk": "6/10",
+      "complexity": "High",
+      "cycles_budget": 20,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md"
+    },
+    "S4.2": {
+      "status": "pending",
+      "subsection": "Sub4",
+      "title": "ZMTP Decoder",
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md"
+    },
+    "S4.3": {
+      "status": "pending",
+      "subsection": "Sub4",
+      "title": "DDS/RTPS Decoder",
+      "risk": "5/10",
+      "complexity": "Medium",
+      "cycles_budget": 15,
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md"
+    }
+  },
+  "subsection_gates": {
+    "Sub1": "pending",
+    "Sub2": "pending",
+    "Sub3": "pending",
+    "Sub4": "pending"
+  },
+  "waves": {
+    "1": ["S1.1"],
+    "2": ["S1.2"],
+    "3": ["S1.3"],
+    "4": ["S2.1"],
+    "5": ["S2.2"],
+    "6": ["S2.3", "S2.4"],
+    "7": ["S3.1"],
+    "8": ["S3.2"],
+    "9": ["S3.3"],
+    "10": ["S3.4"],
+    "11": ["S3.5"],
+    "12": ["S4.1"],
+    "13": ["S4.2", "S4.3"]
+  },
+  "subsection_gate_after_wave": {
+    "3": "Sub1",
+    "6": "Sub2",
+    "11": "Sub3",
+    "13": "Sub4"
+  }
+}

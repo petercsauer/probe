@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "events": [
+    {
+      "timestamp_ns": "not a number",
+      "transport": "grpc"

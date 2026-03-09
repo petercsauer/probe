@@ -5,6 +5,7 @@
 
 pub mod error;
 pub mod event;
+pub mod traits;
 
 #[cfg(test)]
 mod event_tests;
@@ -13,6 +14,10 @@ pub use error::CoreError;
 pub use event::{
     CorrelationKey, DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload,
     Timestamp, TransportKind,
+};
+pub use traits::{
+    CaptureAdapter, CorrelationStrategy, DecodeContext, EventNormalizer, Flow, ProtocolDecoder,
+    ResolvedSchema, SchemaResolver,
 };
 
 // Re-export metadata key constants

@@ -113,17 +113,14 @@ fn test_direction_display() {
 
 #[test]
 fn test_core_error_display() {
-    let error = CoreError::InvalidEventId("bad id".to_string());
-    assert_eq!(error.to_string(), "invalid event ID: bad id");
-
     let error = CoreError::InvalidTimestamp("bad timestamp".to_string());
     assert_eq!(error.to_string(), "invalid timestamp: bad timestamp");
 
-    let error = CoreError::InvalidPayload("bad payload".to_string());
-    assert_eq!(error.to_string(), "invalid payload: bad payload");
+    let error = CoreError::PayloadDecode("decode failed".to_string());
+    assert_eq!(error.to_string(), "payload decode failed: decode failed");
 
-    let error = CoreError::other("custom error");
-    assert_eq!(error.to_string(), "custom error");
+    let error = CoreError::UnsupportedTransport("unknown".to_string());
+    assert_eq!(error.to_string(), "unsupported transport: unknown");
 }
 
 #[test]

@@ -1,4 +1,4 @@
-Enter deep-plan mode. Follow the full deep-plan workflow from `.cursor/rules/deep-plan.mdc`:
+Enter deep-plan mode. This skill is the authoritative deep-plan workflow:
 
 ## Step 1: Understand the Big Picture
 
@@ -25,7 +25,7 @@ Present findings as a structured summary. Wait for user acknowledgement.
 For each issue, conduct four-source research using parallel explore subagents where issues are independent:
 
 - **Source 1 (Codebase):** Read implementations, callers, tests, related modules. Find prior art in repo.
-- **Source 2 (Project Conventions):** Check `.cursor/rules/`, README, docs, build system for patterns and conventions.
+- **Source 2 (Project Conventions):** Check `.claude/commands/` (project skills), `.cursor/plans/` (Cursor-generated reference plans — read-only), README, docs, build system for patterns and conventions.
 - **Source 3 (Existing Solutions):** Search package registries, GitHub, awesome lists. For each candidate: maintenance status, scope coverage, license, transitive deps, stack fit. Mark N/A only for purely internal refactoring (with one-sentence justification).
 - **Source 4 (External Best Practices):** Web search for official docs, high-vote SO answers, GitHub issues/PRs, engineering blogs, RFCs.
 
@@ -64,7 +64,7 @@ Group issues into vertical slices (interface + logic + tests together). Each seg
 
 ```
 ## Segment N: [Short title]
-> **Execution method:** Launch as an `iterative-builder` subagent. The orchestration agent reads and prepends `iterative-builder-prompt.mdc` and `devcontainer-exec.mdc` at launch time per `orchestration-protocol.mdc`.
+> **Execution method:** Launch as an `iterative-builder` subagent. The orchestration agent reads and prepends `.claude/commands/iterative-builder.md` and `.claude/commands/devcontainer-exec.md` at launch time per the `/orchestrate` skill.
 
 **Goal:** [One sentence]
 **Depends on:** [Prior segment numbers, or "None"]
@@ -141,12 +141,12 @@ Present:
 3. Issue Analysis Briefs (all, in order)
 4. Segment briefs (all, in execution order)
 5. Parallelization opportunities
-6. Execution instructions: "To execute this plan, switch to Agent Mode. For each segment in order, launch an `iterative-builder` subagent (Task tool, subagent_type='iterative-builder') with the full segment brief. Do not implement segments directly — always delegate to iterative-builder subagents. After all segments complete, run deep-verify. If verification finds gaps, re-enter deep-plan on unresolved items."
+6. Execution instructions: "To execute this plan, use the `/orchestrate` skill. For each segment in order, it launches an `iterative-builder` subagent with the full segment brief. Do not implement segments directly — always delegate to iterative-builder subagents. After all segments complete, run `/deep-verify`. If verification finds gaps, re-enter `/deep-plan` on unresolved items."
 7. Total estimated scope (segment count, complexity, risk budget, caveats)
 
 **No back-references:** The plan file must be readable top-to-bottom without "see Step N" or "see Issue N." Duplicate content or restructure so each section stands alone.
 
-**Materialize large plans:** Plans with 4+ segments or 6+ issues must be saved to a plan file at `.cursor/plans/[descriptive-slug]-YYYY-MM-DD.md`. Include a metadata header and an Execution Log section.
+**Materialize large plans:** Plans with 4+ segments or 6+ issues must be saved to a plan file at `.claude/plans/[descriptive-slug]-YYYY-MM-DD.md`. Include a metadata header and an Execution Log section. Note: `.cursor/plans/` contains Cursor-generated plans (read-only reference material). Claude-generated plans go in `.claude/plans/`.
 
 Ask the user to review, reorder, split, merge, or approve segments before any execution begins.
 

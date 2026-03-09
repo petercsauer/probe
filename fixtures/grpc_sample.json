@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Sample gRPC events with base64 payload",
+  "events": [
+    {
+      "timestamp_ns": 1700000000000000000,
+      "transport": "grpc",
+      "direction": "outbound",
+      "payload_base64": "CgRKb2huEAE=",
+      "metadata": {
+        "grpc.method": "/example.Service/GetUser",
+        "h2.stream_id": "1"
+      },
+      "source": {
+        "src": "10.0.0.1:52341",
+        "dst": "10.0.0.2:8080"
+      }
+    },
+    {
+      "timestamp_ns": 1700000000100000000,
+      "transport": "grpc",
+      "direction": "inbound",
+      "payload_base64": "CAESBEpvaG4aBGRvZQ==",
+      "metadata": {
+        "grpc.method": "/example.Service/GetUser",
+        "h2.stream_id": "1"
+      },
+      "source": {
+        "src": "10.0.0.2:8080",
+        "dst": "10.0.0.1:52341"
+      }
+    }
+  ]
+}

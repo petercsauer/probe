@@ -1,4 +1,4 @@
-Enter deep-research mode. Follow the full deep-research workflow from `.cursor/rules/deep-research.mdc`.
+Enter deep-research mode. This skill is the authoritative deep-research workflow.
 
 This is a **read-only workflow.** Do not write code, create source files, or run builds. The only file output is the research report.
 
@@ -36,6 +36,16 @@ Launch parallel explore subagents (up to 4) to collect evidence per sub-question
 - Map dependencies
 
 **Web subagents** handle `[external]` and `[hybrid]` questions:
+
+For **Rust projects**, search in this priority order:
+1. **crates.io** — current version, 90-day download count, last release date, repository link (maintenance signal)
+2. **docs.rs** — API documentation for the current version; check for breaking changes in recent releases
+3. **lib.rs** — curated crate discovery; find alternatives with "similar crates to X"
+4. **doc.rust-lang.org** — the Rust reference, std lib, Cargo book, async book, edition guide
+5. **GitHub** — crate repository for CHANGELOG, recent commits, open issue ratio
+6. **users.rust-lang.org / internals.rust-lang.org** — community discussion, RFC tracking
+
+For all projects (general source order after Rust-specific sources above):
 - Search official documentation first
 - Search Stack Overflow for high-vote, accepted answers
 - Search GitHub issues and PRs on relevant repos
