@@ -273,10 +273,19 @@ fn test_ethernet_ipv4_tcp() {
     assert_eq!(normalized.dst_ip, IpAddr::from([10, 0, 0, 1]));
     assert_eq!(
         normalized.transport,
-        TransportInfo::Tcp {
+        TransportInfo::Tcp(prb_pcap::TcpSegmentInfo {
             src_port: 12345,
-            dst_port: 80
-        }
+            dst_port: 80,
+            seq: 1000,
+            ack: 0,
+            flags: prb_pcap::TcpFlags {
+                syn: false,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+        })
     );
     assert_eq!(normalized.payload, b"Hello TCP");
     assert_eq!(normalized.vlan_id, None);
@@ -343,10 +352,19 @@ fn test_sll_v1() {
     assert_eq!(normalized.dst_ip, IpAddr::from([10, 0, 0, 1]));
     assert_eq!(
         normalized.transport,
-        TransportInfo::Tcp {
+        TransportInfo::Tcp(prb_pcap::TcpSegmentInfo {
             src_port: 12345,
-            dst_port: 80
-        }
+            dst_port: 80,
+            seq: 1000,
+            ack: 0,
+            flags: prb_pcap::TcpFlags {
+                syn: false,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+        })
     );
     assert_eq!(normalized.payload, b"SLL test");
 }
@@ -364,10 +382,19 @@ fn test_sll_v2() {
     assert_eq!(normalized.dst_ip, IpAddr::from([10, 0, 0, 1]));
     assert_eq!(
         normalized.transport,
-        TransportInfo::Tcp {
+        TransportInfo::Tcp(prb_pcap::TcpSegmentInfo {
             src_port: 12345,
-            dst_port: 80
-        }
+            dst_port: 80,
+            seq: 1000,
+            ack: 0,
+            flags: prb_pcap::TcpFlags {
+                syn: false,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+        })
     );
     assert_eq!(normalized.payload, b"SLL2 test");
 }
@@ -385,10 +412,19 @@ fn test_raw_ip() {
     assert_eq!(normalized.dst_ip, IpAddr::from([10, 0, 0, 1]));
     assert_eq!(
         normalized.transport,
-        TransportInfo::Tcp {
+        TransportInfo::Tcp(prb_pcap::TcpSegmentInfo {
             src_port: 12345,
-            dst_port: 80
-        }
+            dst_port: 80,
+            seq: 1000,
+            ack: 0,
+            flags: prb_pcap::TcpFlags {
+                syn: false,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+        })
     );
     assert_eq!(normalized.payload, b"Raw IP test");
 }

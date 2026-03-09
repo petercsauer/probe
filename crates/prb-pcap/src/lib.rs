@@ -7,7 +7,9 @@
 mod error;
 mod normalize;
 mod reader;
+mod tcp;
 
 pub use error::PcapError;
-pub use normalize::{NormalizedPacket, PacketNormalizer, TransportInfo};
+pub use normalize::{NormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};
 pub use reader::{PcapFileReader, TlsKeyStore};
+pub use tcp::{ReassembledStream, StreamDirection, StreamEvent, TcpReassembler};

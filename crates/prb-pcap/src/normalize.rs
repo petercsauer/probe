@@ -8,11 +8,44 @@ use crate::error::PcapError;
 use etherparse::{NetSlice, SlicedPacket, TransportSlice};
 use std::net::IpAddr;
 
+/// TCP segment metadata for stream reassembly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TcpSegmentInfo {
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub seq: u32,
+    pub ack: u32,
+    pub flags: TcpFlags,
+}
+
+/// TCP flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TcpFlags {
+    pub syn: bool,
+    pub ack: bool,
+    pub fin: bool,
+    pub rst: bool,
+    pub psh: bool,
+}
+
+impl TcpFlags {
+    /// Parse TCP flags from the flags byte (lower 6 bits).
+    pub fn from_byte(flags: u8) -> Self {
+        Self {
+            fin: flags & 0x01 != 0,
+            syn: flags & 0x02 != 0,
+            rst: flags & 0x04 != 0,
+            psh: flags & 0x08 != 0,
+            ack: flags & 0x10 != 0,
+        }
+    }
+}
+
 /// Transport protocol information extracted from a packet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransportInfo {
-    /// TCP segment with source and destination ports.
-    Tcp { src_port: u16, dst_port: u16 },
+    /// TCP segment with full metadata for reassembly.
+    Tcp(TcpSegmentInfo),
     /// UDP datagram with source and destination ports.
     Udp { src_port: u16, dst_port: u16 },
     /// Other transport protocol (e.g., ICMP, IGMP) or unknown.
@@ -178,8 +211,27 @@ impl PacketNormalizer {
             Some(TransportSlice::Tcp(tcp)) => {
                 let src_port = tcp.source_port();
                 let dst_port = tcp.destination_port();
+                let seq = tcp.sequence_number();
+                let ack = tcp.acknowledgment_number();
+                let header = tcp.to_header();
+                let flags = TcpFlags {
+                    syn: header.syn,
+                    ack: header.ack,
+                    fin: header.fin,
+                    rst: header.rst,
+                    psh: header.psh,
+                };
                 let payload = tcp.payload();
-                (TransportInfo::Tcp { src_port, dst_port }, payload)
+                (
+                    TransportInfo::Tcp(TcpSegmentInfo {
+                        src_port,
+                        dst_port,
+                        seq,
+                        ack,
+                        flags,
+                    }),
+                    payload,
+                )
             }
             Some(TransportSlice::Udp(udp)) => {
                 let src_port = udp.source_port();
@@ -249,13 +301,25 @@ impl PacketNormalizer {
             // TCP header: src_port (2) + dst_port (2) + seq (4) + ack (4) + offset+flags (2) + ...
             let src_port = u16::from_be_bytes([data[0], data[1]]);
             let dst_port = u16::from_be_bytes([data[2], data[3]]);
+            let seq = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+            let ack = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
             let offset_flags = u16::from_be_bytes([data[12], data[13]]);
             let data_offset = ((offset_flags >> 12) * 4) as usize;
+            let flags = TcpFlags::from_byte((offset_flags & 0xFF) as u8);
 
             if data_offset >= 20 && data_offset <= data.len() {
                 // Valid TCP header
                 let payload = &data[data_offset..];
-                return Ok((TransportInfo::Tcp { src_port, dst_port }, payload));
+                return Ok((
+                    TransportInfo::Tcp(TcpSegmentInfo {
+                        src_port,
+                        dst_port,
+                        seq,
+                        ack,
+                        flags,
+                    }),
+                    payload,
+                ));
             }
         }
 
@@ -423,13 +487,12 @@ mod tests {
         let normalized = result.unwrap();
         assert_eq!(normalized.src_ip, IpAddr::from([192, 168, 1, 1]));
         assert_eq!(normalized.dst_ip, IpAddr::from([10, 0, 0, 1]));
-        assert_eq!(
-            normalized.transport,
-            TransportInfo::Tcp {
-                src_port: 12345,
-                dst_port: 80
-            }
-        );
+        if let TransportInfo::Tcp(tcp_info) = &normalized.transport {
+            assert_eq!(tcp_info.src_port, 12345);
+            assert_eq!(tcp_info.dst_port, 80);
+        } else {
+            panic!("Expected TCP transport info");
+        }
         assert_eq!(normalized.payload, b"Hello TCP");
         assert_eq!(normalized.vlan_id, None);
     }
