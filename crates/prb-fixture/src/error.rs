@@ -39,17 +39,15 @@ pub enum FixtureError {
     /// Invalid direction.
     #[error("invalid direction: {0}")]
     InvalidDirection(String),
+
+    /// Core error.
+    #[error(transparent)]
+    Core(#[from] prb_core::CoreError),
 }
 
 impl FixtureError {
     /// Create an invalid format error.
     pub fn invalid_format(msg: impl fmt::Display) -> Self {
         Self::InvalidFormat(msg.to_string())
-    }
-}
-
-impl From<FixtureError> for prb_core::CoreError {
-    fn from(err: FixtureError) -> Self {
-        prb_core::CoreError::other(err)
     }
 }

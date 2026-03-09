@@ -113,6 +113,20 @@ impl JsonFixtureAdapter {
 
         Ok(debug_event)
     }
+
+    /// Map FixtureError to CoreError for trait compliance.
+    fn map_error(e: FixtureError) -> CoreError {
+        match e {
+            FixtureError::Base64Decode(msg) => CoreError::PayloadDecode(format!("base64 decode: {}", msg)),
+            FixtureError::InvalidTransport(t) => CoreError::UnsupportedTransport(t),
+            FixtureError::InvalidFormat(msg) => CoreError::PayloadDecode(format!("invalid format: {}", msg)),
+            FixtureError::Parse { source } => CoreError::from(source),
+            FixtureError::Io { source } => CoreError::PayloadDecode(format!("I/O error: {}", source)),
+            FixtureError::UnsupportedVersion(v) => CoreError::PayloadDecode(format!("unsupported version: {}", v)),
+            FixtureError::InvalidDirection(d) => CoreError::PayloadDecode(format!("invalid direction: {}", d)),
+            FixtureError::Core(e) => e,
+        }
+    }
 }
 
 impl CaptureAdapter for JsonFixtureAdapter {
@@ -123,8 +137,7 @@ impl CaptureAdapter for JsonFixtureAdapter {
     fn ingest(&mut self) -> Box<dyn Iterator<Item = Result<DebugEvent, CoreError>> + '_> {
         // Attempt to load the file
         if let Err(e) = self.load() {
-            let err: CoreError = e.into();
-            return Box::new(std::iter::once(Err(err)));
+            return Box::new(std::iter::once(Err(Self::map_error(e))));
         }
 
         // Take ownership of events to iterate
@@ -132,7 +145,7 @@ impl CaptureAdapter for JsonFixtureAdapter {
 
         Box::new(events.into_iter().map(|event| {
             self.convert_event(event)
-                .map_err(|e| e.into())
+                .map_err(|e| Self::map_error(e))
         }))
     }
 }
