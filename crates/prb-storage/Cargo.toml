@@ -1,0 +1,37 @@
+[package]
+name = "prb-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Core dependencies
+prb-core = { path = "../prb-core" }
+
+# MCAP storage
+mcap = "0.24.0"
+memmap2 = "0.9"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Path handling
+camino = { workspace = true }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Utilities
+itertools = "0.13"
+
+[dev-dependencies]
+tempfile = { workspace = true }

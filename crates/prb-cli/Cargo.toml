@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 prb-core = { path = "../prb-core" }
 prb-fixture = { path = "../prb-fixture" }
+prb-storage = { path = "../prb-storage" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }
