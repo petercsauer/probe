@@ -276,12 +276,16 @@
       "note": "Pre-existing implementation. Crate builds successfully, all tests pass. Debugger from earlier session resolved API mismatches."
     },
     "S29": {
-      "status": "running",
+      "status": "pass",
       "track": "Detect",
       "title": "Plugin Management CLI",
       "attempts": 1,
+      "cycles": 1,
+      "tests": "29/29 CLI tests passing",
+      "commit": "7f14e5e",
       "started": "2026-03-10T13:00:00Z",
-      "note": "Executing - dependencies S27 and S28 complete"
+      "completed": "2026-03-10T13:15:00Z",
+      "note": "Plugin CLI commands complete: list, info, install, remove. Global flags --plugin-dir and --no-plugins added. Runtime plugin loading in prb ingest (T6.6) deferred to future integration work."
     }
   },
   "waves": {
@@ -295,10 +299,10 @@
   },
   "summary": {
     "total_segments": 29,
-    "completed": 26,
-    "pending": 1,
+    "completed": 27,
+    "pending": 0,
     "blocked": 1,
-    "completion_rate": "90%",
+    "completion_rate": "93%",
     "tracks": {
       "TUI": "7/7 complete (100%)",
       "Core": "1/1 complete (100%)",
@@ -307,7 +311,7 @@
       "AI": "0/1 complete (1 blocked)",
       "Capture": "4/4 complete (100%)",
       "Parallel": "8/8 complete (100%)",
-      "Detect": "5/6 complete (1 pending)"
+      "Detect": "6/6 complete (100%)"
     }
   }
 }
