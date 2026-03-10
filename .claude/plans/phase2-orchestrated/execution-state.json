@@ -26,6 +26,7 @@
       "title": "Export Formats",
       "attempts": 2,
       "tests": "18/18 passing",
+      "commit": "784164e",
       "note": "Verified on resume: prb-export builds and all tests pass"
     },
     "S04": {
@@ -34,7 +35,8 @@
       "title": "OTel Trace Correlation",
       "attempts": 1,
       "tests": "15/15 trace tests passing in prb-core",
-      "note": "Verified on resume: trace context parsing complete"
+      "commit": "ef1499a",
+      "note": "Verified on resume: trace context parsing complete (in earlier WIP commit)"
     },
     "S05": {
       "status": "blocked",
@@ -49,6 +51,7 @@
       "title": "TUI Core & App Shell",
       "attempts": 1,
       "tests": "18/18 passing",
+      "commit": "ad36359",
       "note": "Verified on resume: prb-tui builds and all tests pass"
     },
     "S07": {
@@ -88,6 +91,7 @@
       "title": "Capture Engine",
       "attempts": 1,
       "tests": "22/22 passing",
+      "commit": "dec4fa6",
       "note": "Verified on resume: prb-capture builds and all tests pass"
     },
     "S13": {
@@ -114,6 +118,7 @@
       "title": "Pipeline Trait Refactoring",
       "attempts": 1,
       "tests": "5/5 parallel tests passing",
+      "commit": "167f483",
       "note": "Verified on resume: BatchStage and StreamStage traits defined with orchestrator"
     },
     "S17": {
@@ -163,6 +168,7 @@
       "track": "Detect",
       "title": "Protocol Detector Trait + Built-ins",
       "attempts": 1,
+      "commit": "3223e5b",
       "note": "prb-detect crate complete with 5 detectors, engine, 15 tests, benchmarks. Build verified."
     },
     "S25": {
