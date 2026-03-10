@@ -215,8 +215,8 @@ impl H2Codec {
                 if offset >= data.len() {
                     break;
                 }
-                let name_len = self.parse_integer(&data[offset..], 7)?;
-                offset += 1;
+                let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += name_len_bytes;
 
                 // Parse name
                 if offset + name_len > data.len() {
@@ -229,8 +229,8 @@ impl H2Codec {
                 if offset >= data.len() {
                     break;
                 }
-                let value_len = self.parse_integer(&data[offset..], 7)?;
-                offset += 1;
+                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += value_len_bytes;
 
                 // Parse value
                 if offset + value_len > data.len() {
@@ -243,8 +243,8 @@ impl H2Codec {
             }
             // Check for indexed header (0x80 prefix)
             else if (byte & 0x80) != 0 {
-                let index = self.parse_integer(&data[offset..], 7)?;
-                offset += 1;
+                let (index, index_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += index_bytes;
 
                 // Static table lookup
                 if let Some((name, value)) = self.static_table_lookup(index) {
@@ -266,7 +266,8 @@ impl H2Codec {
     }
 
     /// Parse HPACK integer with N-bit prefix.
-    fn parse_integer(&self, data: &[u8], n: u8) -> Result<usize, GrpcError> {
+    /// Returns (value, bytes_consumed).
+    fn parse_integer(&self, data: &[u8], n: u8) -> Result<(usize, usize), GrpcError> {
         if data.is_empty() {
             return Err(GrpcError::HpackError("Unexpected end of data".to_string()));
         }
@@ -275,7 +276,7 @@ impl H2Codec {
         let mut value = (data[0] & mask) as usize;
 
         if value < mask as usize {
-            return Ok(value);
+            return Ok((value, 1));
         }
 
         // Multi-byte integer
@@ -296,7 +297,7 @@ impl H2Codec {
             }
         }
 
-        Ok(value)
+        Ok((value, offset))
     }
 
     /// Lookup in HTTP/2 static table.

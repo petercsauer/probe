@@ -71,6 +71,7 @@ struct DirectionState {
     assembler: Assembler,
     initial_seq: Option<u32>,
     last_activity_us: u64,
+    first_packet_timestamp_us: Option<u64>,
     fin_seen: bool,
     bytes_buffered: usize,
     /// Buffer storing actual payload bytes, indexed by relative sequence number
@@ -85,6 +86,7 @@ impl DirectionState {
             assembler: Assembler::new(),
             initial_seq: None,
             last_activity_us: 0,
+            first_packet_timestamp_us: None,
             fin_seen: false,
             bytes_buffered: 0,
             payload_buffer: HashMap::new(),
@@ -134,6 +136,8 @@ pub struct ReassembledStream {
     pub is_complete: bool,
     /// Ranges of missing data (gaps in sequence space).
     pub missing_ranges: Vec<Range<u64>>,
+    /// Capture timestamp of the first packet in this stream (microseconds since epoch).
+    pub timestamp_us: u64,
 }
 
 /// Events produced by the TCP reassembler.
@@ -246,6 +250,7 @@ impl TcpReassembler {
         // Initialize sequence number on first segment
         if dir_state.initial_seq.is_none() {
             dir_state.initial_seq = Some(tcp_info.seq);
+            dir_state.first_packet_timestamp_us = Some(packet.timestamp_us);
         }
 
         // Update last activity timestamp
@@ -333,6 +338,7 @@ impl TcpReassembler {
                     data,
                     is_complete: dir_state.fin_seen,
                     missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+                    timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(packet.timestamp_us),
                 }));
             }
         }
@@ -375,6 +381,7 @@ impl TcpReassembler {
             data,
             is_complete: dir_state.fin_seen,
             missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+            timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(dir_state.last_activity_us),
         })
     }
 

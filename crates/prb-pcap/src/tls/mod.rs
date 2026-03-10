@@ -44,6 +44,8 @@ pub struct DecryptedStream {
     pub encrypted: bool,
     /// Whether the stream is complete (FIN or RST seen).
     pub is_complete: bool,
+    /// Capture timestamp of the first packet in this stream (microseconds since epoch).
+    pub timestamp_us: u64,
 }
 
 /// TLS stream processor that combines session parsing, key derivation, and decryption.
@@ -112,6 +114,7 @@ impl TlsStreamProcessor {
             data,
             encrypted,
             is_complete: stream.is_complete,
+            timestamp_us: stream.timestamp_us,
         })
     }
 }

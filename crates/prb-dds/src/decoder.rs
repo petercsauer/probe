@@ -148,70 +148,137 @@ impl DdsDecoder {
         Ok(events)
     }
 
-    /// Process SEDP discovery data to extract topic name.
-    fn process_discovery_data(&mut self, writer_guid: &Guid, payload: &[u8]) -> Result<(), DdsError> {
-        // SEDP discovery data uses CDR encoding
-        // Phase 1: simple string extraction for topic_name field
-        // Full CDR decode deferred to later phase
+    /// Process SEDP discovery data to extract topic name and endpoint GUID.
+    fn process_discovery_data(&mut self, _writer_guid: &Guid, payload: &[u8]) -> Result<(), DdsError> {
+        // Parse CDR parameter list from SEDP payload
+        // Format: encapsulation_header (4 bytes) + parameter_list
 
-        // Look for topic_name string in payload (simplified heuristic)
-        // CDR strings: 4-byte length + UTF-8 data
-        let topic_name = Self::extract_cdr_string(payload, b"topicName")
-            .or_else(|| Self::extract_cdr_string(payload, b"topic_name"))
-            .unwrap_or_else(|| "unknown".to_string());
+        if payload.len() < 4 {
+            return Err(DdsError::DiscoveryParse("SEDP payload too short".to_string()));
+        }
 
-        let type_name = Self::extract_cdr_string(payload, b"typeName")
-            .or_else(|| Self::extract_cdr_string(payload, b"type_name"))
-            .unwrap_or_else(|| "unknown".to_string());
+        // Read encapsulation header
+        let encapsulation_kind = u16::from_le_bytes([payload[0], payload[1]]);
+        let little_endian = match encapsulation_kind {
+            0x0000 => false, // BE CDR
+            0x0001 => true,  // LE CDR
+            _ => {
+                tracing::debug!("Unknown encapsulation kind: 0x{:04x}", encapsulation_kind);
+                return Ok(()); // Skip unknown encodings
+            }
+        };
+        // Skip 2 bytes options at offset 2..4
 
-        self.discovery.register_endpoint(
-            *writer_guid,
-            DiscoveredEndpoint {
-                topic_name,
-                type_name,
-            },
-        );
+        let mut offset = 4;
+        let mut topic_name: Option<String> = None;
+        let mut type_name: Option<String> = None;
+        let mut endpoint_guid: Option<Guid> = None;
+
+        // Walk parameter list
+        while offset + 4 <= payload.len() {
+            // Read PID and length (both u16)
+            let pid = if little_endian {
+                u16::from_le_bytes([payload[offset], payload[offset + 1]])
+            } else {
+                u16::from_be_bytes([payload[offset], payload[offset + 1]])
+            };
+            let param_len = if little_endian {
+                u16::from_le_bytes([payload[offset + 2], payload[offset + 3]])
+            } else {
+                u16::from_be_bytes([payload[offset + 2], payload[offset + 3]])
+            } as usize;
+            offset += 4;
+
+            if pid == 0x0001 {
+                // PID_SENTINEL - end of parameter list
+                break;
+            }
+
+            if offset + param_len > payload.len() {
+                break; // Truncated parameter
+            }
+
+            match pid {
+                0x0005 => {
+                    // PID_TOPIC_NAME
+                    topic_name = Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
+                }
+                0x0007 => {
+                    // PID_TYPE_NAME
+                    type_name = Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
+                }
+                0x005A => {
+                    // PID_ENDPOINT_GUID (16 bytes)
+                    if param_len >= 16 {
+                        let guid_bytes = &payload[offset..offset + 16];
+                        let prefix = [
+                            guid_bytes[0], guid_bytes[1], guid_bytes[2], guid_bytes[3],
+                            guid_bytes[4], guid_bytes[5], guid_bytes[6], guid_bytes[7],
+                            guid_bytes[8], guid_bytes[9], guid_bytes[10], guid_bytes[11],
+                        ];
+                        let entity_id = [guid_bytes[12], guid_bytes[13], guid_bytes[14], guid_bytes[15]];
+                        endpoint_guid = Some(Guid::new(prefix, entity_id));
+                    }
+                }
+                0x0070 => {
+                    // PID_KEY_HASH (16 bytes) - can also represent GUID
+                    if param_len >= 16 && endpoint_guid.is_none() {
+                        let guid_bytes = &payload[offset..offset + 16];
+                        let prefix = [
+                            guid_bytes[0], guid_bytes[1], guid_bytes[2], guid_bytes[3],
+                            guid_bytes[4], guid_bytes[5], guid_bytes[6], guid_bytes[7],
+                            guid_bytes[8], guid_bytes[9], guid_bytes[10], guid_bytes[11],
+                        ];
+                        let entity_id = [guid_bytes[12], guid_bytes[13], guid_bytes[14], guid_bytes[15]];
+                        endpoint_guid = Some(Guid::new(prefix, entity_id));
+                    }
+                }
+                _ => {
+                    // Unknown parameter - skip
+                }
+            }
+
+            // Move to next parameter (parameters are 4-byte aligned)
+            offset += param_len;
+            let align_pad = (4 - (param_len % 4)) % 4;
+            offset += align_pad;
+        }
+
+        // Register the discovered endpoint under the advertised GUID
+        if let Some(guid) = endpoint_guid {
+            self.discovery.register_endpoint(
+                guid,
+                DiscoveredEndpoint {
+                    topic_name: topic_name.unwrap_or_else(|| "unknown".to_string()),
+                    type_name: type_name.unwrap_or_else(|| "unknown".to_string()),
+                },
+            );
+        }
 
         Ok(())
     }
 
-    /// Extract a CDR-encoded string from payload (heuristic for Phase 1).
-    fn extract_cdr_string(payload: &[u8], field_marker: &[u8]) -> Option<String> {
-        // Search for field marker followed by string length + data
-        let mut pos = 0;
-        while pos < payload.len().saturating_sub(field_marker.len() + 4) {
-            if &payload[pos..pos + field_marker.len()] == field_marker {
-                // Found marker, try to read string after it
-                let mut str_pos = pos + field_marker.len();
-
-                // Skip null terminators and padding
-                while str_pos < payload.len() && payload[str_pos] == 0 {
-                    str_pos += 1;
-                }
-
-                if str_pos + 4 <= payload.len() {
-                    // Read length (little-endian)
-                    let len = u32::from_le_bytes([
-                        payload[str_pos],
-                        payload[str_pos + 1],
-                        payload[str_pos + 2],
-                        payload[str_pos + 3],
-                    ]) as usize;
-
-                    if len > 0 && len < 256 && str_pos + 4 + len <= payload.len() {
-                        // Extract string (null-terminated)
-                        let str_bytes = &payload[str_pos + 4..str_pos + 4 + len];
-                        if let Some(null_pos) = str_bytes.iter().position(|&b| b == 0)
-                            && let Ok(s) = String::from_utf8(str_bytes[..null_pos].to_vec())
-                        {
-                            return Some(s);
-                        }
-                    }
-                }
-            }
-            pos += 1;
+    /// Parse a CDR-encoded string from parameter data.
+    fn parse_cdr_string(data: &[u8], little_endian: bool) -> Option<String> {
+        if data.len() < 4 {
+            return None;
         }
-        None
+
+        // Read string length (u32)
+        let len = if little_endian {
+            u32::from_le_bytes([data[0], data[1], data[2], data[3]])
+        } else {
+            u32::from_be_bytes([data[0], data[1], data[2], data[3]])
+        } as usize;
+
+        if len == 0 || len > 1024 || 4 + len > data.len() {
+            return None; // Invalid length
+        }
+
+        // Extract string bytes (null-terminated)
+        let str_bytes = &data[4..4 + len];
+        let str_end = str_bytes.iter().position(|&b| b == 0).unwrap_or(str_bytes.len());
+        String::from_utf8(str_bytes[..str_end].to_vec()).ok()
     }
 
     /// Create a DebugEvent for a user DATA submessage.
@@ -229,7 +296,9 @@ impl DdsDecoder {
         // Look up topic name from discovery
         let topic_name = self.discovery.lookup_topic_name(writer_guid);
 
-        let timestamp = self.last_timestamp.unwrap_or_else(Timestamp::now);
+        let timestamp = self.last_timestamp
+            .or(ctx.timestamp)
+            .unwrap_or_else(Timestamp::now);
 
         let mut event_builder = DebugEvent::builder()
             .timestamp(timestamp)

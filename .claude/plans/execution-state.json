@@ -165,29 +165,37 @@
       "notes": "Custom HTTP/2 frame parser (~200 lines) rather than h2-sans-io integration. HPACK degradation for mid-stream captures. gRPC LPM parser with gzip/deflate decompression. 10 tests (7 exit criteria + 3 LPM unit tests)."
     },
     "S4.2": {
-      "status": "running",
+      "status": "pass",
       "subsection": "Sub4",
       "title": "ZMTP Decoder",
       "risk": "4/10",
       "complexity": "Medium",
       "cycles_budget": 15,
-      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md"
+      "cycles_used": 3,
+      "commit": "1643749",
+      "completed": "2026-03-09T23:00:00Z",
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md",
+      "notes": "Custom ZMTP 3.0/3.1 wire protocol parser (~430 lines) replacing dead zmtp crate. Stateful parser with greeting detection, NULL security handshake, multipart message reassembly, PUB/SUB topic extraction, and mid-stream degradation. 10 tests."
     },
     "S4.3": {
-      "status": "running",
+      "status": "pass",
       "subsection": "Sub4",
       "title": "DDS/RTPS Decoder",
       "risk": "5/10",
       "complexity": "Medium",
       "cycles_budget": 15,
-      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md"
+      "cycles_used": 3,
+      "commit": "477a884",
+      "completed": "2026-03-09T23:00:00Z",
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-4-protocol-decoders.md",
+      "notes": "Custom RTPS message parser (~300 lines) after discovering rtps-parser v0.1.1 is cdylib-only. SEDP discovery tracker for topic name resolution. Domain ID extraction from UDP port. 8 tests."
     }
   },
   "subsection_gates": {
     "Sub1": "pass",
     "Sub2": "pass",
     "Sub3": "pass",
-    "Sub4": "pending"
+    "Sub4": "pass"
   },
   "waves": {
     "1": ["S1.1"],

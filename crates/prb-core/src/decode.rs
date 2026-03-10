@@ -1,5 +1,7 @@
 //! Decoding context for protocol decoders.
 
+use crate::event::Timestamp;
+
 /// Decoding context for ProtocolDecoder.
 #[derive(Debug, Clone)]
 pub struct DecodeContext {
@@ -9,6 +11,8 @@ pub struct DecodeContext {
     pub dst_addr: Option<String>,
     /// Additional context metadata.
     pub metadata: std::collections::BTreeMap<String, String>,
+    /// Timestamp of the event (from capture or live data).
+    pub timestamp: Option<Timestamp>,
 }
 
 impl DecodeContext {
@@ -18,6 +22,7 @@ impl DecodeContext {
             src_addr: None,
             dst_addr: None,
             metadata: std::collections::BTreeMap::new(),
+            timestamp: None,
         }
     }
 
@@ -36,6 +41,12 @@ impl DecodeContext {
     /// Add metadata entry.
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set timestamp.
+    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
+        self.timestamp = Some(timestamp);
         self
     }
 }

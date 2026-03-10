@@ -184,6 +184,7 @@ fn test_zmtp_pubsub_topic() {
         src_addr: Some("10.0.0.1:5555".to_string()),
         dst_addr: Some("10.0.0.2:5556".to_string()),
         metadata: BTreeMap::new(),
+        timestamp: None,
     };
 
     let events = decoder.decode_stream(&data, &ctx).expect("decode");

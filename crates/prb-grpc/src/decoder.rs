@@ -210,7 +210,7 @@ impl GrpcDecoder {
 
         // Build event
         let mut event_builder = DebugEvent::builder()
-            .timestamp(Timestamp::now())
+            .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
             .source(EventSource {
                 adapter: "pcap".to_string(),
                 origin: ctx
@@ -255,7 +255,7 @@ impl GrpcDecoder {
 
         // Build event for status
         let event_builder = DebugEvent::builder()
-            .timestamp(Timestamp::now())
+            .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
             .source(EventSource {
                 adapter: "pcap".to_string(),
                 origin: ctx

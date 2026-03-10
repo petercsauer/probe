@@ -262,16 +262,11 @@ impl PcapCaptureAdapter {
 
     /// Creates a DebugEvent from a decrypted stream.
     fn create_debug_event_from_stream(&self, stream: DecryptedStream) -> DebugEvent {
-        let transport = if stream.encrypted {
-            TransportKind::RawTcp
-        } else {
-            // TLS-decrypted stream - could be gRPC, but we don't know yet
-            // For now, mark as RawTcp and let protocol decoders handle it
-            TransportKind::RawTcp
-        };
+        let transport = TransportKind::RawTcp;
+        let tls_decrypted = !stream.encrypted;
 
         DebugEvent::builder()
-            .timestamp(Timestamp::now()) // Use capture time if available
+            .timestamp(Timestamp::from_nanos(stream.timestamp_us * 1000))
             .source(EventSource {
                 adapter: "pcap".to_string(),
                 origin: self.capture_path.display().to_string(),
@@ -282,6 +277,7 @@ impl PcapCaptureAdapter {
             })
             .transport(transport)
             .direction(self.infer_direction(stream.src_ip, stream.src_port))
+            .metadata("pcap.tls_decrypted", tls_decrypted.to_string())
             .payload(Payload::Raw {
                 raw: Bytes::from(stream.data),
             })
