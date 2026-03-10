@@ -240,6 +240,11 @@ fn convert_dto_to_event(
             fields: decoded,
             schema_name: dto.schema_name,
         });
+    } else {
+        // Default to empty raw payload if neither is present
+        builder = builder.payload(Payload::Raw {
+            raw: Bytes::new(),
+        });
     }
 
     // Add metadata
@@ -260,11 +265,11 @@ mod tests {
     use super::*;
     use prb_core::{DecodeContext, Timestamp};
     use prb_plugin_api::DebugEventDto;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
     fn test_convert_decode_context_full() {
-        let mut metadata = HashMap::new();
+        let mut metadata = BTreeMap::new();
         metadata.insert("key1".to_string(), "value1".to_string());
         metadata.insert("key2".to_string(), "value2".to_string());
 
@@ -291,7 +296,7 @@ mod tests {
             src_addr: None,
             dst_addr: None,
             timestamp: None,
-            metadata: HashMap::new(),
+            metadata: BTreeMap::new(),
         };
 
         let dto = convert_decode_context(&ctx);
@@ -308,7 +313,7 @@ mod tests {
             src_addr: Some("127.0.0.1:8080".to_string()),
             dst_addr: None,
             timestamp: None,
-            metadata: HashMap::new(),
+            metadata: BTreeMap::new(),
         };
 
         let dto = convert_decode_context(&ctx);

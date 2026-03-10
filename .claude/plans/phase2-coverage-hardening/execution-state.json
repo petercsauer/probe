@@ -10,7 +10,7 @@
       "completed": "2026-03-10T18:00:51Z"
     },
     "S02": {
-      "status": "pass",
+      "status": "partial",
       "track": "TUI",
       "title": "prb-tui Unit + Render Tests",
       "attempts": 2,
