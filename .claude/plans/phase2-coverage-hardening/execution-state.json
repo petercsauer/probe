@@ -80,10 +80,11 @@
       "completed": "2026-03-10T21:08:20Z"
     },
     "S12": {
-      "status": "running",
+      "status": "pass",
       "track": "CLI",
       "title": "CLI End-to-End Tests",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T21:17:35Z"
     },
     "S13": {
       "status": "running",
@@ -92,10 +93,11 @@
       "attempts": 1
     },
     "S14": {
-      "status": "running",
+      "status": "pass",
       "track": "RealData",
       "title": "Real-Data: TLS",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T21:18:46Z"
     },
     "S15": {
       "status": "running",

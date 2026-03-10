@@ -169,7 +169,7 @@ fn test_export_with_where_filter() {
         .arg("csv")
         .arg("--output")
         .arg(&csv_path)
-        .arg("--where")
+        .arg("--where-clause")
         .arg(r#"transport == "grpc""#)
         .assert()
         .success();
@@ -233,7 +233,7 @@ fn test_plugins_list() {
         .arg("list")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Available decoders"));
+        .stdout(predicate::str::contains("Built-in Decoders"));
 }
 
 #[test]
