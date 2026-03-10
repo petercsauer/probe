@@ -15,6 +15,12 @@ pub struct HexDumpPane {
     pub highlight: Option<(usize, usize)>,
 }
 
+impl Default for HexDumpPane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HexDumpPane {
     pub fn new() -> Self {
         HexDumpPane {
@@ -101,7 +107,7 @@ impl PaneComponent for HexDumpPane {
             return;
         }
 
-        let total_lines = (payload_bytes.len() + 15) / 16;
+        let total_lines = payload_bytes.len().div_ceil(16);
         let scroll = self.scroll_offset.min(total_lines.saturating_sub(1));
         let vis_lines = inner.height as usize;
 
