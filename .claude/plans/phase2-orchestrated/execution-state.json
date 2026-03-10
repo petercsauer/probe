@@ -1,0 +1,208 @@
+{
+  "plan": ".claude/plans/phase2-orchestrated/manifest.md",
+  "started": "2026-03-10T04:33:19Z",
+  "current_wave": 2,
+  "wave1_completed": "2026-03-10T08:30:00Z",
+  "segments": {
+    "S01": {
+      "status": "pass",
+      "track": "TUI",
+      "title": "Query Language Engine",
+      "attempts": 1,
+      "cycles": 3,
+      "commit": "5466a565f32debb7933153065f490ce8f24ee8cb"
+    },
+    "S02": {
+      "status": "pass",
+      "track": "Core",
+      "title": "Conversation Reconstruction",
+      "attempts": 1,
+      "commit": "93fd561",
+      "note": "Already complete from earlier commits"
+    },
+    "S03": {
+      "status": "pass",
+      "track": "Export",
+      "title": "Export Formats",
+      "attempts": 2,
+      "tests": "18/18 passing",
+      "note": "Verified on resume: prb-export builds and all tests pass"
+    },
+    "S04": {
+      "status": "pass",
+      "track": "OTel",
+      "title": "OTel Trace Correlation",
+      "attempts": 1,
+      "tests": "15/15 trace tests passing in prb-core",
+      "note": "Verified on resume: trace context parsing complete"
+    },
+    "S05": {
+      "status": "blocked",
+      "track": "AI",
+      "title": "AI-Powered Explanation",
+      "attempts": 1,
+      "note": "async-openai v0.33 API incompatibility - types ChatCompletionRequestMessage, .chat() method missing. Needs API migration or version downgrade."
+    },
+    "S06": {
+      "status": "pass",
+      "track": "TUI",
+      "title": "TUI Core & App Shell",
+      "attempts": 1,
+      "tests": "18/18 passing",
+      "note": "Verified on resume: prb-tui builds and all tests pass"
+    },
+    "S07": {
+      "status": "pass",
+      "track": "TUI",
+      "title": "Data Layer & CLI Integration",
+      "attempts": 1,
+      "note": "Pre-existing implementation. Added 16 integration tests + 3 CLI tests."
+    },
+    "S08": {
+      "status": "pending",
+      "track": "TUI",
+      "title": "Event List Pane",
+      "attempts": 0
+    },
+    "S09": {
+      "status": "pending",
+      "track": "TUI",
+      "title": "Decode Tree Pane",
+      "attempts": 0
+    },
+    "S10": {
+      "status": "pending",
+      "track": "TUI",
+      "title": "Hex Dump Pane",
+      "attempts": 0
+    },
+    "S11": {
+      "status": "pending",
+      "track": "TUI",
+      "title": "Timeline Pane",
+      "attempts": 0
+    },
+    "S12": {
+      "status": "pass",
+      "track": "Capture",
+      "title": "Capture Engine",
+      "attempts": 1,
+      "tests": "22/22 passing",
+      "note": "Verified on resume: prb-capture builds and all tests pass"
+    },
+    "S13": {
+      "status": "pending",
+      "track": "Capture",
+      "title": "Live Pipeline Integration",
+      "attempts": 0
+    },
+    "S14": {
+      "status": "pending",
+      "track": "Capture",
+      "title": "Capture CLI",
+      "attempts": 0
+    },
+    "S15": {
+      "status": "pending",
+      "track": "Capture",
+      "title": "TUI Live Mode",
+      "attempts": 0
+    },
+    "S16": {
+      "status": "pass",
+      "track": "Parallel",
+      "title": "Pipeline Trait Refactoring",
+      "attempts": 1,
+      "tests": "5/5 parallel tests passing",
+      "note": "Verified on resume: BatchStage and StreamStage traits defined with orchestrator"
+    },
+    "S17": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Mmap Reader",
+      "attempts": 0
+    },
+    "S18": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Parallel Normalization",
+      "attempts": 0
+    },
+    "S19": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Flow-Partitioned Reassembly",
+      "attempts": 0
+    },
+    "S20": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Parallel TLS + Decode",
+      "attempts": 0
+    },
+    "S21": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Streaming Pipeline",
+      "attempts": 0
+    },
+    "S22": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Benchmarks",
+      "attempts": 0
+    },
+    "S23": {
+      "status": "pending",
+      "track": "Parallel",
+      "title": "Parallel CLI Integration",
+      "attempts": 0
+    },
+    "S24": {
+      "status": "pass",
+      "track": "Detect",
+      "title": "Protocol Detector Trait + Built-ins",
+      "attempts": 1,
+      "note": "prb-detect crate complete with 5 detectors, engine, 15 tests, benchmarks. Build verified."
+    },
+    "S25": {
+      "status": "pending",
+      "track": "Detect",
+      "title": "Decoder Registry + Dispatch",
+      "attempts": 0
+    },
+    "S26": {
+      "status": "pending",
+      "track": "Detect",
+      "title": "Pipeline Integration",
+      "attempts": 0
+    },
+    "S27": {
+      "status": "pending",
+      "track": "Detect",
+      "title": "Native Plugin System",
+      "attempts": 0
+    },
+    "S28": {
+      "status": "pending",
+      "track": "WASM",
+      "title": "WASM Plugin System",
+      "attempts": 0
+    },
+    "S29": {
+      "status": "pending",
+      "track": "Detect",
+      "title": "Plugin Management CLI",
+      "attempts": 0
+    }
+  },
+  "waves": {
+    "1": ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S12", "S16", "S24"],
+    "2": ["S08", "S09", "S10", "S11", "S13", "S17", "S25"],
+    "3": ["S14", "S18", "S26"],
+    "4": ["S15", "S19", "S27", "S28"],
+    "5": ["S20"],
+    "6": ["S21", "S29"],
+    "7": ["S22", "S23"]
+  }
+}
