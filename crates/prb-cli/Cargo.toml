@@ -15,6 +15,7 @@ prb-fixture = { path = "../prb-fixture" }
 prb-storage = { path = "../prb-storage" }
 prb-schema = { path = "../prb-schema" }
 prb-decode = { path = "../prb-decode" }
+prb-pcap = { path = "../prb-pcap" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }

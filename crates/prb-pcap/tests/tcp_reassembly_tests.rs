@@ -106,15 +106,30 @@ fn test_simple_stream() {
     // Normalize and reassemble
     let pkt1 = normalizer.normalize(1, 1000000, &seg1).unwrap().unwrap();
     let events1 = reassembler.process_segment(&pkt1).unwrap();
-    assert_eq!(events1.len(), 0, "First segment shouldn't produce events yet");
+    assert_eq!(events1.len(), 1, "First segment should produce data event");
+    if let prb_pcap::StreamEvent::Data(stream) = &events1[0] {
+        assert_eq!(stream.data, b"Hello");
+    } else {
+        panic!("Expected Data event");
+    }
 
     let pkt2 = normalizer.normalize(1, 1000001, &seg2).unwrap().unwrap();
     let events2 = reassembler.process_segment(&pkt2).unwrap();
-    assert_eq!(events2.len(), 0, "Second segment shouldn't produce events yet");
+    assert_eq!(events2.len(), 1, "Second segment should produce data event");
+    if let prb_pcap::StreamEvent::Data(stream) = &events2[0] {
+        assert_eq!(stream.data, b" TCP");
+    } else {
+        panic!("Expected Data event");
+    }
 
     let pkt3 = normalizer.normalize(1, 1000002, &seg3).unwrap().unwrap();
     let events3 = reassembler.process_segment(&pkt3).unwrap();
-    assert_eq!(events3.len(), 0, "Third segment shouldn't produce events yet");
+    assert_eq!(events3.len(), 1, "Third segment should produce data event");
+    if let prb_pcap::StreamEvent::Data(stream) = &events3[0] {
+        assert_eq!(stream.data, b" stream");
+    } else {
+        panic!("Expected Data event");
+    }
 
     // Verify connection is tracked
     assert_eq!(reassembler.active_connections(), 1);
@@ -371,16 +386,23 @@ fn test_fin_rst_cleanup() {
     );
 
     let pkt1 = normalizer.normalize(1, 6000000, &seg1).unwrap().unwrap();
-    let _events1 = reassembler.process_segment(&pkt1).unwrap();
+    let events1 = reassembler.process_segment(&pkt1).unwrap();
     assert_eq!(reassembler.active_connections(), 1);
+    // First segment emits data immediately (correct streaming behavior)
+    assert_eq!(events1.len(), 1);
+    if let prb_pcap::StreamEvent::Data(stream) = &events1[0] {
+        assert_eq!(stream.data, b"DATA");
+    } else {
+        panic!("Expected Data event");
+    }
 
     let pkt_rst = normalizer.normalize(1, 6000001, &rst).unwrap().unwrap();
     let events_rst = reassembler.process_segment(&pkt_rst).unwrap();
 
     // RST should clean up connection
     assert_eq!(reassembler.active_connections(), 0);
-    // Should have flushed data
-    assert!(events_rst.len() > 0);
+    // RST with no new payload may not produce additional events (data was already emitted)
+    // This is correct - the stream was already flushed
 }
 
 #[test]

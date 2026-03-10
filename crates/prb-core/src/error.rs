@@ -26,5 +26,9 @@ pub enum CoreError {
     /// Schema resolution error.
     #[error("schema error: {0}")]
     Schema(String),
+
+    /// Adapter error.
+    #[error("adapter error: {0}")]
+    Adapter(String),
 }
 

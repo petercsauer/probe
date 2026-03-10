@@ -73,6 +73,10 @@ struct DirectionState {
     last_activity_us: u64,
     fin_seen: bool,
     bytes_buffered: usize,
+    /// Buffer storing actual payload bytes, indexed by relative sequence number
+    payload_buffer: HashMap<usize, Vec<u8>>,
+    /// Offset of the next byte to extract (tracks consumed position)
+    consumed_offset: usize,
 }
 
 impl DirectionState {
@@ -83,6 +87,8 @@ impl DirectionState {
             last_activity_us: 0,
             fin_seen: false,
             bytes_buffered: 0,
+            payload_buffer: HashMap::new(),
+            consumed_offset: 0,
         }
     }
 
@@ -254,16 +260,80 @@ impl TcpReassembler {
         if !packet.payload.is_empty() {
             let rel_seq = dir_state.relative_seq(tcp_info.seq);
 
-            // Add data to assembler
+            // Store the actual payload bytes
+            dir_state.payload_buffer.insert(rel_seq, packet.payload.to_vec());
+
+            // Add range to assembler
             let _ = dir_state.assembler.add(rel_seq, rel_seq + packet.payload.len());
             dir_state.bytes_buffered += packet.payload.len();
 
-            // Check if we can extract contiguous data
-            let contig_len = dir_state.assembler.peek_front();
+            // Check if we have contiguous data starting from consumed_offset
+            // The assembler tracks ranges, so we need to check from our consumption point
+            let available_from_base = dir_state.assembler.peek_front();
+            let contig_len = if dir_state.consumed_offset == 0 {
+                available_from_base
+            } else {
+                // After consuming some bytes, check if new data extends contiguously
+                // by seeing if the payload_buffer has data at consumed_offset
+                if dir_state.payload_buffer.contains_key(&dir_state.consumed_offset) {
+                    // Calculate how much contiguous data we have from consumed_offset
+                    let mut len = 0;
+                    let mut check_offset = dir_state.consumed_offset;
+                    while let Some(chunk) = dir_state.payload_buffer.get(&check_offset) {
+                        len += chunk.len();
+                        check_offset += chunk.len();
+                    }
+                    len
+                } else {
+                    0
+                }
+            };
+
             if contig_len > 0 {
-                // We have contiguous data - for now, just note it exists
-                // In a real implementation, we'd extract and store the actual payload bytes
-                // For this skeleton, we'll emit an event when data becomes available
+                // Extract contiguous data from buffer starting from consumed_offset
+                let mut data = Vec::with_capacity(contig_len);
+                let start_offset = dir_state.consumed_offset;
+                let end_offset = start_offset + contig_len;
+                let mut offset = start_offset;
+
+                while offset < end_offset {
+                    if let Some(chunk) = dir_state.payload_buffer.remove(&offset) {
+                        data.extend_from_slice(&chunk);
+                        offset += chunk.len();
+                    } else {
+                        break;
+                    }
+                }
+
+                dir_state.consumed_offset += data.len();
+                dir_state.bytes_buffered = dir_state.bytes_buffered.saturating_sub(data.len());
+
+                // Emit reassembled data
+                let (src_ip, src_port, dst_ip, dst_port) = match direction {
+                    StreamDirection::ClientToServer => (
+                        canonical_key.src_ip,
+                        canonical_key.src_port,
+                        canonical_key.dst_ip,
+                        canonical_key.dst_port,
+                    ),
+                    StreamDirection::ServerToClient => (
+                        canonical_key.dst_ip,
+                        canonical_key.dst_port,
+                        canonical_key.src_ip,
+                        canonical_key.src_port,
+                    ),
+                };
+
+                events.push(StreamEvent::Data(ReassembledStream {
+                    src_ip,
+                    src_port,
+                    dst_ip,
+                    dst_port,
+                    direction,
+                    data,
+                    is_complete: dir_state.fin_seen,
+                    missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+                }));
             }
         }
 
@@ -285,15 +355,26 @@ impl TcpReassembler {
             StreamDirection::ServerToClient => (key.dst_ip, key.dst_port, key.src_ip, key.src_port),
         };
 
+        // Extract all buffered data (in sequence order)
+        let mut sorted_offsets: Vec<_> = dir_state.payload_buffer.keys().copied().collect();
+        sorted_offsets.sort_unstable();
+
+        let mut data = Vec::new();
+        for offset in sorted_offsets {
+            if let Some(chunk) = dir_state.payload_buffer.get(&offset) {
+                data.extend_from_slice(chunk);
+            }
+        }
+
         Some(ReassembledStream {
             src_ip,
             src_port,
             dst_ip,
             dst_port,
             direction,
-            data: Vec::new(), // TODO: Extract actual buffered data
+            data,
             is_complete: dir_state.fin_seen,
-            missing_ranges: Vec::new(), // TODO: Extract gap ranges
+            missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
         })
     }
 
