@@ -159,7 +159,9 @@ impl GrpcDecoder {
                             .get(":authority")
                             .cloned()
                             .unwrap_or_else(|| "unknown".to_string());
-                        let is_request = stream.request_headers.contains_key(":method");
+                        // Direction: if we've seen response headers, DATA is for response (Inbound)
+                        // Otherwise, DATA is for request (Outbound)
+                        let is_request = !stream.saw_response_headers;
 
                         if let Some(event) = self.create_message_event(
                             stream_id,

@@ -429,3 +429,217 @@ impl Default for ZmtpParser {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_greeting(major: u8, minor: u8, mechanism: &str, as_server: bool) -> Vec<u8> {
+        let mut greeting = vec![0xFF; 10]; // Signature
+        greeting[0] = 0xFF;
+        greeting[9] = 0x7F;
+        greeting.push(major); // Version major
+        greeting.push(minor); // Version minor
+        // Mechanism (20 bytes, padded with zeros)
+        let mut mech_bytes = mechanism.as_bytes().to_vec();
+        mech_bytes.resize(20, 0);
+        greeting.extend_from_slice(&mech_bytes);
+        // as-server flag
+        greeting.push(if as_server { 1 } else { 0 });
+        // Padding to 64 bytes
+        greeting.resize(64, 0);
+        greeting
+    }
+
+    #[test]
+    fn test_zmtp_incremental_greeting() {
+        // WS-3.2: Feed greeting 1 byte at a time, assert greeting event only after byte 64
+        let mut parser = ZmtpParser::new();
+        let greeting = create_greeting(3, 0, "NULL", false);
+
+        // Feed 63 bytes - should not produce event
+        for i in 0..63 {
+            let events = parser.feed(&greeting[i..i + 1]).unwrap();
+            assert_eq!(events.len(), 0, "Should not emit event before byte 64");
+        }
+
+        // Feed byte 64 - should produce greeting event
+        let events = parser.feed(&greeting[63..64]).unwrap();
+        assert_eq!(events.len(), 1, "Should emit greeting event on byte 64");
+
+        match &events[0] {
+            ZmtpEvent::Greeting(g) => {
+                assert_eq!(g.major_version, 3);
+                assert_eq!(g.minor_version, 0);
+                assert_eq!(g.mechanism, "NULL");
+                assert!(!g.as_server);
+            }
+            _ => panic!("Expected Greeting event"),
+        }
+    }
+
+    #[test]
+    fn test_zmtp_frame_boundary_split() {
+        // WS-3.2: Message frame header in one feed, body in next
+        let mut parser = ZmtpParser::new();
+
+        // Feed greeting first
+        let greeting = create_greeting(3, 0, "NULL", false);
+        parser.feed(&greeting).unwrap();
+
+        // Feed READY command to complete handshake
+        let mut ready_cmd = vec![0x04, 0x06, 0x05];
+        ready_cmd.extend_from_slice(b"READY");
+        parser.feed(&ready_cmd).unwrap();
+
+        // Create message frame split: header in first feed, body in second
+        let body = b"test_message";
+        let frame_header = vec![
+            0x00,               // flags: no more frames
+            body.len() as u8,   // size
+        ];
+
+        // Feed header only
+        let events = parser.feed(&frame_header).unwrap();
+        assert_eq!(events.len(), 0, "Should not emit message without body");
+
+        // Feed body
+        let events = parser.feed(body).unwrap();
+        assert_eq!(events.len(), 1, "Should emit message after body");
+
+        match &events[0] {
+            ZmtpEvent::Message(msg) => {
+                assert_eq!(msg.frames.len(), 1);
+                assert_eq!(&msg.frames[0], body);
+            }
+            _ => panic!("Expected Message event"),
+        }
+    }
+
+    #[test]
+    fn test_zmtp_max_multipart_limit() {
+        // WS-3.2: >1000 frames triggers TooManyFrames error
+        let mut parser = ZmtpParser::new();
+
+        // Feed greeting and READY
+        let greeting = create_greeting(3, 0, "NULL", false);
+        parser.feed(&greeting).unwrap();
+        let mut ready_cmd = vec![0x04, 0x06, 0x05];
+        ready_cmd.extend_from_slice(b"READY");
+        parser.feed(&ready_cmd).unwrap();
+
+        // Feed 1001 frames (all with "more" flag set)
+        for i in 0..1001 {
+            let frame = vec![
+                0x01, // flags: more frames
+                0x01, // size
+                i as u8,
+            ];
+            let result = parser.feed(&frame);
+
+            if i < 1000 {
+                assert!(result.is_ok(), "Should accept frame {}", i);
+            } else {
+                // Frame 1001 should trigger error
+                assert!(result.is_err(), "Should reject frame 1001");
+                match result.unwrap_err() {
+                    ZmqError::TooManyFrames(count) => {
+                        assert_eq!(count, 1001, "Error should report 1001 frames");
+                    }
+                    _ => panic!("Expected TooManyFrames error"),
+                }
+                break;
+            }
+        }
+    }
+
+    #[test]
+    fn test_zmtp_long_command_frame() {
+        // WS-3.2: Command with 8-byte length encoding
+        let mut parser = ZmtpParser::new();
+
+        // Feed greeting
+        let greeting = create_greeting(3, 0, "NULL", false);
+        parser.feed(&greeting).unwrap();
+
+        // Create command frame with long size (requires 8-byte encoding)
+        // Build command body: name_length + name + data
+        let mut body = Vec::new();
+        body.push(7); // "TESTCMD" length
+        body.extend_from_slice(b"TESTCMD");
+        body.extend_from_slice(&vec![0x42; 300]); // 300 bytes of data
+
+        // Build frame with long flag
+        let mut frame = vec![
+            0x06, // flags: command (0x04) + long (0x02)
+        ];
+        frame.extend_from_slice(&(body.len() as u64).to_be_bytes()); // 8-byte size
+        frame.extend_from_slice(&body);
+
+        let events = parser.feed(&frame).unwrap();
+        assert!(events.len() >= 1, "Should parse long command frame");
+
+        // Find command event
+        let cmd_event = events.iter().find(|e| matches!(e, ZmtpEvent::Command(_)));
+        assert!(cmd_event.is_some(), "Should emit Command event");
+    }
+
+    #[test]
+    fn test_zmtp_degraded_message_extraction() {
+        // WS-3.2: Mid-stream data → degraded mode → parse valid frames
+        let mut parser = ZmtpParser::new();
+
+        // Feed invalid greeting data (at least 10 bytes, wrong signature)
+        // This triggers degraded mode detection
+        let invalid_greeting = vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        parser.feed(&invalid_greeting).unwrap();
+
+        // Verify parser entered degraded mode
+        assert!(parser.is_degraded(), "Parser should be in degraded mode");
+
+        // Now feed a valid message frame
+        let body = b"recovered_message";
+        let frame = vec![
+            0x00,               // flags: no more frames
+            body.len() as u8,   // size
+        ];
+        let mut frame_data = frame.clone();
+        frame_data.extend_from_slice(body);
+
+        let events = parser.feed(&frame_data).unwrap();
+
+        // In degraded mode, parser should recover and extract message
+        // Check if we got a message event
+        let has_message = events.iter().any(|e| matches!(e, ZmtpEvent::Message(_)));
+        assert!(has_message, "Should recover message in degraded mode");
+    }
+
+    #[test]
+    fn test_zmtp_ready_empty_properties() {
+        // WS-3.2: READY with zero properties
+        let mut parser = ZmtpParser::new();
+
+        // Feed greeting
+        let greeting = create_greeting(3, 0, "NULL", false);
+        parser.feed(&greeting).unwrap();
+
+        // Feed READY command with no properties
+        // Format: flags + body_length + command_name_length + command_name
+        let mut ready_cmd = vec![
+            0x04, // flags: command frame, no more
+            0x06, // body size: 1 (name length) + 5 (name "READY")
+            0x05, // command name length
+        ];
+        ready_cmd.extend_from_slice(b"READY");
+
+        let events = parser.feed(&ready_cmd).unwrap();
+        assert_eq!(events.len(), 1, "Should emit READY event");
+
+        match &events[0] {
+            ZmtpEvent::Ready(ready) => {
+                assert_eq!(ready.properties.len(), 0, "Should have zero properties");
+            }
+            _ => panic!("Expected Ready event"),
+        }
+    }
+}
