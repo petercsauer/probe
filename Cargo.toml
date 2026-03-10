@@ -16,7 +16,7 @@ members = [
     "crates/prb-query",
     "crates/prb-tui",
     "crates/prb-export",
-    # "crates/prb-ai",  # Temporarily disabled - S05 blocked on API compatibility
+    "crates/prb-ai",
     "crates/prb-plugin-api",
     "crates/prb-plugin-native",
     "crates/prb-plugin-wasm",

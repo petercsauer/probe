@@ -8,7 +8,7 @@ description = "AI-powered packet explanation engine for Probe"
 
 [dependencies]
 prb-core = { path = "../prb-core" }
-async-openai = { version = "0.33", features = ["_api"] }
+async-openai = "0.20"
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

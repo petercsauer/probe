@@ -7,7 +7,7 @@ use crate::prompt::{build_system_prompt, build_user_message};
 use async_openai::config::OpenAIConfig;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-    ChatCompletionRequestUserMessage, CreateChatCompletionRequest,
+    ChatCompletionRequestUserMessage, CreateChatCompletionRequest, Role,
 };
 use async_openai::Client;
 use futures::StreamExt;
@@ -48,10 +48,12 @@ pub async fn explain_event(
     let messages = vec![
         ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
             content: system_prompt.into(),
+            role: Role::System,
             name: None,
         }),
         ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
             content: user_message.into(),
+            role: Role::User,
             name: None,
         }),
     ];
@@ -67,8 +69,8 @@ pub async fn explain_event(
     let request = CreateChatCompletionRequest {
         model: config.model.clone(),
         messages,
-        temperature: Some(config.temperature as f64),
-        max_tokens: Some(config.max_tokens),
+        temperature: Some(config.temperature as f32),
+        max_tokens: Some(config.max_tokens as u16),
         stream: Some(false),
         ..Default::default()
     };
@@ -135,10 +137,12 @@ where
     let messages = vec![
         ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
             content: system_prompt.into(),
+            role: Role::System,
             name: None,
         }),
         ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
             content: user_message.into(),
+            role: Role::User,
             name: None,
         }),
     ];
@@ -154,8 +158,8 @@ where
     let request = CreateChatCompletionRequest {
         model: config.model.clone(),
         messages,
-        temperature: Some(config.temperature as f64),
-        max_tokens: Some(config.max_tokens),
+        temperature: Some(config.temperature as f32),
+        max_tokens: Some(config.max_tokens as u16),
         stream: Some(true),
         ..Default::default()
     };

@@ -151,21 +151,21 @@ mod tests {
     #[test]
     fn test_config_openai_requires_key() {
         let config = AiConfig::for_provider(AiProvider::OpenAi);
-        std::env::remove_var("PRB_AI_API_KEY");
+        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
         assert!(config.resolve_api_key().is_err());
     }
 
     #[test]
     fn test_config_from_env() {
-        std::env::set_var("PRB_AI_API_KEY", "test-key-123");
+        unsafe { std::env::set_var("PRB_AI_API_KEY", "test-key-123"); }
         let config = AiConfig::for_provider(AiProvider::OpenAi);
         assert_eq!(config.resolve_api_key().unwrap(), "test-key-123");
-        std::env::remove_var("PRB_AI_API_KEY");
+        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
     }
 
     #[test]
     fn test_config_ollama_no_key_needed() {
-        std::env::remove_var("PRB_AI_API_KEY");
+        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
         let config = AiConfig::default();
         assert_eq!(config.resolve_api_key().unwrap(), "ollama");
     }
