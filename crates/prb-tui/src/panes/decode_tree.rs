@@ -8,6 +8,7 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 use prb_core::{DebugEvent, Payload};
 
 use crate::app::AppState;
+use crate::error_intel;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::Theme;
 
@@ -61,15 +62,23 @@ impl PaneComponent for DecodeTreePane {
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
-        let border_style = if focused {
-            Theme::focused_border()
+        use ratatui::widgets::BorderType;
+
+        let block = if focused {
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Theme::focused_border())
+                .title(" Decode [*] ")
+                .title_style(Theme::focused_title())
         } else {
-            Theme::unfocused_border()
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Plain)
+                .border_style(Theme::unfocused_border())
+                .title(" Decode ")
+                .title_style(Theme::unfocused_title())
         };
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(" Decode ");
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -142,10 +151,57 @@ fn build_tree_items(event: &DebugEvent) -> Vec<TreeItem<'static, String>> {
     // Transport + metadata section
     let mut transport_children = Vec::new();
     for (key, value) in &event.metadata {
-        transport_children.push(TreeItem::new_leaf(
-            format!("m.{}", key),
-            format!("{}: {}", key, value),
-        ));
+        // Check for known protocol fields that benefit from error intelligence
+        let label = if key == "grpc.status"
+            && let Ok(code) = value.parse::<u32>()
+            && let Some(name) = error_intel::grpc_status_name(code)
+        {
+            format!("{}: {} ({})", key, value, name)
+        } else if key == "http.status" && value.parse::<u16>().is_ok() {
+            format!("{}: {}", key, value)
+        } else if key == "tcp.flags"
+            && let Some(explanation) = error_intel::tcp_flag_explanation(value)
+        {
+            format!("{}: {} — {}", key, value, explanation)
+        } else if key == "tls.alert"
+            && let Ok(code) = value.parse::<u8>()
+            && let Some(desc) = error_intel::tls_alert_description(code)
+        {
+            format!("{}: {} — {}", key, value, desc)
+        } else {
+            format!("{}: {}", key, value)
+        };
+
+        // Create the leaf node
+        let mut children = vec![];
+
+        // Add explanation as a child node for gRPC status codes with explanations
+        if key == "grpc.status"
+            && let Ok(code) = value.parse::<u32>()
+            && let Some(explanation) = error_intel::grpc_status_explanation(code)
+        {
+            children.push(TreeItem::new_leaf(
+                format!("m.{}.explain", key),
+                format!("→ {}", explanation),
+            ));
+        }
+
+        // Add the metadata item (with or without children)
+        if children.is_empty() {
+            transport_children.push(TreeItem::new_leaf(
+                format!("m.{}", key),
+                label,
+            ));
+        } else {
+            transport_children.push(
+                TreeItem::new(
+                    format!("m.{}", key),
+                    label,
+                    children,
+                )
+                .expect("metadata children valid"),
+            );
+        }
     }
     items.push(
         TreeItem::new(

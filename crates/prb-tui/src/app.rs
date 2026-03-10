@@ -24,6 +24,10 @@ use crate::panes::{Action, PaneComponent};
 use crate::theme::Theme;
 
 use prb_query::Filter;
+use prb_schema::SchemaRegistry;
+use prb_core::{Payload, METADATA_KEY_GRPC_METHOD};
+use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use serde_json::{json, Value as JsonValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneId {
@@ -66,6 +70,7 @@ pub struct AppState {
     pub selected_event: Option<usize>,
     pub filter: Option<Filter>,
     pub filter_text: String,
+    pub schema_registry: Option<SchemaRegistry>,
 }
 
 pub struct App {
@@ -82,12 +87,13 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(store: EventStore, initial_filter: Option<String>) -> Self {
+    pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
         let mut state = AppState {
             filtered_indices: store.all_indices(),
             selected_event: if store.is_empty() { None } else { Some(0) },
             filter: None,
             filter_text: String::new(),
+            schema_registry,
             store,
         };
 
@@ -290,6 +296,11 @@ impl App {
                 self.hex_dump.scroll_offset = 0;
                 self.hex_dump.clear_highlight();
                 self.decode_tree.state = tui_tree_widget::TreeState::default();
+
+                // Try to decode the event on-demand
+                if let Some(store_idx) = self.state.filtered_indices.get(idx) {
+                    self.try_decode_event(*store_idx);
+                }
             }
             Action::HighlightBytes { offset, len } => {
                 self.hex_dump.set_highlight(offset, len);
@@ -298,6 +309,61 @@ impl App {
                 self.hex_dump.clear_highlight();
             }
             Action::Quit => {}
+        }
+    }
+
+    /// Attempt on-demand decode of an event when selected.
+    fn try_decode_event(&mut self, store_idx: usize) {
+        let registry = match &self.state.schema_registry {
+            Some(r) => r,
+            None => return,
+        };
+
+        let event = match self.state.store.get_mut(store_idx) {
+            Some(e) => e,
+            None => return,
+        };
+
+        // Only decode if still in Raw format
+        if let Payload::Raw { ref raw } = event.payload {
+            let bytes = raw.clone();
+
+            // Try schema-backed decode first (for gRPC)
+            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+                && let Some(msg_desc) = registry.get_message(method)
+            {
+                match decode_with_schema(&bytes, &msg_desc) {
+                    Ok(decoded) => {
+                        event.payload = Payload::Decoded {
+                            raw: bytes,
+                            fields: decoded.to_json(),
+                            schema_name: Some(method.to_string()),
+                        };
+                        tracing::debug!("Decoded event {} with schema {}", event.id, method);
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::debug!("Schema decode failed for {}: {}", method, e);
+                    }
+                }
+            }
+
+            // Fallback: wire-format decode (field numbers only)
+            match decode_wire_format(&bytes) {
+                Ok(wire_msg) => {
+                    // Convert wire message to JSON representation
+                    let fields = wire_message_to_json(&wire_msg);
+                    event.payload = Payload::Decoded {
+                        raw: bytes,
+                        fields,
+                        schema_name: None,
+                    };
+                    tracing::debug!("Wire-format decoded event {}", event.id);
+                }
+                Err(e) => {
+                    tracing::debug!("Wire-format decode failed: {}", e);
+                }
+            }
         }
     }
 
@@ -337,7 +403,7 @@ impl App {
             &self.filter_error,
             &self.state,
         );
-        Self::render_status_bar_static(main_layout[3], buf, &self.state);
+        Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus);
 
         if self.input_mode == InputMode::Help {
             self.render_help_overlay(area, buf);
@@ -393,7 +459,7 @@ impl App {
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -420,8 +486,25 @@ impl App {
             ));
         }
 
-        // Right-aligned keybind hints
-        let hint = " Tab:pane  /:filter  ?:help  q:quit ";
+        // Show schema count if schemas are loaded
+        if let Some(ref registry) = state.schema_registry {
+            let schema_count = registry.list_messages().len();
+            if schema_count > 0 {
+                spans.push(Span::styled(" │ ", Theme::status_bar()));
+                spans.push(Span::styled(
+                    format!("schemas: {} types ", schema_count),
+                    Theme::status_bar(),
+                ));
+            }
+        }
+
+        // Right-aligned keybind hints - context-aware based on focused pane
+        let hint = match focus {
+            PaneId::EventList => " Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit ",
+            PaneId::DecodeTree => " Tab:pane  j/k:nav  Enter:expand  Space:toggle  ?:help  q:quit ",
+            PaneId::HexDump => " Tab:pane  j/k:scroll  g:top  ?:help  q:quit ",
+            PaneId::Timeline => " Tab:pane  ?:help  q:quit ",
+        };
         let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
         spans.push(Span::styled(
@@ -534,4 +617,62 @@ impl App {
     pub fn get_filter_error(&self) -> &Option<String> {
         &self.filter_error
     }
+}
+
+/// Convert a wire-format decoded message to JSON.
+fn wire_message_to_json(wire_msg: &WireMessage) -> JsonValue {
+    let mut fields = serde_json::Map::new();
+
+    for field in &wire_msg.fields {
+        let key = format!("field_{}", field.field_number);
+        let value = match &field.value {
+            WireValue::Varint(v) => {
+                json!({
+                    "wire_type": "varint",
+                    "unsigned": v.unsigned,
+                    "signed_zigzag": v.signed_zigzag,
+                    "as_bool": v.as_bool,
+                })
+            }
+            WireValue::Fixed64(v) => {
+                json!({
+                    "wire_type": "fixed64",
+                    "as_u64": v.as_u64,
+                    "as_i64": v.as_i64,
+                    "as_f64": v.as_f64,
+                })
+            }
+            WireValue::Fixed32(v) => {
+                json!({
+                    "wire_type": "fixed32",
+                    "as_u32": v.as_u32,
+                    "as_i32": v.as_i32,
+                    "as_f32": v.as_f32,
+                })
+            }
+            WireValue::LengthDelimited(len_val) => match len_val {
+                LenValue::SubMessage(sub_msg) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "sub_message": wire_message_to_json(sub_msg),
+                    })
+                }
+                LenValue::String(s) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "string": s,
+                    })
+                }
+                LenValue::Bytes(b) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "bytes": format!("{} bytes", b.len()),
+                    })
+                }
+            },
+        };
+        fields.insert(key, value);
+    }
+
+    JsonValue::Object(fields)
 }

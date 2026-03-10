@@ -1,7 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
@@ -42,9 +41,76 @@ pub struct EventListPane {
     pub sort_reversed: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ColumnWidths {
+    id: u16,
+    time: u16,
+    src: u16,
+    dst: u16,
+    proto: u16,
+    dir: u16,
+    summary: u16,
+}
+
 impl Default for EventListPane {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Format source address or fallback to origin name.
+fn format_source(event: &prb_core::DebugEvent) -> String {
+    event
+        .source
+        .network
+        .as_ref()
+        .map(|n| n.src.clone())
+        .unwrap_or_else(|| event.source.origin.clone())
+}
+
+/// Format destination address or fallback to "-".
+fn format_dest(event: &prb_core::DebugEvent) -> String {
+    event
+        .source
+        .network
+        .as_ref()
+        .map(|n| n.dst.clone())
+        .unwrap_or_else(|| String::from("-"))
+}
+
+/// Compute adaptive column widths based on visible events.
+fn compute_column_widths(
+    events: &[&prb_core::DebugEvent],
+    total_width: u16,
+) -> ColumnWidths {
+    let has_network = events.iter().any(|e| e.source.network.is_some());
+
+    if has_network {
+        // Full layout: #(6) Time(13) Src(19) Dst(19) Proto(11) Dir(4) Summary(fill)
+        let fixed = 6 + 13 + 19 + 19 + 11 + 4;
+        let summary = (total_width as usize).saturating_sub(fixed) as u16;
+        ColumnWidths {
+            id: 6,
+            time: 13,
+            src: 19,
+            dst: 19,
+            proto: 11,
+            dir: 4,
+            summary,
+        }
+    } else {
+        // Collapsed: #(6) Time(13) Origin(20) Proto(11) Dir(4) Summary(fill)
+        let fixed = 6 + 13 + 20 + 11 + 4;
+        let summary = (total_width as usize).saturating_sub(fixed) as u16;
+        ColumnWidths {
+            id: 6,
+            time: 13,
+            src: 20,
+            dst: 0,
+            proto: 11,
+            dir: 4,
+            summary,
+        }
     }
 }
 
@@ -152,15 +218,23 @@ impl PaneComponent for EventListPane {
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
-        let border_style = if focused {
-            Theme::focused_border()
+        use ratatui::widgets::BorderType;
+
+        let block = if focused {
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Theme::focused_border())
+                .title(" Events [*] ")
+                .title_style(Theme::focused_title())
         } else {
-            Theme::unfocused_border()
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Plain)
+                .border_style(Theme::unfocused_border())
+                .title(" Events ")
+                .title_style(Theme::unfocused_title())
         };
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(border_style)
-            .title(" Events ");
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -169,16 +243,12 @@ impl PaneComponent for EventListPane {
             return;
         }
 
-        // Header row
-        let header = format_header(inner.width, self.sort_column, self.sort_reversed);
-        buf.set_line(inner.x, inner.y, &header, inner.width);
-
         let vis_height = inner.height.saturating_sub(1) as usize;
         let sorted = self.sorted_indices(state);
         let total = sorted.len();
 
-        // Clone to allow scrolling adjustment
-        let scroll_offset = {
+        // Collect visible events for column width computation
+        let scroll_offset_start = {
             let mut off = self.scroll_offset;
             if self.selected < off {
                 off = self.selected;
@@ -188,8 +258,21 @@ impl PaneComponent for EventListPane {
             off
         };
 
+        let visible_events: Vec<_> = (scroll_offset_start..total.min(scroll_offset_start + vis_height))
+            .filter_map(|idx| {
+                let event_idx = sorted[idx];
+                state.store.get(event_idx)
+            })
+            .collect();
+
+        let col_widths = compute_column_widths(&visible_events, inner.width);
+
+        // Header row
+        let header = format_header(col_widths, self.sort_column, self.sort_reversed);
+        buf.set_line(inner.x, inner.y, &header, inner.width);
+
         for i in 0..vis_height {
-            let idx = scroll_offset + i;
+            let idx = scroll_offset_start + i;
             if idx >= total {
                 break;
             }
@@ -200,8 +283,12 @@ impl PaneComponent for EventListPane {
 
                 let row_style = if is_selected {
                     Theme::selected_row()
+                } else if !event.warnings.is_empty() {
+                    Theme::warning_row()
+                } else if idx % 2 == 1 {
+                    Theme::zebra_row()
                 } else {
-                    Style::default()
+                    Theme::normal_row()
                 };
 
                 let transport_color = Theme::transport_color(event.transport);
@@ -214,18 +301,8 @@ impl PaneComponent for EventListPane {
                 let m = (secs % 3600) / 60;
                 let s = secs % 60;
 
-                let src = event
-                    .source
-                    .network
-                    .as_ref()
-                    .map(|n| n.src.as_str())
-                    .unwrap_or("-");
-                let dst = event
-                    .source
-                    .network
-                    .as_ref()
-                    .map(|n| n.dst.as_str())
-                    .unwrap_or("-");
+                let src = format_source(event);
+                let dst = format_dest(event);
 
                 let summary = event
                     .metadata
@@ -234,32 +311,50 @@ impl PaneComponent for EventListPane {
                     .cloned()
                     .unwrap_or_default();
 
-                let w = inner.width as usize;
-                let fixed_cols = 6 + 13 + 19 + 19 + 11 + 4;
-                let summary_w = w.saturating_sub(fixed_cols);
-
                 let transport_style = if is_selected {
                     row_style
                 } else {
                     row_style.fg(transport_color)
                 };
 
-                let line = Line::from(vec![
-                    Span::styled(format!("{:>5} ", event.id.as_u64()), row_style),
+                // Add warning indicator prefix for events with warnings
+                let warning_indicator = if !event.warnings.is_empty() { "!" } else { " " };
+                let warning_style = if !event.warnings.is_empty() && !is_selected {
+                    Theme::warning()
+                } else {
+                    row_style
+                };
+
+                let mut spans = vec![
+                    Span::styled(warning_indicator, warning_style),
+                    Span::styled(format!("{:>4} ", event.id.as_u64()), row_style),
                     Span::styled(
                         format!("{:02}:{:02}:{:02}.{:03} ", h, m, s, millis),
                         row_style,
                     ),
-                    Span::styled(pad_to_width(src, 19), row_style),
-                    Span::styled(pad_to_width(dst, 19), row_style),
+                    Span::styled(pad_to_width(&src, col_widths.src as usize), row_style),
+                ];
+
+                if col_widths.dst > 0 {
+                    spans.push(Span::styled(
+                        pad_to_width(&dst, col_widths.dst as usize),
+                        row_style,
+                    ));
+                }
+
+                spans.extend(vec![
                     Span::styled(
-                        pad_to_width(&format!("{}", event.transport), 11),
+                        pad_to_width(&format!("{}", event.transport), col_widths.proto as usize),
                         transport_style,
                     ),
-                    Span::styled(pad_to_width(dir_sym, 4), row_style),
-                    Span::styled(truncate_str(&summary, summary_w), row_style),
+                    Span::styled(pad_to_width(dir_sym, col_widths.dir as usize), row_style),
+                    Span::styled(
+                        truncate_str(&summary, col_widths.summary as usize),
+                        row_style,
+                    ),
                 ]);
 
+                let line = Line::from(spans);
                 buf.set_line(inner.x, y, &line, inner.width);
             }
         }
@@ -267,7 +362,7 @@ impl PaneComponent for EventListPane {
         // Scrollbar
         if total > vis_height {
             let mut scrollbar_state = ScrollbarState::new(total)
-                .position(scroll_offset)
+                .position(scroll_offset_start)
                 .viewport_content_length(vis_height);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
             scrollbar.render(inner, buf, &mut scrollbar_state);
@@ -275,59 +370,63 @@ impl PaneComponent for EventListPane {
     }
 }
 
-fn format_header(width: u16, sort_column: SortColumn, reversed: bool) -> Line<'static> {
+fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bool) -> Line<'static> {
     let style = Theme::header();
-    let w = width as usize;
-    let fixed_cols = 6 + 13 + 19 + 19 + 11 + 4;
-    let summary_w = w.saturating_sub(fixed_cols);
-
     let sort_indicator = if reversed { "v" } else { "^" };
 
     let id_text = if sort_column == SortColumn::Id {
-        pad_to_width(&format!("#{}", sort_indicator), 6)
+        pad_to_width(&format!("#{}", sort_indicator), col_widths.id as usize)
     } else {
-        pad_to_width("#", 6)
+        pad_to_width("#", col_widths.id as usize)
     };
 
     let time_text = if sort_column == SortColumn::Time {
-        pad_to_width(&format!("Time{}", sort_indicator), 13)
+        pad_to_width(&format!("Time{}", sort_indicator), col_widths.time as usize)
     } else {
-        pad_to_width("Time", 13)
+        pad_to_width("Time", col_widths.time as usize)
     };
 
+    let src_label = if col_widths.dst == 0 { "Origin" } else { "Source" };
     let src_text = if sort_column == SortColumn::Source {
-        pad_to_width(&format!("Source{}", sort_indicator), 19)
+        pad_to_width(&format!("{}{}", src_label, sort_indicator), col_widths.src as usize)
     } else {
-        pad_to_width("Source", 19)
-    };
-
-    let dst_text = if sort_column == SortColumn::Dest {
-        pad_to_width(&format!("Destination{}", sort_indicator), 19)
-    } else {
-        pad_to_width("Destination", 19)
+        pad_to_width(src_label, col_widths.src as usize)
     };
 
     let proto_text = if sort_column == SortColumn::Protocol {
-        pad_to_width(&format!("Protocol{}", sort_indicator), 11)
+        pad_to_width(&format!("Protocol{}", sort_indicator), col_widths.proto as usize)
     } else {
-        pad_to_width("Protocol", 11)
+        pad_to_width("Protocol", col_widths.proto as usize)
     };
 
     let dir_text = if sort_column == SortColumn::Dir {
-        pad_to_width(&format!("Dir{}", sort_indicator), 4)
+        pad_to_width(&format!("Dir{}", sort_indicator), col_widths.dir as usize)
     } else {
-        pad_to_width("Dir", 4)
+        pad_to_width("Dir", col_widths.dir as usize)
     };
 
-    Line::from(vec![
+    let mut spans = vec![
         Span::styled(id_text, style),
         Span::styled(time_text, style),
         Span::styled(src_text, style),
-        Span::styled(dst_text, style),
+    ];
+
+    if col_widths.dst > 0 {
+        let dst_text = if sort_column == SortColumn::Dest {
+            pad_to_width(&format!("Destination{}", sort_indicator), col_widths.dst as usize)
+        } else {
+            pad_to_width("Destination", col_widths.dst as usize)
+        };
+        spans.push(Span::styled(dst_text, style));
+    }
+
+    spans.extend(vec![
         Span::styled(proto_text, style),
         Span::styled(dir_text, style),
-        Span::styled(pad_to_width("Summary", summary_w), style),
-    ])
+        Span::styled(pad_to_width("Summary", col_widths.summary as usize), style),
+    ]);
+
+    Line::from(spans)
 }
 
 fn truncate_str(s: &str, max_width: usize) -> String {
@@ -412,6 +511,7 @@ mod tests {
             filter: None,
             filter_text: String::new(),
             store,
+            schema_registry: None,
         }
     }
 
@@ -770,6 +870,7 @@ mod tests {
             filter: Some(filter),
             filter_text: r#"transport == "gRPC""#.to_string(),
             store,
+            schema_registry: None,
         };
 
         let pane = EventListPane::new();

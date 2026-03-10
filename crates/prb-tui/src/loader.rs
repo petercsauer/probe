@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use prb_core::{CaptureAdapter, DebugEvent};
+use prb_schema::SchemaRegistry;
 
 use crate::EventStore;
 
@@ -92,4 +93,60 @@ fn load_mcap(path: &Path) -> Result<Vec<DebugEvent>> {
         }
     }
     Ok(events)
+}
+
+/// Load schemas from proto files, descriptor sets, and MCAP auto-extraction.
+pub fn load_schemas(
+    proto_paths: &[PathBuf],
+    descriptor_sets: &[PathBuf],
+    mcap_path: Option<&Path>,
+) -> Result<SchemaRegistry> {
+    let mut registry = SchemaRegistry::new();
+
+    // Load descriptor set files
+    for path in descriptor_sets {
+        tracing::debug!("Loading descriptor set from {}", path.display());
+        registry
+            .load_descriptor_set_file(path)
+            .with_context(|| format!("Failed to load descriptor set {}", path.display()))?;
+    }
+
+    // Load and compile proto files
+    if !proto_paths.is_empty() {
+        tracing::debug!("Compiling {} proto files", proto_paths.len());
+        // Use parent directory of first proto as include path
+        let includes: Vec<PathBuf> = proto_paths
+            .iter()
+            .filter_map(|p| p.parent().map(|parent| parent.to_path_buf()))
+            .collect();
+        registry
+            .load_proto_files(proto_paths, &includes)
+            .context("Failed to compile proto files")?;
+    }
+
+    // Auto-extract schemas from MCAP if provided
+    if let Some(path) = mcap_path
+        && let Ok(format) = detect_format(path)
+        && matches!(format, InputFormat::Mcap)
+    {
+        tracing::debug!("Attempting to extract schemas from MCAP file");
+        if let Err(e) = extract_mcap_schemas(&mut registry, path) {
+            tracing::warn!("Failed to extract schemas from MCAP: {}", e);
+        }
+    }
+
+    Ok(registry)
+}
+
+fn extract_mcap_schemas(_registry: &mut SchemaRegistry, path: &Path) -> Result<()> {
+    use prb_storage::SessionReader;
+    let _reader = SessionReader::open(path)
+        .with_context(|| format!("Failed to open MCAP for schema extraction: {}", path.display()))?;
+
+    // Try to extract embedded schemas from the MCAP file
+    // SessionReader would need to expose schema extraction functionality
+    // For now, we'll just log that we attempted it
+    tracing::debug!("MCAP schema extraction not yet implemented in SessionReader");
+
+    Ok(())
 }
