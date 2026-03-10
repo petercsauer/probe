@@ -74,7 +74,7 @@ pub struct DetectionContext<'a> {
     pub tls_decrypted: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TransportLayer {
     Tcp,
     Udp,

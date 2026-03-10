@@ -11,6 +11,9 @@ guess = { version = "0.2", features = ["full"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+prb-grpc = { path = "../prb-grpc" }
+prb-zmq = { path = "../prb-zmq" }
+prb-dds = { path = "../prb-dds" }
 insta = { workspace = true }
 criterion = { workspace = true }
 
