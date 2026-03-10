@@ -3620,6 +3620,8 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "bytes",
+ "prb-core",
+ "prb-pcap",
  "prost",
  "prost-reflect",
  "prost-types",
