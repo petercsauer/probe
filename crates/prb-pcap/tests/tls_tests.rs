@@ -1,6 +1,6 @@
 //! Integration tests for TLS decryption module.
 
-use prb_pcap::{PcapError, TlsStreamProcessor};
+use prb_pcap::TlsStreamProcessor;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -8,7 +8,7 @@ use tempfile::NamedTempFile;
 
 #[test]
 fn test_keylog_parse() {
-    use prb_pcap::tls::keylog::{KeyMaterial, TlsKeyLog};
+    use prb_pcap::tls::keylog::TlsKeyLog;
 
     let mut keylog = TlsKeyLog::new();
 
@@ -21,9 +21,9 @@ fn test_keylog_parse() {
 
     // Verify we can lookup the key
     let client_random = hex::decode("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap();
-    let key = keylog.lookup(&client_random);
-    assert!(key.is_some());
-    assert!(key.unwrap().is_tls12());
+    let keys = keylog.lookup(&client_random);
+    assert!(keys.is_some());
+    assert!(keys.unwrap()[0].is_tls12());
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn test_aes128gcm_decrypt_synthetic() {
     let traffic_secret = vec![0xaa; 32];
     let key_material = KeyMaterial::ClientTrafficSecret0(traffic_secret);
 
-    let decryptor = TlsDecryptor::new(&session, &key_material);
+    let decryptor = TlsDecryptor::new(&session, &[key_material]);
     assert!(decryptor.is_ok());
 }
 
@@ -150,7 +150,7 @@ fn test_aes256gcm_decrypt_synthetic() {
     let traffic_secret = vec![0xbb; 48]; // AES-256 uses 48-byte secret
     let key_material = KeyMaterial::ClientTrafficSecret0(traffic_secret);
 
-    let decryptor = TlsDecryptor::new(&session, &key_material);
+    let decryptor = TlsDecryptor::new(&session, &[key_material]);
     assert!(decryptor.is_ok());
 }
 
@@ -171,7 +171,7 @@ fn test_chacha20poly1305_decrypt_synthetic() {
     let traffic_secret = vec![0xcc; 32];
     let key_material = KeyMaterial::ClientTrafficSecret0(traffic_secret);
 
-    let decryptor = TlsDecryptor::new(&session, &key_material);
+    let decryptor = TlsDecryptor::new(&session, &[key_material]);
     assert!(decryptor.is_ok());
 }
 

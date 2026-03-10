@@ -80,12 +80,12 @@ impl TlsStreamProcessor {
         let (data, encrypted) = match session_result {
             Ok(session) => {
                 // Look up key material using client_random
-                if let Some(key_material) = self.keylog.lookup(&session.client_random) {
+                if let Some(key_materials) = self.keylog.lookup(&session.client_random) {
                     // Create decryptor based on cipher suite
-                    let decryptor = TlsDecryptor::new(&session, key_material)?;
+                    let decryptor = TlsDecryptor::new(&session, key_materials)?;
 
                     // Decrypt all records in the stream
-                    match decryptor.decrypt_stream(&stream.data) {
+                    match decryptor.decrypt_stream(&stream.data, stream.direction) {
                         Ok(decrypted) => (decrypted, false),
                         Err(_) => {
                             // Decryption failed - pass through as encrypted

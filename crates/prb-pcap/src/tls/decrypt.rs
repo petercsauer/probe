@@ -47,8 +47,11 @@ pub struct TlsDecryptor {
 }
 
 impl TlsDecryptor {
-    /// Creates a new TLS decryptor from session info and key material.
-    pub fn new(session: &SessionInfo, key_material: &KeyMaterial) -> Result<Self, PcapError> {
+    /// Creates a new TLS decryptor from session info and key materials.
+    ///
+    /// For TLS 1.2, only the first key material (master secret) is used.
+    /// For TLS 1.3, searches for both client and server traffic secrets.
+    pub fn new(session: &SessionInfo, key_materials: &[KeyMaterial]) -> Result<Self, PcapError> {
         if !session.is_supported() {
             return Err(PcapError::TlsKey(format!(
                 "unsupported cipher suite: 0x{:04x}",
@@ -76,31 +79,39 @@ impl TlsDecryptor {
 
         // Derive keys based on TLS version
         let (client_key, client_iv, server_key, server_iv) = if is_tls13 {
-            // TLS 1.3: use traffic secret to derive keys
-            match key_material {
-                KeyMaterial::ClientTrafficSecret0(secret) => {
-                    let keys =
-                        derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
-                    // For TLS 1.3, we need both client and server secrets
-                    // For now, use client secret for both (this is a limitation)
-                    (keys.key.clone(), keys.iv.clone(), keys.key, keys.iv)
-                }
-                KeyMaterial::ServerTrafficSecret0(secret) => {
-                    let keys =
-                        derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
-                    // Use server secret for both directions (limitation)
-                    (keys.key.clone(), keys.iv.clone(), keys.key, keys.iv)
-                }
-                KeyMaterial::MasterSecret(_) => {
-                    return Err(PcapError::TlsKey(
-                        "TLS 1.3 requires traffic secrets, not master secret".to_string(),
-                    ))
-                }
-            }
+            // TLS 1.3: find both client and server traffic secrets
+            let client_secret = key_materials
+                .iter()
+                .find(|m| matches!(m, KeyMaterial::ClientTrafficSecret0(_)));
+            let server_secret = key_materials
+                .iter()
+                .find(|m| matches!(m, KeyMaterial::ServerTrafficSecret0(_)));
+
+            let (client_key, client_iv) = if let Some(KeyMaterial::ClientTrafficSecret0(secret)) = client_secret {
+                let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
+                (keys.key, keys.iv)
+            } else {
+                // No client secret - use empty keys (decryption will fail gracefully)
+                (vec![0u8; session.key_len()], vec![0u8; 12])
+            };
+
+            let (server_key, server_iv) = if let Some(KeyMaterial::ServerTrafficSecret0(secret)) = server_secret {
+                let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
+                (keys.key, keys.iv)
+            } else {
+                // No server secret - use empty keys (decryption will fail gracefully)
+                (vec![0u8; session.key_len()], vec![0u8; 12])
+            };
+
+            (client_key, client_iv, server_key, server_iv)
         } else {
             // TLS 1.2: use master secret to derive keys
-            match key_material {
-                KeyMaterial::MasterSecret(master_secret) => {
+            let master_secret = key_materials
+                .iter()
+                .find(|m| matches!(m, KeyMaterial::MasterSecret(_)));
+
+            match master_secret {
+                Some(KeyMaterial::MasterSecret(master_secret)) => {
                     let keys = derive_tls12_keys(
                         master_secret,
                         &session.client_random,
@@ -117,7 +128,7 @@ impl TlsDecryptor {
                 }
                 _ => {
                     return Err(PcapError::TlsKey(
-                        "TLS 1.2 requires master secret, not traffic secrets".to_string(),
+                        "TLS 1.2 requires master secret".to_string(),
                     ))
                 }
             }
@@ -136,7 +147,11 @@ impl TlsDecryptor {
     /// Decrypts all TLS records in a stream.
     ///
     /// Returns concatenated plaintext from all Application Data records.
-    pub fn decrypt_stream(&self, data: &[u8]) -> Result<Vec<u8>, PcapError> {
+    pub fn decrypt_stream(
+        &self,
+        data: &[u8],
+        direction: crate::tcp::StreamDirection,
+    ) -> Result<Vec<u8>, PcapError> {
         let mut plaintext = Vec::new();
         let mut offset = 0;
         let mut sequence = 0u64;
@@ -153,7 +168,7 @@ impl TlsDecryptor {
                             if let TlsMessage::ApplicationData(app_data) = msg {
                                 // Decrypt this record
                                 let decrypted =
-                                    self.decrypt_record(app_data.blob, sequence, &record.hdr)?;
+                                    self.decrypt_record(app_data.blob, sequence, &record.hdr, direction)?;
                                 plaintext.extend_from_slice(&decrypted);
                                 sequence += 1;
                             }
@@ -178,11 +193,13 @@ impl TlsDecryptor {
         ciphertext: &[u8],
         sequence: u64,
         record_hdr: &tls_parser::TlsRecordHeader,
+        direction: crate::tcp::StreamDirection,
     ) -> Result<Vec<u8>, PcapError> {
-        // Select key and IV based on direction (heuristic: assume client->server for now)
-        // In a real implementation, we'd track connection direction
-        let key = &self.client_key;
-        let iv = &self.client_iv;
+        // Select key and IV based on direction
+        let (key, iv) = match direction {
+            crate::tcp::StreamDirection::ClientToServer => (&self.client_key, &self.client_iv),
+            crate::tcp::StreamDirection::ServerToClient => (&self.server_key, &self.server_iv),
+        };
 
         // Construct nonce
         let nonce = self.construct_nonce(iv, sequence, ciphertext)?;

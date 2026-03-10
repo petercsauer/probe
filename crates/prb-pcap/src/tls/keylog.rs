@@ -18,10 +18,14 @@ use std::path::Path;
 pub enum KeyMaterial {
     /// TLS 1.2 master secret (48 bytes).
     MasterSecret(Vec<u8>),
-    /// TLS 1.3 client traffic secret (32 or 48 bytes depending on cipher).
+    /// TLS 1.3 client traffic secret for application data (32 or 48 bytes).
     ClientTrafficSecret0(Vec<u8>),
-    /// TLS 1.3 server traffic secret (32 or 48 bytes depending on cipher).
+    /// TLS 1.3 server traffic secret for application data (32 or 48 bytes).
     ServerTrafficSecret0(Vec<u8>),
+    /// TLS 1.3 client handshake traffic secret (32 or 48 bytes).
+    ClientHandshakeTrafficSecret(Vec<u8>),
+    /// TLS 1.3 server handshake traffic secret (32 or 48 bytes).
+    ServerHandshakeTrafficSecret(Vec<u8>),
 }
 
 impl KeyMaterial {
@@ -31,6 +35,8 @@ impl KeyMaterial {
             KeyMaterial::MasterSecret(bytes) => bytes,
             KeyMaterial::ClientTrafficSecret0(bytes) => bytes,
             KeyMaterial::ServerTrafficSecret0(bytes) => bytes,
+            KeyMaterial::ClientHandshakeTrafficSecret(bytes) => bytes,
+            KeyMaterial::ServerHandshakeTrafficSecret(bytes) => bytes,
         }
     }
 
@@ -43,17 +49,21 @@ impl KeyMaterial {
     pub fn is_tls13(&self) -> bool {
         matches!(
             self,
-            KeyMaterial::ClientTrafficSecret0(_) | KeyMaterial::ServerTrafficSecret0(_)
+            KeyMaterial::ClientTrafficSecret0(_)
+                | KeyMaterial::ServerTrafficSecret0(_)
+                | KeyMaterial::ClientHandshakeTrafficSecret(_)
+                | KeyMaterial::ServerHandshakeTrafficSecret(_)
         )
     }
 }
 
 /// TLS key log storage.
 ///
-/// Maps client_random (32 bytes) to key material.
+/// Maps client_random (32 bytes) to a collection of key material.
+/// For TLS 1.3, multiple secrets (client, server, handshake) may exist per client_random.
 #[derive(Debug, Clone, Default)]
 pub struct TlsKeyLog {
-    keys: HashMap<Vec<u8>, KeyMaterial>,
+    keys: HashMap<Vec<u8>, Vec<KeyMaterial>>,
 }
 
 impl TlsKeyLog {
@@ -88,6 +98,8 @@ impl TlsKeyLog {
     /// - `CLIENT_RANDOM <hex_client_random> <hex_master_secret>`
     /// - `CLIENT_TRAFFIC_SECRET_0 <hex_client_random> <hex_traffic_secret>`
     /// - `SERVER_TRAFFIC_SECRET_0 <hex_client_random> <hex_traffic_secret>`
+    /// - `CLIENT_HANDSHAKE_TRAFFIC_SECRET <hex_client_random> <hex_traffic_secret>`
+    /// - `SERVER_HANDSHAKE_TRAFFIC_SECRET <hex_client_random> <hex_traffic_secret>`
     pub fn parse_line(&mut self, line: &str) -> Result<(), PcapError> {
         let line = line.trim();
 
@@ -147,24 +159,72 @@ impl TlsKeyLog {
                 }
                 KeyMaterial::ServerTrafficSecret0(key_material_bytes)
             }
+            "CLIENT_HANDSHAKE_TRAFFIC_SECRET" => {
+                // TLS 1.3 client handshake traffic secret (32 or 48 bytes)
+                if key_material_bytes.len() != 32 && key_material_bytes.len() != 48 {
+                    return Err(PcapError::TlsKey(format!(
+                        "invalid handshake secret length: {} (expected 32 or 48)",
+                        key_material_bytes.len()
+                    )));
+                }
+                KeyMaterial::ClientHandshakeTrafficSecret(key_material_bytes)
+            }
+            "SERVER_HANDSHAKE_TRAFFIC_SECRET" => {
+                // TLS 1.3 server handshake traffic secret (32 or 48 bytes)
+                if key_material_bytes.len() != 32 && key_material_bytes.len() != 48 {
+                    return Err(PcapError::TlsKey(format!(
+                        "invalid handshake secret length: {} (expected 32 or 48)",
+                        key_material_bytes.len()
+                    )));
+                }
+                KeyMaterial::ServerHandshakeTrafficSecret(key_material_bytes)
+            }
             _ => {
                 // Unknown label - ignore
                 return Ok(());
             }
         };
 
-        self.keys.insert(client_random, key_material);
+        self.keys.entry(client_random).or_insert_with(Vec::new).push(key_material);
         Ok(())
     }
 
     /// Inserts key material for a client_random.
+    /// Multiple keys can exist for the same client_random (e.g., TLS 1.3 client + server secrets).
     pub fn insert(&mut self, client_random: Vec<u8>, key_material: KeyMaterial) {
-        self.keys.insert(client_random, key_material);
+        self.keys.entry(client_random).or_insert_with(Vec::new).push(key_material);
     }
 
-    /// Looks up key material by client_random.
-    pub fn lookup(&self, client_random: &[u8]) -> Option<&KeyMaterial> {
-        self.keys.get(client_random)
+    /// Looks up all key material by client_random.
+    pub fn lookup(&self, client_random: &[u8]) -> Option<&[KeyMaterial]> {
+        self.keys.get(client_random).map(|v| v.as_slice())
+    }
+
+    /// Looks up a specific key type by client_random and direction.
+    ///
+    /// For TLS 1.2, returns the master secret regardless of direction.
+    /// For TLS 1.3, returns client or server traffic secret based on direction.
+    pub fn lookup_for_direction(
+        &self,
+        client_random: &[u8],
+        direction: crate::tcp::StreamDirection,
+    ) -> Option<&KeyMaterial> {
+        let materials = self.lookup(client_random)?;
+
+        // For TLS 1.2, return master secret
+        if let Some(master) = materials.iter().find(|m| m.is_tls12()) {
+            return Some(master);
+        }
+
+        // For TLS 1.3, select based on direction
+        match direction {
+            crate::tcp::StreamDirection::ClientToServer => {
+                materials.iter().find(|m| matches!(m, KeyMaterial::ClientTrafficSecret0(_)))
+            }
+            crate::tcp::StreamDirection::ServerToClient => {
+                materials.iter().find(|m| matches!(m, KeyMaterial::ServerTrafficSecret0(_)))
+            }
+        }
     }
 
     /// Merges DSB-extracted keys (from pcapng) with existing keys.
