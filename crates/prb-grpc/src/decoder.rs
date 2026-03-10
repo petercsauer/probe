@@ -159,12 +159,14 @@ impl GrpcDecoder {
                             .get(":authority")
                             .cloned()
                             .unwrap_or_else(|| "unknown".to_string());
+                        let is_request = stream.request_headers.contains_key(":method");
 
                         if let Some(event) = self.create_message_event(
                             stream_id,
                             method_name,
                             authority,
                             message.payload,
+                            is_request,
                             ctx,
                         )? {
                             debug_events.push(event);
@@ -204,9 +206,17 @@ impl GrpcDecoder {
         method_name: String,
         authority: String,
         payload: Bytes,
+        is_request: bool,
         ctx: &DecodeContext,
     ) -> Result<Option<DebugEvent>, CoreError> {
         self.sequence += 1;
+
+        // Infer direction: request (with :method) = Outbound, response = Inbound
+        let direction = if is_request {
+            Direction::Outbound
+        } else {
+            Direction::Inbound
+        };
 
         // Build event
         let mut event_builder = DebugEvent::builder()
@@ -224,7 +234,7 @@ impl GrpcDecoder {
                 }),
             })
             .transport(TransportKind::Grpc)
-            .direction(Direction::Inbound) // TODO: infer from stream direction
+            .direction(direction)
             .payload(Payload::Raw { raw: payload })
             .metadata(METADATA_KEY_GRPC_METHOD, &method_name)
             .metadata(METADATA_KEY_H2_STREAM_ID, stream_id.to_string())
@@ -269,7 +279,7 @@ impl GrpcDecoder {
                 }),
             })
             .transport(TransportKind::Grpc)
-            .direction(Direction::Outbound) // Status is from server
+            .direction(Direction::Inbound) // Trailers/status are server responses
             .payload(Payload::Raw {
                 raw: Bytes::from(format!("status={} message={}", grpc_status, grpc_message)),
             })

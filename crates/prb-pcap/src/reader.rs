@@ -44,6 +44,11 @@ impl TlsKeyStore {
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
+
+    /// Returns an iterator over all key entries.
+    pub fn iter(&self) -> impl Iterator<Item = (&[u8], &[u8])> {
+        self.keys.iter().map(|(k, v)| (k.as_slice(), v.as_slice()))
+    }
 }
 
 /// A packet extracted from a PCAP/pcapng file.

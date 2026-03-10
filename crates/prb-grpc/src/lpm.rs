@@ -124,7 +124,8 @@ impl LpmParser {
                 Ok(Bytes::from(decompressed))
             }
             CompressionAlgorithm::Deflate => {
-                let mut decoder = flate2::read::DeflateDecoder::new(data);
+                // gRPC "deflate" is actually zlib (RFC 1950), not raw deflate (RFC 1951)
+                let mut decoder = flate2::read::ZlibDecoder::new(data);
                 let mut decompressed = Vec::new();
                 decoder
                     .read_to_end(&mut decompressed)
@@ -134,18 +135,6 @@ impl LpmParser {
         }
     }
 
-    /// Flush any remaining buffered data.
-    ///
-    /// This is useful for handling incomplete messages at stream end.
-    /// Returns the buffered data if any remains.
-    #[allow(dead_code)]
-    pub fn flush(&mut self) -> Option<Bytes> {
-        if self.buffer.is_empty() {
-            None
-        } else {
-            Some(Bytes::from(std::mem::take(&mut self.buffer)))
-        }
-    }
 }
 
 #[cfg(test)]

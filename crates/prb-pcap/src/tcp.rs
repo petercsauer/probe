@@ -19,13 +19,6 @@ use std::ops::Range;
 /// Default connection timeout in microseconds (30 seconds).
 const DEFAULT_TIMEOUT_US: u64 = 30_000_000;
 
-/// Maximum number of bytes to buffer per direction per connection.
-#[allow(dead_code)]
-const MAX_BUFFER_SIZE: usize = 16 * 1024 * 1024; // 16 MB
-
-/// Maximum gap size to tolerate before skipping (1 MB).
-#[allow(dead_code)]
-const MAX_GAP_SIZE: usize = 1024 * 1024;
 
 /// Direction of TCP stream data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

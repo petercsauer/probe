@@ -111,10 +111,13 @@ impl PcapCaptureAdapter {
                     embedded_keys.len()
                 );
                 // Convert TlsKeyStore to TlsKeyLog
-                let keylog = TlsKeyLog::new();
-                // Note: TlsKeyStore doesn't expose iteration, so we'll create a new processor
-                // and manually add keys if needed. For now, just use an empty keylog.
-                // TODO: Enhance TlsKeyStore to support iteration or conversion.
+                let mut keylog = TlsKeyLog::new();
+                for (client_random, master_secret) in embedded_keys.iter() {
+                    keylog.insert(
+                        client_random.to_vec(),
+                        crate::tls::keylog::KeyMaterial::MasterSecret(master_secret.to_vec()),
+                    );
+                }
                 TlsStreamProcessor::with_keylog(keylog)
             } else {
                 TlsStreamProcessor::new()

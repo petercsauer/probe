@@ -14,9 +14,6 @@ pub enum ZmqError {
     #[error("Invalid frame flag byte: 0x{0:02X} (bits 7-3 must be zero)")]
     InvalidFlagByte(u8),
 
-    #[error("Incomplete data: expected {expected} bytes, got {actual}")]
-    IncompleteData { expected: usize, actual: usize },
-
     #[error("Invalid command name length: {0}")]
     InvalidCommandNameLength(u8),
 

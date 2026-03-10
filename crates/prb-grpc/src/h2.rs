@@ -73,6 +73,8 @@ pub struct H2Codec {
     hpack_degraded: bool,
     /// Preface sent flag (HTTP/2 connection preface).
     preface_seen: bool,
+    /// Buffer for accumulating header block fragments (HEADERS + CONTINUATION).
+    header_block_buffer: Option<(u32, Vec<u8>, bool)>, // (stream_id, buffer, end_stream)
 }
 
 impl H2Codec {
@@ -83,6 +85,7 @@ impl H2Codec {
             buffer: Vec::new(),
             hpack_degraded: false,
             preface_seen: false,
+            header_block_buffer: None,
         }
     }
 
@@ -146,30 +149,83 @@ impl H2Codec {
                 0x01 => {
                     // HEADERS frame
                     let end_stream = (flags & 0x01) != 0;
+                    let end_headers = (flags & 0x04) != 0;
 
-                    // Parse HPACK headers
-                    // For now, use a simple implementation that handles literal headers
-                    // This will be replaced with proper h2-sans-io integration
-                    let headers = match self.parse_hpack_headers(&payload) {
-                        Ok(h) => h,
-                        Err(e) => {
-                            // HPACK degradation - log warning and continue
-                            if !self.hpack_degraded {
-                                self.hpack_degraded = true;
-                                tracing::warn!("HPACK degradation: {}", e);
-                                events.push(H2Event::HpackDegraded {
-                                    reason: e.to_string(),
-                                });
+                    if !end_headers {
+                        // Start accumulating header block fragments
+                        self.header_block_buffer = Some((stream_id, payload.clone(), end_stream));
+                    } else {
+                        // Complete header block in one frame
+                        let headers = match self.parse_hpack_headers(&payload) {
+                            Ok(h) => h,
+                            Err(e) => {
+                                // HPACK degradation - log warning and continue
+                                if !self.hpack_degraded {
+                                    self.hpack_degraded = true;
+                                    tracing::warn!("HPACK degradation: {}", e);
+                                    events.push(H2Event::HpackDegraded {
+                                        reason: e.to_string(),
+                                    });
+                                }
+                                HashMap::new()
                             }
-                            HashMap::new()
-                        }
-                    };
+                        };
 
-                    events.push(H2Event::Headers {
-                        stream_id,
-                        headers,
-                        end_stream,
-                    });
+                        events.push(H2Event::Headers {
+                            stream_id,
+                            headers,
+                            end_stream,
+                        });
+                    }
+                }
+                0x09 => {
+                    // CONTINUATION frame
+                    let end_headers = (flags & 0x04) != 0;
+
+                    if let Some((buffered_stream_id, mut buffer, buffered_end_stream)) =
+                        self.header_block_buffer.take()
+                    {
+                        if buffered_stream_id == stream_id {
+                            // Append to buffer
+                            buffer.extend_from_slice(&payload);
+
+                            if end_headers {
+                                // Complete header block - parse it
+                                let headers = match self.parse_hpack_headers(&buffer) {
+                                    Ok(h) => h,
+                                    Err(e) => {
+                                        if !self.hpack_degraded {
+                                            self.hpack_degraded = true;
+                                            tracing::warn!("HPACK degradation: {}", e);
+                                            events.push(H2Event::HpackDegraded {
+                                                reason: e.to_string(),
+                                            });
+                                        }
+                                        HashMap::new()
+                                    }
+                                };
+
+                                events.push(H2Event::Headers {
+                                    stream_id,
+                                    headers,
+                                    end_stream: buffered_end_stream,
+                                });
+                            } else {
+                                // Still accumulating - put buffer back
+                                self.header_block_buffer = Some((buffered_stream_id, buffer, buffered_end_stream));
+                            }
+                        } else {
+                            // Stream ID mismatch - protocol error, clear buffer
+                            tracing::warn!(
+                                "CONTINUATION frame stream ID mismatch: expected {}, got {}",
+                                buffered_stream_id,
+                                stream_id
+                            );
+                        }
+                    } else {
+                        // CONTINUATION without HEADERS - protocol error, ignore
+                        tracing::warn!("CONTINUATION frame without preceding HEADERS");
+                    }
                 }
                 0x04 => {
                     // SETTINGS frame
@@ -207,42 +263,8 @@ impl H2Codec {
         while offset < data.len() {
             let byte = data[offset];
 
-            // Check for literal header without indexing (0x00 prefix)
-            if byte == 0x00 || (byte & 0xF0) == 0x00 {
-                offset += 1;
-
-                // Parse name length
-                if offset >= data.len() {
-                    break;
-                }
-                let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
-                offset += name_len_bytes;
-
-                // Parse name
-                if offset + name_len > data.len() {
-                    break;
-                }
-                let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
-                offset += name_len;
-
-                // Parse value length
-                if offset >= data.len() {
-                    break;
-                }
-                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
-                offset += value_len_bytes;
-
-                // Parse value
-                if offset + value_len > data.len() {
-                    break;
-                }
-                let value = String::from_utf8_lossy(&data[offset..offset + value_len]).to_string();
-                offset += value_len;
-
-                headers.insert(name, value);
-            }
-            // Check for indexed header (0x80 prefix)
-            else if (byte & 0x80) != 0 {
+            // Check for indexed header (0x80 prefix, 7-bit index)
+            if (byte & 0x80) != 0 {
                 let (index, index_bytes) = self.parse_integer(&data[offset..], 7)?;
                 offset += index_bytes;
 
@@ -256,9 +278,125 @@ impl H2Codec {
                         index
                     )));
                 }
-            } else {
-                // Other encoding formats - skip for now
-                offset += 1;
+            }
+            // Check for literal header with incremental indexing (0x40 prefix, 6-bit index)
+            else if (byte & 0x40) != 0 {
+                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 6)?;
+                offset += name_index_bytes;
+
+                // If name_index == 0, name is literal; otherwise it's from table
+                let name = if name_index == 0 {
+                    // Literal name
+                    if offset >= data.len() {
+                        break;
+                    }
+                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    offset += name_len_bytes;
+                    if offset + name_len > data.len() {
+                        break;
+                    }
+                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    offset += name_len;
+                    name
+                } else {
+                    // Indexed name from static table
+                    self.static_table_lookup(name_index)
+                        .map(|(n, _)| n.to_string())
+                        .unwrap_or_else(|| "unknown".to_string())
+                };
+
+                // Parse value (always literal)
+                if offset >= data.len() {
+                    break;
+                }
+                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += value_len_bytes;
+                if offset + value_len > data.len() {
+                    break;
+                }
+                let value = String::from_utf8_lossy(&data[offset..offset + value_len]).to_string();
+                offset += value_len;
+
+                headers.insert(name, value);
+            }
+            // Check for dynamic table size update (0x20 prefix, 5-bit value)
+            else if (byte & 0xE0) == 0x20 {
+                let (_new_size, size_bytes) = self.parse_integer(&data[offset..], 5)?;
+                offset += size_bytes;
+                // We don't maintain a dynamic table, so just consume the bytes
+            }
+            // Check for literal header never indexed (0x10 prefix, 4-bit index)
+            else if (byte & 0x10) != 0 {
+                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 4)?;
+                offset += name_index_bytes;
+
+                // Same parsing as literal-with-indexing
+                let name = if name_index == 0 {
+                    if offset >= data.len() {
+                        break;
+                    }
+                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    offset += name_len_bytes;
+                    if offset + name_len > data.len() {
+                        break;
+                    }
+                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    offset += name_len;
+                    name
+                } else {
+                    self.static_table_lookup(name_index)
+                        .map(|(n, _)| n.to_string())
+                        .unwrap_or_else(|| "unknown".to_string())
+                };
+
+                if offset >= data.len() {
+                    break;
+                }
+                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += value_len_bytes;
+                if offset + value_len > data.len() {
+                    break;
+                }
+                let value = String::from_utf8_lossy(&data[offset..offset + value_len]).to_string();
+                offset += value_len;
+
+                headers.insert(name, value);
+            }
+            // Check for literal header without indexing (0x00 prefix, 4-bit index)
+            else {
+                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 4)?;
+                offset += name_index_bytes;
+
+                let name = if name_index == 0 {
+                    if offset >= data.len() {
+                        break;
+                    }
+                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    offset += name_len_bytes;
+                    if offset + name_len > data.len() {
+                        break;
+                    }
+                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    offset += name_len;
+                    name
+                } else {
+                    self.static_table_lookup(name_index)
+                        .map(|(n, _)| n.to_string())
+                        .unwrap_or_else(|| "unknown".to_string())
+                };
+
+                if offset >= data.len() {
+                    break;
+                }
+                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                offset += value_len_bytes;
+                if offset + value_len > data.len() {
+                    break;
+                }
+                let value = String::from_utf8_lossy(&data[offset..offset + value_len]).to_string();
+                offset += value_len;
+
+                headers.insert(name, value);
             }
         }
 
@@ -300,9 +438,8 @@ impl H2Codec {
         Ok((value, offset))
     }
 
-    /// Lookup in HTTP/2 static table.
+    /// Lookup in HTTP/2 static table (RFC 7541 Appendix A).
     fn static_table_lookup(&self, index: usize) -> Option<(&'static str, &'static str)> {
-        // HTTP/2 static table (partial - common entries)
         match index {
             1 => Some((":authority", "")),
             2 => Some((":method", "GET")),
@@ -312,7 +449,59 @@ impl H2Codec {
             6 => Some((":scheme", "http")),
             7 => Some((":scheme", "https")),
             8 => Some((":status", "200")),
-            15 => Some(("accept-encoding", "gzip, deflate")),
+            9 => Some((":status", "204")),
+            10 => Some((":status", "206")),
+            11 => Some((":status", "304")),
+            12 => Some((":status", "400")),
+            13 => Some((":status", "404")),
+            14 => Some((":status", "500")),
+            15 => Some(("accept-charset", "")),
+            16 => Some(("accept-encoding", "gzip, deflate")),
+            17 => Some(("accept-language", "")),
+            18 => Some(("accept-ranges", "")),
+            19 => Some(("accept", "")),
+            20 => Some(("access-control-allow-origin", "")),
+            21 => Some(("age", "")),
+            22 => Some(("allow", "")),
+            23 => Some(("authorization", "")),
+            24 => Some(("cache-control", "")),
+            25 => Some(("content-disposition", "")),
+            26 => Some(("content-encoding", "")),
+            27 => Some(("content-language", "")),
+            28 => Some(("content-length", "")),
+            29 => Some(("content-location", "")),
+            30 => Some(("content-range", "")),
+            31 => Some(("content-type", "")),
+            32 => Some(("cookie", "")),
+            33 => Some(("date", "")),
+            34 => Some(("etag", "")),
+            35 => Some(("expect", "")),
+            36 => Some(("expires", "")),
+            37 => Some(("from", "")),
+            38 => Some(("host", "")),
+            39 => Some(("if-match", "")),
+            40 => Some(("if-modified-since", "")),
+            41 => Some(("if-none-match", "")),
+            42 => Some(("if-range", "")),
+            43 => Some(("if-unmodified-since", "")),
+            44 => Some(("last-modified", "")),
+            45 => Some(("link", "")),
+            46 => Some(("location", "")),
+            47 => Some(("max-forwards", "")),
+            48 => Some(("proxy-authenticate", "")),
+            49 => Some(("proxy-authorization", "")),
+            50 => Some(("range", "")),
+            51 => Some(("referer", "")),
+            52 => Some(("refresh", "")),
+            53 => Some(("retry-after", "")),
+            54 => Some(("server", "")),
+            55 => Some(("set-cookie", "")),
+            56 => Some(("strict-transport-security", "")),
+            57 => Some(("transfer-encoding", "")),
+            58 => Some(("user-agent", "")),
+            59 => Some(("vary", "")),
+            60 => Some(("via", "")),
+            61 => Some(("www-authenticate", "")),
             _ => None,
         }
     }

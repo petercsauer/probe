@@ -34,6 +34,8 @@ pub struct ZmqDecoder {
     sequence: u64,
     /// Connection ID for correlation.
     connection_id: String,
+    /// Whether this side is acting as server (from greeting).
+    as_server: Option<bool>,
 }
 
 impl ZmqDecoder {
@@ -44,6 +46,7 @@ impl ZmqDecoder {
             socket_metadata: HashMap::new(),
             sequence: 0,
             connection_id: String::new(),
+            as_server: None,
         }
     }
 
@@ -60,11 +63,15 @@ impl ZmqDecoder {
                 ZmtpEvent::Greeting(greeting) => {
                     // Store greeting metadata but don't emit event
                     tracing::debug!(
-                        "ZMTP greeting: version={}.{}, mechanism={}",
+                        "ZMTP greeting: version={}.{}, mechanism={}, as_server={}",
                         greeting.major_version,
                         greeting.minor_version,
-                        greeting.mechanism
+                        greeting.mechanism,
+                        greeting.as_server
                     );
+
+                    // Store as_server flag for direction inference
+                    self.as_server = Some(greeting.as_server);
 
                     // Generate connection ID from context
                     if self.connection_id.is_empty() {
@@ -127,6 +134,10 @@ impl ZmqDecoder {
             if frames.len() > 1 {
                 let topic = String::from_utf8_lossy(&frames[0]).to_string();
                 (Some(topic), &frames[1..])
+            } else if frames.len() == 1 {
+                // Single frame = topic only, no payload
+                let topic = String::from_utf8_lossy(&frames[0]).to_string();
+                (Some(topic), &[][..])
             } else {
                 (None, &frames[..])
             }
@@ -139,6 +150,13 @@ impl ZmqDecoder {
         for frame in payload_frames {
             payload_data.extend_from_slice(frame);
         }
+
+        // Infer direction: if as_server == true, messages from this side are Outbound
+        let direction = if self.as_server.unwrap_or(false) {
+            Direction::Outbound
+        } else {
+            Direction::Inbound
+        };
 
         // Build event
         let mut event_builder = DebugEvent::builder()
@@ -156,7 +174,7 @@ impl ZmqDecoder {
                 }),
             })
             .transport(TransportKind::Zmq)
-            .direction(Direction::Inbound)
+            .direction(direction)
             .payload(Payload::Raw {
                 raw: Bytes::from(payload_data),
             })
