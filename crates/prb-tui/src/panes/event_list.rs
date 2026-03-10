@@ -57,20 +57,6 @@ impl EventListPane {
         }
     }
 
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub fn ensure_visible(&mut self, area_height: u16) {
-        let vis = area_height.saturating_sub(3) as usize;
-        if vis == 0 {
-            return;
-        }
-        if self.selected < self.scroll_offset {
-            self.scroll_offset = self.selected;
-        } else if self.selected >= self.scroll_offset + vis {
-            self.scroll_offset = self.selected.saturating_sub(vis - 1);
-        }
-    }
-
     fn total_items(state: &AppState) -> usize {
         state.filtered_indices.len()
     }
@@ -806,10 +792,10 @@ mod tests {
         let sorted = pane.sorted_indices(&state);
         assert_eq!(sorted.len(), 1500);
 
-        // Test virtual scrolling with large dataset
-        pane.selected = 750;
-        pane.ensure_visible(50);
-        assert!(pane.scroll_offset <= 750);
-        assert!(pane.scroll_offset + 50 > 750);
+        // Test that all indices are valid
+        for idx in sorted.iter().take(100) {
+            assert!(*idx < 1500);
+            assert!(state.store.get(*idx).is_some());
+        }
     }
 }

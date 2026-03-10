@@ -27,11 +27,6 @@ impl DecodeTreePane {
             state: TreeState::default(),
         }
     }
-
-    fn selected_byte_range(&self, event: &DebugEvent) -> Option<(usize, usize)> {
-        let _ = event;
-        None
-    }
 }
 
 impl PaneComponent for DecodeTreePane {

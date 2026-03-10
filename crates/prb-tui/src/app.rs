@@ -90,17 +90,17 @@ impl App {
             store,
         };
 
-        if let Some(ref filter_str) = initial_filter {
-            if let Ok(filter) = Filter::parse(filter_str) {
-                state.filtered_indices = state.store.filter_indices(&filter);
-                state.filter_text = filter_str.clone();
-                state.filter = Some(filter);
-                state.selected_event = if state.filtered_indices.is_empty() {
-                    None
-                } else {
-                    Some(0)
-                };
-            }
+        if let Some(ref filter_str) = initial_filter
+            && let Ok(filter) = Filter::parse(filter_str)
+        {
+            state.filtered_indices = state.store.filter_indices(&filter);
+            state.filter_text = filter_str.clone();
+            state.filter = Some(filter);
+            state.selected_event = if state.filtered_indices.is_empty() {
+                None
+            } else {
+                Some(0)
+            };
         }
 
         App {
@@ -143,12 +143,11 @@ impl App {
         loop {
             self.draw(terminal)?;
 
-            if event::poll(Duration::from_millis(16))? {
-                if let Event::Key(key) = event::read()? {
-                    if self.handle_key(key) {
-                        return Ok(());
-                    }
-                }
+            if event::poll(Duration::from_millis(16))?
+                && let Event::Key(key) = event::read()?
+                && self.handle_key(key)
+            {
+                return Ok(());
             }
         }
     }
