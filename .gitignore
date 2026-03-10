@@ -103,3 +103,9 @@ target/
 
 # OS temp files
 Thumbs.db
+
+# Orchestration / runtime logs
+logs/
+
+# Python bytecode
+__pycache__/

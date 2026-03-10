@@ -1,0 +1,40 @@
+# prb-pcap
+
+The main ingestion engine for PRB, responsible for reading PCAP and pcapng capture files, reassembling TCP streams, decrypting TLS traffic, and feeding reassembled data through protocol decoders. It supports memory-mapped I/O for large files and a parallel pipeline for multi-core throughput.
+
+## Key Types
+
+| Type | Description |
+|------|-------------|
+| `PcapFileReader` | Reads legacy PCAP and pcapng formats, extracts packets and embedded TLS keys (DSB) |
+| `MmapPcapReader` | Memory-mapped reader for efficient processing of large capture files |
+| `TcpReassembler` | Reassembles TCP segments into ordered bidirectional byte streams |
+| `TlsStreamProcessor` | Decrypts TLS-encrypted streams using SSLKEYLOGFILE material |
+| `TlsKeyStore` | Loads and indexes TLS session keys from keylog files and pcapng DSBs |
+| `ParallelPipeline` | Multi-stage parallel processing pipeline with configurable worker counts |
+| `PipelineConfig` | Configuration for batch sizes, parallelism, and decoder selection |
+| `PcapCaptureAdapter` | Implements `CaptureAdapter` — full pcap-to-events pipeline |
+| `PipelineStats` | Packet counts, byte totals, stream counts, and timing metrics |
+| `FlowKey` / `FlowProtocol` | 5-tuple flow identification for TCP/UDP stream tracking |
+| `NormalizedPacket` | Layer-3/4 parsed packet ready for stream reassembly |
+| `PipelineCore` | Shared core logic used by both sequential and parallel pipelines |
+
+## Usage
+
+```rust
+use prb_pcap::{PcapCaptureAdapter, PipelineConfig};
+use prb_core::CaptureAdapter;
+
+let config = PipelineConfig::default();
+let adapter = PcapCaptureAdapter::from_path("capture.pcapng", config)?;
+
+for event in adapter.events()? {
+    println!("[{}] {} → {}", event.transport, event.source_addr, event.dest_addr);
+}
+```
+
+## Relationship to Other Crates
+
+`prb-pcap` depends on `prb-core` for types/traits and `prb-detect` for automatic protocol detection. It optionally uses `prb-grpc`, `prb-zmq`, and `prb-dds` as builtin protocol decoders (behind the `builtin-decoders` feature flag). The `prb-cli` crate drives `prb-pcap` for all pcap/pcapng ingestion workflows. `prb-capture` reuses `prb-pcap`'s TCP reassembly and pipeline logic for live captures.
+
+See the [PRB documentation](../../docs/) for the full user guide.

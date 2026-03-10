@@ -1,0 +1,33 @@
+[plan]
+preamble = [".claude/commands/iterative-builder.md"]
+
+extra_rules = """
+- This is UNATTENDED. Do NOT ask questions.
+- Do NOT spawn subagents or nested tasks. Work directly.
+- Build dir is set to {isolation_dir} via CARGO_TARGET_DIR env — do not override it.
+"""
+
+[execution]
+max_parallel = 4
+segment_timeout = 3600
+max_retries = 2
+heartbeat_interval = 900
+
+[isolation]
+strategy = "env"
+env.CARGO_TARGET_DIR = "/tmp/orchestrate-S{num:02d}"
+
+[gate]
+command = "cargo build --workspace && cargo clippy --workspace -- -D warnings"
+
+[auth]
+CLAUDE_CODE_USE_BEDROCK = "1"
+AWS_REGION = "us-gov-west-1"
+
+[notifications]
+enabled = true
+contact = "+12036446182"
+
+[monitor]
+enabled = true
+port = 8077

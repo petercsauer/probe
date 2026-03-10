@@ -607,14 +607,17 @@ wait_for_any_pid() {
 # ──────────────────────────────────────────────────────────────────────
 # Integration gate after each wave
 # ──────────────────────────────────────────────────────────────────────
+GATE_TARGET_DIR="/tmp/prb-target-gate"
+
 run_gate() {
     local wave_num="$1"
     log "  🔒 Running integration gate after wave $wave_num..."
     local gate_log="$LOG_DIR/gate-wave${wave_num}-$(ts_file).log"
+    mkdir -p "$GATE_TARGET_DIR"
 
     {
-        cargo build --workspace 2>&1 || true
-        cargo clippy --workspace -- -D warnings 2>&1 || true
+        CARGO_TARGET_DIR="$GATE_TARGET_DIR" cargo build --workspace 2>&1 || true
+        CARGO_TARGET_DIR="$GATE_TARGET_DIR" cargo clippy --workspace -- -D warnings 2>&1 || true
     } > "$gate_log" 2>&1
 
     if grep -q "^error" "$gate_log" 2>/dev/null; then

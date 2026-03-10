@@ -66,16 +66,17 @@
       "completed": "2026-03-10T18:53:26Z"
     },
     "S10": {
-      "status": "running",
+      "status": "pass",
       "track": "Misc",
       "title": "prb-detect + export + misc",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T18:55:37Z"
     },
     "S11": {
-      "status": "pending",
+      "status": "running",
       "track": "Integration",
       "title": "Cross-Crate Integration Tests",
-      "attempts": 0
+      "attempts": 1
     },
     "S12": {
       "status": "pending",

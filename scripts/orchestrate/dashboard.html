@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestrator Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e;
+    --pass: #238636; --running: #1f6feb; --pending: #484f58;
+    --fail: #da3633; --partial: #d29922; --blocked: #da3633;
+    --timeout: #b87d2f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; }
+
+  .header { padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .header .meta { color: var(--text-dim); font-size: 13px; }
+
+  .progress-bar { margin: 12px 0 0; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--pass); border-radius: 4px; transition: width 0.5s ease; }
+
+  .main { display: grid; grid-template-rows: auto 1fr auto; height: calc(100vh - 90px); }
+
+  .grid { padding: 16px 24px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+  .tile {
+    width: 80px; height: 56px; border-radius: 6px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; cursor: pointer; font-size: 12px;
+    font-weight: 600; border: 2px solid transparent; transition: all 0.2s;
+  }
+  .tile:hover { transform: scale(1.05); }
+  .tile.active { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,0.3); }
+  .tile .label { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+  .tile.pending  { background: var(--pending); }
+  .tile.running  { background: var(--running); animation: pulse 2s infinite; }
+  .tile.pass     { background: var(--pass); }
+  .tile.partial  { background: var(--partial); }
+  .tile.blocked  { background: var(--blocked); }
+  .tile.failed   { background: var(--fail); }
+  .tile.timeout  { background: var(--timeout); }
+  .tile.unknown  { background: var(--pending); }
+  .tile.skipped  { background: var(--pending); opacity: 0.5; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+  .log-panel {
+    background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; min-height: 200px; max-height: 50vh;
+  }
+  .log-header {
+    padding: 8px 24px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-weight: 600;
+  }
+  .log-header .live-badge { color: var(--running); font-size: 11px; }
+  .log-content {
+    flex: 1; overflow-y: auto; padding: 12px 24px; font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+    font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: var(--text-dim);
+  }
+
+  .events {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 8px 24px; max-height: 150px; overflow-y: auto;
+  }
+  .events h3 { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .event-line { font-size: 12px; color: var(--text-dim); padding: 2px 0; font-family: monospace; }
+  .event-line .ts { color: var(--text); margin-right: 8px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="plan-title">Loading...</h1>
+  <div class="meta">
+    <span id="wave-info">Wave -/-</span> &nbsp;|&nbsp;
+    <span id="progress-text">0/0 segments</span> &nbsp;|&nbsp;
+    <span id="elapsed">Elapsed: --</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+</div>
+
+<div class="main">
+  <div class="grid" id="segment-grid"></div>
+  <div class="log-panel">
+    <div class="log-header">
+      <span>LOG: <span id="log-seg-label">select a segment</span></span>
+      <span class="live-badge" id="live-badge"></span>
+    </div>
+    <div class="log-content" id="log-content"></div>
+  </div>
+</div>
+
+<div class="events">
+  <h3>Event Feed</h3>
+  <div id="event-feed"></div>
+</div>
+
+<script>
+(function() {
+  let activeSeg = null;
+  let logSource = null;
+  let eventSource = null;
+  let startedAt = null;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function formatElapsed(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return h > 0 ? `${h}h ${pad(m)}m` : `${m}m ${pad(s)}s`;
+  }
+
+  function formatTs(epoch) {
+    const d = new Date(epoch * 1000);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function statusIcon(s) {
+    return { pass:'✅', running:'🔄', pending:'⏳', failed:'❌', blocked:'🚫', partial:'⚠️', timeout:'⏰' }[s] || '❓';
+  }
+
+  function refreshState() {
+    fetch('/api/state')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('plan-title').textContent = data.plan_title || 'Orchestrator';
+        document.getElementById('wave-info').textContent = `Wave ${data.current_wave}/${data.max_wave}`;
+
+        const total = data.segments.length;
+        const done = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
+        document.getElementById('progress-text').textContent = `${done}/${total} segments`;
+        document.getElementById('progress-fill').style.width = total ? `${(done/total*100).toFixed(1)}%` : '0%';
+
+        if (data.started_at) {
+          startedAt = parseFloat(data.started_at);
+          const elapsed = Date.now()/1000 - startedAt;
+          document.getElementById('elapsed').textContent = `Elapsed: ${formatElapsed(elapsed)}`;
+        }
+
+        renderGrid(data.segments);
+      })
+      .catch(() => {});
+  }
+
+  function renderGrid(segments) {
+    const grid = document.getElementById('segment-grid');
+    // Only rebuild if count changed
+    if (grid.children.length !== segments.length) {
+      grid.innerHTML = '';
+      segments.forEach(seg => {
+        const div = document.createElement('div');
+        div.className = `tile ${seg.status}`;
+        div.dataset.num = seg.num;
+        div.innerHTML = `S${pad(seg.num)}<div class="label">${seg.status.toUpperCase()}</div>`;
+        div.onclick = () => selectSegment(seg.num, seg.title, seg.status);
+        grid.appendChild(div);
+      });
+    } else {
+      segments.forEach((seg, i) => {
+        const div = grid.children[i];
+        div.className = `tile ${seg.status}` + (activeSeg === seg.num ? ' active' : '');
+        div.querySelector('.label').textContent = seg.status.toUpperCase();
+      });
+    }
+  }
+
+  function selectSegment(num, title, status) {
+    activeSeg = num;
+    document.getElementById('log-seg-label').textContent = `S${pad(num)} — ${title}`;
+    document.getElementById('log-content').textContent = '';
+
+    // Update active tile styling
+    document.querySelectorAll('.tile').forEach(t => t.classList.toggle('active', parseInt(t.dataset.num) === num));
+
+    // Connect to log SSE
+    if (logSource) logSource.close();
+    const badge = document.getElementById('live-badge');
+    badge.textContent = status === 'running' ? '● LIVE' : '';
+
+    logSource = new EventSource(`/api/logs/S${pad(num)}`);
+    const logEl = document.getElementById('log-content');
+    logSource.onmessage = function(e) {
+      const line = JSON.parse(e.data);
+      logEl.textContent += line + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+  }
+
+  function setupEventStream() {
+    eventSource = new EventSource('/api/events');
+    const feed = document.getElementById('event-feed');
+    eventSource.onmessage = function(e) {
+      const ev = JSON.parse(e.data);
+      const div = document.createElement('div');
+      div.className = 'event-line';
+      div.innerHTML = `<span class="ts">${formatTs(ev.ts)}</span> ${ev.kind}: ${ev.detail}`;
+      feed.insertBefore(div, feed.firstChild);
+      while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+    };
+  }
+
+  function updateElapsed() {
+    if (startedAt) {
+      const elapsed = Date.now()/1000 - startedAt;
+      document.getElementById('elapsed').textContent = `Elapsed: ${formatElapsed(elapsed)}`;
+    }
+  }
+
+  refreshState();
+  setInterval(refreshState, 5000);
+  setInterval(updateElapsed, 1000);
+  setupEventStream();
+})();
+</script>
+</body>
+</html>
