@@ -25,7 +25,7 @@ fn create_temp_dir() -> TempDir {
 
 fn create_sample_ndjson_file(dir: &TempDir) -> Utf8PathBuf {
     let path = dir.path().join("events.ndjson");
-    let event = r#"{"id":1,"timestamp_ns":1710000000000000000,"source":{"adapter":"test","origin":"test"},"transport":"grpc","direction":"outbound","payload":{"raw":"dGVzdA=="},"metadata":{}}"#;
+    let event = r#"{"id":1,"timestamp_ns":1710000000000000000,"source":{"adapter":"test","origin":"test"},"transport":"grpc","direction":"outbound","payload":{"type":"raw","raw":"dGVzdA=="},"metadata":{}}"#;
     fs::write(&path, event).unwrap();
     Utf8PathBuf::from_path_buf(path).unwrap()
 }
@@ -368,7 +368,11 @@ fn test_inspect_from_file() {
     };
 
     let result = run_inspect(args);
-    assert!(result.is_ok(), "Inspect should succeed with valid NDJSON file");
+    assert!(
+        result.is_ok(),
+        "Inspect should succeed with valid NDJSON file. Error: {:?}",
+        result.err()
+    );
 }
 
 #[test]
