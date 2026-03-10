@@ -18,7 +18,7 @@ pub enum AppEvent {
     /// Terminal resize event.
     Resize(u16, u16),
     /// A new debug event captured from the network.
-    CapturedEvent(DebugEvent),
+    CapturedEvent(Box<DebugEvent>),
     /// Updated capture statistics.
     CaptureStats(CaptureStats),
     /// Capture has stopped (either manually or due to error).
@@ -117,7 +117,7 @@ fn capture_event_forwarder(
                 event_count += 1;
 
                 // Send event to TUI (blocking send)
-                if rt.block_on(tx.send(AppEvent::CapturedEvent(event))).is_err() {
+                if rt.block_on(tx.send(AppEvent::CapturedEvent(Box::new(event)))).is_err() {
                     tracing::debug!("TUI event channel closed, stopping capture");
                     break;
                 }

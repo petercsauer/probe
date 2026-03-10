@@ -20,7 +20,7 @@ fn test_load_json_fixture() {
     let fixture = fixtures_dir().join("sample.json");
     let store = load_events(&fixture).expect("Failed to load JSON fixture");
 
-    assert!(store.len() > 0, "Store should contain events");
+    assert!(!store.is_empty(), "Store should contain events");
     assert!(
         store.time_range().is_some(),
         "Store should have time range"
@@ -32,7 +32,7 @@ fn test_load_multi_transport_json() {
     let fixture = fixtures_dir().join("multi_transport.json");
     let store = load_events(&fixture).expect("Failed to load multi-transport JSON");
 
-    assert!(store.len() > 0, "Store should contain events");
+    assert!(!store.is_empty(), "Store should contain events");
 
     // Verify we have events from different transports
     let indices = store.all_indices();
@@ -145,7 +145,7 @@ fn test_event_store_filter() {
     let filter = Filter::parse(r#"transport == "gRPC""#).expect("Failed to parse filter");
     let grpc_indices = store.filter_indices(&filter);
 
-    assert!(grpc_indices.len() > 0, "Should find gRPC events");
+    assert!(!grpc_indices.is_empty(), "Should find gRPC events");
 
     // Verify all returned indices are gRPC
     for &idx in &grpc_indices {
@@ -177,7 +177,7 @@ fn test_event_store_protocol_counts() {
     let indices = store.all_indices();
     let counts = store.protocol_counts(&indices);
 
-    assert!(counts.len() > 0, "Should have protocol counts");
+    assert!(!counts.is_empty(), "Should have protocol counts");
 
     // Verify counts are sorted by count descending
     for i in 1..counts.len() {
@@ -255,11 +255,11 @@ fn test_load_pcap_basic() {
     // Load the PCAP file
     let store = load_events(&pcap_path).expect("Failed to load PCAP");
 
-    assert!(store.len() > 0, "PCAP should produce events");
+    assert!(!store.is_empty(), "PCAP should produce events");
 
     // Verify timestamp is correct
     let event = store.get(0).unwrap();
-    assert_eq!(event.timestamp.as_nanos(), 1700000000_000_000_000);
+    assert_eq!(event.timestamp.as_nanos(), 1_700_000_000_000_000_000);
 }
 
 #[test]
@@ -343,7 +343,7 @@ fn test_format_detection() {
     // Test MCAP detection
     let mcap_path = temp_dir.path().join("test.mcap");
     let file = fs::File::create(&mcap_path).unwrap();
-    let mut writer =
+    let writer =
         prb_storage::SessionWriter::new(file, prb_storage::SessionMetadata::new()).unwrap();
     writer.finish().unwrap();
 
