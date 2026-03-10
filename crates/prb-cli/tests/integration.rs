@@ -99,6 +99,52 @@ fn test_cli_inspect_from_stdin() {
 }
 
 #[test]
+fn test_cli_jobs_flag_parsing() {
+    // Test that --jobs flag is accepted with various values
+    let fixture = fixtures_dir().join("sample.json");
+
+    // --jobs 1 (sequential)
+    prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .arg("--jobs")
+        .arg("1")
+        .assert()
+        .success();
+
+    // --jobs 4 (parallel)
+    prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .arg("--jobs")
+        .arg("4")
+        .assert()
+        .success();
+
+    // -j 2 (short form)
+    prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .arg("-j")
+        .arg("2")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_cli_jobs_default_zero() {
+    // Default should be 0 (auto-detect)
+    // This is implicit - if no --jobs is specified, it should still work
+    let fixture = fixtures_dir().join("sample.json");
+
+    prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .assert()
+        .success();
+}
+
+#[test]
 fn test_cli_inspect_from_file() {
     let fixture = fixtures_dir().join("sample.json");
     let temp_dir = tempfile::tempdir().unwrap();

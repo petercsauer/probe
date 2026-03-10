@@ -57,6 +57,10 @@ pub struct IngestArgs {
     /// Filter events by OpenTelemetry span ID
     #[arg(long)]
     pub span_id: Option<String>,
+
+    /// Number of parallel workers (0 = auto-detect, 1 = sequential)
+    #[arg(short = 'j', long = "jobs", default_value = "0")]
+    pub jobs: usize,
 }
 
 #[derive(clap::Args, Debug)]

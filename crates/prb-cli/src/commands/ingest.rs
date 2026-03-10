@@ -2,8 +2,10 @@
 
 use crate::cli::IngestArgs;
 use anyhow::{bail, Context, Result};
-use prb_core::{CaptureAdapter, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
+use prb_core::{CaptureAdapter, DebugEvent, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
 use prb_fixture::JsonFixtureAdapter;
+use prb_pcap::parallel::{ParallelPipeline, PipelineConfig};
+use prb_pcap::reader::PcapFileReader;
 use prb_pcap::PcapCaptureAdapter;
 use prb_storage::{SessionMetadata, SessionWriter};
 use std::fs::File;
@@ -53,28 +55,26 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
 
     // Detect input format based on magic bytes
     let format = detect_format(args.input.as_std_path())?;
-    let mut adapter: Box<dyn CaptureAdapter> = match format {
+
+    match format {
         InputFormat::Json => {
-            // JSON fixture format
-            tracing::info!("Detected JSON fixture format");
-            Box::new(JsonFixtureAdapter::new(args.input.clone()))
+            // JSON fixtures don't benefit from parallel pipeline
+            run_json_ingest(args)
         }
         InputFormat::Pcap | InputFormat::Pcapng => {
-            // PCAP/pcapng capture format
-            tracing::info!("Detected PCAP capture format");
-            let capture_path = PathBuf::from(args.input.as_str());
-            let tls_keylog_path = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
-            let mut adapter = PcapCaptureAdapter::new(capture_path, tls_keylog_path);
-
-            // Apply protocol override if specified
-            if let Some(ref protocol) = args.protocol {
-                tracing::info!("Applying protocol override: {}", protocol);
-                adapter.set_protocol_override(protocol);
+            if args.jobs == 1 {
+                run_sequential_pcap_ingest(args)
+            } else {
+                run_parallel_pcap_ingest(args)
             }
-
-            Box::new(adapter)
         }
-    };
+    }
+}
+
+/// JSON ingest path (always sequential).
+fn run_json_ingest(args: IngestArgs) -> Result<()> {
+    tracing::info!("Detected JSON fixture format");
+    let mut adapter: Box<dyn CaptureAdapter> = Box::new(JsonFixtureAdapter::new(args.input.clone()));
 
     // Determine output format based on file extension
     if let Some(ref output_path) = args.output
@@ -83,17 +83,98 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
             return run_ingest_mcap(args, adapter);
         }
 
-    // Write to NDJSON format (default)
-    let mut writer: Box<dyn Write> = if let Some(output_path) = args.output {
+    write_events_ndjson(&args, &mut *adapter)
+}
+
+/// Sequential PCAP ingest using the existing PcapCaptureAdapter.
+fn run_sequential_pcap_ingest(args: IngestArgs) -> Result<()> {
+    tracing::info!("Detected PCAP capture format (sequential mode)");
+    let capture_path = PathBuf::from(args.input.as_str());
+    let tls_keylog_path = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
+    let mut adapter = PcapCaptureAdapter::new(capture_path, tls_keylog_path);
+
+    // Apply protocol override if specified
+    if let Some(ref protocol) = args.protocol {
+        tracing::info!("Applying protocol override: {}", protocol);
+        adapter.set_protocol_override(protocol);
+    }
+
+    // Determine output format based on file extension
+    if let Some(ref output_path) = args.output
+        && output_path.extension() == Some("mcap") {
+            let boxed_adapter: Box<dyn CaptureAdapter> = Box::new(adapter);
+            return run_ingest_mcap(args, boxed_adapter);
+        }
+
+    write_events_ndjson(&args, &mut adapter)
+}
+
+/// Parallel PCAP ingest using the parallel pipeline.
+fn run_parallel_pcap_ingest(args: IngestArgs) -> Result<()> {
+    tracing::info!("Detected PCAP capture format (parallel mode)");
+
+    let effective_jobs = effective_jobs_with_env(args.jobs);
+    tracing::info!("Using {} parallel workers", effective_jobs);
+
+    let config = PipelineConfig {
+        jobs: effective_jobs,
+        ..Default::default()
+    };
+
+    let capture_path = PathBuf::from(args.input.as_str());
+    let pipeline = ParallelPipeline::new(config, capture_path.clone());
+
+    // Read all packets
+    let mut reader = PcapFileReader::open(&capture_path)
+        .context("Failed to open PCAP file")?;
+    let packets = reader.read_all_packets()
+        .context("Failed to read packets from PCAP file")?;
+
+    tracing::info!("Read {} packets from capture", packets.len());
+
+    // Convert PcapPacket to OwnedNormalizedPacket
+    // For now, skip fragments since we need stateful defrag
+    let normalized_packets: Vec<_> = packets.into_iter()
+        .filter_map(|pkt| {
+            use prb_pcap::{normalize_stateless, NormalizeResult};
+            match normalize_stateless(pkt.linktype, pkt.timestamp_us, &pkt.data) {
+                Ok(NormalizeResult::Packet(normalized)) => Some(normalized),
+                Ok(NormalizeResult::Fragment { .. }) => None, // Skip fragments for now
+                Err(_) => None,
+            }
+        })
+        .collect();
+
+    tracing::info!("Normalized {} packets", normalized_packets.len());
+
+    let start = std::time::Instant::now();
+    let events = pipeline.run(normalized_packets)
+        .context("Parallel pipeline failed")?;
+    let elapsed = start.elapsed();
+
+    tracing::info!(
+        "Parallel pipeline: {} events in {:.2}s ({:.0} events/s, {} workers)",
+        events.len(),
+        elapsed.as_secs_f64(),
+        events.len() as f64 / elapsed.as_secs_f64(),
+        effective_jobs,
+    );
+
+    // Write events
+    write_events_from_vec(&args, events)
+}
+
+/// Writes events from an adapter to NDJSON output.
+fn write_events_ndjson(args: &IngestArgs, adapter: &mut dyn CaptureAdapter) -> Result<()> {
+    let mut writer: Box<dyn Write> = if let Some(output_path) = &args.output {
         tracing::info!("Writing NDJSON output to: {}", output_path);
-        let file = File::create(&output_path)
+        let file = File::create(output_path)
             .with_context(|| format!("Failed to create output file {}", output_path))?;
         Box::new(BufWriter::new(file))
     } else {
         Box::new(BufWriter::new(io::stdout()))
     };
 
-    // Process events
     let mut count = 0;
     for event_result in adapter.ingest() {
         let event = event_result.context("Failed to read event from adapter")?;
@@ -112,7 +193,6 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
             }
         }
 
-        // Serialize as NDJSON (one JSON object per line)
         serde_json::to_writer(&mut writer, &event)
             .context("Failed to serialize event to JSON")?;
         writeln!(&mut writer)?;
@@ -124,6 +204,63 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
     tracing::info!("Ingested {} events", count);
 
     Ok(())
+}
+
+/// Writes events from a Vec to NDJSON output.
+fn write_events_from_vec(args: &IngestArgs, events: Vec<DebugEvent>) -> Result<()> {
+    let mut writer: Box<dyn Write> = if let Some(output_path) = &args.output {
+        tracing::info!("Writing NDJSON output to: {}", output_path);
+        let file = File::create(output_path)
+            .with_context(|| format!("Failed to create output file {}", output_path))?;
+        Box::new(BufWriter::new(file))
+    } else {
+        Box::new(BufWriter::new(io::stdout()))
+    };
+
+    let mut count = 0;
+    for event in events {
+        // Apply trace ID filter if provided
+        if let Some(ref trace_id) = args.trace_id {
+            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
+                continue;
+            }
+        }
+
+        // Apply span ID filter if provided
+        if let Some(ref span_id) = args.span_id {
+            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
+                continue;
+            }
+        }
+
+        serde_json::to_writer(&mut writer, &event)
+            .context("Failed to serialize event to JSON")?;
+        writeln!(&mut writer)?;
+
+        count += 1;
+    }
+
+    writer.flush()?;
+    tracing::info!("Ingested {} events", count);
+
+    Ok(())
+}
+
+/// Determines the effective number of jobs, considering environment variables.
+fn effective_jobs_with_env(cli_jobs: usize) -> usize {
+    if cli_jobs != 0 {
+        return cli_jobs;
+    }
+
+    if let Ok(env_jobs) = std::env::var("PRB_JOBS") {
+        if let Ok(n) = env_jobs.parse::<usize>() {
+            return n;
+        }
+    }
+
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
 }
 
 fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Result<()> {

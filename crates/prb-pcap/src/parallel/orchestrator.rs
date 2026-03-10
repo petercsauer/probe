@@ -26,6 +26,28 @@ impl Default for PipelineConfig {
     }
 }
 
+impl PipelineConfig {
+    /// Returns the effective number of jobs, auto-detecting if configured as 0.
+    pub fn effective_jobs(&self) -> usize {
+        if self.jobs == 0 {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4)
+        } else {
+            self.jobs
+        }
+    }
+
+    /// Returns the effective shard count, auto-detecting if configured as 0.
+    pub fn effective_shard_count(&self) -> usize {
+        if self.shard_count == 0 {
+            self.effective_jobs() * 2
+        } else {
+            self.shard_count
+        }
+    }
+}
+
 /// Parallel packet processing pipeline.
 ///
 /// Orchestrates multi-stage processing with adaptive parallelism:
