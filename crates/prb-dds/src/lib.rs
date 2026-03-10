@@ -8,6 +8,7 @@
 mod decoder;
 mod discovery;
 mod error;
+mod rtps_parser;
 
 pub use decoder::DdsDecoder;
 pub use error::DdsError;

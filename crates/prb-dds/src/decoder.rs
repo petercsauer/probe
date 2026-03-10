@@ -4,24 +4,16 @@ use crate::discovery::{
     DiscoveredEndpoint, Guid, RtpsDiscoveryTracker, well_known_entities,
 };
 use crate::error::DdsError;
+use crate::rtps_parser::{
+    DataSubmessage, InfoTsSubmessage, RtpsMessage, SUBMESSAGE_DATA, SUBMESSAGE_DATA_FRAG,
+    SUBMESSAGE_INFO_TS,
+};
 use bytes::Bytes;
 use prb_core::{
     CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr,
     Payload, ProtocolDecoder, Timestamp, TransportKind, METADATA_KEY_DDS_DOMAIN_ID,
     METADATA_KEY_DDS_TOPIC_NAME,
 };
-use rtps_parser::rtps::{
-    messages::overall_structure::{RtpsMessageRead, RtpsSubmessageReadKind},
-    types::{EntityId as RtpsEntityId, SequenceNumber},
-};
-use std::sync::Arc;
-
-/// Convert rtps-parser EntityId to our [u8; 4] representation.
-fn convert_entity_id(entity_id: RtpsEntityId) -> [u8; 4] {
-    let key = entity_id.entity_key();
-    let kind = entity_id.entity_kind();
-    [key[0], key[1], key[2], kind]
-}
 
 /// DDS/RTPS protocol decoder.
 ///
@@ -80,24 +72,11 @@ impl DdsDecoder {
         data: &[u8],
         ctx: &DecodeContext,
     ) -> Result<Vec<DebugEvent>, CoreError> {
-        // Check magic
-        if !Self::has_rtps_magic(data) {
-            let magic = if data.len() >= 4 {
-                [data[0], data[1], data[2], data[3]]
-            } else {
-                [0, 0, 0, 0]
-            };
-            return Err(CoreError::UnsupportedTransport(format!(
-                "Not an RTPS message: {:?}",
-                DdsError::InvalidMagic(magic)
-            )));
-        }
-
         // Parse RTPS message
-        let arc_data = Arc::from(data);
-        let rtps_msg = RtpsMessageRead::new(arc_data);
+        let rtps_msg = RtpsMessage::parse(data)
+            .map_err(|e| CoreError::PayloadDecode(format!("RTPS parse error: {:?}", e)))?;
 
-        let guid_prefix = rtps_msg.header().guid_prefix();
+        let guid_prefix = rtps_msg.header.guid_prefix;
 
         // Extract domain ID from destination port
         let domain_id = ctx
@@ -116,55 +95,52 @@ impl DdsDecoder {
         self.last_timestamp = None;
 
         // Process submessages
-        for submessage in rtps_msg.submessages() {
-            match submessage {
-                RtpsSubmessageReadKind::InfoTimestamp(info_ts) => {
+        for (header, payload) in rtps_msg.submessages() {
+            match header.submessage_id {
+                SUBMESSAGE_INFO_TS => {
                     // Store timestamp for subsequent DATA submessages
-                    let ts = info_ts.timestamp();
-                    let nanos = (ts.seconds() as u64) * 1_000_000_000
-                        + (ts.fraction() as u64 * 1_000_000_000 / (1u64 << 32));
-                    self.last_timestamp = Some(Timestamp::from_nanos(nanos));
+                    if let Ok(info_ts) = InfoTsSubmessage::parse(payload, &header) {
+                        let nanos = (info_ts.seconds as u64) * 1_000_000_000
+                            + (info_ts.fraction as u64 * 1_000_000_000 / (1u64 << 32));
+                        self.last_timestamp = Some(Timestamp::from_nanos(nanos));
+                    }
                 }
-                RtpsSubmessageReadKind::Data(data_msg) => {
-                    // Extract writer and reader entity IDs
-                    let writer_entity = data_msg.writer_id();
-                    let reader_entity = data_msg.reader_id();
-                    let writer_guid = Guid::new(guid_prefix, convert_entity_id(writer_entity));
+                SUBMESSAGE_DATA => {
+                    // Extract DATA submessage
+                    if let Ok(data_msg) = DataSubmessage::parse(payload, &header) {
+                        let writer_guid = Guid::new(guid_prefix, data_msg.writer_id);
 
-                    // Check if this is a SEDP discovery message
-                    let writer_entity_bytes = convert_entity_id(writer_entity);
-                    if well_known_entities::is_sedp_entity(&writer_entity_bytes) {
-                        // Process discovery data
-                        let payload = data_msg.serialized_payload();
-                        if let Err(e) = self.process_discovery_data(&writer_guid, payload.as_ref()) {
-                            tracing::debug!("Failed to parse discovery data: {}", e);
-                        }
-                    } else {
-                        // User data message
-                        let payload = data_msg.serialized_payload();
-                        if let Some(event) = self.create_data_event(
-                            &writer_guid,
-                            convert_entity_id(reader_entity),
-                            data_msg.writer_sn(),
-                            payload.as_ref(),
-                            domain_id,
-                            ctx,
-                        )? {
-                            events.push(event);
+                        // Check if this is a SEDP discovery message
+                        if well_known_entities::is_sedp_entity(&data_msg.writer_id) {
+                            // Process discovery data
+                            if let Err(e) =
+                                self.process_discovery_data(&writer_guid, data_msg.serialized_payload)
+                            {
+                                tracing::debug!("Failed to parse discovery data: {}", e);
+                            }
+                        } else {
+                            // User data message
+                            if let Some(event) = self.create_data_event(
+                                &writer_guid,
+                                data_msg.reader_id,
+                                data_msg.writer_sn,
+                                data_msg.serialized_payload,
+                                domain_id,
+                                ctx,
+                            )? {
+                                events.push(event);
+                            }
                         }
                     }
                 }
-                RtpsSubmessageReadKind::DataFrag(_) => {
+                SUBMESSAGE_DATA_FRAG => {
                     // DATA_FRAG: fragmented data (Phase 1 logs warning)
                     tracing::debug!(
                         "DATA_FRAG submessage detected (fragmented data not yet supported)"
                     );
                 }
-                RtpsSubmessageReadKind::Heartbeat(_) | RtpsSubmessageReadKind::AckNack(_) => {
-                    // Reliability protocol messages - no events
-                }
                 _ => {
-                    // Other submessage types - ignore
+                    // Other submessage types (HEARTBEAT, ACKNACK, etc.) - ignore
                 }
             }
         }
@@ -225,10 +201,10 @@ impl DdsDecoder {
                     if len > 0 && len < 256 && str_pos + 4 + len <= payload.len() {
                         // Extract string (null-terminated)
                         let str_bytes = &payload[str_pos + 4..str_pos + 4 + len];
-                        if let Some(null_pos) = str_bytes.iter().position(|&b| b == 0) {
-                            if let Ok(s) = String::from_utf8(str_bytes[..null_pos].to_vec()) {
-                                return Some(s);
-                            }
+                        if let Some(null_pos) = str_bytes.iter().position(|&b| b == 0)
+                            && let Ok(s) = String::from_utf8(str_bytes[..null_pos].to_vec())
+                        {
+                            return Some(s);
                         }
                     }
                 }
@@ -243,7 +219,7 @@ impl DdsDecoder {
         &mut self,
         writer_guid: &Guid,
         reader_entity: [u8; 4],
-        sequence_number: SequenceNumber,
+        sequence_number: i64,
         payload: &[u8],
         domain_id: Option<u32>,
         ctx: &DecodeContext,
@@ -277,7 +253,7 @@ impl DdsDecoder {
             .metadata("dds.writer_guid", writer_guid.to_hex_string())
             .metadata("dds.reader_entity", format!("{:02x}{:02x}{:02x}{:02x}",
                 reader_entity[0], reader_entity[1], reader_entity[2], reader_entity[3]))
-            .metadata("dds.sequence_number", i64::from(sequence_number).to_string())
+            .metadata("dds.sequence_number", sequence_number.to_string())
             .sequence(self.sequence);
 
         // Add domain ID if available

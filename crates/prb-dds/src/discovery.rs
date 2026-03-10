@@ -21,7 +21,7 @@ impl Guid {
     }
 
     /// Format GUID as hex string.
-    pub fn to_hex_string(&self) -> String {
+    pub fn to_hex_string(self) -> String {
         format!(
             "{:02x}{:02x}{:02x}{:02x}.{:02x}{:02x}{:02x}{:02x}.{:02x}{:02x}{:02x}{:02x}:{:02x}{:02x}{:02x}{:02x}",
             self.prefix[0], self.prefix[1], self.prefix[2], self.prefix[3],
@@ -32,6 +32,7 @@ impl Guid {
     }
 
     /// Format entity ID as hex string.
+    #[allow(dead_code)]
     pub fn entity_hex(&self) -> String {
         format!(
             "{:02x}{:02x}{:02x}{:02x}",
@@ -45,15 +46,19 @@ pub mod well_known_entities {
     use super::EntityId;
 
     /// SEDP Built-in Publications Writer.
+    #[allow(dead_code)]
     pub const ENTITYID_SEDP_BUILTIN_PUBLICATIONS_WRITER: EntityId = [0x00, 0x00, 0x03, 0xC2];
 
     /// SEDP Built-in Publications Reader.
+    #[allow(dead_code)]
     pub const ENTITYID_SEDP_BUILTIN_PUBLICATIONS_READER: EntityId = [0x00, 0x00, 0x03, 0xC7];
 
     /// SEDP Built-in Subscriptions Writer.
+    #[allow(dead_code)]
     pub const ENTITYID_SEDP_BUILTIN_SUBSCRIPTIONS_WRITER: EntityId = [0x00, 0x00, 0x03, 0xC7];
 
     /// SEDP Built-in Subscriptions Reader.
+    #[allow(dead_code)]
     pub const ENTITYID_SEDP_BUILTIN_SUBSCRIPTIONS_READER: EntityId = [0x00, 0x00, 0x03, 0xC4];
 
     /// Check if entity ID is a SEDP discovery entity.
@@ -66,6 +71,7 @@ pub mod well_known_entities {
 #[derive(Debug, Clone)]
 pub struct DiscoveredEndpoint {
     pub topic_name: String,
+    #[allow(dead_code)]
     pub type_name: String,
 }
 
@@ -94,6 +100,7 @@ impl RtpsDiscoveryTracker {
     }
 
     /// Look up type name for a given GUID.
+    #[allow(dead_code)]
     pub fn lookup_type_name(&self, guid: &Guid) -> Option<&str> {
         self.endpoints.get(guid).map(|e| e.type_name.as_str())
     }

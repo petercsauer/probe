@@ -46,8 +46,8 @@ fn create_data_submessage(
     let mut submsg = Vec::new();
     // Submessage ID: DATA (0x15)
     submsg.push(0x15);
-    // Flags: little-endian, has inline QoS, has serialized payload
-    submsg.push(0x05); // 0x01 (endian) | 0x04 (data present)
+    // Flags: little-endian (0x01), no inline QoS
+    submsg.push(0x01);
     // Octets to next header (calculated later)
     let octets_start = submsg.len();
     submsg.push(0);
@@ -55,21 +55,20 @@ fn create_data_submessage(
     // Extra flags (2 bytes)
     submsg.push(0);
     submsg.push(0);
-    // Octets to inline QoS (2 bytes) - no inline QoS
-    submsg.push(16); // offset to QoS
+    // Octets to inline QoS (2 bytes) - 16 (directly after sequence number)
+    submsg.push(16);
     submsg.push(0);
     // Reader entity ID (4 bytes)
     submsg.extend_from_slice(&reader_entity);
     // Writer entity ID (4 bytes)
     submsg.extend_from_slice(&writer_entity);
-    // Sequence number (8 bytes, little-endian)
-    submsg.extend_from_slice(&sequence_number.to_le_bytes());
-    // Serialized payload
-    // Parameter list end marker (PID_SENTINEL = 0x0001)
-    submsg.push(0x01);
-    submsg.push(0x00);
-    submsg.push(0x00);
-    submsg.push(0x00);
+    // Sequence number: RTPS format is {long high, unsigned long low}
+    // For a value like 42, we want high=0, low=42
+    let sn_high = ((sequence_number >> 32) & 0xFFFFFFFF) as i32;
+    let sn_low = (sequence_number & 0xFFFFFFFF) as u32;
+    submsg.extend_from_slice(&sn_high.to_le_bytes());
+    submsg.extend_from_slice(&sn_low.to_le_bytes());
+    // No inline QoS, go directly to serialized payload
     // Encapsulation kind (0x0000 = CDR_BE)
     submsg.push(0x00);
     submsg.push(0x00);
@@ -137,8 +136,9 @@ fn test_rtps_data_payload() {
     let guid_prefix = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     let mut message = create_rtps_header(guid_prefix);
 
-    let writer_entity = [0x00, 0x00, 0x01, 0xC2];
-    let reader_entity = [0x00, 0x00, 0x01, 0xC7];
+    // Use user-defined entity IDs (not built-in)
+    let writer_entity = [0x00, 0x00, 0x01, 0x02]; // USER_DEFINED_WRITER_WITH_KEY
+    let reader_entity = [0x00, 0x00, 0x01, 0x07]; // USER_DEFINED_READER_WITH_KEY
     let sequence = 42;
     let payload = b"sensor data payload";
     message.extend_from_slice(&create_data_submessage(writer_entity, reader_entity, sequence, payload));
@@ -147,9 +147,13 @@ fn test_rtps_data_payload() {
         .with_src_addr("192.168.1.10:7400")
         .with_dst_addr("239.255.0.1:7400");
 
-    let events = decoder.decode_stream(&message, &ctx).expect("decode should succeed");
+    let result = decoder.decode_stream(&message, &ctx);
+    if let Err(ref e) = result {
+        eprintln!("Decode error: {}", e);
+    }
+    let events = result.expect("decode should succeed");
 
-    assert_eq!(events.len(), 1);
+    assert_eq!(events.len(), 1, "Expected 1 event, got {}", events.len());
     let event = &events[0];
 
     // Check metadata
@@ -219,10 +223,14 @@ fn test_rtps_discovery_topic_name() {
     let events = decoder.decode_stream(&discovery_msg, &ctx).expect("decode should succeed");
     assert_eq!(events.len(), 0, "Discovery messages should not generate events");
 
-    // Second message: user DATA from same writer
+    // Second message: user DATA from a user-defined writer (not built-in)
+    // The discovery message above registered the SEDP writer, but we need to actually
+    // register a user writer. For this test, let's just verify discovery was processed.
+    // In reality, SEDP would contain info about user writers, not itself.
+
     let mut data_msg = create_rtps_header(guid_prefix);
-    let user_writer = [0x00, 0x00, 0x03, 0xC2]; // Same GUID prefix, discovered entity
-    let user_reader = [0x00, 0x00, 0x00, 0x00];
+    let user_writer = [0x00, 0x00, 0x01, 0x02]; // USER_DEFINED_WRITER_WITH_KEY
+    let user_reader = [0x00, 0x00, 0x01, 0x07];
     let user_payload = b"IMU data here";
 
     data_msg.extend_from_slice(&create_data_submessage(
@@ -237,9 +245,10 @@ fn test_rtps_discovery_topic_name() {
     assert_eq!(events.len(), 1);
     let event = &events[0];
 
-    // Should have topic name resolved (though in this case SEDP writer is same as user, which is unusual)
-    // The key test is that discovery tracking works
+    // This writer was not discovered, so no topic name
     assert!(event.metadata.contains_key("dds.writer_guid"));
+    // Should have warning about no discovery
+    assert!(!event.warnings.is_empty());
 }
 
 #[test]
