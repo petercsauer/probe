@@ -412,4 +412,88 @@ mod tests {
         assert_eq!(header.octets_to_next_header, 8);
         assert_eq!(payload.len(), 8);
     }
+
+    #[test]
+    fn test_rtps_gap_submessage() {
+        // GAP submessage (0x08)
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]);
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]);
+        rtps_msg.extend_from_slice(&[0x00; 12]);
+
+        // GAP submessage
+        rtps_msg.push(0x08); // SUBMESSAGE_GAP
+        rtps_msg.push(0x01); // flags (little-endian)
+        rtps_msg.extend_from_slice(&24u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0x00; 24]); // GAP payload
+
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].0.submessage_id, 0x08);
+        assert_eq!(collected[0].1.len(), 24);
+    }
+
+    #[test]
+    fn test_rtps_acknack_submessage() {
+        // ACKNACK submessage (0x06)
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]);
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]);
+        rtps_msg.extend_from_slice(&[0x00; 12]);
+
+        // ACKNACK submessage
+        rtps_msg.push(0x06); // SUBMESSAGE_ACKNACK
+        rtps_msg.push(0x01); // flags
+        rtps_msg.extend_from_slice(&20u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0x00; 20]);
+
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].0.submessage_id, 0x06);
+    }
+
+    #[test]
+    fn test_rtps_mixed_submessage_types() {
+        // Test GAP, HEARTBEAT, ACKNACK in one message
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]);
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]);
+        rtps_msg.extend_from_slice(&[0x00; 12]);
+
+        // GAP
+        rtps_msg.push(0x08);
+        rtps_msg.push(0x01);
+        rtps_msg.extend_from_slice(&16u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0x11; 16]);
+
+        // HEARTBEAT
+        rtps_msg.push(0x07);
+        rtps_msg.push(0x01);
+        rtps_msg.extend_from_slice(&12u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0x22; 12]);
+
+        // ACKNACK
+        rtps_msg.push(0x06);
+        rtps_msg.push(0x01);
+        rtps_msg.extend_from_slice(&20u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0x33; 20]);
+
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+
+        assert_eq!(collected.len(), 3);
+        assert_eq!(collected[0].0.submessage_id, 0x08); // GAP
+        assert_eq!(collected[1].0.submessage_id, 0x07); // HEARTBEAT
+        assert_eq!(collected[2].0.submessage_id, 0x06); // ACKNACK
+    }
 }

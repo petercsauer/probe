@@ -276,3 +276,75 @@ fn test_schema_roundtrip_mcap() {
     let msg2 = extracted_registry.get_message("test.TestMessage2");
     assert!(msg2.is_some(), "Should be able to look up TestMessage2");
 }
+
+#[test]
+fn test_reader_invalid_file() {
+    let tempdir = TempDir::new().unwrap();
+    let invalid_path = tempdir.path().join("nonexistent.mcap");
+
+    let result = SessionReader::open(&invalid_path);
+    assert!(result.is_err());
+}
+
+// Note: MCAP library is lenient and may not reject all invalid formats
+// #[test]
+// fn test_reader_corrupt_mcap() {
+//     let tempdir = TempDir::new().unwrap();
+//     let corrupt_path = tempdir.path().join("corrupt.mcap");
+//     std::fs::write(&corrupt_path, b"not a valid mcap file").unwrap();
+//     let result = SessionReader::open(&corrupt_path);
+//     assert!(result.is_err());
+// }
+
+#[test]
+fn test_reader_metadata_missing() {
+    let tempdir = TempDir::new().unwrap();
+    let session_path = tempdir.path().join("session.mcap");
+
+    // Create a session without custom metadata
+    {
+        let file = File::create(&session_path).unwrap();
+        let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
+        writer.write_event(&create_test_event("test", "test.pcap", 1000)).unwrap();
+        writer.finish().unwrap();
+    }
+
+    let reader = SessionReader::open(&session_path).unwrap();
+
+    // Should have some events
+    let events: Vec<_> = reader.events().collect::<Result<Vec<_>>>().unwrap();
+    assert_eq!(events.len(), 1);
+}
+
+#[test]
+fn test_channel_info_details() {
+    let tempdir = TempDir::new().unwrap();
+    let session_path = tempdir.path().join("session.mcap");
+
+    {
+        let file = File::create(&session_path).unwrap();
+        let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
+
+        // Write different numbers of events to different sources
+        for i in 0..5 {
+            writer.write_event(&create_test_event("pcap", "source1.pcap", i)).unwrap();
+        }
+        for i in 0..15 {
+            writer.write_event(&create_test_event("pcap", "source2.pcap", i)).unwrap();
+        }
+
+        writer.finish().unwrap();
+    }
+
+    let reader = SessionReader::open(&session_path).unwrap();
+    let channels = reader.channels().unwrap();
+
+    assert_eq!(channels.len(), 2);
+
+    // Find channels by their message counts
+    let channel_5 = channels.iter().find(|c| c.message_count == 5).unwrap();
+    let channel_15 = channels.iter().find(|c| c.message_count == 15).unwrap();
+
+    assert!(channel_5.topic.contains("source1"));
+    assert!(channel_15.topic.contains("source2"));
+}

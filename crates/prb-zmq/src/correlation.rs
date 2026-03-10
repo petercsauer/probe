@@ -416,4 +416,154 @@ mod tests {
         assert_eq!(flows[0].events.len(), 1);
         assert_eq!(flows[1].events.len(), 1);
     }
+
+    #[test]
+    fn test_dealer_router_pattern() {
+        let events = vec![
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("DEALER"),
+                None,
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Inbound,
+                Some("ROUTER"),
+                None,
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("DEALER"),
+                None,
+            ),
+        ];
+
+        let strategy = ZmqCorrelationStrategy;
+        let flows = strategy.correlate(&events).unwrap();
+
+        // DEALER/ROUTER should be correlated by connection
+        assert!(flows.len() > 0);
+    }
+
+    #[test]
+    fn test_push_pull_pattern() {
+        let events = vec![
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("PUSH"),
+                None,
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Inbound,
+                Some("PULL"),
+                None,
+            ),
+        ];
+
+        let strategy = ZmqCorrelationStrategy;
+        let flows = strategy.correlate(&events).unwrap();
+
+        assert!(flows.len() > 0);
+    }
+
+    #[test]
+    fn test_pub_sub_multiple_topics() {
+        let events = vec![
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("PUB"),
+                Some("topic.a"),
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("PUB"),
+                Some("topic.b"),
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                Some("PUB"),
+                Some("topic.a"),
+            ),
+        ];
+
+        let strategy = ZmqCorrelationStrategy;
+        let flows = strategy.correlate(&events).unwrap();
+
+        // Should have 2 flows (one per topic)
+        assert_eq!(flows.len(), 2);
+        let topic_a_flow = flows.iter().find(|f| {
+            f.metadata.get("zmq.topic") == Some(&"topic.a".to_string())
+        });
+        assert!(topic_a_flow.is_some());
+        assert_eq!(topic_a_flow.unwrap().events.len(), 2);
+    }
+
+    #[test]
+    fn test_fallback_unknown_socket_type() {
+        let events = vec![
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Outbound,
+                None, // No socket type
+                None,
+            ),
+            make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                Direction::Inbound,
+                None,
+                None,
+            ),
+        ];
+
+        let strategy = ZmqCorrelationStrategy;
+        let flows = strategy.correlate(&events).unwrap();
+
+        // Should use fallback correlation
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].events.len(), 2);
+    }
+
+    #[test]
+    fn test_conversation_state_transitions() {
+        // Test REQ -> REP -> REQ -> REP sequence
+        let mut events = vec![];
+        for i in 0..4 {
+            let socket_type = if i % 2 == 0 { "REQ" } else { "REP" };
+            let direction = if i % 2 == 0 {
+                Direction::Outbound
+            } else {
+                Direction::Inbound
+            };
+            events.push(make_zmq_event(
+                "10.0.0.1:5555",
+                "10.0.0.2:5556",
+                direction,
+                Some(socket_type),
+                None,
+            ));
+        }
+
+        let strategy = ZmqCorrelationStrategy;
+        let flows = strategy.correlate(&events).unwrap();
+
+        // Should have 2 REQ/REP conversation pairs
+        assert_eq!(flows.len(), 2);
+    }
 }
