@@ -28,12 +28,18 @@ etherparse = "0.19.0"
 # TCP stream reassembly
 smoltcp = { version = "0.12", default-features = false, features = ["proto-ipv4", "proto-ipv6"] }
 
+# Parallel processing
+rayon.workspace = true
+
 # TLS parsing and cryptography
 tls-parser.workspace = true
 ring.workspace = true
 
 # Hex encoding for TLS keys
 hex = "0.4"
+
+# Memory-mapped file I/O
+memmap2 = "0.9"
 
 [dev-dependencies]
 tempfile.workspace = true
