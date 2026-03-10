@@ -1,0 +1,14 @@
+[package]
+name = "prb-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+nom = "8"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+bytes = { workspace = true }
