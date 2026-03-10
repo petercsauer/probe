@@ -21,6 +21,21 @@ pub const METADATA_KEY_DDS_DOMAIN_ID: &str = "dds.domain_id";
 /// Well-known metadata key for DDS topic name.
 pub const METADATA_KEY_DDS_TOPIC_NAME: &str = "dds.topic_name";
 
+/// Well-known metadata key for OpenTelemetry trace ID.
+pub const METADATA_KEY_OTEL_TRACE_ID: &str = "otel.trace_id";
+
+/// Well-known metadata key for OpenTelemetry span ID.
+pub const METADATA_KEY_OTEL_SPAN_ID: &str = "otel.span_id";
+
+/// Well-known metadata key for OpenTelemetry trace flags.
+pub const METADATA_KEY_OTEL_TRACE_FLAGS: &str = "otel.trace_flags";
+
+/// Well-known metadata key for OpenTelemetry parent span ID.
+pub const METADATA_KEY_OTEL_PARENT_SPAN_ID: &str = "otel.parent_span_id";
+
+/// Well-known metadata key for OpenTelemetry trace sampled flag.
+pub const METADATA_KEY_OTEL_TRACE_SAMPLED: &str = "otel.trace_sampled";
+
 /// Monotonic event identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -114,7 +129,7 @@ impl fmt::Display for EventSource {
 }
 
 /// Transport protocol kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TransportKind {
     /// gRPC over HTTP/2.
@@ -161,7 +176,7 @@ impl std::str::FromStr for TransportKind {
 }
 
 /// Message direction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     /// Inbound message (received).
@@ -241,6 +256,11 @@ pub enum CorrelationKey {
     Topic { name: String },
     /// Connection identifier.
     ConnectionId { id: String },
+    /// OpenTelemetry trace context.
+    TraceContext {
+        trace_id: String,
+        span_id: String,
+    },
     /// Custom key-value pair.
     Custom { key: String, value: String },
 }

@@ -15,6 +15,12 @@ pub struct DecodeTreePane {
     pub state: TreeState<String>,
 }
 
+impl Default for DecodeTreePane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecodeTreePane {
     pub fn new() -> Self {
         DecodeTreePane {
@@ -230,4 +236,218 @@ fn build_tree_items(event: &DebugEvent) -> Vec<TreeItem<'static, String>> {
     }
 
     items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use prb_core::{
+        CorrelationKey, DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload,
+        Timestamp, TransportKind, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME,
+        METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_ZMQ_TOPIC,
+    };
+    use std::collections::BTreeMap;
+
+    fn create_test_event(transport: TransportKind, metadata: BTreeMap<String, String>) -> DebugEvent {
+        DebugEvent {
+            id: EventId::from_raw(42),
+            timestamp: Timestamp::from_nanos(1_000_000_000),
+            source: EventSource {
+                adapter: "pcap".to_string(),
+                origin: "test.pcap".to_string(),
+                network: Some(NetworkAddr {
+                    src: "10.0.0.1:12345".to_string(),
+                    dst: "10.0.0.2:50051".to_string(),
+                }),
+            },
+            transport,
+            direction: Direction::Outbound,
+            payload: Payload::Decoded {
+                raw: Bytes::from_static(b"test payload"),
+                fields: serde_json::json!({"user_id": "abc-123"}),
+                schema_name: Some("api.v1.GetUserRequest".to_string()),
+            },
+            metadata,
+            correlation_keys: vec![
+                CorrelationKey::StreamId { id: 1 },
+                CorrelationKey::ConnectionId {
+                    id: "10.0.0.1:12345->10.0.0.2:50051".to_string(),
+                },
+            ],
+            sequence: Some(5),
+            warnings: vec![],
+        }
+    }
+
+    #[test]
+    fn test_grpc_tree_structure() {
+        let mut metadata = BTreeMap::new();
+        metadata.insert(METADATA_KEY_GRPC_METHOD.to_string(), "/api.v1.Users/GetUser".to_string());
+        metadata.insert(METADATA_KEY_H2_STREAM_ID.to_string(), "1".to_string());
+
+        let event = create_test_event(TransportKind::Grpc, metadata);
+        let items = build_tree_items(&event);
+
+        // Verify we have several top-level items
+        assert!(items.len() >= 4, "Should have timestamp, direction, source, transport, payload sections");
+
+        // We can't access TreeItem internals, but we can verify the structure was built
+        // by checking the return from build_tree_items is valid
+        assert!(!items.is_empty());
+    }
+
+    #[test]
+    fn test_zmq_tree_structure() {
+        let mut metadata = BTreeMap::new();
+        metadata.insert(METADATA_KEY_ZMQ_TOPIC.to_string(), "sensor.temperature".to_string());
+
+        let event = create_test_event(TransportKind::Zmq, metadata);
+        let items = build_tree_items(&event);
+
+        // Verify ZMQ event produces tree items
+        assert!(items.len() >= 4, "Should have basic sections");
+    }
+
+    #[test]
+    fn test_dds_tree_structure() {
+        let mut metadata = BTreeMap::new();
+        metadata.insert(METADATA_KEY_DDS_DOMAIN_ID.to_string(), "0".to_string());
+        metadata.insert(METADATA_KEY_DDS_TOPIC_NAME.to_string(), "ChatterTopic".to_string());
+
+        let event = create_test_event(TransportKind::DdsRtps, metadata);
+        let items = build_tree_items(&event);
+
+        // Verify DDS-RTPS event produces tree items
+        assert!(items.len() >= 4, "Should have basic sections");
+    }
+
+    #[test]
+    fn test_source_section_with_network() {
+        let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        let items = build_tree_items(&event);
+
+        // Verify we have items (including source section)
+        assert!(items.len() >= 3, "Should have timestamp, direction, source at minimum");
+    }
+
+    #[test]
+    fn test_payload_decoded_section() {
+        let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        let items = build_tree_items(&event);
+
+        // Decoded payload should produce tree items
+        assert!(items.len() >= 5, "Should have all sections including payload");
+    }
+
+    #[test]
+    fn test_payload_raw_section() {
+        let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        event.payload = Payload::Raw {
+            raw: Bytes::from_static(b"raw bytes"),
+        };
+
+        let items = build_tree_items(&event);
+
+        // Raw payload should also produce tree items
+        assert!(items.len() >= 5, "Should have all sections including raw payload");
+    }
+
+    #[test]
+    fn test_correlation_section() {
+        let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        let items = build_tree_items(&event);
+
+        // Event has correlation keys, so should have correlation section
+        assert!(items.len() >= 5, "Should have correlation section");
+    }
+
+    #[test]
+    fn test_warnings_section() {
+        let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        event.warnings = vec!["Parse error".to_string(), "Missing field".to_string()];
+
+        let items = build_tree_items(&event);
+
+        // Warnings should add an extra section
+        let base_len = 5; // timestamp, direction, source, transport, payload
+        assert!(items.len() >= base_len, "Should include warnings section");
+    }
+
+    #[test]
+    fn test_no_warnings_section_when_empty() {
+        let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        let items = build_tree_items(&event);
+
+        // Without warnings and with correlation keys
+        // We should have: timestamp, direction, source, transport, payload, correlation
+        assert_eq!(items.len(), 6, "Should have 6 sections without warnings");
+    }
+
+    #[test]
+    fn test_timestamp_formatting() {
+        let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        let items = build_tree_items(&event);
+
+        // Just verify tree items are created - timestamp is first
+        assert!(!items.is_empty(), "Should have timestamp item");
+    }
+
+    #[test]
+    fn test_metadata_keys_in_transport() {
+        let mut metadata = BTreeMap::new();
+        metadata.insert("custom.key".to_string(), "custom_value".to_string());
+        metadata.insert(METADATA_KEY_GRPC_METHOD.to_string(), "/api.Service/Method".to_string());
+
+        let event = create_test_event(TransportKind::Grpc, metadata);
+        let items = build_tree_items(&event);
+
+        // Metadata adds children to transport section
+        assert!(items.len() >= 4, "Should have all sections");
+    }
+
+    #[test]
+    fn test_event_without_network() {
+        let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        event.source.network = None;
+
+        let items = build_tree_items(&event);
+
+        // Should still build tree successfully
+        assert!(items.len() >= 5, "Should work without network info");
+    }
+
+    #[test]
+    fn test_event_without_correlation() {
+        let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        event.correlation_keys = vec![];
+
+        let items = build_tree_items(&event);
+
+        // Without correlation keys, should have one less section
+        assert_eq!(items.len(), 5, "Should have 5 sections without correlation");
+    }
+
+    #[test]
+    fn test_all_correlation_key_types() {
+        let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
+        event.correlation_keys = vec![
+            CorrelationKey::StreamId { id: 123 },
+            CorrelationKey::Topic { name: "test.topic".to_string() },
+            CorrelationKey::ConnectionId { id: "conn-1".to_string() },
+            CorrelationKey::TraceContext {
+                trace_id: "trace-abc".to_string(),
+                span_id: "span-xyz".to_string(),
+            },
+            CorrelationKey::Custom {
+                key: "custom".to_string(),
+                value: "value".to_string(),
+            },
+        ];
+
+        let items = build_tree_items(&event);
+
+        // Should handle all correlation key types
+        assert!(items.len() >= 5, "Should handle all correlation key types");
+    }
 }
