@@ -27,6 +27,7 @@ pub use session::TlsSession;
 
 use crate::error::PcapError;
 use crate::tcp::ReassembledStream;
+use std::sync::Arc;
 
 /// A decrypted TLS stream.
 #[derive(Debug, Clone)]
@@ -50,32 +51,49 @@ pub struct DecryptedStream {
 
 /// TLS stream processor that combines session parsing, key derivation, and decryption.
 pub struct TlsStreamProcessor {
-    keylog: TlsKeyLog,
+    keylog: Arc<TlsKeyLog>,
 }
 
 impl TlsStreamProcessor {
     /// Creates a new TLS stream processor with an empty key log.
     pub fn new() -> Self {
         Self {
-            keylog: TlsKeyLog::new(),
+            keylog: Arc::new(TlsKeyLog::new()),
         }
     }
 
     /// Creates a new TLS stream processor with an existing key log.
     pub fn with_keylog(keylog: TlsKeyLog) -> Self {
+        Self {
+            keylog: Arc::new(keylog),
+        }
+    }
+
+    /// Creates a new TLS stream processor with a shared keylog reference.
+    ///
+    /// This is useful for parallel processing where multiple shards need to
+    /// share the same keylog.
+    pub fn with_keylog_ref(keylog: Arc<TlsKeyLog>) -> Self {
         Self { keylog }
     }
 
     /// Returns a mutable reference to the key log for adding keys.
+    ///
+    /// Note: If the Arc has multiple references, this will clone the keylog
+    /// to maintain uniqueness. For parallel processing, prefer using a shared
+    /// keylog via `with_keylog_ref`.
     pub fn keylog_mut(&mut self) -> &mut TlsKeyLog {
-        &mut self.keylog
+        Arc::make_mut(&mut self.keylog)
     }
 
-    /// Processes a reassembled TCP stream and attempts TLS decryption.
+    /// Decrypts a reassembled TCP stream using TLS keys.
+    ///
+    /// This method is thread-safe (&self) and can be called concurrently from
+    /// multiple threads sharing the same keylog via Arc.
     ///
     /// If the stream contains a TLS handshake and matching key material is available,
     /// returns a decrypted stream. Otherwise, returns the stream as encrypted.
-    pub fn process_stream(&mut self, stream: ReassembledStream) -> Result<DecryptedStream, PcapError> {
+    pub fn decrypt_stream(&self, stream: ReassembledStream) -> Result<DecryptedStream, PcapError> {
         // Try to parse TLS session from stream data
         let session_result = TlsSession::from_stream(&stream.data);
 
@@ -122,5 +140,66 @@ impl TlsStreamProcessor {
 impl Default for TlsStreamProcessor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tcp::StreamDirection;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    #[test]
+    fn test_tls_decrypt_is_send_sync() {
+        // Static assertion that TlsStreamProcessor implements Send + Sync
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<TlsStreamProcessor>();
+    }
+
+    #[test]
+    fn test_tls_decrypt_parallel_same_keylog() {
+        use std::sync::Arc;
+        use std::thread;
+
+        // Create a shared keylog
+        let keylog = Arc::new(TlsKeyLog::new());
+
+        // Create multiple processors sharing the same keylog
+        let processor1 = TlsStreamProcessor::with_keylog_ref(Arc::clone(&keylog));
+        let processor2 = TlsStreamProcessor::with_keylog_ref(Arc::clone(&keylog));
+
+        // Create test streams
+        let stream1 = ReassembledStream {
+            src_ip: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
+            src_port: 12345,
+            dst_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            dst_port: 443,
+            direction: StreamDirection::ClientToServer,
+            data: vec![0x16, 0x03, 0x03, 0x00, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05], // Invalid TLS, but doesn't matter
+            is_complete: true,
+            missing_ranges: vec![],
+            timestamp_us: 1000,
+        };
+
+        let stream2 = stream1.clone();
+
+        // Process streams in parallel threads
+        let handle1 = thread::spawn(move || {
+            processor1.decrypt_stream(stream1)
+        });
+
+        let handle2 = thread::spawn(move || {
+            processor2.decrypt_stream(stream2)
+        });
+
+        // Both should complete without panic
+        let result1 = handle1.join().expect("Thread 1 panicked");
+        let result2 = handle2.join().expect("Thread 2 panicked");
+
+        // Both should succeed (no keys means encrypted passthrough)
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        assert!(result1.unwrap().encrypted);
+        assert!(result2.unwrap().encrypted);
     }
 }

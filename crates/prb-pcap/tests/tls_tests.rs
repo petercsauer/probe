@@ -286,7 +286,7 @@ fn test_no_key_passthrough() {
         missing_ranges: vec![],
         timestamp_us: 1000000,
     };
-    let decrypted = processor.process_stream(stream).unwrap();
+    let decrypted = processor.decrypt_stream(stream).unwrap();
     assert!(decrypted.encrypted);
 }
 

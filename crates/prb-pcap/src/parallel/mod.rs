@@ -3,11 +3,17 @@
 //! This module defines the traits for pipeline stages and provides
 //! orchestration for parallel packet processing.
 
+mod detect;
 mod normalize;
 mod orchestrator;
+mod partition;
+mod shard;
 
+pub use detect::{detect_protocol, DetectedProtocol};
 pub use normalize::{process_fragments, NormalizeBatch};
 pub use orchestrator::{ParallelPipeline, PipelineConfig};
+pub use partition::FlowPartitioner;
+pub use shard::ShardProcessor;
 
 /// Stateless batch processing stage.
 ///

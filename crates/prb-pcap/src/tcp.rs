@@ -10,7 +10,7 @@
 //! - Connection timeout and cleanup
 
 use crate::error::PcapError;
-use crate::normalize::{NormalizedPacket, TransportInfo};
+use crate::normalize::{NormalizedPacket, OwnedNormalizedPacket, TcpFlags, TransportInfo};
 use smoltcp::storage::Assembler;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -185,15 +185,105 @@ impl TcpReassembler {
             _ => return Ok(Vec::new()), // Not a TCP packet
         };
 
-        let mut events = Vec::new();
-
-        // Create connection key (client perspective: lower port is typically client)
-        let key = ConnectionKey::new(
+        self.process_segment_inner(
             packet.src_ip,
             tcp_info.src_port,
             packet.dst_ip,
             tcp_info.dst_port,
-        );
+            tcp_info.seq,
+            tcp_info.ack,
+            tcp_info.flags,
+            packet.payload,
+            packet.timestamp_us,
+        )
+    }
+
+    /// Creates a flush event from a direction state (static method to avoid borrow issues).
+    fn create_flush_event(
+        key: &ConnectionKey,
+        dir_state: &DirectionState,
+        direction: StreamDirection,
+    ) -> Option<ReassembledStream> {
+        if dir_state.bytes_buffered == 0 {
+            return None;
+        }
+
+        let (src_ip, src_port, dst_ip, dst_port) = match direction {
+            StreamDirection::ClientToServer => (key.src_ip, key.src_port, key.dst_ip, key.dst_port),
+            StreamDirection::ServerToClient => (key.dst_ip, key.dst_port, key.src_ip, key.src_port),
+        };
+
+        // Extract all buffered data (in sequence order)
+        let mut sorted_offsets: Vec<_> = dir_state.payload_buffer.keys().copied().collect();
+        sorted_offsets.sort_unstable();
+
+        let mut data = Vec::new();
+        for offset in sorted_offsets {
+            if let Some(chunk) = dir_state.payload_buffer.get(&offset) {
+                data.extend_from_slice(chunk);
+            }
+        }
+
+        Some(ReassembledStream {
+            src_ip,
+            src_port,
+            dst_ip,
+            dst_port,
+            direction,
+            data,
+            is_complete: dir_state.fin_seen,
+            missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+            timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(dir_state.last_activity_us),
+        })
+    }
+
+    /// Processes a TCP segment from an owned normalized packet.
+    ///
+    /// Semantically identical to `process_segment` but works with owned data.
+    /// This is useful for parallel processing pipelines where packets are moved
+    /// across thread boundaries.
+    ///
+    /// Returns a vector of stream events (data, gaps, timeouts).
+    pub fn process_owned_segment(
+        &mut self,
+        packet: &OwnedNormalizedPacket,
+    ) -> Result<Vec<StreamEvent>, PcapError> {
+        let tcp_info = match &packet.transport {
+            TransportInfo::Tcp(info) => info,
+            _ => return Ok(Vec::new()), // Not a TCP packet
+        };
+
+        self.process_segment_inner(
+            packet.src_ip,
+            tcp_info.src_port,
+            packet.dst_ip,
+            tcp_info.dst_port,
+            tcp_info.seq,
+            tcp_info.ack,
+            tcp_info.flags,
+            &packet.payload,
+            packet.timestamp_us,
+        )
+    }
+
+    /// Core TCP segment processing logic shared by both borrowed and owned variants.
+    #[allow(clippy::too_many_arguments)]
+    fn process_segment_inner(
+        &mut self,
+        src_ip: IpAddr,
+        src_port: u16,
+        dst_ip: IpAddr,
+        dst_port: u16,
+        seq: u32,
+        _ack: u32,
+        flags: TcpFlags,
+        payload: &[u8],
+        timestamp_us: u64,
+    ) -> Result<Vec<StreamEvent>, PcapError> {
+        let mut events = Vec::new();
+
+        // Create connection key (client perspective: lower port is typically client)
+        let key = ConnectionKey::new(src_ip, src_port, dst_ip, dst_port);
 
         // Check if this is the reverse direction
         let reverse_key = key.reverse();
@@ -203,7 +293,7 @@ impl TcpReassembler {
             (reverse_key, StreamDirection::ServerToClient)
         } else {
             // New connection - assume lower port is client (heuristic)
-            if tcp_info.src_port < tcp_info.dst_port {
+            if src_port < dst_port {
                 (key, StreamDirection::ClientToServer)
             } else {
                 (reverse_key, StreamDirection::ServerToClient)
@@ -211,13 +301,24 @@ impl TcpReassembler {
         };
 
         // Handle RST flag - need to do this in a scope to drop the borrow
-        if tcp_info.flags.rst {
+        if flags.rst {
             // Get or create connection state
-            let conn_state = self.connections.entry(canonical_key.clone()).or_insert_with(ConnectionState::new);
+            let conn_state = self
+                .connections
+                .entry(canonical_key.clone())
+                .or_insert_with(ConnectionState::new);
             conn_state.rst_seen = true;
             // Flush both directions
-            let c2s_data = Self::create_flush_event(&canonical_key, &conn_state.client_to_server, StreamDirection::ClientToServer);
-            let s2c_data = Self::create_flush_event(&canonical_key, &conn_state.server_to_client, StreamDirection::ServerToClient);
+            let c2s_data = Self::create_flush_event(
+                &canonical_key,
+                &conn_state.client_to_server,
+                StreamDirection::ClientToServer,
+            );
+            let s2c_data = Self::create_flush_event(
+                &canonical_key,
+                &conn_state.server_to_client,
+                StreamDirection::ServerToClient,
+            );
             if let Some(data) = c2s_data {
                 events.push(StreamEvent::Data(data));
             }
@@ -226,13 +327,16 @@ impl TcpReassembler {
             }
             // Exit the scope to drop conn_state borrow, then remove
         }
-        if tcp_info.flags.rst {
+        if flags.rst {
             self.connections.remove(&canonical_key);
             return Ok(events);
         }
 
         // Get or create connection state for normal processing
-        let conn_state = self.connections.entry(canonical_key.clone()).or_insert_with(ConnectionState::new);
+        let conn_state = self
+            .connections
+            .entry(canonical_key.clone())
+            .or_insert_with(ConnectionState::new);
 
         // Select the direction state
         let dir_state = match direction {
@@ -243,33 +347,33 @@ impl TcpReassembler {
         // Initialize sequence number on first segment
         if dir_state.initial_seq.is_none() {
             // If this is a SYN packet, the ISN should be seq+1 because SYN consumes one sequence number
-            let isn = if tcp_info.flags.syn {
-                tcp_info.seq.wrapping_add(1)
+            let isn = if flags.syn {
+                seq.wrapping_add(1)
             } else {
-                tcp_info.seq
+                seq
             };
             dir_state.initial_seq = Some(isn);
-            dir_state.first_packet_timestamp_us = Some(packet.timestamp_us);
+            dir_state.first_packet_timestamp_us = Some(timestamp_us);
         }
 
         // Update last activity timestamp
-        dir_state.last_activity_us = packet.timestamp_us;
+        dir_state.last_activity_us = timestamp_us;
 
         // Handle FIN flag
-        if tcp_info.flags.fin {
+        if flags.fin {
             dir_state.fin_seen = true;
         }
 
         // Feed data into assembler if there's payload
-        if !packet.payload.is_empty() {
-            let rel_seq = dir_state.relative_seq(tcp_info.seq);
+        if !payload.is_empty() {
+            let rel_seq = dir_state.relative_seq(seq);
 
             // Store the actual payload bytes
-            dir_state.payload_buffer.insert(rel_seq, packet.payload.to_vec());
+            dir_state.payload_buffer.insert(rel_seq, payload.to_vec());
 
             // Add range to assembler
-            let _ = dir_state.assembler.add(rel_seq, rel_seq + packet.payload.len());
-            dir_state.bytes_buffered += packet.payload.len();
+            let _ = dir_state.assembler.add(rel_seq, rel_seq + payload.len());
+            dir_state.bytes_buffered += payload.len();
 
             // Check if we have contiguous data starting from consumed_offset
             // The assembler tracks ranges, so we need to check from our consumption point
@@ -313,7 +417,7 @@ impl TcpReassembler {
                 dir_state.bytes_buffered = dir_state.bytes_buffered.saturating_sub(data.len());
 
                 // Emit reassembled data
-                let (src_ip, src_port, dst_ip, dst_port) = match direction {
+                let (src_ip_out, src_port_out, dst_ip_out, dst_port_out) = match direction {
                     StreamDirection::ClientToServer => (
                         canonical_key.src_ip,
                         canonical_key.src_port,
@@ -329,15 +433,17 @@ impl TcpReassembler {
                 };
 
                 events.push(StreamEvent::Data(ReassembledStream {
-                    src_ip,
-                    src_port,
-                    dst_ip,
-                    dst_port,
+                    src_ip: src_ip_out,
+                    src_port: src_port_out,
+                    dst_ip: dst_ip_out,
+                    dst_port: dst_port_out,
                     direction,
                     data,
                     is_complete: dir_state.fin_seen,
                     missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
-                    timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(packet.timestamp_us),
+                    timestamp_us: dir_state
+                        .first_packet_timestamp_us
+                        .unwrap_or(timestamp_us),
                 }));
             }
         }
@@ -345,43 +451,36 @@ impl TcpReassembler {
         Ok(events)
     }
 
-    /// Creates a flush event from a direction state (static method to avoid borrow issues).
-    fn create_flush_event(
-        key: &ConnectionKey,
-        dir_state: &DirectionState,
-        direction: StreamDirection,
-    ) -> Option<ReassembledStream> {
-        if dir_state.bytes_buffered == 0 {
-            return None;
-        }
+    /// Flushes all active connections, emitting any buffered data.
+    ///
+    /// Called at end of shard processing to ensure all pending data is emitted.
+    /// Connections are removed after flushing.
+    ///
+    /// Returns stream events for all flushed connections.
+    pub fn flush_all(&mut self) -> Vec<StreamEvent> {
+        let keys: Vec<ConnectionKey> = self.connections.keys().cloned().collect();
+        let mut events = Vec::new();
 
-        let (src_ip, src_port, dst_ip, dst_port) = match direction {
-            StreamDirection::ClientToServer => (key.src_ip, key.src_port, key.dst_ip, key.dst_port),
-            StreamDirection::ServerToClient => (key.dst_ip, key.dst_port, key.src_ip, key.src_port),
-        };
-
-        // Extract all buffered data (in sequence order)
-        let mut sorted_offsets: Vec<_> = dir_state.payload_buffer.keys().copied().collect();
-        sorted_offsets.sort_unstable();
-
-        let mut data = Vec::new();
-        for offset in sorted_offsets {
-            if let Some(chunk) = dir_state.payload_buffer.get(&offset) {
-                data.extend_from_slice(chunk);
+        for key in keys {
+            if let Some(state) = self.connections.remove(&key) {
+                if let Some(c2s) = Self::create_flush_event(
+                    &key,
+                    &state.client_to_server,
+                    StreamDirection::ClientToServer,
+                ) {
+                    events.push(StreamEvent::Data(c2s));
+                }
+                if let Some(s2c) = Self::create_flush_event(
+                    &key,
+                    &state.server_to_client,
+                    StreamDirection::ServerToClient,
+                ) {
+                    events.push(StreamEvent::Data(s2c));
+                }
             }
         }
 
-        Some(ReassembledStream {
-            src_ip,
-            src_port,
-            dst_ip,
-            dst_port,
-            direction,
-            data,
-            is_complete: dir_state.fin_seen,
-            missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
-            timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(dir_state.last_activity_us),
-        })
+        events
     }
 
     /// Cleans up idle connections that have exceeded the timeout.
