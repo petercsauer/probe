@@ -10,6 +10,12 @@ use crate::theme::Theme;
 
 pub struct TimelinePane;
 
+impl Default for TimelinePane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimelinePane {
     pub fn new() -> Self {
         TimelinePane
@@ -52,6 +58,17 @@ impl PaneComponent for TimelinePane {
 
         sparkline.render(sparkline_area, buf);
 
+        // Highlight the bucket corresponding to the selected event
+        if let Some(selected_idx) = state.selected_event
+            && let Some(bucket_idx) = calculate_selected_bucket(state, selected_idx, bucket_count)
+        {
+            let x = inner.x + bucket_idx as u16;
+            let y = inner.y + sparkline_height - 1;
+            if x < inner.x + inner.width && y < inner.y + inner.height {
+                buf[(x, y)].set_style(Theme::selected_row());
+            }
+        }
+
         // Time range + protocol legend on the bottom line
         if inner.height >= 2 {
             let y = inner.y + inner.height - 1;
@@ -59,6 +76,31 @@ impl PaneComponent for TimelinePane {
             buf.set_line(inner.x, y, &time_line, inner.width);
         }
     }
+}
+
+fn calculate_selected_bucket(state: &AppState, selected_idx: usize, bucket_count: usize) -> Option<usize> {
+    if bucket_count == 0 {
+        return None;
+    }
+
+    let (start, end) = state.store.time_range()?;
+
+    let selected_event = state.store.get(selected_idx)?;
+    let range = end.as_nanos().saturating_sub(start.as_nanos());
+
+    if range == 0 {
+        return Some(0);
+    }
+
+    let bucket_width = range / bucket_count as u64;
+    let offset = selected_event.timestamp.as_nanos().saturating_sub(start.as_nanos());
+    let bucket_idx = if bucket_width > 0 {
+        (offset / bucket_width).min(bucket_count as u64 - 1) as usize
+    } else {
+        0
+    };
+
+    Some(bucket_idx)
 }
 
 fn format_time_legend(state: &AppState, _width: u16) -> Line<'static> {
@@ -79,6 +121,14 @@ fn format_time_legend(state: &AppState, _width: u16) -> Line<'static> {
         spans.push(Span::styled(
             format!(" {}: {} ", kind, count),
             ratatui::style::Style::default().fg(color),
+        ));
+    }
+
+    // Show (filtered) indicator if a filter is active
+    if state.filter.is_some() {
+        spans.push(Span::styled(
+            " (filtered) ",
+            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
         ));
     }
 

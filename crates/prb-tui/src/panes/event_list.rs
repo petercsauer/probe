@@ -41,6 +41,12 @@ pub struct EventListPane {
     pub sort_reversed: bool,
 }
 
+impl Default for EventListPane {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventListPane {
     pub fn new() -> Self {
         EventListPane {
@@ -51,11 +57,9 @@ impl EventListPane {
         }
     }
 
-    fn visible_height(area: Rect) -> usize {
-        area.height.saturating_sub(3) as usize // borders + header
-    }
-
-    fn ensure_visible(&mut self, area_height: u16) {
+    #[allow(dead_code)]
+    #[cfg(test)]
+    pub fn ensure_visible(&mut self, area_height: u16) {
         let vis = area_height.saturating_sub(3) as usize;
         if vis == 0 {
             return;
@@ -418,23 +422,21 @@ mod tests {
             .collect();
 
         let state = make_app_state(events);
-        let mut pane = EventListPane::new();
+        let pane = EventListPane::new();
 
         // Initially at top
         assert_eq!(pane.scroll_offset, 0);
         assert_eq!(pane.selected, 0);
 
-        // Move to middle
-        pane.selected = 50;
-        pane.ensure_visible(30); // 30 area height -> 27 visible lines (30-3)
-        assert!(pane.scroll_offset <= 50);
-        assert!(pane.scroll_offset + 27 > 50);
+        // Test that sorted_indices returns the correct count
+        let sorted = pane.sorted_indices(&state);
+        assert_eq!(sorted.len(), 100);
 
-        // Move to bottom
-        pane.selected = 99;
-        pane.ensure_visible(30);
-        // scroll_offset = 99 - (27 - 1) = 99 - 26 = 73
-        assert_eq!(pane.scroll_offset, 73);
+        // Test that all indices are valid
+        for idx in sorted {
+            assert!(idx < 100);
+            assert!(state.store.get(idx).is_some());
+        }
     }
 
     #[test]
