@@ -42,3 +42,22 @@ Based on the code analysis, I need to add tests to cover:
 
 Let me add these tests:
 --- tool: ToolSearch ---
+--- tool: Edit ---
+Now let me check if the tests compile and run:
+--- tool: Bash ---
+--- tool: Bash ---
+Excellent! All 99 tests pass. Now let me check the coverage:
+--- tool: Bash ---
+Perfect! Coverage is now:
+- **conversation.rs**: 100.00% ✓
+- **metrics.rs**: 98.77% ✓
+- **engine.rs**: 97.85% ✓
+
+All three files exceed the 90% target. Now let me run regression tests:
+--- tool: Bash ---
+--- tool: ToolSearch ---
+--- tool: TaskOutput ---
+--- tool: TaskOutput ---
+--- tool: Bash ---
+--- tool: TaskOutput ---
+--- tool: Bash ---

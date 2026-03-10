@@ -709,10 +709,95 @@ echo ""
 notify started "24" "${#ALL_WAVES[@]}" "$MAX_PARALLEL"
 
 # ──────────────────────────────────────────────────────────────────────
+# Heartbeat: every 15 min, summarize running segments via claude and notify
+# ──────────────────────────────────────────────────────────────────────
+HEARTBEAT_INTERVAL=900  # 15 minutes
+
+heartbeat_loop() {
+    sleep "$HEARTBEAT_INTERVAL"
+    while true; do
+        # Collect the last ~50 events from each running segment's JSONL
+        local snapshot=""
+        local running_segs=0
+        for jsonl in "$LOG_DIR"/segment-*-*.stream.jsonl; do
+            [[ -f "$jsonl" ]] || continue
+            local seg_id
+            seg_id=$(basename "$jsonl" | grep -o 'segment-[0-9]*' | grep -o '[0-9]*')
+            # Only include segments still actively writing (modified in last 5 min)
+            if [[ $(find "$jsonl" -mmin -5 2>/dev/null) ]]; then
+                running_segs=$((running_segs + 1))
+                local recent
+                recent=$(tail -30 "$jsonl" | python3 -c "
+import sys, json
+lines = []
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try: obj = json.loads(line)
+    except: continue
+    t = obj.get('type', '')
+    if t == 'assistant' and 'message' in obj:
+        for b in obj['message'].get('content', []):
+            if b.get('type') == 'text' and b['text'].strip():
+                lines.append(b['text'].strip()[:200])
+            elif b.get('type') == 'tool_use':
+                lines.append(f'[tool: {b.get(\"name\",\"\")}]')
+for l in lines[-8:]:
+    print(l)
+" 2>/dev/null)
+                if [[ -n "$recent" ]]; then
+                    snapshot+="
+=== S${seg_id} (active) ===
+${recent}
+"
+                fi
+            fi
+        done
+
+        if [[ $running_segs -eq 0 ]]; then
+            sleep "$HEARTBEAT_INTERVAL"
+            continue
+        fi
+
+        # Get overall progress
+        local progress
+        progress=$(progress_summary 2>/dev/null)
+
+        # Ask claude to summarize
+        local summary
+        summary=$(CARGO_TARGET_DIR="/tmp/prb-heartbeat" claude -p "You are a build monitor. Summarize the status of this overnight orchestration in 3-5 SHORT lines for an iMessage notification. Be specific about what each segment is doing and how far along it is. No markdown, no headers, just plain text lines.
+
+Overall progress:
+${progress}
+
+Recent activity from ${running_segs} running segments:
+${snapshot}" \
+            --output-format text \
+            --max-turns 1 \
+            < /dev/null 2>/dev/null | head -8)
+
+        if [[ -n "$summary" ]]; then
+            notify heartbeat "$summary"
+            log "  💓 Heartbeat sent"
+        fi
+
+        sleep "$HEARTBEAT_INTERVAL"
+    done
+}
+
+heartbeat_loop &
+HEARTBEAT_PID=$!
+
+# ──────────────────────────────────────────────────────────────────────
 # Graceful stop
 # ──────────────────────────────────────────────────────────────────────
 STOP_REQUESTED=false
-trap 'STOP_REQUESTED=true; log "$(yellow "⚡ Stop requested — finishing current wave")"; ' INT
+cleanup_heartbeat() {
+    kill "$HEARTBEAT_PID" 2>/dev/null
+    wait "$HEARTBEAT_PID" 2>/dev/null
+}
+trap 'STOP_REQUESTED=true; log "$(yellow "⚡ Stop requested — finishing current wave")"; cleanup_heartbeat' INT
+trap 'cleanup_heartbeat' EXIT
 
 # ──────────────────────────────────────────────────────────────────────
 # Main: execute waves sequentially, segments in parallel within wave

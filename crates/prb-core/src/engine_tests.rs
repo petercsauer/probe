@@ -532,3 +532,276 @@ fn test_conversation_state_error() {
     let set = engine.build_conversations(&events).expect("should succeed");
     assert_eq!(set.conversations[0].state, ConversationState::Error);
 }
+
+#[test]
+fn test_classify_zmq_kind_pubsub() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockZmqStrategy));
+
+    let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
+    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+
+    let events = vec![event];
+    let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
+
+    // Add socket_type to flow
+    let mut flow = flows[0].clone();
+    flow = flow.add_metadata("zmq.socket_type", "PUB");
+
+    let conv = engine::flow_to_conversation(flow, TransportKind::Zmq).expect("should succeed");
+    assert_eq!(conv.kind, ConversationKind::PubSubChannel);
+}
+
+#[test]
+fn test_classify_zmq_kind_request_reply() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockZmqStrategy));
+
+    let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
+    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+
+    let events = vec![event];
+    let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
+
+    // Test REQ socket type
+    let mut flow = flows[0].clone();
+    flow = flow.add_metadata("zmq.socket_type", "REQ");
+
+    let conv = engine::flow_to_conversation(flow, TransportKind::Zmq).expect("should succeed");
+    assert_eq!(conv.kind, ConversationKind::RequestReply);
+}
+
+#[test]
+fn test_classify_zmq_kind_pipeline() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockZmqStrategy));
+
+    let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
+    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+
+    let events = vec![event];
+    let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
+
+    // Test PUSH socket type
+    let mut flow = flows[0].clone();
+    flow = flow.add_metadata("zmq.socket_type", "PUSH");
+
+    let conv = engine::flow_to_conversation(flow, TransportKind::Zmq).expect("should succeed");
+    assert_eq!(conv.kind, ConversationKind::Pipeline);
+}
+
+#[test]
+fn test_classify_zmq_kind_unknown() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockZmqStrategy));
+
+    let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
+    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+
+    let events = vec![event];
+    let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
+
+    // Test unknown socket type
+    let mut flow = flows[0].clone();
+    flow = flow.add_metadata("zmq.socket_type", "UNKNOWN");
+
+    let conv = engine::flow_to_conversation(flow, TransportKind::Zmq).expect("should succeed");
+    assert_eq!(conv.kind, ConversationKind::Unknown);
+}
+
+#[test]
+fn test_summary_generation_grpc_with_status() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockGrpcStrategy));
+
+    let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
+    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata.insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
+
+    let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
+    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata.insert("grpc.status".to_string(), "0".to_string());
+
+    let events = vec![req, resp];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    let summary = &set.conversations[0].summary;
+    assert!(summary.contains("/api.v1.Users/Get"));
+    assert!(summary.contains("OK"));
+}
+
+#[test]
+fn test_summary_generation_grpc_error_statuses() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockGrpcStrategy));
+
+    // Test various error status codes
+    let status_codes = vec![
+        ("1", "CANCELLED"),
+        ("2", "UNKNOWN"),
+        ("3", "INVALID_ARGUMENT"),
+        ("4", "DEADLINE_EXCEEDED"),
+        ("5", "NOT_FOUND"),
+        ("6", "ALREADY_EXISTS"),
+        ("7", "PERMISSION_DENIED"),
+        ("8", "RESOURCE_EXHAUSTED"),
+        ("9", "FAILED_PRECONDITION"),
+        ("10", "ABORTED"),
+        ("11", "OUT_OF_RANGE"),
+        ("12", "UNIMPLEMENTED"),
+        ("13", "INTERNAL"),
+        ("15", "DATA_LOSS"),
+        ("16", "UNAUTHENTICATED"),
+    ];
+
+    for (code, name) in status_codes {
+        let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
+        req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+        req.metadata.insert("grpc.method".to_string(), "/test.Service/Method".to_string());
+
+        let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
+        resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+        resp.metadata.insert("grpc.status".to_string(), code.to_string());
+
+        let events = vec![req, resp];
+        let set = engine.build_conversations(&events).expect("should succeed");
+
+        let summary = &set.conversations[0].summary;
+        assert!(summary.contains(name), "Expected {} in summary for code {}", name, code);
+    }
+}
+
+#[test]
+fn test_summary_generation_zmq_pubsub() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockZmqStrategy));
+
+    let mut event1 = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
+    event1.metadata.insert("zmq.topic".to_string(), "market.data".to_string());
+
+    let mut event2 = create_test_event(TransportKind::Zmq, Direction::Outbound, 2000000000);
+    event2.metadata.insert("zmq.topic".to_string(), "market.data".to_string());
+
+    let events = vec![event1, event2];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    let summary = &set.conversations[0].summary;
+    assert!(summary.contains("market.data"));
+    assert!(summary.contains("messages"));
+}
+
+#[test]
+fn test_summary_generation_dds() {
+    // Create a mock DDS strategy
+    struct MockDdsStrategy;
+
+    impl CorrelationStrategy for MockDdsStrategy {
+        fn transport(&self) -> TransportKind {
+            TransportKind::DdsRtps
+        }
+
+        fn correlate<'a>(&self, events: &'a [DebugEvent]) -> Result<Vec<Flow<'a>>, CoreError> {
+            let mut flow = Flow::new("dds:test".to_string());
+            for event in events {
+                flow = flow.add_event(event);
+                if let Some(topic) = event.metadata.get("dds.topic_name") {
+                    flow = flow.add_metadata("dds.topic_name", topic.clone());
+                }
+                if let Some(domain) = event.metadata.get("dds.domain_id") {
+                    flow = flow.add_metadata("dds.domain_id", domain.clone());
+                }
+            }
+            Ok(vec![flow])
+        }
+    }
+
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockDdsStrategy));
+
+    let mut event1 = create_test_event(TransportKind::DdsRtps, Direction::Inbound, 1000000000);
+    event1.metadata.insert("dds.topic_name".to_string(), "rt/chatter".to_string());
+    event1.metadata.insert("dds.domain_id".to_string(), "0".to_string());
+
+    let mut event2 = create_test_event(TransportKind::DdsRtps, Direction::Inbound, 2000000000);
+    event2.metadata.insert("dds.topic_name".to_string(), "rt/chatter".to_string());
+    event2.metadata.insert("dds.domain_id".to_string(), "0".to_string());
+
+    let events = vec![event1, event2];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    let summary = &set.conversations[0].summary;
+    assert!(summary.contains("rt/chatter"));
+    assert!(summary.contains("domain=0"));
+    assert!(summary.contains("samples"));
+}
+
+#[test]
+fn test_fallback_grouping_without_network() {
+    let engine = ConversationEngine::new(); // No strategies
+
+    // Create event without network address
+    let mut event = create_test_event(TransportKind::RawTcp, Direction::Outbound, 1000000000);
+    event.source.network = None; // Remove network info
+
+    let events = vec![event];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    assert_eq!(set.conversations.len(), 1);
+    assert!(set.conversations[0].id.as_str().contains("test-origin"));
+}
+
+#[test]
+fn test_conversation_stats_by_state() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockGrpcStrategy));
+
+    // Create conversations with different states
+    let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
+    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req1.metadata.insert("grpc.status".to_string(), "0".to_string());
+
+    let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
+    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp1.metadata.insert("grpc.status".to_string(), "0".to_string());
+
+    let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
+    req2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    // No response - timeout
+
+    let events = vec![req1, resp1, req2];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    let stats = set.stats();
+    assert_eq!(stats.by_state.get(&ConversationState::Complete), Some(&1));
+    assert_eq!(stats.by_state.get(&ConversationState::Timeout), Some(&1));
+}
+
+#[test]
+fn test_conversation_stats_by_kind() {
+    let mut engine = ConversationEngine::new();
+    engine.register(Box::new(MockGrpcStrategy));
+
+    // Create conversations with different kinds
+    let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
+    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+
+    let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
+    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+
+    // Server streaming
+    let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
+    req2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+
+    let mut resp2a = create_test_event(TransportKind::Grpc, Direction::Inbound, 2050000000);
+    resp2a.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+
+    let mut resp2b = create_test_event(TransportKind::Grpc, Direction::Inbound, 2100000000);
+    resp2b.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+
+    let events = vec![req1, resp1, req2, resp2a, resp2b];
+    let set = engine.build_conversations(&events).expect("should succeed");
+
+    let stats = set.stats();
+    assert_eq!(stats.by_kind.get(&ConversationKind::UnaryRpc), Some(&1));
+    assert_eq!(stats.by_kind.get(&ConversationKind::ServerStreaming), Some(&1));
+}

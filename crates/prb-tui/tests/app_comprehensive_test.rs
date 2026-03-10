@@ -401,7 +401,7 @@ fn test_app_filter_mode_enter_apply_filter() {
 fn test_app_filter_error_on_invalid_syntax() {
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let app = App::new(store, None);
 
     // This test verifies that the error state can be accessed
     // The actual filter parsing is tested in prb-query

@@ -7,25 +7,28 @@
       "track": "Core",
       "title": "prb-core Unit Tests",
       "attempts": 1,
-      "completed": "2026-03-10T17:49:35Z"
+      "completed": "2026-03-10T18:00:51Z"
     },
     "S02": {
-      "status": "running",
+      "status": "pass",
       "track": "TUI",
       "title": "prb-tui Unit + Render Tests",
-      "attempts": 1
+      "attempts": 2,
+      "completed": "2026-03-10T18:00:51Z"
     },
     "S03": {
-      "status": "running",
+      "status": "pass",
       "track": "CLI",
       "title": "prb-cli Command Tests",
-      "attempts": 1
+      "attempts": 2,
+      "completed": "2026-03-10T18:00:51Z"
     },
     "S04": {
-      "status": "running",
+      "status": "pass",
       "track": "Pcap",
       "title": "prb-pcap Pipeline Tests",
-      "attempts": 1
+      "attempts": 2,
+      "completed": "2026-03-10T18:00:52Z"
     },
     "S05": {
       "status": "pass",
@@ -49,16 +52,16 @@
       "completed": "2026-03-10T17:49:35Z"
     },
     "S08": {
-      "status": "pending",
+      "status": "running",
       "track": "Plugin",
       "title": "prb-plugin Test Harness",
-      "attempts": 0
+      "attempts": 1
     },
     "S09": {
       "status": "pending",
       "track": "Decode",
       "title": "prb-decode Codec Tests",
-      "attempts": 0
+      "attempts": 1
     },
     "S10": {
       "status": "pending",

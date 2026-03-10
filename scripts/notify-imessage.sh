@@ -180,6 +180,21 @@ Orchestration paused until connectivity returns."
     send_imessage "$message"
 }
 
+notify_heartbeat() {
+    local summary="$1"
+
+    local stats
+    stats=$(get_stats)
+
+    local message="PRB 💓 Status Update
+
+$summary
+
+Progress: $stats segments"
+
+    send_imessage "$message"
+}
+
 notify_final() {
     local status="$1"
     local elapsed="$2"
@@ -226,6 +241,9 @@ case "$cmd" in
         ;;
     wave)
         notify_wave "$2" "$3" "$4"
+        ;;
+    heartbeat)
+        notify_heartbeat "$2"
         ;;
     gate)
         notify_gate "$2" "$3" "${4:-}"
