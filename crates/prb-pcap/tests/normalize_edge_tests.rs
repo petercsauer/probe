@@ -35,30 +35,6 @@ fn create_ipv6_packet(src_ip: [u8; 16], dst_ip: [u8; 16], payload: &[u8]) -> Vec
     packet
 }
 
-/// Helper to create a VLAN-tagged Ethernet frame.
-fn create_vlan_packet(vlan_id: u16, inner_ethertype: u16, payload: &[u8]) -> Vec<u8> {
-    let mut packet = Vec::new();
-
-    // Ethernet header
-    packet.extend_from_slice(&[0x00, 0x11, 0x22, 0x33, 0x44, 0x55]); // src MAC
-    packet.extend_from_slice(&[0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]); // dst MAC
-
-    // VLAN tag (0x8100)
-    packet.extend_from_slice(&[0x81, 0x00]);
-
-    // TCI: priority (3 bits) + DEI (1 bit) + VID (12 bits)
-    let tci = vlan_id & 0x0fff; // VID only, priority=0, DEI=0
-    packet.extend_from_slice(&tci.to_be_bytes());
-
-    // Inner EtherType
-    packet.extend_from_slice(&inner_ethertype.to_be_bytes());
-
-    // Payload
-    packet.extend_from_slice(payload);
-
-    packet
-}
-
 #[test]
 fn test_normalize_ipv6_basic() {
     let src = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01];

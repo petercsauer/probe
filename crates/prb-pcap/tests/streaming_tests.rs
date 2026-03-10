@@ -177,14 +177,13 @@ fn test_streaming_channel_capacity_respected() {
 
     let (tx, handle) = pipeline.start();
 
-    // The sender should block if the pipeline is slow
-    // For this test, we just verify it completes without panic
-    for i in 0..1000 {
-        let pkt = create_synthetic_packet(1000 + i, b"backpressure test");
-        tx.send(pkt).unwrap();
-    }
-
-    drop(tx);
+    // Spawn sender thread - bounded channel will apply backpressure
+    thread::spawn(move || {
+        for i in 0..1000 {
+            let pkt = create_synthetic_packet(1000 + i, b"backpressure test");
+            tx.send(pkt).unwrap();
+        }
+    });
 
     let events = handle.recv_all();
     assert_eq!(events.len(), 1000);
