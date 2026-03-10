@@ -447,3 +447,166 @@ fn test_cli_format_autodetect() {
         .failure()
         .stderr(predicate::str::contains("Unsupported input format"));
 }
+
+// WS-5.1: CLI command coverage
+
+#[test]
+fn test_cli_ingest_magic_bytes_detection() {
+    // WS-5.1: Rename .pcap to .bin, ingest still works (after WS-2.5)
+    let temp_dir = tempfile::tempdir().unwrap();
+    let pcap_path = temp_dir.path().join("test.pcap");
+    create_test_pcap(&pcap_path, false);
+
+    // Rename to .bin
+    let bin_path = temp_dir.path().join("test.bin");
+    fs::rename(&pcap_path, &bin_path).unwrap();
+
+    // Should still detect PCAP format via magic bytes
+    prb()
+        .arg("ingest")
+        .arg(&bin_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""transport":"raw-tcp""#));
+}
+
+#[test]
+fn test_cli_error_messages() {
+    // WS-5.1: Nonexistent file, bad format → human-readable errors
+
+    // Nonexistent file
+    prb()
+        .arg("ingest")
+        .arg("/nonexistent/file.json")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Failed").or(predicate::str::contains("No such file")));
+
+    // Bad format
+    let temp_dir = tempfile::tempdir().unwrap();
+    let bad_file = temp_dir.path().join("bad.json");
+    fs::write(&bad_file, "not valid json {][").unwrap();
+
+    prb()
+        .arg("ingest")
+        .arg(&bad_file)
+        .assert()
+        .failure();
+}
+
+#[test]
+fn test_cli_empty_input() {
+    // WS-5.1: Empty JSON file → zero events, exit 0
+    let temp_dir = tempfile::tempdir().unwrap();
+    let empty_json = temp_dir.path().join("empty.json");
+    fs::write(&empty_json, r#"{"version": 1, "events": []}"#).unwrap();
+
+    let output = prb()
+        .arg("ingest")
+        .arg(&empty_json)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "Should exit 0 for empty input");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Output should be empty (no events)
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 0, "Should produce zero output lines");
+}
+
+#[test]
+fn test_cli_large_input_streaming() {
+    // WS-5.1: Large JSON fixture (>100 events) → all emitted
+    use std::io::Write;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let large_json = temp_dir.path().join("large.json");
+
+    // Create JSON with 150 events
+    let mut file = fs::File::create(&large_json).unwrap();
+    write!(file, r#"{{"version": 1, "events": ["#).unwrap();
+
+    for i in 0..150 {
+        if i > 0 {
+            write!(file, ",").unwrap();
+        }
+        write!(
+            file,
+            r#"{{
+                "timestamp_ns": {},
+                "transport": "grpc",
+                "direction": "outbound",
+                "payload_base64": "dGVzdA=="
+            }}"#,
+            1700000000000000000u64 + i
+        )
+        .unwrap();
+    }
+
+    write!(file, "]}}\n").unwrap();
+    drop(file);
+
+    // Ingest and count output lines
+    let output = prb()
+        .arg("ingest")
+        .arg(&large_json)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "Should process large input");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 150, "Should emit all 150 events");
+}
+
+#[test]
+fn test_cli_ingest_stdin_ndjson() {
+    // WS-5.1: Pipe NDJSON to `prb inspect` via stdin (duplicate of existing test, kept for WS-5 completeness)
+    let fixture = fixtures_dir().join("sample.json");
+
+    // First ingest to get NDJSON
+    let ingest_output = prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .output()
+        .unwrap();
+
+    assert!(ingest_output.status.success());
+
+    // Then pipe to inspect via stdin (no argument needed, stdin is default)
+    prb()
+        .arg("inspect")
+        .write_stdin(ingest_output.stdout)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("TIMESTAMP"))
+        .stdout(predicate::str::contains("grpc"));
+}
+
+#[test]
+fn test_cli_ingest_pcap_to_mcap() {
+    // WS-5.1: .pcap → .mcap output file creation
+    let temp_dir = tempfile::tempdir().unwrap();
+    let pcap_path = temp_dir.path().join("test.pcap");
+    let mcap_path = temp_dir.path().join("output.mcap");
+
+    create_test_pcap(&pcap_path, false);
+
+    // Ingest PCAP to MCAP
+    prb()
+        .arg("ingest")
+        .arg(&pcap_path)
+        .arg("--output")
+        .arg(&mcap_path)
+        .assert()
+        .success();
+
+    // Verify MCAP file was created and is non-empty
+    assert!(mcap_path.exists(), "MCAP file should be created");
+    let metadata = fs::metadata(&mcap_path).unwrap();
+    assert!(metadata.len() > 0, "MCAP file should not be empty");
+
+    // Note: MCAP inspect might not be implemented in Phase 1
+    // This test verifies MCAP output creation works
+}
