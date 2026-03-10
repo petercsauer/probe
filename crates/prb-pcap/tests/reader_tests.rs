@@ -106,7 +106,7 @@ fn create_test_pcapng() -> NamedTempFile {
 fn create_test_pcapng_with_dsb() -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
 
-    // Section Header Block (SHB) - same as above
+    // Section Header Block (SHB)
     file.write_all(&0x0a0d0d0au32.to_le_bytes()).unwrap();
     file.write_all(&28u32.to_le_bytes()).unwrap();
     file.write_all(&0x1a2b3c4du32.to_le_bytes()).unwrap();
@@ -124,28 +124,18 @@ fn create_test_pcapng_with_dsb() -> NamedTempFile {
     file.write_all(&20u32.to_le_bytes()).unwrap();
 
     // Decryption Secrets Block (DSB)
-    // Block Type: 0x0000000a
-    file.write_all(&0x0au32.to_le_bytes()).unwrap();
-
-    // Prepare TLS key log data (client_random and master_secret must be valid hex)
-    // CLIENT_RANDOM should be 64 hex chars (32 bytes), master_secret 64 hex chars (32 bytes for TLS 1.2)
-    let key_log = "CLIENT_RANDOM 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210\n";
+    // Use a proper 48-byte (96 hex char) master secret for TLS 1.2
+    let key_log = "CLIENT_RANDOM 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210\n";
     let key_log_bytes = key_log.as_bytes();
     let padding = (4 - (key_log_bytes.len() % 4)) % 4;
     let padded_len = key_log_bytes.len() + padding;
 
-    // DSB block structure per pcapng spec:
-    // Block Type (4 bytes, NOT included in Block Total Length)
-    // Block Total Length (4 bytes, includes THIS field through end)
-    // Secrets Type (4 bytes)
-    // Secrets Length (4 bytes)
-    // Secrets Data (variable, padded to 4-byte boundary)
-    // Options (0 bytes for us, would end with opt_endofopt)
-    // Block Total Length (4 bytes, repeated)
-    //
-    // Block Total Length = 4 (this field) + 4 (secrets_type) + 4 (secrets_len) + padded_data + 0 (no options) + 4 (repeated)
-    let dsb_total_len = 4 + 4 + 4 + padded_len + 4;
+    // pcapng Block Total Length includes ALL bytes from block_type through trailing length:
+    // block_type(4) + block_total_length(4) + secrets_type(4) + secrets_length(4) + padded_data + block_total_length(4)
+    let dsb_total_len = 4 + 4 + 4 + 4 + padded_len + 4;
 
+    // Block Type: 0x0000000a (DSB)
+    file.write_all(&0x0au32.to_le_bytes()).unwrap();
     // Block Total Length
     file.write_all(&(dsb_total_len as u32).to_le_bytes()).unwrap();
     // Secrets Type: 0x544c534b ("TLSK")
@@ -154,13 +144,14 @@ fn create_test_pcapng_with_dsb() -> NamedTempFile {
     file.write_all(&(key_log_bytes.len() as u32).to_le_bytes()).unwrap();
     // Secrets Data
     file.write_all(key_log_bytes).unwrap();
-    // Padding
-    file.write_all(&vec![0u8; padding]).unwrap();
+    // Padding to 4-byte boundary
+    if padding > 0 {
+        file.write_all(&vec![0u8; padding]).unwrap();
+    }
     // Block Total Length (repeated)
     file.write_all(&(dsb_total_len as u32).to_le_bytes()).unwrap();
 
     file.flush().unwrap();
-    // Sync to ensure all data is written
     file.as_file().sync_all().unwrap();
     file
 }
@@ -192,10 +183,8 @@ fn test_read_pcapng() {
 }
 
 #[test]
-#[ignore = "DSB test fixture generation needs fixing - block length calculation incorrect"]
 fn test_read_pcapng_dsb() {
     let pcapng_file = create_test_pcapng_with_dsb();
-    eprintln!("DEBUG: Test file size: {} bytes", std::fs::metadata(pcapng_file.path()).unwrap().len());
     let mut reader = PcapFileReader::open(pcapng_file.path()).unwrap();
 
     let _packets = reader.read_all_packets().unwrap();
@@ -204,7 +193,7 @@ fn test_read_pcapng_dsb() {
     assert_eq!(tls_keys.len(), 1, "should extract one TLS key");
 
     let client_random = hex::decode("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF").unwrap();
-    let expected_secret = hex::decode("FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210").unwrap();
+    let expected_secret = hex::decode("FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210").unwrap();
 
     let secret = tls_keys.get(&client_random).unwrap();
     assert_eq!(secret, expected_secret.as_slice(), "TLS key should match");

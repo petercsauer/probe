@@ -39,9 +39,7 @@ pub struct TlsDecryptor {
     cipher: AeadCipher,
     client_key: Vec<u8>,
     client_iv: Vec<u8>,
-    #[allow(dead_code)] // Will be used for bidirectional decryption
     server_key: Vec<u8>,
-    #[allow(dead_code)] // Will be used for bidirectional decryption
     server_iv: Vec<u8>,
     is_tls13: bool,
 }
@@ -144,6 +142,26 @@ impl TlsDecryptor {
         })
     }
 
+    /// Decrypts a single AEAD-encrypted payload directly (without TLS record framing).
+    ///
+    /// For TLS 1.3: `ciphertext` is the raw encrypted content + auth tag.
+    /// For TLS 1.2: `ciphertext` is explicit_nonce (8 bytes) + encrypted content + auth tag.
+    pub fn decrypt_aead(
+        &self,
+        ciphertext: &[u8],
+        sequence: u64,
+        content_type: u8,
+        version: u16,
+        direction: crate::tcp::StreamDirection,
+    ) -> Result<Vec<u8>, PcapError> {
+        let hdr = tls_parser::TlsRecordHeader {
+            record_type: tls_parser::TlsRecordType(content_type),
+            version: tls_parser::TlsVersion(version),
+            len: ciphertext.len() as u16,
+        };
+        self.decrypt_record(ciphertext, sequence, &hdr, direction)
+    }
+
     /// Decrypts all TLS records in a stream.
     ///
     /// Returns concatenated plaintext from all Application Data records.
@@ -195,20 +213,28 @@ impl TlsDecryptor {
         record_hdr: &tls_parser::TlsRecordHeader,
         direction: crate::tcp::StreamDirection,
     ) -> Result<Vec<u8>, PcapError> {
-        // Select key and IV based on direction
         let (key, iv) = match direction {
             crate::tcp::StreamDirection::ClientToServer => (&self.client_key, &self.client_iv),
             crate::tcp::StreamDirection::ServerToClient => (&self.server_key, &self.server_iv),
         };
 
-        // Construct nonce
         let nonce = self.construct_nonce(iv, sequence, ciphertext)?;
+        let aad = self.construct_aad(record_hdr, ciphertext.len(), sequence);
 
-        // Construct AAD (Additional Authenticated Data)
-        let aad = self.construct_aad(record_hdr, ciphertext.len());
+        // For TLS 1.2 GCM, the record payload is: explicit_nonce (8) + encrypted + tag (16).
+        // ring expects only encrypted + tag, so strip the 8-byte explicit nonce prefix.
+        let decrypt_input = if self.is_tls13 {
+            ciphertext
+        } else {
+            if ciphertext.len() < 8 {
+                return Err(PcapError::TlsKey(
+                    "ciphertext too short for TLS 1.2 explicit nonce".to_string(),
+                ));
+            }
+            &ciphertext[8..]
+        };
 
-        // Decrypt using ring AEAD
-        let mut in_out = ciphertext.to_vec();
+        let mut in_out = decrypt_input.to_vec();
         let unbound_key = UnboundKey::new(self.cipher.algorithm(), key)
             .map_err(|e| PcapError::TlsKey(format!("failed to create key: {:?}", e)))?;
 
@@ -268,9 +294,11 @@ impl TlsDecryptor {
     }
 
     /// Constructs the AAD (Additional Authenticated Data) for AEAD.
-    fn construct_aad(&self, record_hdr: &tls_parser::TlsRecordHeader, ciphertext_len: usize) -> Vec<u8> {
+    ///
+    /// TLS 1.2 (RFC 5246 Section 6.2.3.3): seq_num (8) + type (1) + version (2) + length (2) = 13 bytes
+    /// TLS 1.3 (RFC 8446 Section 5.2): type (1) + version (2) + length (2) = 5 bytes
+    fn construct_aad(&self, record_hdr: &tls_parser::TlsRecordHeader, ciphertext_len: usize, sequence: u64) -> Vec<u8> {
         if self.is_tls13 {
-            // TLS 1.3 AAD: record header (5 bytes)
             vec![
                 u8::from(record_hdr.record_type),
                 (record_hdr.version.0 >> 8) as u8,
@@ -279,16 +307,17 @@ impl TlsDecryptor {
                 (ciphertext_len & 0xff) as u8,
             ]
         } else {
-            // TLS 1.2 AAD: record header (5 bytes) but with plaintext length
-            // For TLS 1.2, AAD uses the ciphertext length minus explicit nonce and auth tag
-            let plaintext_len = ciphertext_len.saturating_sub(8 + 16); // 8-byte nonce, 16-byte tag
-            vec![
-                u8::from(record_hdr.record_type),
-                (record_hdr.version.0 >> 8) as u8,
-                (record_hdr.version.0 & 0xff) as u8,
-                (plaintext_len >> 8) as u8,
-                (plaintext_len & 0xff) as u8,
-            ]
+            // TLS 1.2 AEAD AAD: seq_num (8 bytes) + content_type + version + plaintext_length
+            let plaintext_len = ciphertext_len.saturating_sub(8 + 16); // 8-byte explicit nonce, 16-byte tag
+            let seq_bytes = sequence.to_be_bytes();
+            let mut aad = Vec::with_capacity(13);
+            aad.extend_from_slice(&seq_bytes);
+            aad.push(u8::from(record_hdr.record_type));
+            aad.push((record_hdr.version.0 >> 8) as u8);
+            aad.push((record_hdr.version.0 & 0xff) as u8);
+            aad.push((plaintext_len >> 8) as u8);
+            aad.push((plaintext_len & 0xff) as u8);
+            aad
         }
     }
 }

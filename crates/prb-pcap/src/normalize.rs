@@ -69,9 +69,17 @@ pub struct NormalizedPacket<'a> {
     pub payload: &'a [u8],
 }
 
+/// Maximum age for incomplete IP fragment trains (5 seconds in microseconds).
+const DEFRAG_TIMEOUT_US: u64 = 5_000_000;
+
+/// How often to run defrag cleanup (every 1000 packets).
+const DEFRAG_CLEANUP_INTERVAL: u64 = 1000;
+
 /// Packet normalizer that handles linktype dispatch and IP fragment reassembly.
 pub struct PacketNormalizer {
     defrag_pool: etherparse::defrag::IpDefragPool<u64, ()>,
+    packet_count: u64,
+    last_timestamp_us: u64,
 }
 
 impl PacketNormalizer {
@@ -79,6 +87,8 @@ impl PacketNormalizer {
     pub fn new() -> Self {
         Self {
             defrag_pool: etherparse::defrag::IpDefragPool::new(),
+            packet_count: 0,
+            last_timestamp_us: 0,
         }
     }
 
@@ -92,6 +102,15 @@ impl PacketNormalizer {
         timestamp_us: u64,
         data: &'a [u8],
     ) -> Result<Option<NormalizedPacket<'a>>, PcapError> {
+        self.packet_count += 1;
+        self.last_timestamp_us = timestamp_us;
+
+        // Periodically evict stale incomplete fragment trains to bound memory
+        if self.packet_count.is_multiple_of(DEFRAG_CLEANUP_INTERVAL) {
+            let cutoff = timestamp_us.saturating_sub(DEFRAG_TIMEOUT_US);
+            self.defrag_pool.retain(|ts| *ts >= cutoff);
+        }
+
         // Dispatch based on linktype
         let sliced = match linktype {
             0 => {

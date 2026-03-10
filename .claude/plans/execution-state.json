@@ -119,10 +119,11 @@
       "risk": "5/10",
       "complexity": "Medium",
       "cycles_budget": 20,
-      "cycles_used": 1,
+      "cycles_used": 3,
       "commit": "4a6ec38",
       "completed": "2026-03-09T19:30:00Z",
-      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md",
+      "notes": "Initial commit had connection tracking without payload extraction (data always empty). Fixed in deviation-fix commit to buffer and emit actual stream bytes."
     },
     "S3.4": {
       "status": "pass",
@@ -131,10 +132,11 @@
       "risk": "8/10",
       "complexity": "High",
       "cycles_budget": 20,
-      "cycles_used": 5,
+      "cycles_used": 8,
       "commit": "5e22bbd",
       "completed": "2026-03-09T20:00:00Z",
-      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md",
+      "notes": "Initial commit took single KeyMaterial (TLS 1.3 used same key both directions). Follow-up fix: accept &[KeyMaterial] slice, derive separate client/server keys, add missing HANDSHAKE labels, fix TLS 1.2 AAD (add seq_num) and explicit nonce stripping, add real encrypt-then-decrypt tests."
     },
     "S3.5": {
       "status": "pending",
