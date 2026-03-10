@@ -98,4 +98,16 @@ mod tests {
         let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
         assert_eq!(filter.source(), r#"transport == "gRPC""#);
     }
+
+    #[test]
+    fn empty_filter_matches_everything() {
+        let filter = Filter::parse("").unwrap();
+        let event1 = make_event(TransportKind::Grpc, BTreeMap::new());
+        let event2 = make_event(TransportKind::Zmq, BTreeMap::new());
+        assert!(filter.matches(&event1));
+        assert!(filter.matches(&event2));
+
+        let filter_whitespace = Filter::parse("   ").unwrap();
+        assert!(filter_whitespace.matches(&event1));
+    }
 }
