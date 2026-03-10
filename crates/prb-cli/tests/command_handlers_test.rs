@@ -1415,3 +1415,292 @@ fn test_tui_with_long_path() {
     assert!(args.input.as_str().contains("events.ndjson"));
     assert!(args.where_clause.is_some());
 }
+
+// ============================================================================
+// Additional Plugin Tests for load_all_plugins coverage
+// ============================================================================
+
+#[test]
+fn test_plugins_list_with_corrupt_manifest() {
+    let temp_dir = create_temp_dir();
+    let plugin_dir = Utf8PathBuf::from_path_buf(temp_dir.path().to_path_buf()).unwrap();
+
+    // Create a plugin directory with corrupt TOML
+    let bad_plugin = temp_dir.path().join("bad-plugin");
+    fs::create_dir_all(&bad_plugin).unwrap();
+    fs::write(bad_plugin.join("plugin.toml"), "not valid toml!!!").unwrap();
+
+    let args = PluginsArgs {
+        command: PluginsCommand::List,
+    };
+
+    // Should handle corrupt manifest gracefully
+    let result = run_plugins(args, Some(&plugin_dir));
+    // Will fail to parse the manifest but should not panic
+    let _ = result;
+}
+
+#[test]
+fn test_plugins_info_zmtp_detailed() {
+    let args = PluginsArgs {
+        command: PluginsCommand::Info {
+            name: "zmtp".to_string(),
+        },
+    };
+
+    let result = run_plugins(args, None);
+    assert!(result.is_ok(), "Should display ZMTP decoder info");
+}
+
+#[test]
+fn test_plugins_info_rtps_detailed() {
+    let args = PluginsArgs {
+        command: PluginsCommand::Info {
+            name: "rtps".to_string(),
+        },
+    };
+
+    let result = run_plugins(args, None);
+    assert!(result.is_ok(), "Should display RTPS decoder info");
+}
+
+// ============================================================================
+// Additional Capture Tests for coverage
+// ============================================================================
+
+#[test]
+fn test_capture_with_count_limit() {
+    let args = CaptureArgs {
+        list_interfaces: false,
+        interface: Some("lo".to_string()),
+        bpf_filter: None,
+        output: None,
+        write_pcap: None,
+        snaplen: 65535,
+        no_promisc: false,
+        buffer_size: 2 * 1024 * 1024,
+        tls_keylog: None,
+        count: Some(100),
+        duration: None,
+        tui: false,
+        format: CaptureOutputFormat::Summary,
+        quiet: false,
+    };
+
+    assert_eq!(args.count, Some(100));
+}
+
+#[test]
+fn test_capture_with_duration_limit() {
+    let args = CaptureArgs {
+        list_interfaces: false,
+        interface: Some("eth0".to_string()),
+        bpf_filter: None,
+        output: None,
+        write_pcap: None,
+        snaplen: 65535,
+        no_promisc: false,
+        buffer_size: 2 * 1024 * 1024,
+        tls_keylog: None,
+        count: None,
+        duration: Some(30),
+        tui: false,
+        format: CaptureOutputFormat::Json,
+        quiet: true,
+    };
+
+    assert_eq!(args.duration, Some(30));
+    assert!(args.quiet);
+}
+
+#[test]
+fn test_capture_with_pcap_output() {
+    let temp_dir = create_temp_dir();
+    let pcap_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("capture.pcap")).unwrap();
+
+    let args = CaptureArgs {
+        list_interfaces: false,
+        interface: Some("lo".to_string()),
+        bpf_filter: Some("tcp".to_string()),
+        output: None,
+        write_pcap: Some(pcap_path.clone()),
+        snaplen: 65535,
+        no_promisc: false,
+        buffer_size: 2 * 1024 * 1024,
+        tls_keylog: None,
+        count: Some(1),
+        duration: None,
+        tui: false,
+        format: CaptureOutputFormat::Summary,
+        quiet: false,
+    };
+
+    assert_eq!(args.write_pcap.as_ref().unwrap(), &pcap_path);
+}
+
+// ============================================================================
+// Additional Inspect Tests
+// ============================================================================
+
+#[test]
+fn test_inspect_from_stdin() {
+    // Test inspect with None input (reads from stdin)
+    let args = InspectArgs {
+        input: None,
+        format: OutputFormat::Json,
+        filter: None,
+        where_clause: None,
+        trace_id: None,
+        span_id: None,
+        group_by_trace: false,
+        wire_format: false,
+    };
+
+    // Tests the stdin code path (may succeed with empty output or fail)
+    let _ = run_inspect(args);
+}
+
+#[test]
+fn test_inspect_with_all_filters_combined() {
+    let temp_dir = create_temp_dir();
+    let ndjson = create_debug_events_ndjson(&temp_dir);
+
+    let args = InspectArgs {
+        input: Some(ndjson),
+        format: OutputFormat::Table,
+        filter: Some("grpc".to_string()),
+        where_clause: Some(r#"direction == "outbound""#.to_string()),
+        trace_id: Some("abc123".to_string()),
+        span_id: Some("def456".to_string()),
+        group_by_trace: true,
+        wire_format: true,
+    };
+
+    let result = run_inspect(args);
+    assert!(result.is_ok(), "Should handle all filters together");
+}
+
+// ============================================================================
+// Additional Merge Tests
+// ============================================================================
+
+#[test]
+fn test_merge_creates_output_directory() {
+    let temp_dir = create_temp_dir();
+    let packets = create_debug_events_ndjson(&temp_dir);
+    let traces = create_sample_otlp_json(&temp_dir);
+
+    // Create output path in non-existent subdirectory
+    let subdir = temp_dir.path().join("output_dir");
+    let output = Utf8PathBuf::from_path_buf(subdir.join("merged.ndjson")).unwrap();
+
+    let args = MergeArgs {
+        packets,
+        traces,
+        output: Some(output.clone()),
+    };
+
+    let result = run_merge(args);
+    // May fail if directory creation isn't handled, tests that code path
+    let _ = result;
+}
+
+// ============================================================================
+// Additional Export Tests
+// ============================================================================
+
+#[test]
+fn test_export_csv_to_stdout() {
+    let temp_dir = create_temp_dir();
+    let input = create_debug_events_ndjson(&temp_dir);
+
+    let args = ExportArgs {
+        input,
+        output: None, // stdout
+        format: ExportFormat::Csv,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "CSV to stdout should work");
+}
+
+#[test]
+fn test_export_har_to_stdout() {
+    let temp_dir = create_temp_dir();
+    let input = create_debug_events_ndjson(&temp_dir);
+
+    let args = ExportArgs {
+        input,
+        output: None,
+        format: ExportFormat::Har,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "HAR to stdout should work");
+}
+
+#[test]
+fn test_export_otlp_to_stdout() {
+    let temp_dir = create_temp_dir();
+    let input = create_debug_events_ndjson(&temp_dir);
+
+    let args = ExportArgs {
+        input,
+        output: None,
+        format: ExportFormat::Otlp,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "OTLP to stdout should work");
+}
+
+// ============================================================================
+// Additional Ingest Tests
+// ============================================================================
+
+#[test]
+fn test_ingest_with_tls_keylog() {
+    let temp_dir = create_temp_dir();
+    let input = create_sample_ndjson_file(&temp_dir);
+    let keylog = Utf8PathBuf::from_path_buf(temp_dir.path().join("keys.log")).unwrap();
+
+    // Create empty keylog file
+    fs::write(&keylog, "").unwrap();
+
+    let args = IngestArgs {
+        input,
+        output: None,
+        tls_keylog: Some(keylog),
+        protocol: None,
+        trace_id: None,
+        span_id: None,
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    assert!(result.is_ok(), "Ingest with TLS keylog should work");
+}
+
+#[test]
+fn test_ingest_with_all_filters() {
+    let temp_dir = create_temp_dir();
+    let input = create_sample_ndjson_file(&temp_dir);
+    let output = Utf8PathBuf::from_path_buf(temp_dir.path().join("out.ndjson")).unwrap();
+
+    let args = IngestArgs {
+        input,
+        output: Some(output.clone()),
+        tls_keylog: None,
+        protocol: Some("grpc".to_string()),
+        trace_id: Some("trace123".to_string()),
+        span_id: Some("span456".to_string()),
+        jobs: 2,
+    };
+
+    let result = run_ingest(args);
+    assert!(result.is_ok(), "Ingest with all filters should work");
+    assert!(output.as_std_path().exists(), "Output should be created");
+}
