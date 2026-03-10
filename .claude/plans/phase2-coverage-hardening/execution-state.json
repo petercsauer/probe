@@ -59,10 +59,11 @@
       "completed": "2026-03-10T18:11:29Z"
     },
     "S09": {
-      "status": "running",
+      "status": "pass",
       "track": "Decode",
       "title": "prb-decode Codec Tests",
-      "attempts": 2
+      "attempts": 2,
+      "completed": "2026-03-10T18:53:26Z"
     },
     "S10": {
       "status": "running",
