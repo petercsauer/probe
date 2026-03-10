@@ -175,6 +175,62 @@ class StateDB:
         row = cur.fetchone()
         return row[0] if row and row[0] else 0
 
+    def reset_stale_running(self) -> int:
+        """Reset segments stuck as 'running' from a previous crashed run."""
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE segments SET status='pending' WHERE status='running'"
+            )
+            count = cur.rowcount
+        if count:
+            self.log_event("reset_stale", f"Reset {count} stale running segments to pending")
+        return count
+
+    def migrate_from_json(self, json_path: Path) -> int:
+        """Import segment statuses from the old bash script's execution-state.json.
+
+        Returns the number of segments updated.
+        """
+        if not json_path.exists():
+            return 0
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        count = 0
+        for key, info in data.get("segments", {}).items():
+            # Keys are like "S01", "S02", etc.
+            try:
+                num = int(key.lstrip("S"))
+            except (ValueError, IndexError):
+                continue
+            old_status = info.get("status", "pending")
+            # Map old statuses: "running" from a dead bash session → "pending" for retry
+            if old_status == "running":
+                old_status = "pending"
+            attempts = info.get("attempts", 0)
+            completed = info.get("completed")
+
+            finished_at = None
+            if completed:
+                from datetime import datetime, timezone
+                try:
+                    dt = datetime.fromisoformat(completed.replace("Z", "+00:00"))
+                    finished_at = dt.timestamp()
+                except (ValueError, AttributeError):
+                    pass
+
+            existing = self.get_segment(num)
+            if existing and existing.status == "pending" and old_status in ("pass", "partial", "blocked"):
+                self.set_status(
+                    num, old_status,
+                    attempts=attempts,
+                    finished_at=finished_at,
+                )
+                count += 1
+        if count:
+            self.log_event("state_migrated", f"Imported {count} segment statuses from {json_path.name}")
+        return count
+
     def all_as_dict(self) -> dict[str, Any]:
         """Full snapshot for the monitor API."""
         segments = [s.to_dict() for s in self.get_all_segments()]

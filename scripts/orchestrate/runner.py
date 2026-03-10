@@ -171,9 +171,7 @@ async def run_segment(
 
     log.info("S%02d starting: %s", seg.num, seg.title)
 
-    log_fd = None
     try:
-        log_fd = open(raw_log, "w")
         proc = await asyncio.create_subprocess_exec(
             "claude",
             "-p", prompt,
@@ -181,16 +179,23 @@ async def run_segment(
             "--verbose",
             "--output-format", "stream-json",
             stdin=asyncio.subprocess.DEVNULL,
-            stdout=log_fd,
+            stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=env,
             start_new_session=True,
         )
 
+        async def _drain_stdout():
+            with open(raw_log, "w", encoding="utf-8") as f:
+                while True:
+                    line = await proc.stdout.readline()
+                    if not line:
+                        break
+                    f.write(line.decode("utf-8", errors="replace"))
+                    f.flush()
+
         try:
-            await asyncio.wait_for(
-                proc.wait(), timeout=config.segment_timeout
-            )
+            await asyncio.wait_for(_drain_stdout(), timeout=config.segment_timeout)
         except asyncio.TimeoutError:
             log.warning("S%02d timed out after %ds", seg.num, config.segment_timeout)
             if proc.pid:
@@ -199,14 +204,13 @@ async def run_segment(
             state.log_event("segment_timeout", f"S{seg.num:02d} killed after {config.segment_timeout}s")
             return "timeout", f"Killed after {config.segment_timeout}s"
 
+        await proc.wait()
+
     except Exception as exc:
         log.exception("S%02d process error", seg.num)
         state.set_status(seg.num, "failed", finished_at=time.time())
         state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
         return "failed", str(exc)
-    finally:
-        if log_fd:
-            log_fd.close()
 
     # Parse the stream output
     full_text, _result = _parse_stream_jsonl(raw_log)

@@ -3691,6 +3691,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "prb-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "etherparse",
+ "prb-core",
+ "prb-detect",
+ "prb-export",
+ "prb-pcap",
+ "prb-query",
+ "prb-storage",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "prb-pcap"
 version = "0.1.0"
 dependencies = [

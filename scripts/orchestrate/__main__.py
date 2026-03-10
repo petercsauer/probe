@@ -143,9 +143,21 @@ async def orchestrate(plan_dir: Path, monitor_port: int | None = None) -> None:
     state.init_segments(segments)
     state.set_meta("plan_title", meta.title)
     state.set_meta("plan_goal", meta.goal)
-    state.set_meta("started_at", str(time.time()))
     state.set_meta("total_segments", str(len(segments)))
     state.set_meta("max_wave", str(max_wave))
+
+    # Migrate from old bash script's execution-state.json if present
+    old_state = plan_dir / "execution-state.json"
+    migrated = state.migrate_from_json(old_state)
+    if migrated:
+        log.info("Migrated %d segment statuses from %s", migrated, old_state.name)
+
+    # Reset stale "running" segments from a previous crashed run
+    stale = state.reset_stale_running()
+    if stale:
+        log.info("Reset %d stale running segments to pending", stale)
+
+    state.set_meta("started_at", str(time.time()))
     state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
 
     notifier = Notifier(config)

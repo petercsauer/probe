@@ -66,8 +66,40 @@ async def _handle_events_sse(request: web.Request) -> web.StreamResponse:
     return response
 
 
+def _extract_text_from_stream_line(raw_line: str) -> str | None:
+    """Extract human-readable text from a single stream-json line."""
+    raw_line = raw_line.strip()
+    if not raw_line:
+        return None
+    try:
+        msg = json.loads(raw_line)
+    except json.JSONDecodeError:
+        return raw_line
+
+    msg_type = msg.get("type", "")
+
+    if msg_type == "assistant" and "message" in msg:
+        parts = []
+        for block in msg["message"].get("content", []):
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block["text"])
+        return "".join(parts) if parts else None
+
+    if msg_type == "content_block_delta":
+        delta = msg.get("delta", {})
+        if delta.get("type") == "text_delta":
+            return delta.get("text", "")
+
+    if msg_type == "result":
+        result = msg.get("result", "")
+        if result:
+            return f"\n--- RESULT ---\n{result}"
+
+    return None
+
+
 async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
-    """Stream a segment's log file as SSE. Client connects to /api/logs/S01."""
+    """Stream a segment's log as SSE, parsing stream-json in real-time."""
     seg_id = request.match_info["seg_id"]
     log_dir: Path = request.app["log_dir"]
     log_file = log_dir / f"{seg_id}.log"
@@ -79,19 +111,35 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
     response.headers["X-Accel-Buffering"] = "no"
     await response.prepare(request)
 
-    offset = 0
+    byte_offset = 0
+    using_log = False
     try:
         while True:
-            # Prefer the human-readable log, fall back to stream file
-            target = log_file if log_file.exists() else stream_file
+            # Once the final .log exists, switch to it (segment finished)
+            if not using_log and log_file.exists() and log_file.stat().st_size > 0:
+                using_log = True
+                byte_offset = 0
+
+            target = log_file if using_log else stream_file
             if target.exists():
-                content = target.read_text(encoding="utf-8", errors="replace")
-                if len(content) > offset:
-                    new_data = content[offset:]
-                    offset = len(content)
-                    for line in new_data.splitlines(keepends=True):
-                        escaped = json.dumps(line.rstrip("\n"))
-                        await response.write(f"data: {escaped}\n\n".encode())
+                raw = target.read_bytes()
+                if len(raw) > byte_offset:
+                    new_bytes = raw[byte_offset:]
+                    byte_offset = len(raw)
+                    new_text = new_bytes.decode("utf-8", errors="replace")
+
+                    if using_log:
+                        for line in new_text.splitlines():
+                            escaped = json.dumps(line)
+                            await response.write(f"data: {escaped}\n\n".encode())
+                    else:
+                        for line in new_text.splitlines():
+                            text = _extract_text_from_stream_line(line)
+                            if text:
+                                for sub in text.splitlines():
+                                    escaped = json.dumps(sub)
+                                    await response.write(f"data: {escaped}\n\n".encode())
+
             await asyncio.sleep(1)
     except (asyncio.CancelledError, ConnectionResetError):
         pass
@@ -113,8 +161,13 @@ class MonitorServer:
         app = _create_app(self._state, self._log_dir)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, "0.0.0.0", self._port)
-        await site.start()
+        site = web.TCPSite(self._runner, "0.0.0.0", self._port, reuse_address=True)
+        try:
+            await site.start()
+        except OSError as exc:
+            log.warning("Monitor bind failed on port %d: %s (continuing without dashboard)", self._port, exc)
+            self._port = 0
+            return
         log.info("Monitor dashboard: http://localhost:%d", self._port)
 
     async def stop(self) -> None:

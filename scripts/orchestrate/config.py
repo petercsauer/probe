@@ -3,9 +3,24 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+_ENV_REF_RE = re.compile(r"\$\{([^}]+)\}")
+
+
+def _resolve_env_refs(value: str) -> str:
+    """Resolve ${VAR} and ${VAR:-default} references in a string."""
+    def _replace(m: re.Match) -> str:
+        expr = m.group(1)
+        if ":-" in expr:
+            var, default = expr.split(":-", 1)
+            return os.environ.get(var.strip(), default.strip())
+        return os.environ.get(expr.strip(), "")
+    return _ENV_REF_RE.sub(_replace, value)
 
 
 @dataclass
@@ -48,9 +63,10 @@ class OrchestrateConfig:
             iso_env = {k: str(v) for k, v in isolation["env"].items()}
 
         # Auth env vars: everything under [auth]
+        # Supports ${ENV_VAR} and ${ENV_VAR:-default} syntax
         auth_env: dict[str, str] = {}
         for k, v in auth.items():
-            val = str(v) if v else os.environ.get(k, "")
+            val = _resolve_env_refs(str(v)) if v else os.environ.get(k, "")
             if val:
                 auth_env[k] = val
 

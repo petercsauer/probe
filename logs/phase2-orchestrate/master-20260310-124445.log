@@ -23,3 +23,5 @@
 [2026-03-10 12:44:45]   [0;32m⏭ S07 already passed, skipping[0m
 [2026-03-10 12:44:45]   [0;32m⏭ S08 already passed, skipping[0m
 [2026-03-10 12:44:46] [1m━━━ Wave 1: 3 segments ━━━[0m
+[2026-03-10 12:55:37] [0;33m  ⚠ Wave 1: some segments did not pass (see above)[0m
+[2026-03-10 12:55:37]   🔒 Running integration gate after wave 1...

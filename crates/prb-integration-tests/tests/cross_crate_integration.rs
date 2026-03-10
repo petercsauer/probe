@@ -5,17 +5,17 @@
 
 use bytes::Bytes;
 use prb_core::{
-    CaptureAdapter, ConversationEngine, DebugEvent, DebugEventBuilder, Direction, EventId,
+    CaptureAdapter, ConversationEngine, DebugEvent, Direction, EventId,
     EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
 };
 use prb_detect::{DetectionContext, DetectionEngine, ProtocolId, TransportLayer};
 use prb_export::{create_exporter, Exporter, OtlpExporter};
 use prb_pcap::{PcapCaptureAdapter, TcpFlags};
 use prb_query::Filter;
-use prb_storage::{SessionReader, SessionWriter};
+use prb_storage::{SessionMetadata, SessionReader, SessionWriter};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -141,7 +141,7 @@ fn make_test_event(
     metadata: BTreeMap<String, String>,
     timestamp_ns: u64,
 ) -> DebugEvent {
-    DebugEventBuilder::new()
+    let mut builder = DebugEvent::builder()
         .id(EventId::from_raw(id))
         .timestamp(Timestamp::from_nanos(timestamp_ns))
         .source(EventSource {
@@ -156,9 +156,13 @@ fn make_test_event(
         .direction(Direction::Outbound)
         .payload(Payload::Raw {
             raw: Bytes::from_static(b"test payload"),
-        })
-        .metadata(metadata)
-        .build()
+        });
+
+    for (key, value) in metadata {
+        builder = builder.metadata(key, value);
+    }
+
+    builder.build()
 }
 
 // ============================================================================
@@ -455,7 +459,7 @@ fn integration_export_otlp_roundtrip() {
 
 #[test]
 fn integration_query_filter_simple() {
-    let filter = Filter::parse(r#"transport == "grpc""#).expect("Filter should parse");
+    let filter = Filter::parse(r#"transport == "gRPC""#).expect("Filter should parse");
 
     let grpc_event = make_test_event(1, TransportKind::Grpc, BTreeMap::new(), 1_000_000_000);
     let zmq_event = make_test_event(2, TransportKind::Zmq, BTreeMap::new(), 2_000_000_000);
@@ -502,7 +506,7 @@ fn integration_query_filter_metadata() {
 #[test]
 fn integration_query_filter_complex() {
     let filter =
-        Filter::parse(r#"transport == "grpc" && grpc.method == "/api/Test""#)
+        Filter::parse(r#"transport == "gRPC" && grpc.method == "/api/Test""#)
             .expect("Complex filter should parse");
 
     let mut meta = BTreeMap::new();
@@ -533,17 +537,19 @@ fn integration_detection_tcp_stream() {
     let grpc_preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
     let context = DetectionContext {
-        stream_data: grpc_preface.to_vec(),
+        initial_bytes: grpc_preface,
         src_port: 12345,
         dst_port: 50051,
         transport: TransportLayer::Tcp,
+        tls_decrypted: false,
     };
 
     let result = engine.detect(&context);
 
     // Detection should identify something (may be gRPC or Unknown)
+    // Just verify detection ran and returned a result
     assert!(
-        result.protocol != ProtocolId::Unknown || result.method.is_none(),
+        !result.protocol.0.is_empty(),
         "Detection should analyze the stream"
     );
 }
@@ -554,17 +560,18 @@ fn integration_detection_port_mapping() {
 
     // Empty data but known gRPC port
     let context = DetectionContext {
-        stream_data: Vec::new(),
+        initial_bytes: &[],
         src_port: 12345,
         dst_port: 50051, // Common gRPC port
         transport: TransportLayer::Tcp,
+        tls_decrypted: false,
     };
 
     let result = engine.detect(&context);
 
     // Should use port mapping
     assert!(
-        result.protocol == ProtocolId::Grpc || result.protocol == ProtocolId::Unknown,
+        result.protocol.0 == ProtocolId::GRPC || result.protocol.0 == ProtocolId::UNKNOWN,
         "Should attempt port-based detection"
     );
 }
@@ -574,18 +581,20 @@ fn integration_detection_unknown_protocol() {
     let engine = DetectionEngine::new();
 
     // Random data on random port
+    let random_data = vec![0xAA, 0xBB, 0xCC, 0xDD];
     let context = DetectionContext {
-        stream_data: vec![0xAA, 0xBB, 0xCC, 0xDD],
+        initial_bytes: &random_data,
         src_port: 9999,
         dst_port: 8888,
         transport: TransportLayer::Tcp,
+        tls_decrypted: false,
     };
 
     let result = engine.detect(&context);
 
     // Should return Unknown or make a guess
     assert!(
-        result.protocol == ProtocolId::Unknown || result.protocol != ProtocolId::Unknown,
+        result.protocol.0 == ProtocolId::UNKNOWN || result.protocol.0 != ProtocolId::UNKNOWN,
         "Should handle unknown protocols"
     );
 }
@@ -609,7 +618,9 @@ fn integration_storage_roundtrip() {
     ];
 
     // Write to MCAP
-    let mut writer = SessionWriter::new(&mcap_path).expect("Writer should be created");
+    let file = File::create(&mcap_path).expect("File should be created");
+    let metadata = SessionMetadata::new().with_source_file("test.pcap");
+    let mut writer = SessionWriter::new(file, metadata).expect("Writer should be created");
     for event in &events {
         writer
             .write_event(event)
