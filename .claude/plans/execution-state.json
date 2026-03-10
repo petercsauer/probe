@@ -139,13 +139,14 @@
       "notes": "Initial commit took single KeyMaterial (TLS 1.3 used same key both directions). Follow-up fix: accept &[KeyMaterial] slice, derive separate client/server keys, add missing HANDSHAKE labels, fix TLS 1.2 AAD (add seq_num) and explicit nonce stripping, add real encrypt-then-decrypt tests."
     },
     "S3.5": {
-      "status": "pending",
+      "status": "running",
       "subsection": "Sub3",
       "title": "Pipeline Integration + CLI",
       "risk": "4/10",
       "complexity": "Medium",
       "cycles_budget": 15,
-      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md"
+      "plan_file": ".claude/plans/universal-message-debugger-phase1-2026-03-08/subsection-3-network-capture-pipeline.md",
+      "wip_commit": "66055e3"
     },
     "S4.1": {
       "status": "pending",

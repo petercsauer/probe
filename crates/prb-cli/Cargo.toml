@@ -32,3 +32,4 @@ tempfile = "3.13"
 prost = "0.14"
 prost-types = "0.14"
 base64 = { workspace = true }
+etherparse = { workspace = true }

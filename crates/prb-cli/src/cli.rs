@@ -24,12 +24,16 @@ pub enum Commands {
 
 #[derive(clap::Args, Debug)]
 pub struct IngestArgs {
-    /// Path to the JSON fixture file
+    /// Path to the input file (JSON fixture, PCAP, or pcapng)
     pub input: Utf8PathBuf,
 
-    /// Output file path (defaults to stdout)
+    /// Output file path (defaults to stdout for NDJSON, required for MCAP)
     #[arg(short, long)]
     pub output: Option<Utf8PathBuf>,
+
+    /// Path to TLS keylog file (SSLKEYLOGFILE format) for decrypting PCAP captures
+    #[arg(long)]
+    pub tls_keylog: Option<Utf8PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]

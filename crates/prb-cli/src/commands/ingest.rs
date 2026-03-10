@@ -4,15 +4,37 @@ use crate::cli::IngestArgs;
 use anyhow::{Context, Result};
 use prb_core::CaptureAdapter;
 use prb_fixture::JsonFixtureAdapter;
+use prb_pcap::PcapCaptureAdapter;
 use prb_storage::{SessionMetadata, SessionWriter};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
+use std::path::PathBuf;
 
 pub fn run_ingest(args: IngestArgs) -> Result<()> {
-    tracing::info!("Ingesting fixture file: {}", args.input);
+    tracing::info!("Ingesting input file: {}", args.input);
 
-    // Create adapter
-    let mut adapter = JsonFixtureAdapter::new(args.input.clone());
+    // Detect input format based on file extension
+    let extension = args.input.extension().unwrap_or("");
+    let mut adapter: Box<dyn CaptureAdapter> = match extension {
+        "json" => {
+            // JSON fixture format
+            tracing::info!("Detected JSON fixture format");
+            Box::new(JsonFixtureAdapter::new(args.input.clone()))
+        }
+        "pcap" | "pcapng" => {
+            // PCAP/pcapng capture format
+            tracing::info!("Detected PCAP capture format");
+            let capture_path = PathBuf::from(args.input.as_str());
+            let tls_keylog_path = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
+            Box::new(PcapCaptureAdapter::new(capture_path, tls_keylog_path))
+        }
+        _ => {
+            anyhow::bail!(
+                "Unsupported input format: '{}'. Expected .json, .pcap, or .pcapng",
+                extension
+            );
+        }
+    };
 
     // Determine output format based on file extension
     if let Some(ref output_path) = args.output
@@ -50,14 +72,14 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_ingest_mcap(args: IngestArgs, mut adapter: JsonFixtureAdapter) -> Result<()> {
+fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Result<()> {
     let output_path = args.output.as_ref().expect("output path must be set");
     tracing::info!("Writing MCAP output to: {}", output_path);
 
     // Create MCAP writer with metadata
     let metadata = SessionMetadata::new()
         .with_source_file(args.input.to_string())
-        .with_capture_tool("json-fixture");
+        .with_capture_tool(adapter.name());
 
     let file = File::create(output_path)
         .with_context(|| format!("Failed to create output file {}", output_path))?;

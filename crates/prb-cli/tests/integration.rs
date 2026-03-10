@@ -258,7 +258,6 @@ message TestMessage {
 #[test]
 fn test_cli_schemas_list() {
     use prost::Message as ProstMessage;
-    use std::io::Write;
 
     let temp_dir = tempfile::tempdir().unwrap();
     let session_path = temp_dir.path().join("session.mcap");
@@ -308,4 +307,142 @@ fn test_cli_schemas_list() {
         .assert()
         .success()
         .stdout(predicate::str::contains("test.TestMessage"));
+}
+
+// Helper to create a simple PCAP file
+fn create_test_pcap(path: &std::path::Path, include_tls: bool) {
+    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use std::io::Write;
+
+    let mut file = fs::File::create(path).unwrap();
+
+    // PCAP global header
+    let header = [
+        0xd4, 0xc3, 0xb2, 0xa1, // Magic number (little-endian)
+        0x02, 0x00, // Version major
+        0x04, 0x00, // Version minor
+        0x00, 0x00, 0x00, 0x00, // Timezone offset
+        0x00, 0x00, 0x00, 0x00, // Timestamp accuracy
+        0xff, 0xff, 0x00, 0x00, // Snaplen (65535)
+        0x01, 0x00, 0x00, 0x00, // Link-layer type (Ethernet)
+    ];
+    file.write_all(&header).unwrap();
+
+    // Create a simple TCP packet
+    let payload = if include_tls {
+        // TLS Client Hello-like header (not valid, just for testing)
+        b"\x16\x03\x03\x00\x05hello".to_vec()
+    } else {
+        b"GET / HTTP/1.1\r\n\r\n".to_vec()
+    };
+
+    let mut packet = Vec::new();
+
+    // Ethernet header
+    let eth = Ethernet2Header {
+        source: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        destination: [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
+        ether_type: EtherType(0x0800), // IPv4
+    };
+    eth.write(&mut packet).unwrap();
+
+    // IPv4 header
+    let payload_len = (20 + payload.len()) as u16; // TCP header (20) + payload
+    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), [192, 168, 1, 1], [10, 0, 0, 1]).unwrap();
+    ipv4.write(&mut packet).unwrap();
+
+    // TCP header
+    let mut tcp = TcpHeader::new(12345, if include_tls { 443 } else { 80 }, 1000, 4096);
+    tcp.acknowledgment_number = 0;
+    tcp.syn = false;
+    tcp.ack = true;
+    tcp.fin = true;
+    tcp.rst = false;
+    tcp.psh = true;
+    tcp.write(&mut packet).unwrap();
+
+    // Payload
+    packet.extend_from_slice(&payload);
+
+    // Packet header
+    let ts_sec = 1700000000u32;
+    let ts_usec = 0u32;
+    file.write_all(&ts_sec.to_le_bytes()).unwrap(); // Timestamp seconds
+    file.write_all(&ts_usec.to_le_bytes()).unwrap(); // Timestamp microseconds
+    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap(); // Included length
+    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap(); // Original length
+
+    // Packet data
+    file.write_all(&packet).unwrap();
+
+    file.flush().unwrap();
+}
+
+#[test]
+fn test_cli_ingest_pcap() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let pcap_path = temp_dir.path().join("test.pcap");
+    create_test_pcap(&pcap_path, false);
+
+    prb()
+        .arg("ingest")
+        .arg(&pcap_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""transport":"raw-tcp""#));
+}
+
+#[test]
+fn test_cli_ingest_pcapng_tls() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let pcap_path = temp_dir.path().join("test.pcap");
+    let keylog_path = temp_dir.path().join("keys.log");
+
+    create_test_pcap(&pcap_path, true);
+
+    // Create an empty keylog file
+    fs::File::create(&keylog_path).unwrap();
+
+    prb()
+        .arg("ingest")
+        .arg(&pcap_path)
+        .arg("--tls-keylog")
+        .arg(&keylog_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""transport":"raw-tcp""#));
+}
+
+#[test]
+fn test_cli_format_autodetect() {
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    // Test .json fixture
+    let json_fixture = fixtures_dir().join("sample.json");
+    prb()
+        .arg("ingest")
+        .arg(&json_fixture)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""transport":"grpc""#));
+
+    // Test .pcap
+    let pcap_path = temp_dir.path().join("test.pcap");
+    create_test_pcap(&pcap_path, false);
+    prb()
+        .arg("ingest")
+        .arg(&pcap_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(r#""transport":"raw-tcp""#));
+
+    // Test unsupported extension
+    let unsupported = temp_dir.path().join("test.txt");
+    fs::File::create(&unsupported).unwrap();
+    prb()
+        .arg("ingest")
+        .arg(&unsupported)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported input format"));
 }

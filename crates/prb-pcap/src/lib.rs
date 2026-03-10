@@ -6,12 +6,14 @@
 
 mod error;
 mod normalize;
+mod pipeline;
 mod reader;
 pub mod tcp;
 pub mod tls;
 
 pub use error::PcapError;
 pub use normalize::{NormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};
+pub use pipeline::{PcapCaptureAdapter, PipelineStats};
 pub use reader::{PcapFileReader, TlsKeyStore};
 pub use tcp::{ReassembledStream, StreamDirection, StreamEvent, TcpReassembler};
 pub use tls::{DecryptedStream, TlsStreamProcessor};
