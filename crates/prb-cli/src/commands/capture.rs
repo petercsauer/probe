@@ -88,15 +88,15 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         if stop.load(Ordering::Relaxed) {
             break;
         }
-        if let Some(max) = args.count {
-            if count >= max {
-                break;
-            }
+        if let Some(max) = args.count
+            && count >= max
+        {
+            break;
         }
-        if let Some(dur) = args.duration {
-            if start_time.elapsed().as_secs() >= dur {
-                break;
-            }
+        if let Some(dur) = args.duration
+            && start_time.elapsed().as_secs() >= dur
+        {
+            break;
         }
 
         match event_result {
@@ -105,13 +105,18 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
                     match args.format {
                         CaptureOutputFormat::Summary => {
                             // One-line summary
+                            let (src, dst) = if let Some(ref network) = event.source.network {
+                                (network.src.as_str(), network.dst.as_str())
+                            } else {
+                                ("unknown", "unknown")
+                            };
                             writeln!(
                                 stdout,
                                 "{:.6} {} {} -> {}",
-                                event.timestamp_us as f64 / 1_000_000.0,
+                                event.timestamp.as_nanos() as f64 / 1_000_000_000.0,
                                 event.transport,
-                                event.src_addr,
-                                event.dst_addr
+                                src,
+                                dst
                             )?;
                         }
                         CaptureOutputFormat::Json => {
@@ -130,10 +135,9 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         }
     }
 
-    // Stop and print summary
-    adapter.stop().context("failed to stop capture")?;
+    // Stop and get final statistics
     let stats = adapter.stop().unwrap_or_else(|e| {
-        tracing::warn!("Failed to get final stats: {}", e);
+        tracing::warn!("Failed to stop capture cleanly: {}", e);
         // Return a default stats object
         prb_capture::CaptureStats {
             packets_received: count,
@@ -171,8 +175,8 @@ fn list_interfaces() -> Result<()> {
 
     // Header
     println!(
-        "{:<16} {:<8} {:<40} {}",
-        "Interface", "Status", "Addresses", "Description"
+        "{:<16} {:<8} {:<40} Description",
+        "Interface", "Status", "Addresses"
     );
     println!("{}", "─".repeat(90));
 

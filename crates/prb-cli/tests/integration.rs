@@ -693,3 +693,30 @@ fn test_cli_tui_help() {
         .stdout(predicate::str::contains("Open file in TUI"))
         .stdout(predicate::str::contains("--where"));
 }
+
+#[test]
+fn test_cli_capture_help() {
+    // S14: Verify capture command exists and has help
+    prb()
+        .arg("capture")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Capture live network traffic"))
+        .stdout(predicate::str::contains("--interface"))
+        .stdout(predicate::str::contains("--filter"))
+        .stdout(predicate::str::contains("--list-interfaces"));
+}
+
+#[test]
+fn test_cli_capture_list_interfaces() {
+    // S14: Test --list-interfaces succeeds and shows interface table
+    prb()
+        .arg("capture")
+        .arg("--list-interfaces")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Interface"))
+        .stdout(predicate::str::contains("Status"))
+        .stdout(predicate::str::contains("Addresses"));
+}
