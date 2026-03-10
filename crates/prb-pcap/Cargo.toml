@@ -7,6 +7,12 @@ repository.workspace = true
 
 [dependencies]
 prb-core = { path = "../prb-core" }
+prb-detect = { path = "../prb-detect" }
+
+# Protocol decoders (optional, for tests)
+prb-grpc = { path = "../prb-grpc", optional = true }
+prb-zmq = { path = "../prb-zmq", optional = true }
+prb-dds = { path = "../prb-dds", optional = true }
 
 # Error handling
 thiserror.workspace = true
@@ -43,3 +49,10 @@ memmap2 = "0.9"
 
 [dev-dependencies]
 tempfile.workspace = true
+prb-grpc = { path = "../prb-grpc" }
+prb-zmq = { path = "../prb-zmq" }
+prb-dds = { path = "../prb-dds" }
+
+[features]
+default = []
+builtin-decoders = ["prb-grpc", "prb-zmq", "prb-dds"]

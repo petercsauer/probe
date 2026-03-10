@@ -1,8 +1,9 @@
 {
   "plan": ".claude/plans/phase2-orchestrated/manifest.md",
   "started": "2026-03-10T04:33:19Z",
-  "current_wave": 2,
+  "current_wave": 3,
   "wave1_completed": "2026-03-10T08:30:00Z",
+  "wave2_completed": "2026-03-10T11:00:00Z",
   "segments": {
     "S01": {
       "status": "pass",
@@ -62,28 +63,43 @@
       "note": "Pre-existing implementation. Added 16 integration tests + 3 CLI tests."
     },
     "S08": {
-      "status": "pending",
+      "status": "pass",
       "track": "TUI",
       "title": "Event List Pane",
-      "attempts": 0
+      "attempts": 1,
+      "cycles": 1,
+      "tests": "64/64 passing",
+      "commit": "285fd50",
+      "note": "Pre-existing implementation. Fixed clippy warnings only."
     },
     "S09": {
-      "status": "pending",
+      "status": "pass",
       "track": "TUI",
       "title": "Decode Tree Pane",
-      "attempts": 0
+      "attempts": 1,
+      "cycles": 1,
+      "tests": "64/64 passing",
+      "note": "Pre-existing implementation. Removed dead code method only."
     },
     "S10": {
-      "status": "pending",
+      "status": "pass",
       "track": "TUI",
       "title": "Hex Dump Pane",
-      "attempts": 0
+      "attempts": 1,
+      "cycles": 1,
+      "tests": "64/64 passing",
+      "commit": "a1aa820",
+      "note": "Pre-existing implementation. Added Default trait impl."
     },
     "S11": {
-      "status": "pending",
+      "status": "pass",
       "track": "TUI",
       "title": "Timeline Pane",
-      "attempts": 0
+      "attempts": 1,
+      "cycles": 1,
+      "tests": "64/64 passing",
+      "commit": "c9049c9",
+      "note": "Enhanced with selected bucket highlight and filtered indicator."
     },
     "S12": {
       "status": "pass",
@@ -95,10 +111,12 @@
       "note": "Verified on resume: prb-capture builds and all tests pass"
     },
     "S13": {
-      "status": "pending",
+      "status": "pass",
       "track": "Capture",
       "title": "Live Pipeline Integration",
-      "attempts": 0
+      "attempts": 1,
+      "commit": "531e3da",
+      "note": "Pre-existing: PipelineCore extracted, LiveCaptureAdapter complete"
     },
     "S14": {
       "status": "pending",
@@ -122,10 +140,12 @@
       "note": "Verified on resume: BatchStage and StreamStage traits defined with orchestrator"
     },
     "S17": {
-      "status": "pending",
+      "status": "pass",
       "track": "Parallel",
       "title": "Mmap Reader",
-      "attempts": 0
+      "attempts": 1,
+      "commit": "ca80685",
+      "note": "Pre-existing: Memory-mapped zero-copy PCAP reader complete"
     },
     "S18": {
       "status": "pending",
@@ -172,10 +192,12 @@
       "note": "prb-detect crate complete with 5 detectors, engine, 15 tests, benchmarks. Build verified."
     },
     "S25": {
-      "status": "pending",
+      "status": "pass",
       "track": "Detect",
       "title": "Decoder Registry + Dispatch",
-      "attempts": 0
+      "attempts": 1,
+      "commit": "27c2994",
+      "note": "Pre-existing: DecoderRegistry with stream-based dispatch complete"
     },
     "S26": {
       "status": "pending",

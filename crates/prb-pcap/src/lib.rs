@@ -5,6 +5,7 @@
 //! Decryption Secrets Blocks (DSB).
 
 mod error;
+pub mod factories;
 pub mod flow_key;
 pub mod mmap_reader;
 mod normalize;
@@ -16,6 +17,7 @@ pub mod tcp;
 pub mod tls;
 
 pub use error::PcapError;
+pub use factories::create_registry_with_builtins;
 pub use flow_key::{FlowKey, FlowProtocol};
 pub use mmap_reader::{MmapPcapReader, PacketLocation};
 pub use normalize::{NormalizedPacket, OwnedNormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};

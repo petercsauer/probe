@@ -2,7 +2,7 @@
 
 use crate::cli::IngestArgs;
 use anyhow::{bail, Context, Result};
-use prb_core::CaptureAdapter;
+use prb_core::{CaptureAdapter, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
 use prb_fixture::JsonFixtureAdapter;
 use prb_pcap::PcapCaptureAdapter;
 use prb_storage::{SessionMetadata, SessionWriter};
@@ -64,7 +64,15 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
             tracing::info!("Detected PCAP capture format");
             let capture_path = PathBuf::from(args.input.as_str());
             let tls_keylog_path = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
-            Box::new(PcapCaptureAdapter::new(capture_path, tls_keylog_path))
+            let mut adapter = PcapCaptureAdapter::new(capture_path, tls_keylog_path);
+
+            // Apply protocol override if specified
+            if let Some(ref protocol) = args.protocol {
+                tracing::info!("Applying protocol override: {}", protocol);
+                adapter.set_protocol_override(protocol);
+            }
+
+            Box::new(adapter)
         }
     };
 
@@ -89,6 +97,20 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
     let mut count = 0;
     for event_result in adapter.ingest() {
         let event = event_result.context("Failed to read event from adapter")?;
+
+        // Apply trace ID filter if provided
+        if let Some(ref trace_id) = args.trace_id {
+            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
+                continue;
+            }
+        }
+
+        // Apply span ID filter if provided
+        if let Some(ref span_id) = args.span_id {
+            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
+                continue;
+            }
+        }
 
         // Serialize as NDJSON (one JSON object per line)
         serde_json::to_writer(&mut writer, &event)
@@ -123,6 +145,21 @@ fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Re
     let mut count = 0;
     for event_result in adapter.ingest() {
         let event = event_result.context("Failed to read event from adapter")?;
+
+        // Apply trace ID filter if provided
+        if let Some(ref trace_id) = args.trace_id {
+            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
+                continue;
+            }
+        }
+
+        // Apply span ID filter if provided
+        if let Some(ref span_id) = args.span_id {
+            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
+                continue;
+            }
+        }
+
         writer
             .write_event(&event)
             .context("Failed to write event to MCAP")?;

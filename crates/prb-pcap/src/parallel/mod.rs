@@ -3,8 +3,10 @@
 //! This module defines the traits for pipeline stages and provides
 //! orchestration for parallel packet processing.
 
+mod normalize;
 mod orchestrator;
 
+pub use normalize::{process_fragments, NormalizeBatch};
 pub use orchestrator::{ParallelPipeline, PipelineConfig};
 
 /// Stateless batch processing stage.

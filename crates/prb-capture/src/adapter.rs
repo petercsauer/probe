@@ -5,7 +5,7 @@
 
 use crate::{CaptureConfig, CaptureEngine, CaptureError};
 use prb_core::{CaptureAdapter, CoreError, DebugEvent};
-use prb_pcap::{PipelineCore, TlsStreamProcessor};
+use prb_pcap::{create_registry_with_builtins, PipelineCore, TlsStreamProcessor};
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -57,12 +57,15 @@ impl LiveCaptureAdapter {
     pub fn new(config: CaptureConfig) -> Result<Self, CaptureError> {
         let origin = format!("live:{}", config.interface);
 
+        // Build decoder registry with built-in decoders
+        let registry = create_registry_with_builtins();
+
         // Build TLS processor from optional keylog path
         let tls = if let Some(ref keylog_path) = config.tls_keylog_path {
-            PipelineCore::with_keylog(keylog_path)
+            PipelineCore::with_keylog(keylog_path, registry)
                 .map_err(|e| CaptureError::Other(format!("failed to load TLS keylog: {}", e)))?
         } else {
-            PipelineCore::new(TlsStreamProcessor::new())
+            PipelineCore::new(TlsStreamProcessor::new(), registry)
         };
 
         Ok(Self {

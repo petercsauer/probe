@@ -4,9 +4,11 @@ use crate::h2::{H2Codec, H2Event};
 use crate::lpm::{CompressionAlgorithm, LpmParser};
 use bytes::Bytes;
 use prb_core::{
-    CorrelationKey, CoreError, DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr,
-    Payload, ProtocolDecoder, Timestamp, TransportKind, METADATA_KEY_GRPC_METHOD,
-    METADATA_KEY_H2_STREAM_ID,
+    extract_trace_context, CorrelationKey, CoreError, DebugEvent, DebugEventBuilder,
+    DecodeContext, Direction, EventSource, NetworkAddr, Payload, ProtocolDecoder, Timestamp,
+    TransportKind, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID,
+    METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_FLAGS, METADATA_KEY_OTEL_TRACE_ID,
+    METADATA_KEY_OTEL_TRACE_SAMPLED,
 };
 use std::collections::HashMap;
 
@@ -35,6 +37,35 @@ impl GrpcDecoder {
             lpm_parsers: HashMap::new(),
             sequence: 0,
         }
+    }
+
+    /// Enrich an event builder with trace context from request headers.
+    fn enrich_with_trace_context(
+        mut builder: DebugEventBuilder,
+        headers: &HashMap<String, String>,
+    ) -> DebugEventBuilder {
+        if let Some(trace_ctx) = extract_trace_context(headers) {
+            builder = builder
+                .metadata(METADATA_KEY_OTEL_TRACE_ID, &trace_ctx.trace_id)
+                .metadata(METADATA_KEY_OTEL_SPAN_ID, &trace_ctx.span_id)
+                .metadata(
+                    METADATA_KEY_OTEL_TRACE_FLAGS,
+                    trace_ctx.trace_flags.to_string(),
+                )
+                .metadata(
+                    METADATA_KEY_OTEL_TRACE_SAMPLED,
+                    trace_ctx.is_sampled().to_string(),
+                )
+                .correlation_key(CorrelationKey::TraceContext {
+                    trace_id: trace_ctx.trace_id.clone(),
+                    span_id: trace_ctx.span_id.clone(),
+                });
+
+            if let Some(ref tracestate) = trace_ctx.tracestate {
+                builder = builder.metadata("otel.tracestate", tracestate);
+            }
+        }
+        builder
     }
 
     /// Process HTTP/2 events and generate DebugEvents.
@@ -251,6 +282,10 @@ impl GrpcDecoder {
             );
         }
 
+        // Extract trace context from request headers
+        let stream = self.h2_codec.get_stream(stream_id);
+        event_builder = Self::enrich_with_trace_context(event_builder, &stream.request_headers);
+
         Ok(Some(event_builder.build()))
     }
 
@@ -266,7 +301,7 @@ impl GrpcDecoder {
         self.sequence += 1;
 
         // Build event for status
-        let event_builder = DebugEvent::builder()
+        let mut event_builder = DebugEvent::builder()
             .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
             .source(EventSource {
                 adapter: "pcap".to_string(),
@@ -291,6 +326,10 @@ impl GrpcDecoder {
             .metadata("grpc.message", &grpc_message)
             .correlation_key(CorrelationKey::StreamId { id: stream_id })
             .sequence(self.sequence);
+
+        // Extract trace context from request headers
+        let stream = self.h2_codec.get_stream(stream_id);
+        event_builder = Self::enrich_with_trace_context(event_builder, &stream.request_headers);
 
         Ok(Some(event_builder.build()))
     }

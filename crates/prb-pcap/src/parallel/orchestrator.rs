@@ -4,7 +4,6 @@ use crate::flow_key::FlowKey;
 use crate::normalize::OwnedNormalizedPacket;
 use prb_core::{CoreError, DebugEvent};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Configuration for the parallel pipeline.
 #[derive(Debug, Clone)]

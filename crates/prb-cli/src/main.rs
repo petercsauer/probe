@@ -26,5 +26,10 @@ fn main() -> Result<()> {
         cli::Commands::Ingest(args) => commands::run_ingest(args),
         cli::Commands::Inspect(args) => commands::run_inspect(args),
         cli::Commands::Schemas(args) => commands::run_schemas(args),
+        cli::Commands::Tui(args) => commands::run_tui(args),
+        cli::Commands::Export(args) => commands::run_export(args),
+        cli::Commands::Merge(args) => commands::run_merge(args),
+        // cli::Commands::Explain(args) => commands::run_explain(args),
+        cli::Commands::Capture(args) => commands::run_capture(args),
     }
 }

@@ -20,6 +20,16 @@ pub enum Commands {
     Inspect(InspectArgs),
     /// Manage protobuf schemas
     Schemas(SchemasArgs),
+    /// Open interactive TUI for exploring captured events
+    Tui(TuiArgs),
+    /// Export events to developer ecosystem formats (CSV, HAR, OTLP, Parquet, HTML)
+    Export(ExportArgs),
+    /// Merge OTLP traces with captured packet events
+    Merge(MergeArgs),
+    // /// Explain an event using AI (LLM-powered plain-English explanation)
+    // Explain(ExplainArgs),
+    /// Capture live network traffic with real-time protocol decoding
+    Capture(CaptureArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -34,6 +44,19 @@ pub struct IngestArgs {
     /// Path to TLS keylog file (SSLKEYLOGFILE format) for decrypting PCAP captures
     #[arg(long)]
     pub tls_keylog: Option<Utf8PathBuf>,
+
+    /// Force protocol detection to a specific protocol (bypasses auto-detection).
+    /// Valid values: grpc, zmtp, rtps
+    #[arg(long, value_parser = ["grpc", "zmtp", "rtps"])]
+    pub protocol: Option<String>,
+
+    /// Filter events by OpenTelemetry trace ID
+    #[arg(long)]
+    pub trace_id: Option<String>,
+
+    /// Filter events by OpenTelemetry span ID
+    #[arg(long)]
+    pub span_id: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -48,6 +71,22 @@ pub struct InspectArgs {
     /// Filter by transport kind
     #[arg(long)]
     pub filter: Option<String>,
+
+    /// Filter events with a query expression (e.g. 'transport == "gRPC"')
+    #[arg(long, name = "where")]
+    pub where_clause: Option<String>,
+
+    /// Filter events by OpenTelemetry trace ID
+    #[arg(long)]
+    pub trace_id: Option<String>,
+
+    /// Filter events by OpenTelemetry span ID
+    #[arg(long)]
+    pub span_id: Option<String>,
+
+    /// Group events by trace ID and display as conversation trees
+    #[arg(long)]
+    pub group_by_trace: bool,
 
     /// Decode protobuf payloads as wire-format (best-effort, no schema)
     #[arg(long)]
@@ -77,6 +116,16 @@ pub enum SchemasCommand {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct TuiArgs {
+    /// Path to input file (JSON, PCAP, pcapng, or MCAP)
+    pub input: Utf8PathBuf,
+
+    /// Pre-apply a filter expression on open
+    #[arg(long, name = "where")]
+    pub where_clause: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
 pub struct SchemaLoadArgs {
     /// Path to .proto or .desc file
     pub path: Utf8PathBuf,
@@ -100,4 +149,152 @@ pub struct SchemaExportArgs {
     /// Output path for exported .desc file
     #[arg(short, long)]
     pub output: Utf8PathBuf,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ExportArgs {
+    /// Path to input file (JSON, PCAP, pcapng, or MCAP)
+    pub input: Utf8PathBuf,
+
+    /// Export format
+    #[arg(short, long)]
+    pub format: ExportFormat,
+
+    /// Output file path (defaults to stdout for text formats, required for binary formats)
+    #[arg(short, long)]
+    pub output: Option<Utf8PathBuf>,
+
+    /// Filter events with a query expression (e.g. 'transport == "gRPC"')
+    #[arg(long, name = "where")]
+    pub where_clause: Option<String>,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone)]
+pub enum ExportFormat {
+    Csv,
+    Har,
+    Otlp,
+    Html,
+    #[cfg(feature = "parquet")]
+    Parquet,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct MergeArgs {
+    /// Packet events file (NDJSON or MCAP)
+    pub packets: Utf8PathBuf,
+
+    /// OTLP JSON trace file
+    pub traces: Utf8PathBuf,
+
+    /// Output file (defaults to stdout NDJSON)
+    #[arg(short, long)]
+    pub output: Option<Utf8PathBuf>,
+}
+
+/* Temporarily disabled due to async-openai API changes
+#[derive(clap::Args, Debug)]
+pub struct ExplainArgs {
+    /// Path to input file (JSON, PCAP, pcapng, NDJSON, or MCAP)
+    pub input: Utf8PathBuf,
+
+    /// Event ID to explain (default: last event)
+    #[arg(long)]
+    pub event_id: Option<u64>,
+
+    /// Number of surrounding events for context (default: 5)
+    #[arg(long, default_value = "5")]
+    pub context: usize,
+
+    /// AI provider: ollama, openai, custom (default: ollama)
+    #[arg(long, default_value = "ollama")]
+    pub provider: String,
+
+    /// Model name (default: provider-dependent)
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// Custom API base URL
+    #[arg(long)]
+    pub base_url: Option<String>,
+
+    /// API key (or set PRB_AI_API_KEY env var)
+    #[arg(long)]
+    pub api_key: Option<String>,
+
+    /// Generation temperature 0.0-1.0 (default: 0.3)
+    #[arg(long, default_value = "0.3")]
+    pub temperature: f32,
+
+    /// Disable streaming output
+    #[arg(long)]
+    pub no_stream: bool,
+}
+*/
+
+#[derive(clap::Args, Debug)]
+pub struct CaptureArgs {
+    /// Network interface to capture on (e.g., eth0, lo, en0)
+    #[arg(short = 'i', long = "interface")]
+    pub interface: Option<String>,
+
+    /// BPF filter expression (same syntax as tcpdump)
+    #[arg(short = 'f', long = "filter")]
+    pub bpf_filter: Option<String>,
+
+    /// Write decoded events to file (NDJSON or MCAP based on extension)
+    #[arg(short = 'o', long = "output")]
+    pub output: Option<Utf8PathBuf>,
+
+    /// Write raw packets to pcap savefile
+    #[arg(short = 'w', long = "write")]
+    pub write_pcap: Option<Utf8PathBuf>,
+
+    /// Path to TLS keylog file for decrypting captured traffic
+    #[arg(long = "tls-keylog")]
+    pub tls_keylog: Option<Utf8PathBuf>,
+
+    /// Maximum bytes to capture per packet (default: 65535)
+    #[arg(long = "snaplen", default_value = "65535")]
+    pub snaplen: u32,
+
+    /// Disable promiscuous mode
+    #[arg(long = "no-promisc")]
+    pub no_promisc: bool,
+
+    /// Stop after capturing N packets
+    #[arg(short = 'c', long = "count")]
+    pub count: Option<u64>,
+
+    /// Stop after N seconds
+    #[arg(long = "duration")]
+    pub duration: Option<u64>,
+
+    /// List available interfaces and exit
+    #[arg(long = "list-interfaces", alias = "list-if")]
+    pub list_interfaces: bool,
+
+    /// Open TUI for live interactive analysis
+    #[arg(long = "tui")]
+    pub tui: bool,
+
+    /// Output format for non-TUI mode (default: summary)
+    #[arg(long = "format", default_value = "summary")]
+    pub format: CaptureOutputFormat,
+
+    /// Quiet mode: suppress per-packet output, only show final stats
+    #[arg(short = 'q', long = "quiet")]
+    pub quiet: bool,
+
+    /// Kernel capture buffer size in bytes (default: 16MB)
+    #[arg(long = "buffer-size", default_value = "16777216")]
+    pub buffer_size: u32,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone)]
+pub enum CaptureOutputFormat {
+    /// One-line summary per packet (like tcpdump)
+    Summary,
+    /// Full NDJSON event per packet
+    Json,
 }

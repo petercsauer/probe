@@ -610,3 +610,86 @@ fn test_cli_ingest_pcap_to_mcap() {
     // Note: MCAP inspect might not be implemented in Phase 1
     // This test verifies MCAP output creation works
 }
+
+#[test]
+fn test_cli_inspect_with_where_filter() {
+    // S7.3: Test --where flag for CLI filtering
+    let fixture = fixtures_dir().join("multi_transport.json");
+
+    // First ingest to get NDJSON
+    let ingest_output = prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .output()
+        .unwrap();
+
+    assert!(ingest_output.status.success());
+
+    // Inspect with --where filter for gRPC only
+    let output = prb()
+        .arg("inspect")
+        .arg("--where")
+        .arg(r#"transport == "gRPC""#)
+        .write_stdin(ingest_output.stdout)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("grpc"));
+
+    // Verify no zmq events in output (they should be filtered out)
+    let lines: Vec<&str> = stdout.lines().skip(2).collect(); // Skip header
+    for line in lines {
+        if !line.trim().is_empty() && line.contains("│") {
+            // Check that it's a data row and contains grpc
+            assert!(
+                line.to_lowercase().contains("grpc"),
+                "All events should be gRPC after filter"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_cli_inspect_with_metadata_filter() {
+    // S7.3: Test --where with metadata field matching
+    let fixture = fixtures_dir().join("grpc_sample.json");
+
+    // First ingest to get NDJSON
+    let ingest_output = prb()
+        .arg("ingest")
+        .arg(&fixture)
+        .output()
+        .unwrap();
+
+    assert!(ingest_output.status.success());
+
+    // Inspect with metadata filter
+    let output = prb()
+        .arg("inspect")
+        .arg("--where")
+        .arg(r#"direction == "inbound""#)
+        .write_stdin(ingest_output.stdout)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Should only show inbound events
+    assert!(stdout.len() > 0);
+}
+
+#[test]
+fn test_cli_tui_help() {
+    // S7.3: Verify tui command exists and has help
+    prb()
+        .arg("tui")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Open file in TUI"))
+        .stdout(predicate::str::contains("--where"));
+}

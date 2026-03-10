@@ -500,6 +500,210 @@ impl Default for PacketNormalizer {
     }
 }
 
+/// Result of stateless packet normalization.
+///
+/// Either a complete normalized packet or a fragment marker requiring
+/// stateful reassembly.
+#[derive(Debug)]
+pub enum NormalizeResult {
+    /// Successfully normalized non-fragmented packet.
+    Packet(OwnedNormalizedPacket),
+    /// IP fragment detected; requires stateful defrag pool.
+    Fragment {
+        timestamp_us: u64,
+        linktype: u32,
+        data_len: usize,
+    },
+}
+
+/// Normalizes a single non-fragmented packet (stateless, thread-safe).
+///
+/// This function extracts IP and transport layer information from a raw packet
+/// without maintaining any state. It returns `NormalizeResult::Fragment` for
+/// IP fragments that require stateful reassembly.
+///
+/// This function is safe to call from multiple threads in parallel.
+///
+/// # Arguments
+///
+/// * `linktype` - PCAP linktype (e.g., 1=Ethernet, 113=SLL, 276=SLL2)
+/// * `timestamp_us` - Packet timestamp in microseconds since UNIX epoch
+/// * `data` - Raw packet bytes including link layer header
+pub fn normalize_stateless(
+    linktype: u32,
+    timestamp_us: u64,
+    data: &[u8],
+) -> Result<NormalizeResult, PcapError> {
+    // Dispatch based on linktype
+    let sliced = match linktype {
+        0 => parse_loopback_static(data)?,
+        1 => SlicedPacket::from_ethernet(data)
+            .map_err(|e| PcapError::Parse(format!("Ethernet parse: {:?}", e)))?,
+        101 => SlicedPacket::from_ip(data)
+            .map_err(|e| PcapError::Parse(format!("Raw IP parse: {:?}", e)))?,
+        113 => SlicedPacket::from_linux_sll(data)
+            .map_err(|e| PcapError::Parse(format!("SLL parse: {:?}", e)))?,
+        276 => parse_sll2_static(data)?,
+        _ => {
+            return Err(PcapError::InvalidLinktype(format!(
+                "unsupported: {}",
+                linktype
+            )))
+        }
+    };
+
+    let vlan_id = sliced.vlan_ids().first().map(|v| v.value());
+
+    let net = sliced.net.as_ref().ok_or_else(|| {
+        PcapError::Parse("no network layer".into())
+    })?;
+
+    let is_fragmented = match net {
+        NetSlice::Ipv4(ipv4) => ipv4.payload().fragmented,
+        NetSlice::Ipv6(ipv6) => ipv6.payload().fragmented,
+        NetSlice::Arp(_) => {
+            return Err(PcapError::Parse("ARP not supported".into()))
+        }
+    };
+
+    if is_fragmented {
+        return Ok(NormalizeResult::Fragment {
+            timestamp_us,
+            linktype,
+            data_len: data.len(),
+        });
+    }
+
+    // Non-fragmented: extract everything
+    let (src_ip, dst_ip) = extract_ips(net);
+    let (transport, payload): (TransportInfo, &[u8]) = extract_transport(&sliced)?;
+
+    Ok(NormalizeResult::Packet(OwnedNormalizedPacket {
+        timestamp_us,
+        src_ip,
+        dst_ip,
+        transport,
+        vlan_id,
+        payload: Vec::from(payload),
+    }))
+}
+
+/// Extracts IP addresses from a network slice (helper for stateless normalization).
+fn extract_ips(net: &NetSlice) -> (IpAddr, IpAddr) {
+    match net {
+        NetSlice::Ipv4(ipv4) => (
+            IpAddr::V4(ipv4.header().source_addr()),
+            IpAddr::V4(ipv4.header().destination_addr()),
+        ),
+        NetSlice::Ipv6(ipv6) => (
+            IpAddr::V6(ipv6.header().source_addr()),
+            IpAddr::V6(ipv6.header().destination_addr()),
+        ),
+        NetSlice::Arp(_) => unreachable!("ARP handled earlier"),
+    }
+}
+
+/// Extracts transport layer information from a sliced packet (helper for stateless normalization).
+fn extract_transport<'a>(sliced: &'a SlicedPacket<'a>) -> Result<(TransportInfo, &'a [u8]), PcapError> {
+    let net = sliced.net.as_ref().ok_or_else(|| {
+        PcapError::Parse("no network layer".into())
+    })?;
+
+    let ip_payload_slice = match net {
+        NetSlice::Ipv4(ipv4) => ipv4.payload(),
+        NetSlice::Ipv6(ipv6) => ipv6.payload(),
+        NetSlice::Arp(_) => return Err(PcapError::Parse("ARP not supported".into())),
+    };
+
+    match &sliced.transport {
+        Some(TransportSlice::Tcp(tcp)) => {
+            let header = tcp.to_header();
+            Ok((
+                TransportInfo::Tcp(TcpSegmentInfo {
+                    src_port: tcp.source_port(),
+                    dst_port: tcp.destination_port(),
+                    seq: tcp.sequence_number(),
+                    ack: tcp.acknowledgment_number(),
+                    flags: TcpFlags {
+                        syn: header.syn,
+                        ack: header.ack,
+                        fin: header.fin,
+                        rst: header.rst,
+                        psh: header.psh,
+                    },
+                }),
+                tcp.payload(),
+            ))
+        }
+        Some(TransportSlice::Udp(udp)) => Ok((
+            TransportInfo::Udp {
+                src_port: udp.source_port(),
+                dst_port: udp.destination_port(),
+            },
+            udp.payload(),
+        )),
+        Some(TransportSlice::Icmpv4(icmp)) => {
+            Ok((TransportInfo::Other(1), icmp.payload()))
+        }
+        Some(TransportSlice::Icmpv6(icmp)) => {
+            Ok((TransportInfo::Other(58), icmp.payload()))
+        }
+        None => Ok((
+            TransportInfo::Other(ip_payload_slice.ip_number.0),
+            ip_payload_slice.payload,
+        )),
+    }
+}
+
+/// Parses Loopback/Null packets (linktype 0) - static version for parallel processing.
+fn parse_loopback_static(data: &[u8]) -> Result<SlicedPacket, PcapError> {
+    if data.len() < 4 {
+        return Err(PcapError::Parse(
+            "loopback packet too short (need 4-byte header)".to_string(),
+        ));
+    }
+
+    let af_family = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+
+    match af_family {
+        2 => SlicedPacket::from_ip(&data[4..]).map_err(|e| {
+            PcapError::Parse(format!("failed to parse IPv4 in loopback packet: {:?}", e))
+        }),
+        10 | 30 => SlicedPacket::from_ip(&data[4..]).map_err(|e| {
+            PcapError::Parse(format!("failed to parse IPv6 in loopback packet: {:?}", e))
+        }),
+        _ => Err(PcapError::Parse(format!(
+            "unsupported AF family in loopback packet: {}",
+            af_family
+        ))),
+    }
+}
+
+/// Parses SLL2 packets (linktype 276) - static version for parallel processing.
+fn parse_sll2_static(data: &[u8]) -> Result<SlicedPacket, PcapError> {
+    if data.len() < 20 {
+        return Err(PcapError::Parse(
+            "SLL2 packet too short (need 20-byte header)".to_string(),
+        ));
+    }
+
+    let protocol_type = u16::from_be_bytes([data[0], data[1]]);
+
+    let payload = &data[20..];
+    match protocol_type {
+        0x0800 | 0x86dd => SlicedPacket::from_ip(payload).map_err(|e| {
+            PcapError::Parse(format!(
+                "failed to parse IP packet in SLL2 frame: {:?}",
+                e
+            ))
+        }),
+        _ => Err(PcapError::Parse(format!(
+            "unsupported protocol type in SLL2 frame: 0x{:04x}",
+            protocol_type
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
