@@ -4,10 +4,12 @@
 //! TCP streams, including greeting/handshake parsing, multipart message reassembly,
 //! metadata extraction (socket type, identity), and mid-stream graceful degradation.
 
+mod correlation;
 mod decoder;
 mod error;
 mod parser;
 
+pub use correlation::ZmqCorrelationStrategy;
 pub use decoder::ZmqDecoder;
 pub use error::ZmqError;
 

@@ -5,11 +5,13 @@
 //! extraction with compression support, trailer/status parsing, and graceful
 //! degradation for mid-stream captures.
 
+mod correlation;
 mod decoder;
 mod error;
 mod h2;
 mod lpm;
 
+pub use correlation::GrpcCorrelationStrategy;
 pub use decoder::GrpcDecoder;
 pub use error::GrpcError;
 

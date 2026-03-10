@@ -13,6 +13,7 @@ bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+indexmap = { workspace = true }
 
 # gRPC message decompression
 flate2 = "1.0"

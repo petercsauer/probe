@@ -5,11 +5,13 @@
 //! SEDP discovery tracking for topic name resolution, and GUID-based
 //! correlation metadata.
 
+mod correlation;
 mod decoder;
 mod discovery;
 mod error;
 mod rtps_parser;
 
+pub use correlation::DdsCorrelationStrategy;
 pub use decoder::DdsDecoder;
 pub use error::DdsError;
 
