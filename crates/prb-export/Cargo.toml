@@ -27,5 +27,6 @@ arrow = { version = "54", optional = true, default-features = false, features = 
 parquet = { version = "54", optional = true, default-features = false, features = ["arrow"] }
 
 [dev-dependencies]
+prb-pcap = { path = "../prb-pcap" }
 bytes = { workspace = true }
 tempfile = { workspace = true }
