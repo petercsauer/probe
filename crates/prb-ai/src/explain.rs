@@ -40,14 +40,13 @@ pub async fn explain_event(
     // Build messages
     let has_tls = events[target_idx]
         .metadata
-        .get("pcap.tls_decrypted")
-        .is_some();
+        .contains_key("pcap.tls_decrypted");
     let system_prompt = build_system_prompt(context.transport, has_tls);
     let user_message = build_user_message(&context);
 
     let messages = vec![
         ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-            content: system_prompt.into(),
+            content: system_prompt,
             role: Role::System,
             name: None,
         }),
@@ -69,7 +68,7 @@ pub async fn explain_event(
     let request = CreateChatCompletionRequest {
         model: config.model.clone(),
         messages,
-        temperature: Some(config.temperature as f32),
+        temperature: Some(config.temperature),
         max_tokens: Some(config.max_tokens as u16),
         stream: Some(false),
         ..Default::default()
@@ -129,14 +128,13 @@ where
     // Build messages
     let has_tls = events[target_idx]
         .metadata
-        .get("pcap.tls_decrypted")
-        .is_some();
+        .contains_key("pcap.tls_decrypted");
     let system_prompt = build_system_prompt(context.transport, has_tls);
     let user_message = build_user_message(&context);
 
     let messages = vec![
         ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-            content: system_prompt.into(),
+            content: system_prompt,
             role: Role::System,
             name: None,
         }),
@@ -158,7 +156,7 @@ where
     let request = CreateChatCompletionRequest {
         model: config.model.clone(),
         messages,
-        temperature: Some(config.temperature as f32),
+        temperature: Some(config.temperature),
         max_tokens: Some(config.max_tokens as u16),
         stream: Some(true),
         ..Default::default()
@@ -176,11 +174,11 @@ where
     while let Some(result) = stream.next().await {
         let response = result.map_err(|e| AiError::StreamInterrupted(e.to_string()))?;
 
-        if let Some(choice) = response.choices.first() {
-            if let Some(ref delta) = choice.delta.content {
-                callback(delta);
-                full_text.push_str(delta);
-            }
+        if let Some(choice) = response.choices.first()
+            && let Some(ref delta) = choice.delta.content
+        {
+            callback(delta);
+            full_text.push_str(delta);
         }
     }
 
