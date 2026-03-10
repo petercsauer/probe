@@ -1,0 +1,41 @@
+[
+  {
+    "trace_id": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "span_id": "0011223344556677",
+    "parent_span_id": null,
+    "name": "Frontend: User Request",
+    "start_time_unix_nano": 1678900000000000000,
+    "end_time_unix_nano": 1678900000500000000,
+    "attributes": {
+      "service.name": "frontend",
+      "http.method": "GET",
+      "http.url": "/checkout",
+      "http.status_code": "200"
+    }
+  },
+  {
+    "trace_id": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "span_id": "1122334455667788",
+    "parent_span_id": "0011223344556677",
+    "name": "API Gateway: Route Request",
+    "start_time_unix_nano": 1678900000050000000,
+    "end_time_unix_nano": 1678900000450000000,
+    "attributes": {
+      "service.name": "api-gateway",
+      "http.route": "/api/v1/checkout"
+    }
+  },
+  {
+    "trace_id": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "span_id": "2233445566778899",
+    "parent_span_id": "1122334455667788",
+    "name": "Payment Service: Process Payment",
+    "start_time_unix_nano": 1678900000100000000,
+    "end_time_unix_nano": 1678900000400000000,
+    "attributes": {
+      "service.name": "payment-service",
+      "payment.method": "credit_card",
+      "payment.amount": "99.99"
+    }
+  }
+]

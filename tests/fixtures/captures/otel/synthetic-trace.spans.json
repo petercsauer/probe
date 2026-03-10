@@ -1,0 +1,55 @@
+[
+  {
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "00f067aa0ba902b7",
+    "parent_span_id": null,
+    "name": "HTTP GET /api/users",
+    "start_time_unix_nano": 1678886400000000000,
+    "end_time_unix_nano": 1678886400150000000,
+    "attributes": {
+      "http.method": "GET",
+      "http.url": "/api/users",
+      "http.status_code": "200",
+      "service.name": "user-service"
+    }
+  },
+  {
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "11f067aa0ba902b8",
+    "parent_span_id": "00f067aa0ba902b7",
+    "name": "Database Query",
+    "start_time_unix_nano": 1678886400020000000,
+    "end_time_unix_nano": 1678886400120000000,
+    "attributes": {
+      "db.system": "postgresql",
+      "db.statement": "SELECT * FROM users",
+      "service.name": "user-service"
+    }
+  },
+  {
+    "trace_id": "shared-trace-id-across-services123",
+    "span_id": "span-service-a-001",
+    "parent_span_id": null,
+    "name": "Service A: Process Request",
+    "start_time_unix_nano": 1678886500000000000,
+    "end_time_unix_nano": 1678886500300000000,
+    "attributes": {
+      "service.name": "service-a",
+      "http.method": "POST",
+      "http.route": "/api/process"
+    }
+  },
+  {
+    "trace_id": "shared-trace-id-across-services123",
+    "span_id": "span-service-b-002",
+    "parent_span_id": "span-service-a-001",
+    "name": "Service B: Handle Request",
+    "start_time_unix_nano": 1678886500050000000,
+    "end_time_unix_nano": 1678886500250000000,
+    "attributes": {
+      "service.name": "service-b",
+      "rpc.method": "HandleRequest",
+      "rpc.service": "ServiceB"
+    }
+  }
+]
