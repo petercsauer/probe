@@ -553,7 +553,7 @@ fn test_ipv6_fragment() {
         destination: [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
     };
 
-    let mut frag_header1 = Ipv6FragmentHeader {
+    let frag_header1 = Ipv6FragmentHeader {
         next_header: IpNumber(6), // TCP
         fragment_offset: etherparse::IpFragOffset::try_new(0).unwrap(),
         more_fragments: true,

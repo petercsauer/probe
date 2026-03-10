@@ -1,8 +1,9 @@
-//! HTTP/2 frame parsing with h2-sans-io and graceful HPACK degradation.
+//! Custom HTTP/2 frame parser with graceful HPACK degradation.
 //!
-//! This module wraps h2-sans-io to provide HTTP/2 frame parsing for offline
-//! PCAP analysis. It implements graceful degradation for mid-stream captures
-//! where HPACK dynamic table context is unavailable.
+//! This module provides HTTP/2 frame parsing for offline PCAP analysis with
+//! support for all frame types and HPACK encoding formats. It implements
+//! graceful degradation for mid-stream captures where HPACK dynamic table
+//! context is unavailable.
 
 use crate::error::GrpcError;
 use bytes::Bytes;

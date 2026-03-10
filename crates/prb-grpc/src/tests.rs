@@ -24,16 +24,14 @@ fn create_headers_frame(stream_id: u32, headers: &[(&str, &str)], end_stream: bo
         payload.extend_from_slice(value.as_bytes());
     }
 
-    let mut frame = Vec::new();
-    // Length (24-bit big-endian)
-    frame.push(((payload.len() >> 16) & 0xFF) as u8);
-    frame.push(((payload.len() >> 8) & 0xFF) as u8);
-    frame.push((payload.len() & 0xFF) as u8);
-    // Type (HEADERS = 0x01)
-    frame.push(0x01);
-    // Flags (END_STREAM = 0x01, END_HEADERS = 0x04)
     let flags = if end_stream { 0x05 } else { 0x04 };
-    frame.push(flags);
+    let mut frame = vec![
+        ((payload.len() >> 16) & 0xFF) as u8, // Length (24-bit big-endian)
+        ((payload.len() >> 8) & 0xFF) as u8,
+        (payload.len() & 0xFF) as u8,
+        0x01, // Type (HEADERS = 0x01)
+        flags, // Flags
+    ];
     // Stream ID (31-bit)
     frame.extend_from_slice(&stream_id.to_be_bytes());
     // Payload
@@ -43,16 +41,14 @@ fn create_headers_frame(stream_id: u32, headers: &[(&str, &str)], end_stream: bo
 }
 
 fn create_data_frame(stream_id: u32, data: &[u8], end_stream: bool) -> Vec<u8> {
-    let mut frame = Vec::new();
-    // Length (24-bit big-endian)
-    frame.push(((data.len() >> 16) & 0xFF) as u8);
-    frame.push(((data.len() >> 8) & 0xFF) as u8);
-    frame.push((data.len() & 0xFF) as u8);
-    // Type (DATA = 0x00)
-    frame.push(0x00);
-    // Flags (END_STREAM = 0x01)
     let flags = if end_stream { 0x01 } else { 0x00 };
-    frame.push(flags);
+    let mut frame = vec![
+        ((data.len() >> 16) & 0xFF) as u8, // Length (24-bit big-endian)
+        ((data.len() >> 8) & 0xFF) as u8,
+        (data.len() & 0xFF) as u8,
+        0x00, // Type (DATA = 0x00)
+        flags, // Flags
+    ];
     // Stream ID (31-bit)
     frame.extend_from_slice(&stream_id.to_be_bytes());
     // Payload

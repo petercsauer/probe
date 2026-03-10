@@ -10,11 +10,12 @@ fn test_cli_inspect_wire_format() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create a simple protobuf message: field 1 = varint 42, field 2 = string "hello"
-    let mut payload = Vec::new();
-    payload.push(0x08); // field 1, wire type 0 (varint)
-    payload.push(42); // value 42
-    payload.push(0x12); // field 2, wire type 2 (length-delimited)
-    payload.push(5); // length 5
+    let mut payload = vec![
+        0x08, // field 1, wire type 0 (varint)
+        42,   // value 42
+        0x12, // field 2, wire type 2 (length-delimited)
+        5,    // length 5
+    ];
     payload.extend_from_slice(b"hello");
 
     // Create NDJSON event

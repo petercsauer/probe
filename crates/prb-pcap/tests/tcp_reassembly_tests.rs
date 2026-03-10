@@ -3,6 +3,7 @@
 use prb_pcap::{PacketNormalizer, TcpFlags, TcpReassembler};
 
 /// Helper to create a TCP segment packet.
+#[allow(clippy::too_many_arguments)]
 fn create_tcp_segment(
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
@@ -27,7 +28,7 @@ fn create_tcp_segment(
 
     // IPv4 header
     let payload_len = (20 + payload.len()) as u16; // TCP header (20) + payload
-    let mut ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), src_ip, dst_ip).unwrap();
+    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), src_ip, dst_ip).unwrap();
     ipv4.write(&mut packet).unwrap();
 
     // TCP header
@@ -397,7 +398,7 @@ fn test_fin_rst_cleanup() {
     }
 
     let pkt_rst = normalizer.normalize(1, 6000001, &rst).unwrap().unwrap();
-    let events_rst = reassembler.process_segment(&pkt_rst).unwrap();
+    let _events_rst = reassembler.process_segment(&pkt_rst).unwrap();
 
     // RST should clean up connection
     assert_eq!(reassembler.active_connections(), 0);

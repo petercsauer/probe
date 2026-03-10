@@ -262,7 +262,7 @@ mod proptest_tests {
                 "events": [event]
             });
 
-            write!(file, "{}", fixture_json.to_string()).unwrap();
+            write!(file, "{}", fixture_json).unwrap();
             drop(file);
 
             let utf8_path = Utf8PathBuf::from_path_buf(path).unwrap();

@@ -22,14 +22,12 @@ fn create_rtps_header(guid_prefix: [u8; 12]) -> Vec<u8> {
 
 /// Helper to create an INFO_TS submessage.
 fn create_info_ts_submessage(seconds: u32, fraction: u32) -> Vec<u8> {
-    let mut submsg = Vec::new();
-    // Submessage ID: INFO_TS (0x09)
-    submsg.push(0x09);
-    // Flags: little-endian
-    submsg.push(0x01);
-    // Octets to next header: 8
-    submsg.push(8);
-    submsg.push(0);
+    let mut submsg = vec![
+        0x09, // Submessage ID: INFO_TS
+        0x01, // Flags: little-endian
+        8,    // Octets to next header: 8
+        0,
+    ];
     // Timestamp: seconds (4 bytes) + fraction (4 bytes)
     submsg.extend_from_slice(&seconds.to_le_bytes());
     submsg.extend_from_slice(&fraction.to_le_bytes());
@@ -88,7 +86,7 @@ fn create_data_submessage(
 
 #[test]
 fn test_rtps_magic_detection() {
-    let decoder = DdsDecoder::new();
+    let _decoder = DdsDecoder::new();
 
     // Valid RTPS magic
     let valid_data = b"RTPS\x02\x03\x00\x00............";
@@ -188,7 +186,7 @@ fn test_rtps_info_ts_timestamp() {
     let event = &events[0];
 
     // Timestamp should be applied from INFO_TS
-    assert_eq!(event.timestamp.as_nanos(), 1000_000_000_000); // 1000 seconds in nanos
+    assert_eq!(event.timestamp.as_nanos(), 1_000_000_000_000); // 1000 seconds in nanos
 }
 
 #[test]

@@ -15,6 +15,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn prb() -> Command {
+    #[allow(deprecated)]
     let mut cmd = Command::cargo_bin("prb").unwrap();
     cmd.current_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -393,7 +394,7 @@ fn test_cli_ingest_pcap() {
 }
 
 #[test]
-fn test_cli_ingest_pcapng_tls() {
+fn test_cli_ingest_pcap_tls() {
     let temp_dir = tempfile::tempdir().unwrap();
     let pcap_path = temp_dir.path().join("test.pcap");
     let keylog_path = temp_dir.path().join("keys.log");

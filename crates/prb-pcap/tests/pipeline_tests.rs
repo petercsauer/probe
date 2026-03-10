@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// Helper to create a TCP segment packet.
+#[allow(clippy::too_many_arguments)]
 fn create_tcp_segment(
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
@@ -235,7 +236,7 @@ fn test_pipeline_udp_datagram() {
     for (i, event_result) in events.iter().enumerate() {
         let event = event_result
             .as_ref()
-            .expect(&format!("Event {} should be Ok", i));
+            .unwrap_or_else(|_| panic!("Event {} should be Ok", i));
         assert_eq!(event.transport, TransportKind::RawUdp);
     }
 

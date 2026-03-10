@@ -355,9 +355,9 @@ mod tests {
         // Verify nonce is IV XOR'd with sequence number
         assert_eq!(nonce.len(), 12);
         assert_eq!(nonce[0..4], iv[0..4]);
-        // Last 8 bytes should be XOR'd
-        assert_eq!(nonce[4], iv[4] ^ 0x00);
-        assert_eq!(nonce[11], iv[11] ^ 0x01);
+        // Last 8 bytes should be XOR'd with sequence number (1)
+        assert_eq!(nonce[4], iv[4]); // High bytes of seq number (0x00)
+        assert_eq!(nonce[11], iv[11] ^ 0x01); // Low byte of seq number
     }
 
     #[test]
