@@ -326,4 +326,205 @@ mod tests {
         assert_eq!(events[0].direction, Direction::Outbound); // CLIENT
         assert_eq!(events[1].direction, Direction::Inbound);  // SERVER
     }
+
+    #[test]
+    fn test_nested_span_structures() {
+        let json = r#"{
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "test"}}
+                    ]
+                },
+                "scopeSpans": [{
+                    "scope": {"name": "test", "version": "1.0"},
+                    "spans": [
+                        {
+                            "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "spanId": "bbbbbbbbbbbbbbbb",
+                            "name": "parent",
+                            "kind": 3,
+                            "startTimeUnixNano": "1710000000000000000",
+                            "endTimeUnixNano": "1710000000100000000",
+                            "attributes": []
+                        },
+                        {
+                            "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "spanId": "cccccccccccccccc",
+                            "parentSpanId": "bbbbbbbbbbbbbbbb",
+                            "name": "child",
+                            "kind": 3,
+                            "startTimeUnixNano": "1710000000010000000",
+                            "endTimeUnixNano": "1710000000090000000",
+                            "attributes": []
+                        }
+                    ]
+                }]
+            }]
+        }"#;
+
+        let request = parse_otlp_json(json.as_bytes()).unwrap();
+        let events = otlp_to_events(&request);
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
+        assert!(events[0].metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).is_none());
+
+        assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "cccccccccccccccc");
+        assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
+    }
+
+    #[test]
+    fn test_missing_optional_fields() {
+        let json = r#"{
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": []
+                },
+                "scopeSpans": [{
+                    "scope": {"name": "minimal-scope"},
+                    "spans": [{
+                        "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "spanId": "bbbbbbbbbbbbbbbb",
+                        "name": "minimal",
+                        "kind": 0,
+                        "startTimeUnixNano": "1710000000000000000",
+                        "endTimeUnixNano": "1710000000100000000"
+                    }]
+                }]
+            }]
+        }"#;
+
+        let request = parse_otlp_json(json.as_bytes()).unwrap();
+        let events = otlp_to_events(&request);
+
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+
+        // Should default to "unknown" when service.name is missing
+        assert_eq!(event.source.origin, "unknown");
+        // Should default to Unknown direction when kind is 0
+        assert_eq!(event.direction, Direction::Unknown);
+        // Should have no parent span ID
+        assert!(event.metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).is_none());
+    }
+
+    #[test]
+    fn test_attribute_types() {
+        let json = r#"{
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "test"}}
+                    ]
+                },
+                "scopeSpans": [{
+                    "scope": {"name": "test", "version": "1.0"},
+                    "spans": [{
+                        "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "spanId": "bbbbbbbbbbbbbbbb",
+                        "name": "test",
+                        "kind": 3,
+                        "startTimeUnixNano": "1710000000000000000",
+                        "endTimeUnixNano": "1710000000100000000",
+                        "attributes": [
+                            {"key": "string_attr", "value": {"stringValue": "hello"}},
+                            {"key": "int_attr", "value": {"intValue": "42"}},
+                            {"key": "bool_attr", "value": {"boolValue": true}},
+                            {"key": "double_attr", "value": {"doubleValue": 3.14}}
+                        ]
+                    }]
+                }]
+            }]
+        }"#;
+
+        let request = parse_otlp_json(json.as_bytes()).unwrap();
+        let events = otlp_to_events(&request);
+
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+
+        assert_eq!(event.metadata.get("string_attr").unwrap(), "hello");
+        assert_eq!(event.metadata.get("int_attr").unwrap(), "42");
+        assert_eq!(event.metadata.get("bool_attr").unwrap(), "true");
+        assert_eq!(event.metadata.get("double_attr").unwrap(), "3.14");
+    }
+
+    #[test]
+    fn test_network_info_extraction() {
+        let json = r#"{
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "test"}}
+                    ]
+                },
+                "scopeSpans": [{
+                    "scope": {"name": "test", "version": "1.0"},
+                    "spans": [{
+                        "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "spanId": "bbbbbbbbbbbbbbbb",
+                        "name": "test",
+                        "kind": 3,
+                        "startTimeUnixNano": "1710000000000000000",
+                        "endTimeUnixNano": "1710000000100000000",
+                        "attributes": [
+                            {"key": "net.peer.ip", "value": {"stringValue": "10.0.0.1:8080"}},
+                            {"key": "net.host.ip", "value": {"stringValue": "10.0.0.2:50051"}}
+                        ]
+                    }]
+                }]
+            }]
+        }"#;
+
+        let request = parse_otlp_json(json.as_bytes()).unwrap();
+        let events = otlp_to_events(&request);
+
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+
+        assert!(event.source.network.is_some());
+        let network = event.source.network.as_ref().unwrap();
+        assert_eq!(network.src, "10.0.0.1:8080");
+        assert_eq!(network.dst, "10.0.0.2:50051");
+    }
+
+    #[test]
+    fn test_probe_metadata_prefix_stripping() {
+        let json = r#"{
+            "resourceSpans": [{
+                "resource": {
+                    "attributes": [
+                        {"key": "service.name", "value": {"stringValue": "test"}}
+                    ]
+                },
+                "scopeSpans": [{
+                    "scope": {"name": "test", "version": "1.0"},
+                    "spans": [{
+                        "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "spanId": "bbbbbbbbbbbbbbbb",
+                        "name": "test",
+                        "kind": 3,
+                        "startTimeUnixNano": "1710000000000000000",
+                        "endTimeUnixNano": "1710000000100000000",
+                        "attributes": [
+                            {"key": "probe.metadata.custom_field", "value": {"stringValue": "value"}},
+                            {"key": "regular_field", "value": {"stringValue": "other"}}
+                        ]
+                    }]
+                }]
+            }]
+        }"#;
+
+        let request = parse_otlp_json(json.as_bytes()).unwrap();
+        let events = otlp_to_events(&request);
+
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+
+        // Prefix should be stripped
+        assert_eq!(event.metadata.get("custom_field").unwrap(), "value");
+        // Regular field remains unchanged
+        assert_eq!(event.metadata.get("regular_field").unwrap(), "other");
+    }
 }

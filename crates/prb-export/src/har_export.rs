@@ -336,4 +336,176 @@ mod tests {
         let comment = parsed["log"]["comment"].as_str().unwrap();
         assert!(comment.contains("1 non-HTTP events"));
     }
+
+    #[test]
+    fn har_large_payload() {
+        let large_data = vec![0u8; 100_000];
+        let event = DebugEvent::builder()
+            .id(EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: Some(NetworkAddr {
+                    src: "10.0.0.1:42837".into(),
+                    dst: "10.0.0.2:50051".into(),
+                }),
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from(large_data),
+            })
+            .metadata("grpc.method", "/test/LargeMethod")
+            .build();
+
+        let mut buf = Vec::new();
+        HarExporter.export(&[event], &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let entry = &parsed["log"]["entries"][0];
+        assert_eq!(entry["request"]["bodySize"], 100_000);
+    }
+
+    #[test]
+    fn har_grpc_error_status() {
+        let error_event = DebugEvent::builder()
+            .id(EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Inbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from_static(b"error"),
+            })
+            .metadata("grpc.method", "/api/FailMethod")
+            .metadata("grpc.status", "5")
+            .metadata("grpc.message", "Not Found")
+            .build();
+
+        let mut buf = Vec::new();
+        HarExporter.export(&[error_event], &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let entry = &parsed["log"]["entries"][0];
+        assert_eq!(entry["response"]["status"], 404);
+        assert_eq!(entry["response"]["statusText"], "Not Found");
+
+        let headers = entry["response"]["headers"].as_array().unwrap();
+        let grpc_status_header = headers.iter().find(|h| h["name"] == "grpc-status").unwrap();
+        assert_eq!(grpc_status_header["value"], "5");
+    }
+
+    #[test]
+    fn har_tls_decrypted_event() {
+        let tls_event = DebugEvent::builder()
+            .id(EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: Some(NetworkAddr {
+                    src: "10.0.0.1:42837".into(),
+                    dst: "10.0.0.2:443".into(),
+                }),
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from_static(b"decrypted"),
+            })
+            .metadata("grpc.method", "/api/SecureMethod")
+            .metadata("tls.version", "TLS 1.3")
+            .metadata("tls.cipher_suite", "TLS_AES_256_GCM_SHA384")
+            .build();
+
+        let mut buf = Vec::new();
+        HarExporter.export(&[tls_event], &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let entry = &parsed["log"]["entries"][0];
+        assert!(entry["request"]["url"].as_str().unwrap().contains("SecureMethod"));
+        // Timings include ssl field (can be -1 or null for unavailable)
+        assert!(entry["timings"]["ssl"].is_null());
+    }
+
+    #[test]
+    fn har_empty_payload() {
+        let empty_event = DebugEvent::builder()
+            .id(EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::new(),
+            })
+            .metadata("grpc.method", "/api/EmptyMethod")
+            .build();
+
+        let mut buf = Vec::new();
+        HarExporter.export(&[empty_event], &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let entry = &parsed["log"]["entries"][0];
+        assert_eq!(entry["request"]["bodySize"], 0);
+    }
+
+    #[test]
+    fn har_various_grpc_status_codes() {
+        let statuses = vec![
+            ("1", 499, "Cancelled"),
+            ("3", 400, "Invalid Argument"),
+            ("4", 504, "Deadline Exceeded"),
+            ("7", 403, "Permission Denied"),
+            ("12", 501, "Unimplemented"),
+            ("13", 500, "Internal"),
+            ("14", 503, "Unavailable"),
+            ("16", 401, "Unauthenticated"),
+        ];
+
+        for (grpc_code, expected_http, expected_text) in statuses {
+            let event = DebugEvent::builder()
+                .id(EventId::from_raw(1))
+                .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+                .source(EventSource {
+                    adapter: "pcap".into(),
+                    origin: "test.pcap".into(),
+                    network: None,
+                })
+                .transport(TransportKind::Grpc)
+                .direction(Direction::Outbound)
+                .payload(Payload::Raw {
+                    raw: Bytes::from_static(b"test"),
+                })
+                .metadata("grpc.method", "/api/Test")
+                .metadata("grpc.status", grpc_code)
+                .build();
+
+            let mut buf = Vec::new();
+            HarExporter.export(&[event], &mut buf).unwrap();
+            let output = String::from_utf8(buf).unwrap();
+
+            let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+            let entry = &parsed["log"]["entries"][0];
+            assert_eq!(
+                entry["response"]["status"], expected_http,
+                "gRPC status {} should map to HTTP {}",
+                grpc_code, expected_http
+            );
+            assert_eq!(entry["response"]["statusText"], expected_text);
+        }
+    }
 }
