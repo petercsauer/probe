@@ -235,7 +235,7 @@ pub struct AggregateMetrics {
 }
 
 /// Calculate percentile from sorted values.
-fn percentile(sorted: &[u64], p: f64) -> u64 {
+pub(crate) fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;
     }

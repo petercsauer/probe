@@ -28,7 +28,7 @@ if [[ -z "$IMESSAGE_RECIPIENT" ]]; then
     exit 1
 fi
 
-STATE_FILE="${PRB_STATE_FILE:-.claude/plans/phase2-orchestrated/execution-state.json}"
+STATE_FILE="${PRB_STATE_FILE:-.claude/plans/phase2-coverage-hardening/execution-state.json}"
 
 # ──────────────────────────────────────────────────────────────────────
 # Helper: Send iMessage
@@ -69,10 +69,27 @@ print(f'{done}/{total}')
 # Notification types
 # ──────────────────────────────────────────────────────────────────────
 
+notify_started() {
+    local total_segments="$1"
+    local total_waves="$2"
+    local max_parallel="$3"
+
+    local message="PRB 🚀 Orchestration Started
+
+$total_segments segments across $total_waves waves
+Max parallel: $max_parallel
+Timeout: 30min/segment
+
+Let's go."
+
+    send_imessage "$message"
+}
+
 notify_segment() {
     local seg_id="$1"
     local status="$2"
     local title="$3"
+    local log_summary="${4:-}"
 
     local emoji
     case "$status" in
@@ -80,37 +97,57 @@ notify_segment() {
         partial)  emoji="⚠️" ;;
         blocked)  emoji="❌" ;;
         failed)   emoji="💥" ;;
+        timeout)  emoji="⏱️" ;;
         *)        emoji="❓" ;;
     esac
 
     local stats
     stats=$(get_stats)
 
-    local message="PRB Build $emoji
+    local status_upper
+    status_upper=$(echo "$status" | tr '[:lower:]' '[:upper:]')
 
-Segment: $seg_id
-Status: ${status^^}
-Title: $title
+    local message="PRB $emoji $seg_id $status_upper
+$title
+
+$log_summary
 
 Progress: $stats segments"
 
     send_imessage "$message"
 }
 
+notify_wave_start() {
+    local wave_num="$1"
+    local total_waves="$2"
+    local segment_list="$3"
+    local segment_count="$4"
+
+    local stats
+    stats=$(get_stats)
+
+    local message="PRB 🌊 Wave $wave_num/$total_waves Starting
+
+Segments: $segment_list
+($segment_count running in parallel)
+
+Progress so far: $stats"
+
+    send_imessage "$message"
+}
+
 notify_wave() {
     local wave_num="$1"
-    local status="$2"    # "complete" or "partial"
-    local summary="$3"   # e.g., "8/10 segments passed"
+    local status="$2"
+    local summary="$3"
 
-    local emoji="🌊"
+    local emoji
     [[ "$status" == "complete" ]] && emoji="✅" || emoji="⚠️"
 
     local stats
     stats=$(get_stats)
 
-    local message="PRB Build $emoji
-
-Wave $wave_num Complete
+    local message="PRB $emoji Wave $wave_num Complete
 $summary
 
 Total Progress: $stats segments"
@@ -118,10 +155,35 @@ Total Progress: $stats segments"
     send_imessage "$message"
 }
 
+notify_gate() {
+    local wave_num="$1"
+    local status="$2"
+    local details="${3:-}"
+
+    local emoji
+    [[ "$status" == "pass" ]] && emoji="✅" || emoji="🚨"
+
+    local message="PRB $emoji Build Gate (Wave $wave_num)
+$details"
+
+    send_imessage "$message"
+}
+
+notify_network() {
+    local waited="$1"
+
+    local message="PRB 📡 Network Stall
+
+API unreachable for ${waited}s and counting.
+Orchestration paused until connectivity returns."
+
+    send_imessage "$message"
+}
+
 notify_final() {
-    local status="$1"      # "complete", "partial", or "stopped"
-    local elapsed="$2"     # e.g., "2h 15m"
-    local summary="$3"     # e.g., "25/29 passed, 2 blocked, 2 failed"
+    local status="$1"
+    local elapsed="$2"
+    local summary="$3"
 
     local emoji
     case "$status" in
@@ -134,7 +196,10 @@ notify_final() {
     local stats
     stats=$(get_stats)
 
-    local message="PRB Build $emoji ${status^^}
+    local final_status_upper
+    final_status_upper=$(echo "$status" | tr '[:lower:]' '[:upper:]')
+
+    local message="PRB $emoji ALL DONE — $final_status_upper
 
 Elapsed: $elapsed
 Result: $summary
@@ -150,11 +215,23 @@ Final: $stats segments complete"
 cmd="${1:-}"
 
 case "$cmd" in
+    started)
+        notify_started "$2" "$3" "$4"
+        ;;
     segment)
-        notify_segment "$2" "$3" "$4"
+        notify_segment "$2" "$3" "${4:-}" "${5:-}"
+        ;;
+    wave-start)
+        notify_wave_start "$2" "$3" "$4" "$5"
         ;;
     wave)
         notify_wave "$2" "$3" "$4"
+        ;;
+    gate)
+        notify_gate "$2" "$3" "${4:-}"
+        ;;
+    network)
+        notify_network "$2"
         ;;
     final)
         notify_final "$2" "$3" "$4"
@@ -163,13 +240,7 @@ case "$cmd" in
         send_imessage "PRB orchestration notifications are working! 🚀"
         ;;
     *)
-        echo "Usage: $0 {segment|wave|final|test} [args...]" >&2
-        echo "" >&2
-        echo "Examples:" >&2
-        echo "  $0 segment S01 pass \"Query Language\"" >&2
-        echo "  $0 wave 1 complete \"10/10 passed\"" >&2
-        echo "  $0 final complete \"2h 15m\" \"25/29 passed\"" >&2
-        echo "  $0 test" >&2
+        echo "Usage: $0 {started|segment|wave-start|wave|gate|network|final|test} [args...]" >&2
         exit 1
         ;;
 esac

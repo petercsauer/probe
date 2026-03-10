@@ -1,0 +1,150 @@
+{
+  "plan": ".claude/plans/phase2-coverage-hardening/manifest.md",
+  "started": "2026-03-10T17:07:42Z",
+  "segments": {
+    "S01": {
+      "status": "running",
+      "track": "Core",
+      "title": "prb-core Unit Tests",
+      "attempts": 1
+    },
+    "S02": {
+      "status": "running",
+      "track": "TUI",
+      "title": "prb-tui Unit + Render Tests",
+      "attempts": 1
+    },
+    "S03": {
+      "status": "running",
+      "track": "CLI",
+      "title": "prb-cli Command Tests",
+      "attempts": 1
+    },
+    "S04": {
+      "status": "running",
+      "track": "Pcap",
+      "title": "prb-pcap Pipeline Tests",
+      "attempts": 1
+    },
+    "S05": {
+      "status": "pending",
+      "track": "gRPC",
+      "title": "prb-grpc H2 Parser Tests",
+      "attempts": 1
+    },
+    "S06": {
+      "status": "pending",
+      "track": "Capture",
+      "title": "prb-capture Mock Tests",
+      "attempts": 0
+    },
+    "S07": {
+      "status": "pending",
+      "track": "AI",
+      "title": "prb-ai Explain Tests",
+      "attempts": 0
+    },
+    "S08": {
+      "status": "pending",
+      "track": "Plugin",
+      "title": "prb-plugin Test Harness",
+      "attempts": 0
+    },
+    "S09": {
+      "status": "pending",
+      "track": "Decode",
+      "title": "prb-decode Codec Tests",
+      "attempts": 0
+    },
+    "S10": {
+      "status": "pending",
+      "track": "Misc",
+      "title": "prb-detect + export + misc",
+      "attempts": 0
+    },
+    "S11": {
+      "status": "pending",
+      "track": "Integration",
+      "title": "Cross-Crate Integration Tests",
+      "attempts": 0
+    },
+    "S12": {
+      "status": "pending",
+      "track": "CLI",
+      "title": "CLI End-to-End Tests",
+      "attempts": 0
+    },
+    "S13": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: gRPC/HTTP2",
+      "attempts": 0
+    },
+    "S14": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: TLS",
+      "attempts": 0
+    },
+    "S15": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: TCP/IP",
+      "attempts": 0
+    },
+    "S16": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: DNS/DHCP",
+      "attempts": 0
+    },
+    "S17": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: HTTP1/WebSocket",
+      "attempts": 0
+    },
+    "S18": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: SMB/RDP",
+      "attempts": 0
+    },
+    "S19": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: RTPS/DDS/MQTT",
+      "attempts": 0
+    },
+    "S20": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: QUIC/SSH",
+      "attempts": 0
+    },
+    "S21": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: Malicious",
+      "attempts": 0
+    },
+    "S22": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: Conversation Export",
+      "attempts": 0
+    },
+    "S23": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: OTel Correlation",
+      "attempts": 0
+    },
+    "S24": {
+      "status": "pending",
+      "track": "RealData",
+      "title": "Real-Data: E2E Regression",
+      "attempts": 0
+    }
+  }
+}

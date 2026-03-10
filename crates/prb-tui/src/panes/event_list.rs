@@ -1,11 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
@@ -22,7 +23,7 @@ pub enum SortColumn {
 }
 
 impl SortColumn {
-    fn next(self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             SortColumn::Id => SortColumn::Time,
             SortColumn::Time => SortColumn::Source,
@@ -234,12 +235,14 @@ impl PaneComponent for EventListPane {
                     .unwrap_or_default();
 
                 let w = inner.width as usize;
-                let fixed_cols = 6 + 1 + 13 + 1 + 18 + 1 + 18 + 1 + 10 + 1 + 3 + 1;
+                let fixed_cols = 6 + 13 + 19 + 19 + 11 + 4;
                 let summary_w = w.saturating_sub(fixed_cols);
 
-                let truncated_src = truncate_str(src, 18);
-                let truncated_dst = truncate_str(dst, 18);
-                let truncated_summary = truncate_str(&summary, summary_w);
+                let transport_style = if is_selected {
+                    row_style
+                } else {
+                    row_style.fg(transport_color)
+                };
 
                 let line = Line::from(vec![
                     Span::styled(format!("{:>5} ", event.id.as_u64()), row_style),
@@ -247,14 +250,14 @@ impl PaneComponent for EventListPane {
                         format!("{:02}:{:02}:{:02}.{:03} ", h, m, s, millis),
                         row_style,
                     ),
-                    Span::styled(format!("{:<18} ", truncated_src), row_style),
-                    Span::styled(format!("{:<18} ", truncated_dst), row_style),
+                    Span::styled(pad_to_width(src, 19), row_style),
+                    Span::styled(pad_to_width(dst, 19), row_style),
                     Span::styled(
-                        format!("{:<10} ", event.transport),
-                        row_style.fg(transport_color),
+                        pad_to_width(&format!("{}", event.transport), 11),
+                        transport_style,
                     ),
-                    Span::styled(format!("{:<3} ", dir_sym), row_style),
-                    Span::styled(truncated_summary, row_style),
+                    Span::styled(pad_to_width(dir_sym, 4), row_style),
+                    Span::styled(truncate_str(&summary, summary_w), row_style),
                 ]);
 
                 buf.set_line(inner.x, y, &line, inner.width);
@@ -275,44 +278,45 @@ impl PaneComponent for EventListPane {
 fn format_header(width: u16, sort_column: SortColumn, reversed: bool) -> Line<'static> {
     let style = Theme::header();
     let w = width as usize;
-    let summary_w = w.saturating_sub(6 + 1 + 13 + 1 + 18 + 1 + 18 + 1 + 10 + 1 + 3 + 1);
+    let fixed_cols = 6 + 13 + 19 + 19 + 11 + 4;
+    let summary_w = w.saturating_sub(fixed_cols);
 
-    let sort_indicator = if reversed { "↓" } else { "↑" };
+    let sort_indicator = if reversed { "v" } else { "^" };
 
     let id_text = if sort_column == SortColumn::Id {
-        format!("{:>4}{} ", "#", sort_indicator)
+        pad_to_width(&format!("#{}", sort_indicator), 6)
     } else {
-        format!("{:>5} ", "#")
+        pad_to_width("#", 6)
     };
 
     let time_text = if sort_column == SortColumn::Time {
-        format!("Time{:<9}", sort_indicator)
+        pad_to_width(&format!("Time{}", sort_indicator), 13)
     } else {
-        format!("{:<13}", "Time")
+        pad_to_width("Time", 13)
     };
 
     let src_text = if sort_column == SortColumn::Source {
-        format!("Source{:<12} ", sort_indicator)
+        pad_to_width(&format!("Source{}", sort_indicator), 19)
     } else {
-        format!("{:<18} ", "Source")
+        pad_to_width("Source", 19)
     };
 
     let dst_text = if sort_column == SortColumn::Dest {
-        format!("Destination{:<7} ", sort_indicator)
+        pad_to_width(&format!("Destination{}", sort_indicator), 19)
     } else {
-        format!("{:<18} ", "Destination")
+        pad_to_width("Destination", 19)
     };
 
     let proto_text = if sort_column == SortColumn::Protocol {
-        format!("Protocol{:<2} ", sort_indicator)
+        pad_to_width(&format!("Protocol{}", sort_indicator), 11)
     } else {
-        format!("{:<10} ", "Protocol")
+        pad_to_width("Protocol", 11)
     };
 
     let dir_text = if sort_column == SortColumn::Dir {
-        format!("Dir{} ", sort_indicator)
+        pad_to_width(&format!("Dir{}", sort_indicator), 4)
     } else {
-        format!("{:<3} ", "Dir")
+        pad_to_width("Dir", 4)
     };
 
     Line::from(vec![
@@ -322,20 +326,39 @@ fn format_header(width: u16, sort_column: SortColumn, reversed: bool) -> Line<'s
         Span::styled(dst_text, style),
         Span::styled(proto_text, style),
         Span::styled(dir_text, style),
-        Span::styled(
-            format!("{:<width$}", "Summary", width = summary_w),
-            style.add_modifier(Modifier::BOLD),
-        ),
+        Span::styled(pad_to_width("Summary", summary_w), style),
     ])
 }
 
-fn truncate_str(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else if max > 3 {
-        format!("{}...", &s[..max - 3])
+fn truncate_str(s: &str, max_width: usize) -> String {
+    if UnicodeWidthStr::width(s) <= max_width {
+        return s.to_string();
+    }
+    if max_width <= 3 {
+        return ".".repeat(max_width);
+    }
+    let target = max_width - 3;
+    let mut result = String::new();
+    let mut width = 0;
+    for c in s.chars() {
+        let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        if width + cw > target {
+            break;
+        }
+        result.push(c);
+        width += cw;
+    }
+    result.push_str("...");
+    result
+}
+
+/// Pad a string to exactly `width` display cells, truncating or right-padding as needed.
+fn pad_to_width(s: &str, width: usize) -> String {
+    let display_w = UnicodeWidthStr::width(s);
+    if display_w >= width {
+        truncate_str(s, width)
     } else {
-        s[..max].to_string()
+        format!("{}{}", s, " ".repeat(width - display_w))
     }
 }
 

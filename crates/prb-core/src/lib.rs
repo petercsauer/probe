@@ -15,7 +15,13 @@ pub mod trace;
 pub mod traits;
 
 #[cfg(test)]
+mod conversation_tests;
+#[cfg(test)]
+mod engine_tests;
+#[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod metrics_tests;
 
 pub use conversation::{
     Conversation, ConversationError, ConversationId, ConversationKind, ConversationMetrics,

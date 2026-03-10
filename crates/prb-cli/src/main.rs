@@ -2,12 +2,9 @@
 
 #![allow(unexpected_cfgs)]
 
-mod cli;
-mod commands;
-mod output;
-
 use anyhow::Result;
 use clap::Parser;
+use prb_cli::{cli, commands};
 use tracing_subscriber::{fmt, EnvFilter};
 
 fn main() -> Result<()> {

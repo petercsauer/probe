@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 /// Orchestrates conversation reconstruction across protocols.
 pub struct ConversationEngine {
-    strategies: Vec<Box<dyn CorrelationStrategy>>,
+    pub(crate) strategies: Vec<Box<dyn CorrelationStrategy>>,
 }
 
 impl ConversationEngine {
@@ -174,7 +174,7 @@ pub struct ConversationStats {
 }
 
 /// Convert a Flow to a Conversation.
-fn flow_to_conversation(
+pub(crate) fn flow_to_conversation(
     flow: crate::Flow<'_>,
     protocol: TransportKind,
 ) -> Result<Conversation, CoreError> {

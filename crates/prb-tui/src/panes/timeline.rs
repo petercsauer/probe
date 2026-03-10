@@ -110,7 +110,7 @@ fn format_time_legend(state: &AppState, _width: u16) -> Line<'static> {
         let start_str = format_timestamp_short(start.as_nanos());
         let end_str = format_timestamp_short(end.as_nanos());
         spans.push(Span::styled(
-            format!(" {} ─── {} ", start_str, end_str),
+            format!(" {} --- {} ", start_str, end_str),
             Theme::hex_offset(),
         ));
     }

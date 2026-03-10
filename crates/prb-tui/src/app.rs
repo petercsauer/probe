@@ -10,6 +10,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Widget};
+use unicode_width::UnicodeWidthStr;
 use ratatui::Terminal;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
@@ -33,7 +34,7 @@ pub enum PaneId {
 }
 
 impl PaneId {
-    fn next(self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             PaneId::EventList => PaneId::DecodeTree,
             PaneId::DecodeTree => PaneId::HexDump,
@@ -42,7 +43,7 @@ impl PaneId {
         }
     }
 
-    fn prev(self) -> Self {
+    pub fn prev(self) -> Self {
         match self {
             PaneId::EventList => PaneId::Timeline,
             PaneId::DecodeTree => PaneId::EventList,
@@ -421,8 +422,8 @@ impl App {
 
         // Right-aligned keybind hints
         let hint = " Tab:pane  /:filter  ?:help  q:quit ";
-        let used: usize = spans.iter().map(|s| s.content.len()).sum();
-        let padding = (area.width as usize).saturating_sub(used + hint.len());
+        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
         spans.push(Span::styled(
             " ".repeat(padding),
             Theme::status_bar(),

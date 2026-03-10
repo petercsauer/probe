@@ -7,9 +7,8 @@ pub struct Theme;
 impl Theme {
     pub fn selected_row() -> Style {
         Style::default()
-            .fg(Color::White)
-            .bg(Color::DarkGray)
-            .add_modifier(Modifier::BOLD)
+            .fg(Color::Black)
+            .bg(Color::Cyan)
     }
 
     pub fn focused_border() -> Style {
