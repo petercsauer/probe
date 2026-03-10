@@ -122,7 +122,21 @@ fn run_parallel_pcap_ingest(args: IngestArgs) -> Result<()> {
     };
 
     let capture_path = PathBuf::from(args.input.as_str());
-    let pipeline = ParallelPipeline::new(config, capture_path.clone());
+
+    // Load TLS keylog if provided
+    let tls_keylog = if let Some(ref keylog_path) = args.tls_keylog {
+        use prb_pcap::tls::TlsKeyLog;
+        use std::sync::Arc;
+        let keylog = TlsKeyLog::from_file(PathBuf::from(keylog_path.as_str()))
+            .context("Failed to load TLS keylog file")?;
+        Arc::new(keylog)
+    } else {
+        use prb_pcap::tls::TlsKeyLog;
+        use std::sync::Arc;
+        Arc::new(TlsKeyLog::new())
+    };
+
+    let pipeline = ParallelPipeline::new(config, capture_path.clone(), tls_keylog);
 
     // Read all packets
     let mut reader = PcapFileReader::open(&capture_path)

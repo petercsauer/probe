@@ -208,12 +208,10 @@ fn capture_loop(
                 packet_count += 1;
 
                 // Poll kernel statistics every 1000 packets to reduce overhead
-                if packet_count % 1000 == 0 {
-                    if let Ok(pcap_stats) = cap.stats() {
-                        stats
-                            .packets_dropped_kernel
-                            .store(pcap_stats.dropped as u64, Ordering::Relaxed);
-                    }
+                if packet_count.is_multiple_of(1000) && let Ok(pcap_stats) = cap.stats() {
+                    stats
+                        .packets_dropped_kernel
+                        .store(pcap_stats.dropped as u64, Ordering::Relaxed);
                 }
             }
             Err(pcap::Error::TimeoutExpired) => {

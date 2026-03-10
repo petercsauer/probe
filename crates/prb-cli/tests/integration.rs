@@ -674,7 +674,7 @@ fn test_cli_inspect_with_where_filter() {
     // Inspect with --where filter for gRPC only
     let output = prb()
         .arg("inspect")
-        .arg("--where")
+        .arg("--where-clause")
         .arg(r#"transport == "gRPC""#)
         .write_stdin(ingest_output.stdout)
         .output()
@@ -715,7 +715,7 @@ fn test_cli_inspect_with_metadata_filter() {
     // Inspect with metadata filter
     let output = prb()
         .arg("inspect")
-        .arg("--where")
+        .arg("--where-clause")
         .arg(r#"direction == "inbound""#)
         .write_stdin(ingest_output.stdout)
         .output()
@@ -736,8 +736,8 @@ fn test_cli_tui_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Open file in TUI"))
-        .stdout(predicate::str::contains("--where"));
+        .stdout(predicate::str::contains("Open interactive TUI"))
+        .stdout(predicate::str::contains("--where-clause"));
 }
 
 #[test]

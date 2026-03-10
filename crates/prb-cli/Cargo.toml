@@ -21,6 +21,9 @@ prb-tui = { path = "../prb-tui" }
 prb-export = { path = "../prb-export" }
 # prb-ai = { path = "../prb-ai" }  # Temporarily disabled due to async-openai API changes
 prb-capture = { path = "../prb-capture" }
+prb-plugin-api = { path = "../prb-plugin-api" }
+prb-plugin-native = { path = "../prb-plugin-native" }
+prb-plugin-wasm = { path = "../prb-plugin-wasm" }
 mcap = "0.24"
 bytes = { workspace = true }
 anyhow = { workspace = true }
@@ -32,6 +35,8 @@ serde_json = { workspace = true }
 camino = { workspace = true }
 tokio = { workspace = true }
 ctrlc = { version = "3", features = ["termination"] }
+dirs = "5"
+toml = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2.0"

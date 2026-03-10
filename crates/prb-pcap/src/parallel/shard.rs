@@ -56,7 +56,10 @@ impl ShardProcessor {
     ///
     /// This is where TCP reassembly and TLS decryption happen. Each shard
     /// maintains its own state, so multiple shards can run in parallel.
-    fn process_single_shard(&self, packets: Vec<OwnedNormalizedPacket>) -> Vec<DebugEvent> {
+    ///
+    /// This method is also used by the sequential path in ParallelPipeline
+    /// to process small captures without parallelization overhead.
+    pub fn process_single_shard(&self, packets: Vec<OwnedNormalizedPacket>) -> Vec<DebugEvent> {
         let mut reassembler = TcpReassembler::new();
         let tls_processor = TlsStreamProcessor::with_keylog_ref(Arc::clone(&self.tls_keylog));
         let mut events = Vec::new();

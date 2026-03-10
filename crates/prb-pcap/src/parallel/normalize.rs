@@ -291,7 +291,7 @@ mod tests {
         let sequential_result: Vec<OwnedNormalizedPacket> = packets
             .iter()
             .filter_map(|pkt| {
-                match normalize_stateless(pkt.linktype as u32, pkt.timestamp_us, &pkt.data) {
+                match normalize_stateless(pkt.linktype, pkt.timestamp_us, &pkt.data) {
                     Ok(NormalizeResult::Packet(p)) => Some(p),
                     _ => None,
                 }

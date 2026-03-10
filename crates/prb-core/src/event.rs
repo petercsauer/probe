@@ -98,7 +98,7 @@ impl fmt::Display for Timestamp {
 }
 
 /// Network address information.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkAddr {
     /// Source IP address and port.
     pub src: String,

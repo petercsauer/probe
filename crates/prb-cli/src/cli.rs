@@ -10,6 +10,14 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+
+    /// Plugin directory (default: ~/.prb/plugins/)
+    #[arg(long, global = true)]
+    pub plugin_dir: Option<Utf8PathBuf>,
+
+    /// Disable automatic plugin loading
+    #[arg(long, global = true)]
+    pub no_plugins: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -30,6 +38,8 @@ pub enum Commands {
     // Explain(ExplainArgs),
     /// Capture live network traffic with real-time protocol decoding
     Capture(CaptureArgs),
+    /// Manage protocol decoder plugins
+    Plugins(PluginsArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -301,4 +311,34 @@ pub enum CaptureOutputFormat {
     Summary,
     /// Full NDJSON event per packet
     Json,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct PluginsArgs {
+    #[command(subcommand)]
+    pub command: PluginsCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PluginsCommand {
+    /// List all available decoders and plugins
+    List,
+    /// Show detailed info about a decoder
+    Info {
+        /// Decoder name or protocol ID
+        name: String,
+    },
+    /// Install a plugin from a file path
+    Install {
+        /// Path to .so/.dylib/.dll or .wasm file
+        path: Utf8PathBuf,
+        /// Optional plugin name (defaults to plugin's self-reported name)
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Remove an installed plugin
+    Remove {
+        /// Plugin name to remove
+        name: String,
+    },
 }

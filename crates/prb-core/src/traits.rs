@@ -29,7 +29,7 @@ pub trait CaptureAdapter {
 /// - GrpcDecoder (Subsection 4)
 /// - ZmqDecoder (Subsection 4)
 /// - DdsDecoder (Subsection 4)
-pub trait ProtocolDecoder {
+pub trait ProtocolDecoder: Send {
     /// Returns the transport protocol this decoder handles.
     fn protocol(&self) -> TransportKind;
 

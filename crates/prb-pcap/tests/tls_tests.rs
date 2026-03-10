@@ -274,7 +274,7 @@ fn test_no_key_passthrough() {
     use prb_pcap::tcp::{ReassembledStream, StreamDirection};
     use std::net::IpAddr;
 
-    let mut processor = TlsStreamProcessor::new();
+    let processor = TlsStreamProcessor::new();
     let stream = ReassembledStream {
         src_ip: IpAddr::from([127, 0, 0, 1]),
         src_port: 12345,

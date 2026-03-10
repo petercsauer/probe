@@ -2,8 +2,11 @@
 
 use crate::flow_key::FlowKey;
 use crate::normalize::OwnedNormalizedPacket;
+use crate::parallel::ShardProcessor;
+use crate::tls::TlsKeyLog;
 use prb_core::{CoreError, DebugEvent};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Configuration for the parallel pipeline.
 #[derive(Debug, Clone)]
@@ -60,6 +63,7 @@ pub struct ParallelPipeline {
     config: PipelineConfig,
     num_shards: usize,
     capture_path: PathBuf,
+    tls_keylog: Arc<TlsKeyLog>,
 }
 
 impl ParallelPipeline {
@@ -70,7 +74,7 @@ impl ParallelPipeline {
     const PARALLEL_THRESHOLD: usize = 10_000;
 
     /// Creates a new parallel pipeline with the given configuration.
-    pub fn new(config: PipelineConfig, capture_path: PathBuf) -> Self {
+    pub fn new(config: PipelineConfig, capture_path: PathBuf, tls_keylog: Arc<TlsKeyLog>) -> Self {
         let num_shards = if config.shard_count == 0 {
             std::thread::available_parallelism()
                 .map(|n| n.get() * 2)
@@ -83,6 +87,7 @@ impl ParallelPipeline {
             config,
             num_shards,
             capture_path,
+            tls_keylog,
         }
     }
 
@@ -108,40 +113,57 @@ impl ParallelPipeline {
         }
     }
 
-    /// Sequential execution path (placeholder).
+    /// Sequential execution path using a single shard.
     ///
-    /// This will be fully implemented in later segments when we integrate
-    /// with the existing pipeline code.
+    /// For small captures (< 10k packets), the overhead of parallel processing
+    /// exceeds the benefit. This path uses ShardProcessor with 1 shard.
     fn run_sequential(
         &self,
-        _packets: Vec<OwnedNormalizedPacket>,
+        packets: Vec<OwnedNormalizedPacket>,
     ) -> Result<Vec<DebugEvent>, CoreError> {
-        // TODO: Call existing PcapCaptureAdapter::process_all_packets
-        Ok(vec![])
+        tracing::debug!(
+            "Small capture ({} packets < {} threshold), using sequential path",
+            packets.len(),
+            Self::PARALLEL_THRESHOLD,
+        );
+
+        let shard_processor = ShardProcessor::new(
+            Arc::clone(&self.tls_keylog),
+            self.capture_path.clone(),
+        );
+
+        // Process all packets as a single shard
+        let events = shard_processor.process_single_shard(packets);
+
+        tracing::info!("Sequential processing complete: {} events", events.len());
+        Ok(events)
     }
 
-    /// Parallel execution path (placeholder).
-    ///
-    /// This will be implemented when we refactor the existing stages
-    /// to implement BatchStage/StreamStage traits.
+    /// Parallel execution path using ShardProcessor.
     fn run_parallel(
         &self,
         packets: Vec<OwnedNormalizedPacket>,
     ) -> Result<Vec<DebugEvent>, CoreError> {
+        let total = packets.len();
+        tracing::info!("Processing {} packets with {} shards", total, self.num_shards);
+
         // Phase 2: Partition by flow
         let shards = self.partition_by_flow(packets);
+        let shard_sizes: Vec<_> = shards.iter().map(|s| s.len()).collect();
+        tracing::info!("Partitioned into {} shards: {:?}", shards.len(), shard_sizes);
 
-        // Phase 3: Process each shard (placeholder for now)
-        // In future segments, this will use rayon::par_iter
-        let mut all_events = Vec::new();
-        for shard in shards {
-            let shard_events = self.process_shard(shard)?;
-            all_events.extend(shard_events);
-        }
+        // Phase 3: Process each shard in parallel
+        let shard_processor = ShardProcessor::new(
+            Arc::clone(&self.tls_keylog),
+            self.capture_path.clone(),
+        );
+        let shard_events: Vec<Vec<DebugEvent>> = shard_processor.process_shards(shards);
 
-        // Phase 4: Sort by timestamp
+        // Phase 4: Flatten and sort by timestamp
+        let mut all_events: Vec<DebugEvent> = shard_events.into_iter().flatten().collect();
         all_events.sort_by_key(|e| e.timestamp);
 
+        tracing::info!("Pipeline complete: {} events", all_events.len());
         Ok(all_events)
     }
 
@@ -163,17 +185,6 @@ impl ParallelPipeline {
         shards
     }
 
-    /// Processes a single shard (placeholder).
-    ///
-    /// This will be implemented when TCP reassembly, TLS decryption,
-    /// and protocol decoding are refactored into stage implementations.
-    fn process_shard(
-        &self,
-        _shard: Vec<OwnedNormalizedPacket>,
-    ) -> Result<Vec<DebugEvent>, CoreError> {
-        // TODO: TCP reassembly -> TLS decrypt -> protocol decode
-        Ok(vec![])
-    }
 }
 
 #[cfg(test)]
@@ -221,7 +232,8 @@ mod tests {
     #[test]
     fn test_parallel_threshold() {
         let config = PipelineConfig::default();
-        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"));
+        let tls_keylog = Arc::new(TlsKeyLog::new());
+        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"), tls_keylog);
 
         // Small capture should use sequential path
         let small_packets = vec![make_tcp_packet(
@@ -242,7 +254,8 @@ mod tests {
             batch_size: 4096,
             shard_count: 4,
         };
-        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"));
+        let tls_keylog = Arc::new(TlsKeyLog::new());
+        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"), tls_keylog);
 
         let ip1 = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
         let ip2 = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1));
@@ -269,7 +282,7 @@ mod tests {
         // If they map to different shards, verify packet distribution
         if shard1 != shard2 {
             assert!(shards[shard1].len() >= 2); // pkt1a and pkt1b
-            assert!(shards[shard2].len() >= 1); // pkt2
+            assert!(!shards[shard2].is_empty()); // pkt2
         }
     }
 
@@ -280,7 +293,8 @@ mod tests {
             batch_size: 4096,
             shard_count: 0, // Auto-detect
         };
-        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"));
+        let tls_keylog = Arc::new(TlsKeyLog::new());
+        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"), tls_keylog);
 
         let num_shards = pipeline.num_shards();
         // Should be at least 2 (fallback is 8 if detection fails)
@@ -294,7 +308,8 @@ mod tests {
             batch_size: 4096,
             shard_count: 16,
         };
-        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"));
+        let tls_keylog = Arc::new(TlsKeyLog::new());
+        let pipeline = ParallelPipeline::new(config, PathBuf::from("/tmp/test.pcap"), tls_keylog);
 
         assert_eq!(pipeline.num_shards(), 16);
     }

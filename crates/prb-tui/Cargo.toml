@@ -14,6 +14,7 @@ prb-pcap = { path = "../prb-pcap" }
 prb-grpc = { path = "../prb-grpc" }
 prb-zmq = { path = "../prb-zmq" }
 prb-dds = { path = "../prb-dds" }
+prb-capture = { path = "../prb-capture" }
 
 ratatui = { workspace = true }
 crossterm = { workspace = true }
@@ -23,6 +24,7 @@ unicode-width = { workspace = true }
 
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
+futures = { workspace = true }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }

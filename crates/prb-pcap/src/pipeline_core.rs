@@ -210,7 +210,7 @@ impl PipelineCore {
     /// Process a reassembled TCP stream through TLS decryption and protocol decoding.
     fn process_tcp_stream(&mut self, stream: ReassembledStream, origin: &str) -> Option<DebugEvent> {
         // Attempt TLS decryption
-        let decrypted = match self.tls_processor.process_stream(stream) {
+        let decrypted = match self.tls_processor.decrypt_stream(stream) {
             Ok(dec) => dec,
             Err(e) => {
                 tracing::warn!("TLS processing error: {}", e);
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_pipeline_core_stats() {
         let registry = DecoderRegistry::new();
-        let mut core = PipelineCore::new(TlsStreamProcessor::new(), registry);
+        let core = PipelineCore::new(TlsStreamProcessor::new(), registry);
         let stats = core.stats();
         assert_eq!(stats.packets_read, 0);
         assert_eq!(stats.packets_failed, 0);

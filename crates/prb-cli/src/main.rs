@@ -31,5 +31,6 @@ fn main() -> Result<()> {
         cli::Commands::Merge(args) => commands::run_merge(args),
         // cli::Commands::Explain(args) => commands::run_explain(args),
         cli::Commands::Capture(args) => commands::run_capture(args),
+        cli::Commands::Plugins(args) => commands::run_plugins(args, cli.plugin_dir.as_ref()),
     }
 }

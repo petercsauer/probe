@@ -35,10 +35,7 @@ impl InterfaceInfo {
         let addresses: Vec<IpAddr> = device
             .addresses
             .iter()
-            .filter_map(|addr| {
-                // pcap::Address contains an IpAddr in the addr field
-                Some(addr.addr)
-            })
+            .map(|addr| addr.addr)
             .collect();
 
         // Determine interface properties from flags

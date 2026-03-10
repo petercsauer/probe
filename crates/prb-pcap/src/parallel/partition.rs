@@ -146,7 +146,7 @@ mod tests {
 
         // Two different flows may be in different shards (or same, depending on hash)
         let non_empty: Vec<_> = shards.iter().filter(|s| !s.is_empty()).collect();
-        assert!(non_empty.len() >= 1 && non_empty.len() <= 2);
+        assert!(!non_empty.is_empty() && non_empty.len() <= 2);
 
         // Total packets should be preserved
         let total: usize = shards.iter().map(|s| s.len()).sum();

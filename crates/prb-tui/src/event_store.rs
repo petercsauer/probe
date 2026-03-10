@@ -19,6 +19,29 @@ impl EventStore {
         EventStore { events, time_range }
     }
 
+    /// Create an empty event store for live capture mode.
+    pub fn empty() -> Self {
+        EventStore {
+            events: Vec::new(),
+            time_range: None,
+        }
+    }
+
+    /// Append a new event to the store (for live capture).
+    ///
+    /// Events should be appended in timestamp order for optimal performance,
+    /// but out-of-order events are supported (they will be sorted on next filter).
+    pub fn push(&mut self, event: DebugEvent) {
+        let event_ts = event.timestamp;
+        self.events.push(event);
+
+        // Update time range
+        self.time_range = match self.time_range {
+            None => Some((event_ts, event_ts)),
+            Some((start, end)) => Some((start.min(event_ts), end.max(event_ts))),
+        };
+    }
+
     pub fn len(&self) -> usize {
         self.events.len()
     }

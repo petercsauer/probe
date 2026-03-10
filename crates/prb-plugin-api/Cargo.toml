@@ -1,0 +1,19 @@
+[package]
+name = "prb-plugin-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+wasm-pdk = ["extism-pdk", "base64"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+semver = "1"
+base64 = { workspace = true, optional = true }
+extism-pdk = { version = "1.4", optional = true }
+
+[dev-dependencies]

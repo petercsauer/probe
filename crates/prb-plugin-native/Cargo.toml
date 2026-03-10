@@ -1,0 +1,18 @@
+[package]
+name = "prb-plugin-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+prb-plugin-api = { path = "../prb-plugin-api" }
+prb-detect = { path = "../prb-detect" }
+libloading = "0.8"
+bytes.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

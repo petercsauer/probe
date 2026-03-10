@@ -16,7 +16,10 @@ members = [
     "crates/prb-query",
     "crates/prb-tui",
     "crates/prb-export",
-    "crates/prb-ai",
+    # "crates/prb-ai",  # Temporarily disabled - S05 blocked on API compatibility
+    "crates/prb-plugin-api",
+    "crates/prb-plugin-native",
+    "crates/prb-plugin-wasm",
 ]
 
 [workspace.package]
@@ -73,6 +76,7 @@ unicode-width = "0.2"
 # Async
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 tokio-stream = "0.1"
+futures = "0.3"
 
 # Parallelism
 rayon = "1.11"

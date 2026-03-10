@@ -6,6 +6,7 @@ pub mod export;
 pub mod ingest;
 pub mod inspect;
 pub mod merge;
+pub mod plugins;
 pub mod schemas;
 pub mod tui;
 
@@ -15,5 +16,6 @@ pub use export::run as run_export;
 pub use ingest::run_ingest;
 pub use inspect::run_inspect;
 pub use merge::run_merge;
+pub use plugins::run_plugins;
 pub use schemas::run_schemas;
 pub use tui::run_tui;

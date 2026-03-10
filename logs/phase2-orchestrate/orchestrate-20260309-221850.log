@@ -55,3 +55,92 @@ No state file — fresh start
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [2026-03-09 23:52:37] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 4
+[2026-03-10 01:15:34] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 5 exited (code=143, segments_done=19/29)
+[2026-03-10 01:15:34] [0;31m  ⚠ Session 5 failed (exit=143, consecutive=5)[0m
+[2026-03-10 01:15:34] [0;31m  💤 5 consecutive failures — cooling down 300s[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 6 / max 60  |  2026-03-10 01:20:35
+  [█████████████░░░░░░░] 65%  (19/29 segments)
+  Wave: 4 | ✅ 19 done | ⏳ 5 pending | 🔧 4 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-012035-s6.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 01:20:36] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 6
+[2026-03-10 02:01:06] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 6 exited (code=143, segments_done=21/29)
+[2026-03-10 02:01:06] [0;31m  ⚠ Session 6 failed (exit=143, consecutive=1)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 7 / max 60  |  2026-03-10 02:01:27
+  [██████████████░░░░░░] 72%  (21/29 segments)
+  Wave: 6 | ✅ 21 done | ⏳ 4 pending | 🔧 3 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-020127-s7.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 02:01:28] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 7
+[2026-03-10 02:18:31] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 7 exited (code=1, segments_done=21/29)
+[2026-03-10 02:18:31] [0;31m  ⚠ Session 7 failed (exit=1, consecutive=2)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 8 / max 60  |  2026-03-10 02:19:11
+  [██████████████░░░░░░] 72%  (21/29 segments)
+  Wave: 6 | ✅ 21 done | ⏳ 4 pending | 🔧 3 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-021911-s8.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 02:19:11] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 8
+[2026-03-10 02:59:45] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 8 exited (code=143, segments_done=22/29)
+[2026-03-10 02:59:45] [0;31m  ⚠ Session 8 failed (exit=143, consecutive=3)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 9 / max 60  |  2026-03-10 03:01:05
+  [███████████████░░░░░] 75%  (22/29 segments)
+  Wave: 6 | ✅ 22 done | ⏳ 3 pending | 🔧 3 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-030105-s9.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 03:01:05] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 9
+[2026-03-10 03:41:19] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 9 exited (code=143, segments_done=22/29)
+[2026-03-10 03:41:19] [0;31m  ⚠ Session 9 failed (exit=143, consecutive=4)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 10 / max 60  |  2026-03-10 03:43:19
+  [███████████████░░░░░] 75%  (22/29 segments)
+  Wave: 7 | ✅ 22 done | ⏳ 1 pending | 🔧 5 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-034319-s10.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 03:43:19] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 10
+[2026-03-10 04:12:40] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 10 exited (code=0, segments_done=22/29)
+[2026-03-10 04:12:40] [0;32m  Session 10 completed normally[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 11 / max 60  |  2026-03-10 04:12:50
+  [███████████████░░░░░] 75%  (22/29 segments)
+  Wave: 7 | ✅ 22 done | ⏳ 1 pending | 🔧 3 active | ❌ 3 blocked
+  Log: logs/phase2-orchestrate/session-20260310-041250-s11.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 04:12:50] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 11
+[2026-03-10 04:53:39] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 11 exited (code=143, segments_done=27/29)
+[2026-03-10 04:53:39] [0;31m  ⚠ Session 11 failed (exit=143, consecutive=1)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 12 / max 60  |  2026-03-10 04:53:59
+  [██████████████████░░] 93%  (27/29 segments)
+  Wave: 8 | ✅ 27 done | ⏳ 1 pending | 🔧 0 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-045359-s12.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 04:53:59] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 12
+[2026-03-10 05:16:17] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 12 exited (code=1, segments_done=27/29)
+[2026-03-10 05:16:17] [0;31m  ⚠ Session 12 failed (exit=1, consecutive=2)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 13 / max 60  |  2026-03-10 05:16:57
+  [██████████████████░░] 93%  (27/29 segments)
+  Wave: 6 | ✅ 27 done | ⏳ 0 pending | 🔧 1 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-051657-s13.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 05:16:57] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 13

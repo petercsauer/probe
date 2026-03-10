@@ -521,7 +521,7 @@ fn test_pipeline_dsb_keys_used() {
     let secrets_type = 0x544c534bu32;
     let secrets_data = b""; // Empty key log for this test
     let dsb_len = 12 + 4 + 4 + secrets_data.len() + 4; // header + type + data_len + data + trailer
-    let dsb_len_padded = ((dsb_len + 3) / 4) * 4; // Pad to 4-byte boundary
+    let dsb_len_padded = dsb_len.div_ceil(4) * 4; // Pad to 4-byte boundary
     dsb.extend_from_slice(&(dsb_len_padded as u32).to_le_bytes());
     dsb.extend_from_slice(&secrets_type.to_le_bytes());
     dsb.extend_from_slice(&(secrets_data.len() as u32).to_le_bytes());
@@ -697,7 +697,7 @@ fn test_error_truncated_pcap() {
 
     // Process should not panic
     let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
-    let events: Vec<_> = adapter.ingest().collect();
+    let _events: Vec<_> = adapter.ingest().collect();
 
     // Should handle gracefully (may produce no events or error events)
     // Key: no panic occurred
@@ -781,7 +781,7 @@ fn test_error_corrupt_tcp_overlap() {
 
     // Process - should not panic
     let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
-    let events: Vec<_> = adapter.ingest().collect();
+    let _events: Vec<_> = adapter.ingest().collect();
 
     // Should handle overlapping segments gracefully
     // TCP reassembler may produce events or skip duplicate
@@ -845,7 +845,7 @@ fn test_error_dds_non_rtps_udp() {
 
     // Process
     let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
-    let events: Vec<_> = adapter.ingest().collect();
+    let _events: Vec<_> = adapter.ingest().collect();
 
     // Non-RTPS UDP should be processed as raw UDP (or skipped by DDS decoder)
     let stats = adapter.stats();

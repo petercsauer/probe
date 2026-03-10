@@ -36,6 +36,7 @@ smoltcp = { version = "0.12", default-features = false, features = ["proto-ipv4"
 
 # Parallel processing
 rayon.workspace = true
+crossbeam-channel = "0.5"
 
 # TLS parsing and cryptography
 tls-parser.workspace = true
@@ -52,6 +53,11 @@ tempfile.workspace = true
 prb-grpc = { path = "../prb-grpc" }
 prb-zmq = { path = "../prb-zmq" }
 prb-dds = { path = "../prb-dds" }
+criterion.workspace = true
+
+[[bench]]
+name = "pipeline_throughput"
+harness = false
 
 [features]
 default = []
