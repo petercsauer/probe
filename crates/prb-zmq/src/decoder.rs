@@ -402,7 +402,7 @@ mod tests {
 
         // Feed invalid greeting data (at least 10 bytes, wrong signature) to trigger degraded mode
         let mut stream = Vec::new();
-        stream.extend_from_slice(&vec![0x00; 10]); // Invalid greeting signature
+        stream.extend_from_slice(&[0x00; 10]); // Invalid greeting signature
         // Then feed a valid message frame
         stream.extend_from_slice(&create_message_frame(b"degraded_message", false));
 

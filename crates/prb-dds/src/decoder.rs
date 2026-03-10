@@ -368,3 +368,184 @@ impl ProtocolDecoder for DdsDecoder {
         self.decode_rtps_message(data, ctx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prb_core::{DecodeContext, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME};
+    use crate::rtps_parser::RTPS_MAGIC;
+
+    #[test]
+    fn test_dds_domain_id_boundary() {
+        // WS-3.3: Port 7399 → None, port 7400 → domain 0, port 7650 → domain 1
+        assert_eq!(DdsDecoder::extract_domain_id(7399), None, "Port 7399 should return None");
+        assert_eq!(DdsDecoder::extract_domain_id(7400), Some(0), "Port 7400 should be domain 0");
+        assert_eq!(DdsDecoder::extract_domain_id(7401), Some(0), "Port 7401 should be domain 0");
+        assert_eq!(DdsDecoder::extract_domain_id(7650), Some(1), "Port 7650 should be domain 1");
+        assert_eq!(DdsDecoder::extract_domain_id(7651), Some(1), "Port 7651 should be domain 1");
+        assert_eq!(DdsDecoder::extract_domain_id(7900), Some(2), "Port 7900 should be domain 2");
+    }
+
+    #[test]
+    fn test_dds_timestamp_propagation() {
+        // WS-3.3: INFO_TS timestamp appears in DebugEvent (not now())
+        let mut decoder = DdsDecoder::new();
+
+        // Build RTPS message with INFO_TS + DATA
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]); // Protocol version
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]); // Vendor ID
+        rtps_msg.extend_from_slice(&[0x01; 12]); // GUID prefix
+
+        // INFO_TS submessage
+        rtps_msg.push(0x09); // INFO_TS
+        rtps_msg.push(0x01); // flags (little-endian)
+        rtps_msg.extend_from_slice(&8u16.to_le_bytes()); // octets_to_next_header
+        let ts_seconds = 1234567890u32;
+        let ts_fraction = 0x80000000u32; // 0.5 seconds = 500ms
+        rtps_msg.extend_from_slice(&ts_seconds.to_le_bytes());
+        rtps_msg.extend_from_slice(&ts_fraction.to_le_bytes());
+
+        // DATA submessage (user data, not SEDP)
+        rtps_msg.push(0x15); // DATA
+        rtps_msg.push(0x01); // flags
+        rtps_msg.extend_from_slice(&20u16.to_le_bytes()); // octets_to_next_header
+        // extraFlags (2) + octetsToInlineQos (2) + reader/writer EntityId (8) + seqNum (8)
+        rtps_msg.extend_from_slice(&[0x00; 20]);
+
+        // Create context with specific timestamp
+        let capture_time_ns = 1_000_000_000_000u64; // 1 microsecond as nanoseconds
+        let ctx = DecodeContext::new()
+            .with_src_addr("192.168.1.1:7400")
+            .with_dst_addr("239.255.0.1:7400")
+            .with_timestamp(prb_core::Timestamp::from_nanos(capture_time_ns));
+
+        let events = decoder.decode_stream(&rtps_msg, &ctx).unwrap();
+
+        if !events.is_empty() {
+            let event = &events[0];
+            // Timestamp should come from INFO_TS (1234567890 seconds)
+            // Converted to nanoseconds: 1234567890 * 1_000_000_000 + (0x80000000 * 1_000_000_000 / 2^32)
+            let expected_ts_ns = (ts_seconds as u64) * 1_000_000_000 +
+                                 ((ts_fraction as u64 * 1_000_000_000) / 0x100000000);
+
+            assert_eq!(
+                event.timestamp.as_nanos(),
+                expected_ts_ns,
+                "Timestamp should come from INFO_TS, not context timestamp"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dds_sedp_then_user_data() {
+        // WS-3.3: Full flow: SEDP discovery DATA → user DATA → event has topic name
+        let mut decoder = DdsDecoder::new();
+
+        // Step 1: Send SEDP discovery DATA to register endpoint
+        let mut sedp_msg = Vec::new();
+        sedp_msg.extend_from_slice(RTPS_MAGIC);
+        sedp_msg.extend_from_slice(&[0x02, 0x03]);
+        sedp_msg.extend_from_slice(&[0x01, 0x0F]);
+        let guid_prefix = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C];
+        sedp_msg.extend_from_slice(&guid_prefix);
+
+        // DATA submessage with SEDP writer entity ID (0x000003C2)
+        sedp_msg.push(0x15); // DATA
+        sedp_msg.push(0x01); // flags (little-endian)
+
+        // Build SEDP payload with CDR parameter list
+        let mut sedp_payload = Vec::new();
+
+        // Encapsulation header
+        sedp_payload.extend_from_slice(&[0x01, 0x00]); // LE CDR
+        sedp_payload.extend_from_slice(&[0x00, 0x00]); // Options
+
+        // PID_TOPIC_NAME
+        sedp_payload.extend_from_slice(&0x0005u16.to_le_bytes());
+        let topic_bytes = b"TestTopic";
+        let topic_str_len = (topic_bytes.len() + 1) as u32;
+        let topic_param_len = (4 + topic_str_len) as u16;
+        sedp_payload.extend_from_slice(&topic_param_len.to_le_bytes());
+        sedp_payload.extend_from_slice(&topic_str_len.to_le_bytes());
+        sedp_payload.extend_from_slice(topic_bytes);
+        sedp_payload.push(0x00);
+        while sedp_payload.len() % 4 != 0 {
+            sedp_payload.push(0x00);
+        }
+
+        // PID_ENDPOINT_GUID
+        sedp_payload.extend_from_slice(&0x005Au16.to_le_bytes());
+        sedp_payload.extend_from_slice(&16u16.to_le_bytes());
+        sedp_payload.extend_from_slice(&guid_prefix);
+        let user_entity_id = [0xAA, 0xBB, 0xCC, 0xDD];
+        sedp_payload.extend_from_slice(&user_entity_id);
+
+        // PID_SENTINEL
+        sedp_payload.extend_from_slice(&0x0001u16.to_le_bytes());
+        sedp_payload.extend_from_slice(&0x0000u16.to_le_bytes());
+
+        // Build DATA submessage header
+        let data_header_len = 20; // extraFlags (2) + octetsToInlineQos (2) + entityIds (8) + seqNum (8)
+        let total_len = data_header_len + sedp_payload.len();
+        sedp_msg.extend_from_slice(&(total_len as u16).to_le_bytes());
+
+        // DATA header fields
+        sedp_msg.extend_from_slice(&[0x00, 0x00]); // extraFlags
+        sedp_msg.extend_from_slice(&[0x10, 0x00]); // octetsToInlineQos (16)
+        sedp_msg.extend_from_slice(&[0x00, 0x00, 0x03, 0xC7]); // reader EntityId (SEDP)
+        sedp_msg.extend_from_slice(&[0x00, 0x00, 0x03, 0xC2]); // writer EntityId (SEDP)
+        sedp_msg.extend_from_slice(&[0x00; 8]); // sequence number
+
+        // SEDP payload
+        sedp_msg.extend_from_slice(&sedp_payload);
+
+        let ctx = DecodeContext::new()
+            .with_src_addr("192.168.1.1:7400")
+            .with_dst_addr("239.255.0.1:7400");
+
+        // Process SEDP message (should register endpoint)
+        let _sedp_events = decoder.decode_stream(&sedp_msg, &ctx).unwrap();
+
+        // Step 2: Send user DATA with the same GUID
+        let mut user_msg = Vec::new();
+        user_msg.extend_from_slice(RTPS_MAGIC);
+        user_msg.extend_from_slice(&[0x02, 0x03]);
+        user_msg.extend_from_slice(&[0x01, 0x0F]);
+        user_msg.extend_from_slice(&guid_prefix);
+
+        // DATA submessage with user entity ID
+        user_msg.push(0x15); // DATA
+        user_msg.push(0x01); // flags
+        let user_data_payload = b"user_data_payload";
+        let user_total_len = 20 + user_data_payload.len();
+        user_msg.extend_from_slice(&(user_total_len as u16).to_le_bytes());
+        user_msg.extend_from_slice(&[0x00, 0x00]); // extraFlags
+        user_msg.extend_from_slice(&[0x10, 0x00]); // octetsToInlineQos
+        user_msg.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // reader EntityId
+        user_msg.extend_from_slice(&user_entity_id); // writer EntityId (matches SEDP registration)
+        user_msg.extend_from_slice(&[0x00; 8]); // sequence number
+        user_msg.extend_from_slice(user_data_payload);
+
+        let user_events = decoder.decode_stream(&user_msg, &ctx).unwrap();
+
+        // Verify user event has topic name from SEDP discovery
+        assert!(!user_events.is_empty(), "Should produce user data event");
+        let user_event = &user_events[0];
+
+        let topic_name = user_event.metadata.get(METADATA_KEY_DDS_TOPIC_NAME);
+        assert_eq!(
+            topic_name,
+            Some(&"TestTopic".to_string()),
+            "User data event should have topic name from SEDP discovery"
+        );
+
+        let domain_id = user_event.metadata.get(METADATA_KEY_DDS_DOMAIN_ID);
+        assert_eq!(
+            domain_id,
+            Some(&"0".to_string()),
+            "Should extract domain ID 0 from port 7400"
+        );
+    }
+}

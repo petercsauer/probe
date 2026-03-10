@@ -577,7 +577,7 @@ mod tests {
         frame.extend_from_slice(&body);
 
         let events = parser.feed(&frame).unwrap();
-        assert!(events.len() >= 1, "Should parse long command frame");
+        assert!(!events.is_empty(), "Should parse long command frame");
 
         // Find command event
         let cmd_event = events.iter().find(|e| matches!(e, ZmtpEvent::Command(_)));

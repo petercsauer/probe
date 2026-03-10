@@ -277,3 +277,139 @@ impl<'a> Iterator for SubmessageIterator<'a> {
         Some((header, payload))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rtps_bad_magic() {
+        // WS-3.3: Non-RTPS data returns InvalidMagic error
+        let bad_data = vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+                            0x10, 0x11, 0x12, 0x13];
+
+        let result = RtpsHeader::parse(&bad_data);
+        assert!(result.is_err(), "Should reject non-RTPS magic");
+
+        match result.unwrap_err() {
+            DdsError::InvalidMagic(magic) => {
+                assert_eq!(magic, [0x00, 0x01, 0x02, 0x03]);
+            }
+            _ => panic!("Expected InvalidMagic error"),
+        }
+    }
+
+    #[test]
+    fn test_rtps_truncated_header() {
+        // WS-3.3: <20 bytes returns appropriate error
+        let truncated = vec![b'R', b'T', b'P', b'S', 0x02, 0x03, 0x01, 0x0F];
+
+        let result = RtpsHeader::parse(&truncated);
+        assert!(result.is_err(), "Should reject truncated header");
+
+        match result.unwrap_err() {
+            DdsError::RtpsParse(msg) => {
+                assert!(msg.contains("too short") || msg.contains("8 bytes"));
+            }
+            _ => panic!("Expected RtpsParse error"),
+        }
+    }
+
+    #[test]
+    fn test_rtps_data_frag_submessage() {
+        // WS-3.3: DATA_FRAG is silently skipped (not an error)
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]); // Protocol version
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]); // Vendor ID
+        rtps_msg.extend_from_slice(&[0x00; 12]); // GUID prefix
+
+        // Add DATA_FRAG submessage
+        rtps_msg.push(SUBMESSAGE_DATA_FRAG); // submessage_id
+        rtps_msg.push(0x01); // flags (little-endian)
+        rtps_msg.extend_from_slice(&8u16.to_le_bytes()); // octets_to_next_header
+        rtps_msg.extend_from_slice(&[0x00; 8]); // payload
+
+        // Parse message (should succeed)
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        assert_eq!(parsed.header.guid_prefix, [0x00; 12]);
+
+        // Iterate submessages (DATA_FRAG should be parsed without error)
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+        assert_eq!(collected.len(), 1, "Should parse DATA_FRAG submessage");
+        assert_eq!(collected[0].0.submessage_id, SUBMESSAGE_DATA_FRAG);
+    }
+
+    #[test]
+    fn test_rtps_multiple_submessages() {
+        // WS-3.3: Message with INFO_TS + DATA + HEARTBEAT + DATA
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]); // Protocol version
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]); // Vendor ID
+        rtps_msg.extend_from_slice(&[0x00; 12]); // GUID prefix
+
+        // INFO_TS submessage
+        rtps_msg.push(SUBMESSAGE_INFO_TS);
+        rtps_msg.push(0x01); // flags (little-endian)
+        rtps_msg.extend_from_slice(&8u16.to_le_bytes()); // octets_to_next_header
+        rtps_msg.extend_from_slice(&1234u32.to_le_bytes()); // seconds
+        rtps_msg.extend_from_slice(&5678u32.to_le_bytes()); // fraction
+
+        // DATA submessage
+        rtps_msg.push(SUBMESSAGE_DATA);
+        rtps_msg.push(0x01); // flags
+        rtps_msg.extend_from_slice(&16u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0xAA; 16]); // payload
+
+        // HEARTBEAT submessage (ID 0x07)
+        rtps_msg.push(0x07);
+        rtps_msg.push(0x01);
+        rtps_msg.extend_from_slice(&12u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0xBB; 12]);
+
+        // Another DATA submessage
+        rtps_msg.push(SUBMESSAGE_DATA);
+        rtps_msg.push(0x01);
+        rtps_msg.extend_from_slice(&8u16.to_le_bytes());
+        rtps_msg.extend_from_slice(&[0xCC; 8]);
+
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+
+        assert_eq!(collected.len(), 4, "Should parse all 4 submessages");
+        assert_eq!(collected[0].0.submessage_id, SUBMESSAGE_INFO_TS);
+        assert_eq!(collected[1].0.submessage_id, SUBMESSAGE_DATA);
+        assert_eq!(collected[2].0.submessage_id, 0x07); // HEARTBEAT
+        assert_eq!(collected[3].0.submessage_id, SUBMESSAGE_DATA);
+    }
+
+    #[test]
+    fn test_rtps_big_endian_submessage() {
+        // WS-3.3: Submessage with E-flag = 0 (big-endian)
+        let mut rtps_msg = Vec::new();
+        rtps_msg.extend_from_slice(RTPS_MAGIC);
+        rtps_msg.extend_from_slice(&[0x02, 0x03]);
+        rtps_msg.extend_from_slice(&[0x01, 0x0F]);
+        rtps_msg.extend_from_slice(&[0x00; 12]);
+
+        // DATA submessage with big-endian flag (0x00)
+        rtps_msg.push(SUBMESSAGE_DATA);
+        rtps_msg.push(0x00); // flags: big-endian (E-flag = 0)
+        rtps_msg.extend_from_slice(&8u16.to_be_bytes()); // octets_to_next_header (big-endian)
+        rtps_msg.extend_from_slice(&[0xDD; 8]);
+
+        let parsed = RtpsMessage::parse(&rtps_msg).unwrap();
+        let submessages = parsed.submessages();
+        let collected: Vec<_> = submessages.collect();
+
+        assert_eq!(collected.len(), 1, "Should parse big-endian submessage");
+        let (header, payload) = &collected[0];
+        assert!(!header.is_little_endian(), "Should detect big-endian");
+        assert_eq!(header.octets_to_next_header, 8);
+        assert_eq!(payload.len(), 8);
+    }
+}
