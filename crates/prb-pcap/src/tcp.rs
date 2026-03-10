@@ -242,7 +242,13 @@ impl TcpReassembler {
 
         // Initialize sequence number on first segment
         if dir_state.initial_seq.is_none() {
-            dir_state.initial_seq = Some(tcp_info.seq);
+            // If this is a SYN packet, the ISN should be seq+1 because SYN consumes one sequence number
+            let isn = if tcp_info.flags.syn {
+                tcp_info.seq.wrapping_add(1)
+            } else {
+                tcp_info.seq
+            };
+            dir_state.initial_seq = Some(isn);
             dir_state.first_packet_timestamp_us = Some(packet.timestamp_us);
         }
 
