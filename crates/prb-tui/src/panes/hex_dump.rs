@@ -183,3 +183,143 @@ fn render_hex_line(
 
     Line::from(spans)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hex_line_formatting() {
+        let bytes = b"Hello, World!";
+        let line = render_hex_line(0, bytes, None);
+
+        // Should have offset + hex bytes + ASCII
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+
+        // Check offset is present
+        assert!(text.starts_with("00000000"));
+
+        // Check hex bytes are present
+        assert!(text.contains("48")); // 'H'
+        assert!(text.contains("65")); // 'e'
+
+        // Check ASCII is present
+        assert!(text.contains("Hello"));
+    }
+
+    #[test]
+    fn test_hex_line_with_highlight() {
+        let bytes = b"ABCDEFGH";
+        // Highlight bytes 2-4 (CDE)
+        let line = render_hex_line(0, bytes, Some((2, 3)));
+
+        // Verify highlighting spans exist
+        let highlighted_count = line.spans.iter()
+            .filter(|s| s.style == Theme::hex_highlight())
+            .count();
+
+        // Should have highlighted hex bytes (3) + ASCII chars (3) = 6 total
+        assert!(highlighted_count >= 6, "Expected at least 6 highlighted spans");
+    }
+
+    #[test]
+    fn test_hex_line_partial_row() {
+        let bytes = b"ABC"; // Less than 16 bytes
+        let line = render_hex_line(0, bytes, None);
+
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+
+        // Should still have proper offset
+        assert!(text.starts_with("00000000"));
+
+        // Should have ASCII representation
+        assert!(text.contains("ABC"));
+    }
+
+    #[test]
+    fn test_hex_line_non_printable() {
+        let bytes = b"\x00\x01\x02\x03";
+        let line = render_hex_line(0, bytes, None);
+
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+
+        // Should have hex values
+        assert!(text.contains("00"));
+        assert!(text.contains("01"));
+
+        // Non-printable should be shown as dots
+        let dots = text.chars().filter(|&c| c == '.').count();
+        assert_eq!(dots, 4, "Non-printable bytes should be shown as dots");
+    }
+
+    #[test]
+    fn test_set_highlight_auto_scroll() {
+        let mut pane = HexDumpPane::new();
+
+        // Highlight at byte offset 256 (line 16)
+        pane.set_highlight(256, 10);
+
+        assert_eq!(pane.highlight, Some((256, 10)));
+        assert_eq!(pane.scroll_offset, 16, "Should auto-scroll to highlighted line");
+    }
+
+    #[test]
+    fn test_clear_highlight() {
+        let mut pane = HexDumpPane::new();
+
+        pane.set_highlight(100, 20);
+        assert!(pane.highlight.is_some());
+
+        pane.clear_highlight();
+        assert!(pane.highlight.is_none());
+    }
+
+    #[test]
+    fn test_scroll_bounds() {
+        let mut pane = HexDumpPane::new();
+        pane.scroll_offset = 10;
+
+        // Simulate up key beyond bounds
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use crate::app::AppState;
+        use crate::event_store::EventStore;
+
+        let store = EventStore::new(vec![]);
+        let state = AppState {
+            store,
+            filtered_indices: vec![],
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+        };
+
+        // Press 'k' (up) many times
+        for _ in 0..20 {
+            pane.handle_key(
+                KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE),
+                &state
+            );
+        }
+
+        // Should stop at 0
+        assert_eq!(pane.scroll_offset, 0);
+    }
+
+    #[test]
+    fn test_highlight_range_calculation() {
+        // Test that highlight range correctly identifies bytes
+        let bytes = b"0123456789ABCDEF0123456789ABCDEF";
+
+        // Highlight bytes 8-16 (second half of first line + first half of second)
+        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)));
+        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)));
+
+        // Line 1 should have some highlighted spans (bytes 8-15)
+        let hl1 = line1.spans.iter().filter(|s| s.style == Theme::hex_highlight()).count();
+        assert!(hl1 > 0, "Line 1 should have highlighted spans");
+
+        // Line 2 should have no highlighted spans (highlight ends at byte 16)
+        let hl2 = line2.spans.iter().filter(|s| s.style == Theme::hex_highlight()).count();
+        assert_eq!(hl2, 0, "Line 2 should have no highlighted spans");
+    }
+}
