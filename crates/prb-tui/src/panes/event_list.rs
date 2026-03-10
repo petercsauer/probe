@@ -11,9 +11,34 @@ use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::Theme;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortColumn {
+    Id,
+    Time,
+    Source,
+    Dest,
+    Protocol,
+    Dir,
+}
+
+impl SortColumn {
+    fn next(self) -> Self {
+        match self {
+            SortColumn::Id => SortColumn::Time,
+            SortColumn::Time => SortColumn::Source,
+            SortColumn::Source => SortColumn::Dest,
+            SortColumn::Dest => SortColumn::Protocol,
+            SortColumn::Protocol => SortColumn::Dir,
+            SortColumn::Dir => SortColumn::Id,
+        }
+    }
+}
+
 pub struct EventListPane {
     pub selected: usize,
     pub scroll_offset: usize,
+    pub sort_column: SortColumn,
+    pub sort_reversed: bool,
 }
 
 impl EventListPane {
@@ -21,6 +46,8 @@ impl EventListPane {
         EventListPane {
             selected: 0,
             scroll_offset: 0,
+            sort_column: SortColumn::Time,
+            sort_reversed: false,
         }
     }
 
@@ -42,6 +69,47 @@ impl EventListPane {
 
     fn total_items(state: &AppState) -> usize {
         state.filtered_indices.len()
+    }
+
+    fn sorted_indices(&self, state: &AppState) -> Vec<usize> {
+        let mut indices = state.filtered_indices.clone();
+
+        indices.sort_by(|&a, &b| {
+            let event_a = state.store.get(a);
+            let event_b = state.store.get(b);
+
+            if event_a.is_none() || event_b.is_none() {
+                return std::cmp::Ordering::Equal;
+            }
+
+            let event_a = event_a.unwrap();
+            let event_b = event_b.unwrap();
+
+            let cmp = match self.sort_column {
+                SortColumn::Id => event_a.id.as_u64().cmp(&event_b.id.as_u64()),
+                SortColumn::Time => event_a.timestamp.cmp(&event_b.timestamp),
+                SortColumn::Source => {
+                    let src_a = event_a.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
+                    let src_b = event_b.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
+                    src_a.cmp(src_b)
+                }
+                SortColumn::Dest => {
+                    let dst_a = event_a.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
+                    let dst_b = event_b.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
+                    dst_a.cmp(dst_b)
+                }
+                SortColumn::Protocol => event_a.transport.cmp(&event_b.transport),
+                SortColumn::Dir => event_a.direction.cmp(&event_b.direction),
+            };
+
+            if self.sort_reversed {
+                cmp.reverse()
+            } else {
+                cmp
+            }
+        });
+
+        indices
     }
 }
 
@@ -80,6 +148,14 @@ impl PaneComponent for EventListPane {
                 Action::SelectEvent(self.selected)
             }
             KeyCode::Enter => Action::SelectEvent(self.selected),
+            KeyCode::Char('s') => {
+                self.sort_column = self.sort_column.next();
+                Action::None
+            }
+            KeyCode::Char('S') => {
+                self.sort_reversed = !self.sort_reversed;
+                Action::None
+            }
             _ => Action::None,
         }
     }
@@ -103,11 +179,12 @@ impl PaneComponent for EventListPane {
         }
 
         // Header row
-        let header = format_header(inner.width);
+        let header = format_header(inner.width, self.sort_column, self.sort_reversed);
         buf.set_line(inner.x, inner.y, &header, inner.width);
 
         let vis_height = inner.height.saturating_sub(1) as usize;
-        let total = state.filtered_indices.len();
+        let sorted = self.sorted_indices(state);
+        let total = sorted.len();
 
         // Clone to allow scrolling adjustment
         let scroll_offset = {
@@ -125,7 +202,7 @@ impl PaneComponent for EventListPane {
             if idx >= total {
                 break;
             }
-            let event_idx = state.filtered_indices[idx];
+            let event_idx = sorted[idx];
             if let Some(event) = state.store.get(event_idx) {
                 let y = inner.y + 1 + i as u16;
                 let is_selected = idx == self.selected;
@@ -205,18 +282,56 @@ impl PaneComponent for EventListPane {
     }
 }
 
-fn format_header(width: u16) -> Line<'static> {
+fn format_header(width: u16, sort_column: SortColumn, reversed: bool) -> Line<'static> {
     let style = Theme::header();
     let w = width as usize;
     let summary_w = w.saturating_sub(6 + 1 + 13 + 1 + 18 + 1 + 18 + 1 + 10 + 1 + 3 + 1);
 
+    let sort_indicator = if reversed { "↓" } else { "↑" };
+
+    let id_text = if sort_column == SortColumn::Id {
+        format!("{:>4}{} ", "#", sort_indicator)
+    } else {
+        format!("{:>5} ", "#")
+    };
+
+    let time_text = if sort_column == SortColumn::Time {
+        format!("Time{:<9}", sort_indicator)
+    } else {
+        format!("{:<13}", "Time")
+    };
+
+    let src_text = if sort_column == SortColumn::Source {
+        format!("Source{:<12} ", sort_indicator)
+    } else {
+        format!("{:<18} ", "Source")
+    };
+
+    let dst_text = if sort_column == SortColumn::Dest {
+        format!("Destination{:<7} ", sort_indicator)
+    } else {
+        format!("{:<18} ", "Destination")
+    };
+
+    let proto_text = if sort_column == SortColumn::Protocol {
+        format!("Protocol{:<2} ", sort_indicator)
+    } else {
+        format!("{:<10} ", "Protocol")
+    };
+
+    let dir_text = if sort_column == SortColumn::Dir {
+        format!("Dir{} ", sort_indicator)
+    } else {
+        format!("{:<3} ", "Dir")
+    };
+
     Line::from(vec![
-        Span::styled(format!("{:>5} ", "#"), style),
-        Span::styled(format!("{:<13}", "Time"), style),
-        Span::styled(format!("{:<18} ", "Source"), style),
-        Span::styled(format!("{:<18} ", "Destination"), style),
-        Span::styled(format!("{:<10} ", "Protocol"), style),
-        Span::styled(format!("{:<3} ", "Dir"), style),
+        Span::styled(id_text, style),
+        Span::styled(time_text, style),
+        Span::styled(src_text, style),
+        Span::styled(dst_text, style),
+        Span::styled(proto_text, style),
+        Span::styled(dir_text, style),
         Span::styled(
             format!("{:<width$}", "Summary", width = summary_w),
             style.add_modifier(Modifier::BOLD),
@@ -231,5 +346,468 @@ fn truncate_str(s: &str, max: usize) -> String {
         format!("{}...", &s[..max - 3])
     } else {
         s[..max].to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event_store::EventStore;
+    use bytes::Bytes;
+    use prb_core::{
+        DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+    };
+    use std::collections::BTreeMap;
+
+    fn make_event(
+        id: u64,
+        ts_ns: u64,
+        transport: TransportKind,
+        direction: Direction,
+        src: &str,
+        dst: &str,
+    ) -> DebugEvent {
+        DebugEvent {
+            id: EventId::from_raw(id),
+            timestamp: Timestamp::from_nanos(ts_ns),
+            source: EventSource {
+                adapter: "test".into(),
+                origin: "test".into(),
+                network: Some(NetworkAddr {
+                    src: src.to_string(),
+                    dst: dst.to_string(),
+                }),
+            },
+            transport,
+            direction,
+            payload: Payload::Raw {
+                raw: Bytes::new(),
+            },
+            metadata: BTreeMap::new(),
+            correlation_keys: vec![],
+            sequence: None,
+            warnings: vec![],
+        }
+    }
+
+    fn make_app_state(events: Vec<DebugEvent>) -> AppState {
+        let store = EventStore::new(events);
+        let filtered_indices = store.all_indices();
+        AppState {
+            filtered_indices,
+            selected_event: if store.is_empty() { None } else { Some(0) },
+            filter: None,
+            filter_text: String::new(),
+            store,
+        }
+    }
+
+    #[test]
+    fn test_virtual_scroll_windowing() {
+        let events: Vec<_> = (0..100)
+            .map(|i| {
+                make_event(
+                    i,
+                    1000 * i,
+                    TransportKind::Grpc,
+                    Direction::Inbound,
+                    "10.0.0.1:8080",
+                    "10.0.0.2:9090",
+                )
+            })
+            .collect();
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+
+        // Initially at top
+        assert_eq!(pane.scroll_offset, 0);
+        assert_eq!(pane.selected, 0);
+
+        // Move to middle
+        pane.selected = 50;
+        pane.ensure_visible(30); // 30 area height -> 27 visible lines (30-3)
+        assert!(pane.scroll_offset <= 50);
+        assert!(pane.scroll_offset + 27 > 50);
+
+        // Move to bottom
+        pane.selected = 99;
+        pane.ensure_visible(30);
+        // scroll_offset = 99 - (27 - 1) = 99 - 26 = 73
+        assert_eq!(pane.scroll_offset, 73);
+    }
+
+    #[test]
+    fn test_sort_by_time() {
+        let events = vec![
+            make_event(
+                2,
+                3000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                2000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+        pane.sort_column = SortColumn::Time;
+        pane.sort_reversed = false;
+
+        let sorted = pane.sorted_indices(&state);
+        assert_eq!(sorted.len(), 3);
+
+        // Should be sorted by timestamp: 1000, 2000, 3000
+        assert_eq!(state.store.get(sorted[0]).unwrap().timestamp.as_nanos(), 1000);
+        assert_eq!(state.store.get(sorted[1]).unwrap().timestamp.as_nanos(), 2000);
+        assert_eq!(state.store.get(sorted[2]).unwrap().timestamp.as_nanos(), 3000);
+    }
+
+    #[test]
+    fn test_sort_reversed() {
+        let events = vec![
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+        pane.sort_column = SortColumn::Time;
+        pane.sort_reversed = true;
+
+        let sorted = pane.sorted_indices(&state);
+
+        // Should be sorted by timestamp descending: 3000, 2000, 1000
+        assert_eq!(state.store.get(sorted[0]).unwrap().timestamp.as_nanos(), 3000);
+        assert_eq!(state.store.get(sorted[1]).unwrap().timestamp.as_nanos(), 2000);
+        assert_eq!(state.store.get(sorted[2]).unwrap().timestamp.as_nanos(), 1000);
+    }
+
+    #[test]
+    fn test_sort_by_protocol() {
+        let events = vec![
+            make_event(
+                1,
+                1000,
+                TransportKind::Zmq,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::DdsRtps,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+        pane.sort_column = SortColumn::Protocol;
+        pane.sort_reversed = false;
+
+        let sorted = pane.sorted_indices(&state);
+
+        // Transport enum order: Grpc < Zmq < DdsRtps (declaration order in enum)
+        assert_eq!(state.store.get(sorted[0]).unwrap().transport, TransportKind::Grpc);
+        assert_eq!(state.store.get(sorted[1]).unwrap().transport, TransportKind::Zmq);
+        assert_eq!(state.store.get(sorted[2]).unwrap().transport, TransportKind::DdsRtps);
+    }
+
+    #[test]
+    fn test_sort_by_source() {
+        let events = vec![
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "192.168.1.3:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "192.168.1.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "192.168.1.2:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+        pane.sort_column = SortColumn::Source;
+        pane.sort_reversed = false;
+
+        let sorted = pane.sorted_indices(&state);
+
+        // Should be sorted lexicographically
+        let src0 = state.store.get(sorted[0]).unwrap().source.network.as_ref().unwrap().src.as_str();
+        let src1 = state.store.get(sorted[1]).unwrap().source.network.as_ref().unwrap().src.as_str();
+        let src2 = state.store.get(sorted[2]).unwrap().source.network.as_ref().unwrap().src.as_str();
+
+        assert_eq!(src0, "192.168.1.1:8080");
+        assert_eq!(src1, "192.168.1.2:8080");
+        assert_eq!(src2, "192.168.1.3:8080");
+    }
+
+    #[test]
+    fn test_sort_by_direction() {
+        let events = vec![
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Outbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::Grpc,
+                Direction::Outbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+        pane.sort_column = SortColumn::Dir;
+        pane.sort_reversed = false;
+
+        let sorted = pane.sorted_indices(&state);
+
+        // Inbound should come first
+        assert_eq!(state.store.get(sorted[0]).unwrap().direction, Direction::Inbound);
+        assert_eq!(state.store.get(sorted[1]).unwrap().direction, Direction::Outbound);
+        assert_eq!(state.store.get(sorted[2]).unwrap().direction, Direction::Outbound);
+    }
+
+    #[test]
+    fn test_sort_cycle() {
+        let pane = EventListPane::new();
+        assert_eq!(pane.sort_column, SortColumn::Time);
+
+        // Simulate 's' key press through cycle
+        let mut col = pane.sort_column;
+        col = col.next();
+        assert_eq!(col, SortColumn::Source);
+
+        col = col.next();
+        assert_eq!(col, SortColumn::Dest);
+
+        col = col.next();
+        assert_eq!(col, SortColumn::Protocol);
+
+        col = col.next();
+        assert_eq!(col, SortColumn::Dir);
+
+        col = col.next();
+        assert_eq!(col, SortColumn::Id);
+
+        col = col.next();
+        assert_eq!(col, SortColumn::Time);
+    }
+
+    #[test]
+    fn test_navigation_keys() {
+        let events: Vec<_> = (0..10)
+            .map(|i| {
+                make_event(
+                    i,
+                    1000 * i,
+                    TransportKind::Grpc,
+                    Direction::Inbound,
+                    "10.0.0.1:8080",
+                    "10.0.0.2:9090",
+                )
+            })
+            .collect();
+
+        let _state = make_app_state(events.clone());
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+
+        // Test 'j' (down)
+        let key = KeyEvent::new(KeyCode::Char('j'), crossterm::event::KeyModifiers::NONE);
+        pane.handle_key(key, &state);
+        assert_eq!(pane.selected, 1);
+
+        // Test 'k' (up)
+        let key = KeyEvent::new(KeyCode::Char('k'), crossterm::event::KeyModifiers::NONE);
+        pane.handle_key(key, &state);
+        assert_eq!(pane.selected, 0);
+
+        // Test 'G' (end)
+        let key = KeyEvent::new(KeyCode::Char('G'), crossterm::event::KeyModifiers::NONE);
+        pane.handle_key(key, &state);
+        assert_eq!(pane.selected, 9);
+
+        // Test 'g' (home)
+        let key = KeyEvent::new(KeyCode::Char('g'), crossterm::event::KeyModifiers::NONE);
+        pane.handle_key(key, &state);
+        assert_eq!(pane.selected, 0);
+    }
+
+    #[test]
+    fn test_filter_application() {
+        use prb_query::Filter;
+
+        let events = vec![
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Zmq,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::Grpc,
+                Direction::Outbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+        ];
+
+        let store = EventStore::new(events);
+        let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
+        let filtered_indices = store.filter_indices(&filter);
+
+        let state = AppState {
+            filtered_indices,
+            selected_event: Some(0),
+            filter: Some(filter),
+            filter_text: r#"transport == "gRPC""#.to_string(),
+            store,
+        };
+
+        let pane = EventListPane::new();
+        let sorted = pane.sorted_indices(&state);
+
+        // Should only have 2 gRPC events
+        assert_eq!(sorted.len(), 2);
+        assert_eq!(state.store.get(sorted[0]).unwrap().transport, TransportKind::Grpc);
+        assert_eq!(state.store.get(sorted[1]).unwrap().transport, TransportKind::Grpc);
+    }
+
+    #[test]
+    fn test_large_dataset_performance() {
+        // Create 1000+ events for performance test
+        let events: Vec<_> = (0..1500)
+            .map(|i| {
+                make_event(
+                    i,
+                    1000 * i,
+                    if i % 3 == 0 {
+                        TransportKind::Grpc
+                    } else if i % 3 == 1 {
+                        TransportKind::Zmq
+                    } else {
+                        TransportKind::DdsRtps
+                    },
+                    if i % 2 == 0 {
+                        Direction::Inbound
+                    } else {
+                        Direction::Outbound
+                    },
+                    &format!("192.168.1.{}:8080", i % 256),
+                    &format!("10.0.0.{}:9090", i % 256),
+                )
+            })
+            .collect();
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+
+        // Test sorting doesn't panic and completes
+        pane.sort_column = SortColumn::Protocol;
+        let sorted = pane.sorted_indices(&state);
+        assert_eq!(sorted.len(), 1500);
+
+        // Test virtual scrolling with large dataset
+        pane.selected = 750;
+        pane.ensure_visible(50);
+        assert!(pane.scroll_offset <= 750);
+        assert!(pane.scroll_offset + 50 > 750);
     }
 }
