@@ -73,40 +73,41 @@
       "completed": "2026-03-10T18:55:37Z"
     },
     "S11": {
-      "status": "running",
+      "status": "pass",
       "track": "Integration",
       "title": "Cross-Crate Integration Tests",
-      "attempts": 2
+      "attempts": 2,
+      "completed": "2026-03-10T21:08:20Z"
     },
     "S12": {
-      "status": "pending",
+      "status": "running",
       "track": "CLI",
       "title": "CLI End-to-End Tests",
-      "attempts": 0
+      "attempts": 1
     },
     "S13": {
-      "status": "pending",
+      "status": "running",
       "track": "RealData",
       "title": "Real-Data: gRPC/HTTP2",
-      "attempts": 0
+      "attempts": 1
     },
     "S14": {
-      "status": "pending",
+      "status": "running",
       "track": "RealData",
       "title": "Real-Data: TLS",
-      "attempts": 0
+      "attempts": 1
     },
     "S15": {
-      "status": "pending",
+      "status": "running",
       "track": "RealData",
       "title": "Real-Data: TCP/IP",
-      "attempts": 0
+      "attempts": 1
     },
     "S16": {
       "status": "pending",
       "track": "RealData",
       "title": "Real-Data: DNS/DHCP",
-      "attempts": 0
+      "attempts": 1
     },
     "S17": {
       "status": "pending",
