@@ -510,8 +510,14 @@ pub enum NormalizeResult {
     Packet(OwnedNormalizedPacket),
     /// IP fragment detected; requires stateful defrag pool.
     Fragment {
+        /// Timestamp in microseconds
+        #[allow(dead_code)]
         timestamp_us: u64,
+        /// PCAP linktype
+        #[allow(dead_code)]
         linktype: u32,
+        /// Original packet data length
+        #[allow(dead_code)]
         data_len: usize,
     },
 }
@@ -656,7 +662,7 @@ fn extract_transport<'a>(sliced: &'a SlicedPacket<'a>) -> Result<(TransportInfo,
 }
 
 /// Parses Loopback/Null packets (linktype 0) - static version for parallel processing.
-fn parse_loopback_static(data: &[u8]) -> Result<SlicedPacket, PcapError> {
+fn parse_loopback_static(data: &[u8]) -> Result<SlicedPacket<'_>, PcapError> {
     if data.len() < 4 {
         return Err(PcapError::Parse(
             "loopback packet too short (need 4-byte header)".to_string(),
@@ -680,7 +686,7 @@ fn parse_loopback_static(data: &[u8]) -> Result<SlicedPacket, PcapError> {
 }
 
 /// Parses SLL2 packets (linktype 276) - static version for parallel processing.
-fn parse_sll2_static(data: &[u8]) -> Result<SlicedPacket, PcapError> {
+fn parse_sll2_static(data: &[u8]) -> Result<SlicedPacket<'_>, PcapError> {
     if data.len() < 20 {
         return Err(PcapError::Parse(
             "SLL2 packet too short (need 20-byte header)".to_string(),

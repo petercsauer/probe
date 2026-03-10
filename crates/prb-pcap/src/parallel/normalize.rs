@@ -33,7 +33,7 @@ impl NormalizeBatch {
             .map(|(idx, pkt)| {
                 (
                     idx,
-                    normalize_stateless(pkt.linktype as u32, pkt.timestamp_us, &pkt.data),
+                    normalize_stateless(pkt.linktype, pkt.timestamp_us, &pkt.data),
                 )
             })
             .collect();
@@ -92,7 +92,7 @@ pub fn process_fragments(
 
     for &idx in fragment_indices {
         let pkt = &packets[idx];
-        match normalizer.normalize(pkt.linktype as u32, pkt.timestamp_us, &pkt.data) {
+        match normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
             Ok(Some(normalized)) => {
                 result.push(OwnedNormalizedPacket::from_borrowed(&normalized));
             }

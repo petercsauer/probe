@@ -4,7 +4,9 @@
 //! for gRPC, ZMTP, and DDS/RTPS protocols. Factories are registered with the
 //! DecoderRegistry to enable protocol detection and decoding.
 
+#[cfg(feature = "builtin-decoders")]
 use prb_core::ProtocolDecoder;
+#[cfg(feature = "builtin-decoders")]
 use prb_detect::{DecoderFactory, ProtocolId};
 
 /// Factory for creating gRPC decoder instances.

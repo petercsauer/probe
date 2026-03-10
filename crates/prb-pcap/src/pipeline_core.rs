@@ -185,8 +185,8 @@ impl PipelineCore {
 
         // Build decode context
         let ctx = DecodeContext::new()
-            .with_src_addr(&format!("{}:{}", normalized.src_ip, src_port))
-            .with_dst_addr(&format!("{}:{}", normalized.dst_ip, dst_port))
+            .with_src_addr(format!("{}:{}", normalized.src_ip, src_port))
+            .with_dst_addr(format!("{}:{}", normalized.dst_ip, dst_port))
             .with_timestamp(Timestamp::from_nanos(normalized.timestamp_us * 1000))
             .with_metadata("pcap.origin", origin.to_string());
 
@@ -234,8 +234,8 @@ impl PipelineCore {
 
         // Build decode context
         let ctx = DecodeContext::new()
-            .with_src_addr(&format!("{}:{}", decrypted.src_ip, decrypted.src_port))
-            .with_dst_addr(&format!("{}:{}", decrypted.dst_ip, decrypted.dst_port))
+            .with_src_addr(format!("{}:{}", decrypted.src_ip, decrypted.src_port))
+            .with_dst_addr(format!("{}:{}", decrypted.dst_ip, decrypted.dst_port))
             .with_timestamp(Timestamp::from_nanos(decrypted.timestamp_us * 1000))
             .with_metadata("pcap.tls_decrypted", (!decrypted.encrypted).to_string())
             .with_metadata("pcap.origin", origin.to_string());
