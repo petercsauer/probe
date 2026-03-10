@@ -254,3 +254,242 @@ fn convert_dto_to_event(
 
     Ok(builder.build())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prb_core::{DecodeContext, Timestamp};
+    use prb_plugin_api::DebugEventDto;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_convert_decode_context_full() {
+        let mut metadata = HashMap::new();
+        metadata.insert("key1".to_string(), "value1".to_string());
+        metadata.insert("key2".to_string(), "value2".to_string());
+
+        let ctx = DecodeContext {
+            src_addr: Some("192.168.1.1:8080".to_string()),
+            dst_addr: Some("192.168.1.2:9090".to_string()),
+            timestamp: Some(Timestamp::from_nanos(1234567890)),
+            metadata,
+        };
+
+        let dto = convert_decode_context(&ctx);
+
+        assert_eq!(dto.src_addr, Some("192.168.1.1:8080".to_string()));
+        assert_eq!(dto.dst_addr, Some("192.168.1.2:9090".to_string()));
+        assert_eq!(dto.timestamp_nanos, Some(1234567890));
+        assert_eq!(dto.metadata.len(), 2);
+        assert_eq!(dto.metadata.get("key1").unwrap(), "value1");
+        assert_eq!(dto.metadata.get("key2").unwrap(), "value2");
+    }
+
+    #[test]
+    fn test_convert_decode_context_minimal() {
+        let ctx = DecodeContext {
+            src_addr: None,
+            dst_addr: None,
+            timestamp: None,
+            metadata: HashMap::new(),
+        };
+
+        let dto = convert_decode_context(&ctx);
+
+        assert!(dto.src_addr.is_none());
+        assert!(dto.dst_addr.is_none());
+        assert!(dto.timestamp_nanos.is_none());
+        assert!(dto.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_convert_decode_context_partial_addresses() {
+        let ctx = DecodeContext {
+            src_addr: Some("127.0.0.1:8080".to_string()),
+            dst_addr: None,
+            timestamp: None,
+            metadata: HashMap::new(),
+        };
+
+        let dto = convert_decode_context(&ctx);
+
+        assert_eq!(dto.src_addr, Some("127.0.0.1:8080".to_string()));
+        assert!(dto.dst_addr.is_none());
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_minimal() {
+        let dto = DebugEventDto::minimal("grpc", "request");
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.transport, TransportKind::Grpc);
+        assert_eq!(event.direction, prb_core::Direction::Inbound);
+        assert_eq!(event.source.adapter, "wasm-plugin");
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_all_transports() {
+        let transports = vec![
+            ("grpc", TransportKind::Grpc),
+            ("http2", TransportKind::Grpc),
+            ("zmtp", TransportKind::Zmq),
+            ("zmq", TransportKind::Zmq),
+            ("rtps", TransportKind::DdsRtps),
+            ("dds-rtps", TransportKind::DdsRtps),
+            ("ddsrtps", TransportKind::DdsRtps),
+            ("tcp", TransportKind::RawTcp),
+            ("raw-tcp", TransportKind::RawTcp),
+            ("udp", TransportKind::RawUdp),
+            ("raw-udp", TransportKind::RawUdp),
+            ("unknown", TransportKind::RawTcp), // Default fallback
+        ];
+
+        for (transport_str, expected_kind) in transports {
+            let dto = DebugEventDto::minimal(transport_str, "request");
+            let event = convert_dto_to_event(dto).expect("conversion should succeed");
+            assert_eq!(event.transport, expected_kind, "failed for transport: {}", transport_str);
+        }
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_all_directions() {
+        let directions = vec![
+            ("inbound", prb_core::Direction::Inbound),
+            ("request", prb_core::Direction::Inbound),
+            ("subscribe", prb_core::Direction::Inbound),
+            ("outbound", prb_core::Direction::Outbound),
+            ("response", prb_core::Direction::Outbound),
+            ("publish", prb_core::Direction::Outbound),
+            ("unknown", prb_core::Direction::Unknown),
+            ("invalid", prb_core::Direction::Unknown),
+        ];
+
+        for (direction_str, expected_dir) in directions {
+            let dto = DebugEventDto::minimal("tcp", direction_str);
+            let event = convert_dto_to_event(dto).expect("conversion should succeed");
+            assert_eq!(event.direction, expected_dir, "failed for direction: {}", direction_str);
+        }
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_raw_payload() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.payload_raw = Some(vec![1, 2, 3, 4, 5]);
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        match event.payload {
+            prb_core::Payload::Raw { raw } => {
+                assert_eq!(raw.as_ref(), &[1, 2, 3, 4, 5]);
+            }
+            _ => panic!("expected raw payload"),
+        }
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_decoded_payload() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.payload_decoded = Some(serde_json::json!({
+            "message": "test",
+            "count": 42
+        }));
+        dto.schema_name = Some("TestMessage".to_string());
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        match event.payload {
+            prb_core::Payload::Decoded { raw, fields, schema_name } => {
+                assert!(raw.is_empty());
+                assert_eq!(fields["message"], "test");
+                assert_eq!(fields["count"], 42);
+                assert_eq!(schema_name, Some("TestMessage".to_string()));
+            }
+            _ => panic!("expected decoded payload"),
+        }
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_metadata() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        let mut metadata = HashMap::new();
+        metadata.insert("key1".to_string(), "value1".to_string());
+        metadata.insert("key2".to_string(), "value2".to_string());
+        dto.metadata = metadata;
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.metadata.len(), 2);
+        assert_eq!(event.metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(event.metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_warnings() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.warnings = vec![
+            "warning 1".to_string(),
+            "warning 2".to_string(),
+            "warning 3".to_string(),
+        ];
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.warnings.len(), 3);
+        assert!(event.warnings.contains(&"warning 1".to_string()));
+        assert!(event.warnings.contains(&"warning 3".to_string()));
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_full_addresses() {
+        let mut dto = DebugEventDto::minimal("tcp", "request");
+        dto.src_addr = Some("192.168.1.1:8080".to_string());
+        dto.dst_addr = Some("192.168.1.2:9090".to_string());
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "192.168.1.1:8080");
+        assert!(event.source.network.is_some());
+
+        let network = event.source.network.unwrap();
+        assert_eq!(network.src, "192.168.1.1:8080");
+        assert_eq!(network.dst, "192.168.1.2:9090");
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_partial_addresses() {
+        let mut dto = DebugEventDto::minimal("tcp", "request");
+        dto.src_addr = Some("192.168.1.1:8080".to_string());
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "192.168.1.1:8080");
+        assert!(event.source.network.is_none());
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_no_addresses() {
+        let dto = DebugEventDto::minimal("tcp", "request");
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "unknown");
+        assert!(event.source.network.is_none());
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_with_timestamp() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.timestamp_nanos = 9876543210;
+
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.timestamp.as_nanos(), 9876543210);
+    }
+
+    #[test]
+    fn test_convert_dto_to_event_source_adapter_name() {
+        let dto = DebugEventDto::minimal("grpc", "request");
+        let event = convert_dto_to_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.adapter, "wasm-plugin");
+    }
+}

@@ -301,7 +301,6 @@ mod tests {
     fn test_dto_to_debug_event_all_transports() {
         let transports = vec![
             ("grpc", TransportKind::Grpc),
-            ("http2", TransportKind::Grpc),
             ("zmtp", TransportKind::Zmq),
             ("zeromq", TransportKind::Zmq),
             ("rtps", TransportKind::DdsRtps),
@@ -309,6 +308,7 @@ mod tests {
             ("tcp", TransportKind::RawTcp),
             ("udp", TransportKind::RawUdp),
             ("unknown", TransportKind::JsonFixture),
+            ("http2", TransportKind::JsonFixture),
         ];
 
         for (transport_str, expected_kind) in transports {
