@@ -54,7 +54,7 @@ impl PaneId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InputMode {
+pub enum InputMode {
     Normal,
     Filter,
     Help,
@@ -496,5 +496,42 @@ impl App {
             };
             buf.set_line(inner.x, inner.y + i as u16, &line, inner.width);
         }
+    }
+
+    // Test helpers - expose private methods for testing
+    // These are public to support integration tests in tests/
+    #[doc(hidden)]
+    pub fn test_handle_key(&mut self, key: KeyEvent) -> bool {
+        self.handle_key(key)
+    }
+
+    #[doc(hidden)]
+    pub fn test_render_to_buffer(&mut self, area: Rect, buf: &mut Buffer) {
+        self.render_all(area, buf);
+    }
+
+    #[doc(hidden)]
+    pub fn test_process_action(&mut self, action: Action) {
+        self.process_action(action);
+    }
+
+    #[doc(hidden)]
+    pub fn get_focus(&self) -> PaneId {
+        self.focus
+    }
+
+    #[doc(hidden)]
+    pub fn get_input_mode(&self) -> InputMode {
+        self.input_mode
+    }
+
+    #[doc(hidden)]
+    pub fn get_state(&self) -> &AppState {
+        &self.state
+    }
+
+    #[doc(hidden)]
+    pub fn get_filter_error(&self) -> &Option<String> {
+        &self.filter_error
     }
 }

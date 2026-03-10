@@ -1,0 +1,44 @@
+I'll start by reading the iterative-builder protocol and then the segment brief.
+--- tool: ToolSearch ---
+--- tool: Read ---
+--- tool: Read ---
+Now I understand the protocol and segment brief. Let me examine the prb-core crate structure and existing tests.
+--- tool: ToolSearch ---
+--- tool: Glob ---
+--- tool: Glob ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+Now let me check the current status of these tests:
+--- tool: Bash ---
+All 88 tests are passing! Now let me verify the coverage to ensure we're meeting the ≥90% target for the three files:
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+Perfect! I can see the coverage summary:
+
+- **conversation.rs**: 100.00% ✓ (target: ≥90%)
+- **metrics.rs**: 98.77% ✓ (target: ≥90%)
+- **engine.rs**: 86.27% ✗ (target: ≥90%, missing 32 lines)
+
+Engine.rs needs more coverage. Let me check what's not covered:
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+Let me generate a detailed coverage report to see exactly which lines are not covered:
+--- tool: Bash ---
+Based on the code analysis, I need to add tests to cover:
+1. ZMQ socket type classification
+2. DDS and ZMQ summary generation
+3. More gRPC status codes
+4. Fallback grouping without network info
+5. ConversationStats by_state and by_kind
+
+Let me add these tests:
+--- tool: ToolSearch ---

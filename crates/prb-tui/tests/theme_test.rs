@@ -2,7 +2,7 @@
 
 use prb_core::{Direction, TransportKind};
 use prb_tui::theme::Theme;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier};
 
 #[test]
 fn test_selected_row_style() {

@@ -143,3 +143,19 @@ fn format_timestamp_short(ns: u64) -> String {
     let s = secs % 60;
     format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis)
 }
+
+// Test helpers
+#[doc(hidden)]
+pub fn test_calculate_selected_bucket(state: &AppState, selected_idx: usize, bucket_count: usize) -> Option<usize> {
+    calculate_selected_bucket(state, selected_idx, bucket_count)
+}
+
+#[doc(hidden)]
+pub fn test_format_time_legend(state: &AppState, width: u16) -> Line<'static> {
+    format_time_legend(state, width)
+}
+
+#[doc(hidden)]
+pub fn test_format_timestamp_short(ns: u64) -> String {
+    format_timestamp_short(ns)
+}

@@ -1,12 +1,13 @@
 {
   "plan": ".claude/plans/phase2-coverage-hardening/manifest.md",
-  "started": "2026-03-10T17:07:42Z",
+  "started": "2026-03-10T17:49:28Z",
   "segments": {
     "S01": {
-      "status": "running",
+      "status": "pass",
       "track": "Core",
       "title": "prb-core Unit Tests",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T17:49:35Z"
     },
     "S02": {
       "status": "running",
@@ -27,22 +28,25 @@
       "attempts": 1
     },
     "S05": {
-      "status": "pending",
+      "status": "pass",
       "track": "gRPC",
       "title": "prb-grpc H2 Parser Tests",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T17:49:35Z"
     },
     "S06": {
-      "status": "pending",
+      "status": "pass",
       "track": "Capture",
       "title": "prb-capture Mock Tests",
-      "attempts": 0
+      "attempts": 0,
+      "completed": "2026-03-10T17:49:35Z"
     },
     "S07": {
-      "status": "pending",
+      "status": "pass",
       "track": "AI",
       "title": "prb-ai Explain Tests",
-      "attempts": 0
+      "attempts": 0,
+      "completed": "2026-03-10T17:49:35Z"
     },
     "S08": {
       "status": "pending",

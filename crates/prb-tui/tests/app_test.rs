@@ -1,11 +1,8 @@
 //! Unit and integration tests for app.rs
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use prb_tui::event_store::EventStore;
 use prb_tui::App;
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use std::collections::BTreeMap;
 
 fn make_test_event(id: u64, timestamp_nanos: u64, transport: TransportKind) -> DebugEvent {

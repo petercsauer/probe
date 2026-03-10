@@ -175,7 +175,7 @@ fn test_event_list_handle_key_home_end() {
 }
 
 #[test]
-fn test_event_list_handle_key_vim_g_G() {
+fn test_event_list_handle_key_vim_g_g() {
     let events = vec![
         make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
         make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
@@ -199,8 +199,8 @@ fn test_event_list_handle_key_vim_g_G() {
     assert_eq!(pane.selected, 0);
 
     // Test 'G' (uppercase) for end
-    let key_G = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE);
-    pane.handle_key(key_G, &state);
+    let key_g_upper = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE);
+    pane.handle_key(key_g_upper, &state);
     assert_eq!(pane.selected, 2);
 }
 
@@ -262,12 +262,12 @@ fn test_event_list_handle_key_sort_toggle() {
     assert_eq!(pane.sort_column, SortColumn::Source);
 
     // Test 'S' to toggle sort direction
-    let key_S = KeyEvent::new(KeyCode::Char('S'), KeyModifiers::NONE);
-    pane.handle_key(key_S, &state);
+    let key_s_upper = KeyEvent::new(KeyCode::Char('S'), KeyModifiers::NONE);
+    pane.handle_key(key_s_upper, &state);
     assert!(pane.sort_reversed);
 
     // Toggle again
-    pane.handle_key(key_S, &state);
+    pane.handle_key(key_s_upper, &state);
     assert!(!pane.sort_reversed);
 }
 

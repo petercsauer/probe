@@ -11,7 +11,6 @@ use prb_cli::commands::{
     run_capture, run_export, run_ingest, run_inspect, run_merge, run_plugins, run_schemas,
 };
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -24,8 +23,29 @@ fn create_temp_dir() -> TempDir {
 }
 
 fn create_sample_ndjson_file(dir: &TempDir) -> Utf8PathBuf {
+    let path = dir.path().join("events.json");
+    // Create a proper FixtureFile format for JsonFixtureAdapter (used by ingest command)
+    let fixture = r#"{
+  "version": 1,
+  "description": "Test fixture",
+  "events": [
+    {
+      "timestamp_ns": 1710000000000000000,
+      "transport": "grpc",
+      "direction": "outbound",
+      "payload_base64": "dGVzdA==",
+      "metadata": {}
+    }
+  ]
+}"#;
+    fs::write(&path, fixture).unwrap();
+    Utf8PathBuf::from_path_buf(path).unwrap()
+}
+
+fn create_debug_events_ndjson(dir: &TempDir) -> Utf8PathBuf {
     let path = dir.path().join("events.ndjson");
-    let event = r#"{"id":1,"timestamp_ns":1710000000000000000,"source":{"adapter":"test","origin":"test"},"transport":"grpc","direction":"outbound","payload":{"type":"raw","raw":"dGVzdA=="},"metadata":{}}"#;
+    // Create actual NDJSON (DebugEvent per line) for inspect/export/merge commands
+    let event = r#"{"id":1,"timestamp":1710000000000000000,"source":{"adapter":"test","origin":"test"},"transport":"grpc","direction":"outbound","payload":{"type":"raw","raw":"dGVzdA=="},"metadata":{}}"#;
     fs::write(&path, event).unwrap();
     Utf8PathBuf::from_path_buf(path).unwrap()
 }
@@ -354,7 +374,7 @@ fn test_capture_args_validation() {
 #[test]
 fn test_inspect_from_file() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -378,7 +398,7 @@ fn test_inspect_from_file() {
 #[test]
 fn test_inspect_with_transport_filter() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -398,7 +418,7 @@ fn test_inspect_with_transport_filter() {
 #[test]
 fn test_inspect_with_invalid_filter() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -418,7 +438,7 @@ fn test_inspect_with_invalid_filter() {
 #[test]
 fn test_inspect_with_where_clause() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -438,7 +458,7 @@ fn test_inspect_with_where_clause() {
 #[test]
 fn test_inspect_with_trace_id_filter() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -458,7 +478,7 @@ fn test_inspect_with_trace_id_filter() {
 #[test]
 fn test_inspect_with_span_id_filter() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -478,7 +498,7 @@ fn test_inspect_with_span_id_filter() {
 #[test]
 fn test_inspect_group_by_trace() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -498,7 +518,7 @@ fn test_inspect_group_by_trace() {
 #[test]
 fn test_inspect_wire_format() {
     let temp_dir = create_temp_dir();
-    let ndjson_path = create_sample_ndjson_file(&temp_dir);
+    let ndjson_path = create_debug_events_ndjson(&temp_dir);
 
     let args = InspectArgs {
         input: Some(ndjson_path),
@@ -592,7 +612,7 @@ fn test_schemas_load_unsupported_extension() {
 #[test]
 fn test_merge_ndjson_and_otlp() {
     let temp_dir = create_temp_dir();
-    let packets_path = create_sample_ndjson_file(&temp_dir);
+    let packets_path = create_debug_events_ndjson(&temp_dir);
     let traces_path = create_sample_otlp_json(&temp_dir);
     let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("merged.ndjson")).unwrap();
 
@@ -612,7 +632,7 @@ fn test_merge_ndjson_and_otlp() {
 #[test]
 fn test_merge_to_stdout() {
     let temp_dir = create_temp_dir();
-    let packets_path = create_sample_ndjson_file(&temp_dir);
+    let packets_path = create_debug_events_ndjson(&temp_dir);
     let traces_path = create_sample_otlp_json(&temp_dir);
 
     let args = MergeArgs {
@@ -643,7 +663,7 @@ fn test_merge_missing_packets_file() {
 #[test]
 fn test_merge_missing_traces_file() {
     let temp_dir = create_temp_dir();
-    let packets_path = create_sample_ndjson_file(&temp_dir);
+    let packets_path = create_debug_events_ndjson(&temp_dir);
 
     let args = MergeArgs {
         packets: packets_path,
@@ -752,4 +772,229 @@ fn test_export_to_stdout() {
     };
 
     assert!(args.output.is_none());
+}
+
+#[test]
+fn test_export_csv_from_ndjson() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.csv")).unwrap();
+
+    let args = ExportArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        format: ExportFormat::Csv,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "CSV export should succeed");
+    assert!(output_path.as_std_path().exists(), "CSV output file should exist");
+}
+
+#[test]
+fn test_export_har_from_ndjson() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.har")).unwrap();
+
+    let args = ExportArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        format: ExportFormat::Har,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "HAR export should succeed");
+    assert!(output_path.as_std_path().exists(), "HAR output file should exist");
+}
+
+#[test]
+fn test_export_otlp_from_ndjson() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.json")).unwrap();
+
+    let args = ExportArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        format: ExportFormat::Otlp,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "OTLP export should succeed");
+    assert!(output_path.as_std_path().exists(), "OTLP output file should exist");
+}
+
+#[test]
+fn test_export_html_from_ndjson() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.html")).unwrap();
+
+    let args = ExportArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        format: ExportFormat::Html,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "HTML export should succeed");
+    assert!(output_path.as_std_path().exists(), "HTML output file should exist");
+}
+
+#[test]
+fn test_export_html_requires_output_file() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+
+    let args = ExportArgs {
+        input: input_path,
+        output: None, // HTML requires file output
+        format: ExportFormat::Html,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_err(), "HTML export to stdout should fail");
+    assert!(result.unwrap_err().to_string().contains("HTML export requires"));
+}
+
+#[test]
+fn test_export_with_where_filter() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_debug_events_ndjson(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.csv")).unwrap();
+
+    let args = ExportArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        format: ExportFormat::Csv,
+        where_clause: Some(r#"transport == "gRPC""#.to_string()),
+    };
+
+    let result = run_export(args);
+    assert!(result.is_ok(), "Export with filter should succeed");
+}
+
+#[test]
+fn test_export_missing_input_file() {
+    let temp_dir = create_temp_dir();
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.csv")).unwrap();
+
+    let args = ExportArgs {
+        input: Utf8PathBuf::from("/nonexistent/input.ndjson"),
+        output: Some(output_path),
+        format: ExportFormat::Csv,
+        where_clause: None,
+    };
+
+    let result = run_export(args);
+    assert!(result.is_err(), "Export with missing input should fail");
+}
+
+// ============================================================================
+// Ingest Command - Real Execution Tests
+// ============================================================================
+
+#[test]
+fn test_ingest_json_to_ndjson() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_sample_ndjson_file(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("output.ndjson")).unwrap();
+
+    let args = IngestArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        tls_keylog: None,
+        protocol: None,
+        trace_id: None,
+        span_id: None,
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    assert!(result.is_ok(), "JSON ingest should succeed");
+    assert!(output_path.as_std_path().exists(), "Output file should exist");
+}
+
+#[test]
+fn test_ingest_json_to_stdout() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_sample_ndjson_file(&temp_dir);
+
+    let args = IngestArgs {
+        input: input_path,
+        output: None,
+        tls_keylog: None,
+        protocol: None,
+        trace_id: None,
+        span_id: None,
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    assert!(result.is_ok(), "JSON ingest to stdout should succeed");
+}
+
+#[test]
+fn test_ingest_missing_file() {
+    let args = IngestArgs {
+        input: Utf8PathBuf::from("/nonexistent/input.json"),
+        output: None,
+        tls_keylog: None,
+        protocol: None,
+        trace_id: None,
+        span_id: None,
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    assert!(result.is_err(), "Ingest should fail for missing input file");
+}
+
+#[test]
+fn test_ingest_with_trace_id_filter() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_sample_ndjson_file(&temp_dir);
+    let output_path = Utf8PathBuf::from_path_buf(temp_dir.path().join("filtered.ndjson")).unwrap();
+
+    let args = IngestArgs {
+        input: input_path,
+        output: Some(output_path.clone()),
+        tls_keylog: None,
+        protocol: None,
+        trace_id: Some("nonexistent-trace-id".to_string()),
+        span_id: None,
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    if let Err(e) = result {
+        panic!("Ingest with trace filter should succeed. Error: {:?}", e);
+    }
+}
+
+#[test]
+fn test_ingest_with_span_id_filter() {
+    let temp_dir = create_temp_dir();
+    let input_path = create_sample_ndjson_file(&temp_dir);
+
+    let args = IngestArgs {
+        input: input_path,
+        output: None,
+        tls_keylog: None,
+        protocol: None,
+        trace_id: None,
+        span_id: Some("00f067aa0ba902b7".to_string()),
+        jobs: 1,
+    };
+
+    let result = run_ingest(args);
+    if let Err(e) = result {
+        panic!("Ingest with span filter should succeed. Error: {:?}", e);
+    }
 }

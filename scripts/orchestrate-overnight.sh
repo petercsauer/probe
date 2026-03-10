@@ -25,7 +25,7 @@ NOTIFY_SCRIPT="./scripts/notify-imessage.sh"
 
 MAX_RETRIES_PER_SEGMENT=2
 MAX_PARALLEL=4
-SESSION_TIMEOUT=1800     # 30 min per segment
+SESSION_TIMEOUT=3600     # 60 min per segment (fresh CARGO_TARGET_DIR needs compile time)
 RETRY_DELAY=10
 NETWORK_RETRY_MAX=600    # 10 min max waiting for network
 
@@ -399,12 +399,15 @@ run_segment() {
     log "  $(cyan "▶ S${seg_num}") ${seg_file%.md} → $seg_log  [target: $seg_target_dir]"
     set_segment_status "$seg_num" "running"
 
+    local seg_log_raw="${seg_log%.log}.stream.jsonl"
+
     CARGO_TARGET_DIR="$seg_target_dir" claude \
         -p "$(cat "$prompt_file")" \
         --dangerously-skip-permissions \
         --verbose \
+        --output-format stream-json \
         < /dev/null \
-        > "$seg_log" 2>&1 &
+        > "$seg_log_raw" 2>&1 &
     local pid=$!
 
     # Watchdog
@@ -426,22 +429,45 @@ $timeout_summary"
     wait "$pid" 2>/dev/null
     local exit_code=$?
 
-    # Parse result from log
+    # Convert stream JSONL to readable log
+    python3 -c "
+import json, sys
+for line in open('$seg_log_raw', errors='replace'):
+    line = line.strip()
+    if not line: continue
+    try: obj = json.loads(line)
+    except: continue
+    t = obj.get('type', '')
+    if t == 'assistant' and 'message' in obj:
+        for block in obj['message'].get('content', []):
+            if block.get('type') == 'text':
+                print(block['text'])
+            elif block.get('type') == 'tool_use':
+                print(f'--- tool: {block.get(\"name\",\"\")} ---')
+    elif t == 'result':
+        txt = obj.get('result', '')
+        if txt: print(txt)
+" > "$seg_log" 2>/dev/null
+
+    # Parse result from both readable log and raw stream
     local result="unknown"
-    if [[ -f "$seg_log" ]] && [[ -s "$seg_log" ]]; then
-        if grep -q "Status.*PASS" "$seg_log" 2>/dev/null; then
-            result="pass"
-        elif grep -q "Status.*PARTIAL" "$seg_log" 2>/dev/null; then
-            result="partial"
-        elif grep -q "Status.*BLOCKED" "$seg_log" 2>/dev/null; then
-            result="blocked"
-        elif [[ $exit_code -eq 0 ]]; then
+    local check_files=("$seg_log" "$seg_log_raw")
+    for cf in "${check_files[@]}"; do
+        [[ -f "$cf" ]] && [[ -s "$cf" ]] || continue
+        if grep -q "Status.*PASS" "$cf" 2>/dev/null; then
+            result="pass"; break
+        elif grep -q "Status.*PARTIAL" "$cf" 2>/dev/null; then
+            result="partial"; break
+        elif grep -q "Status.*BLOCKED" "$cf" 2>/dev/null; then
+            result="blocked"; break
+        fi
+    done
+    if [[ "$result" == "unknown" ]]; then
+        if [[ $exit_code -eq 0 ]]; then
             result="pass"
         else
             result="failed"
         fi
-    else
-        result="failed"
     fi
 
     local lines=0
