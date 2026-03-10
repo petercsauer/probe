@@ -18,11 +18,15 @@ prb-detect = { path = "../prb-detect" }
 prb-export = { path = "../prb-export" }
 prb-query = { path = "../prb-query" }
 prb-storage = { path = "../prb-storage" }
+prb-schema = { path = "../prb-schema" }
+prb-decode = { path = "../prb-decode" }
 
 # Common dependencies
 bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+prost = "0.14"
+prost-types = "0.14"
 
 # Test dependencies
 tempfile = { workspace = true }

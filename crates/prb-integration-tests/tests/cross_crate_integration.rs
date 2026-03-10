@@ -13,6 +13,8 @@ use prb_export::{create_exporter, Exporter, OtlpExporter};
 use prb_pcap::{PcapCaptureAdapter, TcpFlags};
 use prb_query::Filter;
 use prb_storage::{SessionMetadata, SessionReader, SessionWriter};
+use prb_schema::SchemaRegistry;
+use prb_decode::{decode_with_schema, decode_wire_format};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
@@ -698,4 +700,184 @@ fn integration_empty_event_list_handling() {
         conv_set.conversations.is_empty(),
         "Should produce no conversations"
     );
+}
+
+// ============================================================================
+// SCHEMA-BACKED DECODE INTEGRATION TESTS
+// ============================================================================
+
+/// Create a simple test FileDescriptorSet programmatically.
+fn create_test_descriptor_set() -> Vec<u8> {
+    use prost::Message;
+    use prost_types::{
+        field_descriptor_proto, DescriptorProto, FieldDescriptorProto, FileDescriptorProto,
+        FileDescriptorSet,
+    };
+
+    let field = FieldDescriptorProto {
+        name: Some("id".to_string()),
+        number: Some(1),
+        label: Some(field_descriptor_proto::Label::Optional as i32),
+        r#type: Some(field_descriptor_proto::Type::Int32 as i32),
+        ..Default::default()
+    };
+
+    let field2 = FieldDescriptorProto {
+        name: Some("name".to_string()),
+        number: Some(2),
+        label: Some(field_descriptor_proto::Label::Optional as i32),
+        r#type: Some(field_descriptor_proto::Type::String as i32),
+        ..Default::default()
+    };
+
+    let message = DescriptorProto {
+        name: Some("TestMessage".to_string()),
+        field: vec![field, field2],
+        ..Default::default()
+    };
+
+    let file = FileDescriptorProto {
+        name: Some("test.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![message],
+        ..Default::default()
+    };
+
+    let fds = FileDescriptorSet { file: vec![file] };
+
+    let mut buf = Vec::new();
+    fds.encode(&mut buf).unwrap();
+    buf
+}
+
+/// Encode a simple test message.
+fn encode_test_message(id: i32, name: &str) -> Vec<u8> {
+    use prost::encoding::{encode_key, encode_varint, WireType};
+
+    let mut buf = Vec::new();
+
+    // Field 1: id (int32)
+    encode_key(1, WireType::Varint, &mut buf);
+    encode_varint(id as u64, &mut buf);
+
+    // Field 2: name (string)
+    encode_key(2, WireType::LengthDelimited, &mut buf);
+    encode_varint(name.len() as u64, &mut buf);
+    buf.extend_from_slice(name.as_bytes());
+
+    buf
+}
+
+#[test]
+fn integration_schema_load_and_decode() {
+    // Create and load schema
+    let descriptor_bytes = create_test_descriptor_set();
+    let mut registry = SchemaRegistry::new();
+    registry
+        .load_descriptor_set(&descriptor_bytes)
+        .expect("Should load descriptor set");
+
+    // Get the message descriptor
+    let descriptor = registry
+        .get_message("test.TestMessage")
+        .expect("Should find TestMessage");
+
+    // Encode a test message
+    let message_bytes = encode_test_message(42, "test_value");
+
+    // Decode with schema
+    let result = decode_with_schema(&message_bytes, &descriptor);
+
+    assert!(result.is_ok(), "Schema-backed decode should succeed");
+    let decoded = result.unwrap();
+
+    // Verify field names are present (schema-backed decode provides names)
+    let json = decoded.to_json();
+    assert!(
+        json.get("id").is_some(),
+        "Should have id field in JSON output"
+    );
+    assert_eq!(json["id"], 42, "ID should match encoded value");
+    assert_eq!(json["name"], "test_value", "Name should match encoded value");
+}
+
+#[test]
+fn integration_wire_format_decode_without_schema() {
+    // Encode a test message
+    let message_bytes = encode_test_message(123, "no_schema");
+
+    // Decode without schema (wire format only)
+    let result = decode_wire_format(&message_bytes);
+
+    assert!(result.is_ok(), "Wire format decode should succeed");
+    let wire_msg = result.unwrap();
+
+    // Wire format provides field numbers, not names
+    assert!(!wire_msg.fields.is_empty(), "Should decode fields");
+
+    // Verify we got the fields (by field number)
+    let has_field_1 = wire_msg.fields.iter().any(|f| f.field_number == 1);
+    let has_field_2 = wire_msg.fields.iter().any(|f| f.field_number == 2);
+
+    assert!(has_field_1, "Should have field number 1");
+    assert!(has_field_2, "Should have field number 2");
+}
+
+#[test]
+fn integration_schema_multiple_messages() {
+    let descriptor_bytes = create_test_descriptor_set();
+    let mut registry = SchemaRegistry::new();
+    registry
+        .load_descriptor_set(&descriptor_bytes)
+        .expect("Should load descriptor set");
+
+    let descriptor = registry
+        .get_message("test.TestMessage")
+        .expect("Should find TestMessage");
+
+    // Decode multiple messages with same schema
+    let messages = vec![
+        encode_test_message(1, "first"),
+        encode_test_message(2, "second"),
+        encode_test_message(3, "third"),
+    ];
+
+    for (i, msg_bytes) in messages.iter().enumerate() {
+        let result = decode_with_schema(msg_bytes, &descriptor);
+        assert!(
+            result.is_ok(),
+            "Message {} should decode successfully",
+            i + 1
+        );
+
+        // Verify each message has correct data
+        let decoded = result.unwrap();
+        let json = decoded.to_json();
+        assert_eq!(json["id"], i as i64 + 1);
+    }
+}
+
+#[test]
+fn integration_schema_error_handling() {
+    let mut registry = SchemaRegistry::new();
+
+    // Try to get a non-existent message descriptor
+    let result = registry.get_message("test.NonExistent");
+    assert!(result.is_none(), "Should not find non-existent message");
+
+    // Test decode with truncated data
+    let descriptor_bytes = create_test_descriptor_set();
+    registry
+        .load_descriptor_set(&descriptor_bytes)
+        .expect("Should load descriptor set");
+
+    let descriptor = registry
+        .get_message("test.TestMessage")
+        .expect("Should find TestMessage");
+
+    // Truncated message bytes (incomplete)
+    let truncated_bytes = vec![0x08, 0x2a, 0x12]; // Missing string length and data
+
+    let result = decode_with_schema(&truncated_bytes, &descriptor);
+    assert!(result.is_err(), "Should fail on truncated data");
 }

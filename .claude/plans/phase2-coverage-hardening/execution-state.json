@@ -76,7 +76,7 @@
       "status": "running",
       "track": "Integration",
       "title": "Cross-Crate Integration Tests",
-      "attempts": 1
+      "attempts": 2
     },
     "S12": {
       "status": "pending",

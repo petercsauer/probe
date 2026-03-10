@@ -23,21 +23,32 @@ log = logging.getLogger("orchestrate")
 
 
 async def _run_gate(config: OrchestrateConfig, log_dir: Path, wave: int) -> tuple[bool, str]:
-    """Run the configured gate command after a wave."""
+    """Run the configured gate command after a wave, streaming output to a log file."""
     if not config.gate_command:
         return True, "no gate configured"
-    gate_log = log_dir / f"gate-wave{wave}.log"
+    gate_log = log_dir / f"gate-W{wave}.log"
     log.info("Running gate: %s", config.gate_command)
+
     proc = await asyncio.create_subprocess_shell(
         config.gate_command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    stdout, _ = await proc.communicate()
-    output = stdout.decode(errors="replace")
-    gate_log.write_text(output, encoding="utf-8")
+
+    lines: list[str] = []
+    with open(gate_log, "w", encoding="utf-8") as f:
+        while True:
+            raw = await proc.stdout.readline()
+            if not raw:
+                break
+            line = raw.decode(errors="replace").rstrip()
+            lines.append(line)
+            f.write(line + "\n")
+            f.flush()
+
+    await proc.wait()
     passed = proc.returncode == 0
-    return passed, output
+    return passed, "\n".join(lines)
 
 
 async def _heartbeat_loop(
@@ -137,6 +148,42 @@ async def orchestrate(plan_dir: Path, monitor_port: int | None = None) -> None:
     log_dir = plan_dir / "logs"
     log_dir.mkdir(exist_ok=True)
 
+    # Exclusive lock: prevent two orchestrators running against the same plan
+    lock_path = plan_dir / "orchestrator.lock"
+    try:
+        lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, str(os.getpid()).encode())
+        os.close(lock_fd)
+    except FileExistsError:
+        # Check if the PID inside is still alive
+        try:
+            old_pid = int(lock_path.read_text().strip())
+            os.kill(old_pid, 0)  # raises if not alive
+            print(f"ERROR: Orchestrator already running (PID {old_pid}). "
+                  f"Kill it first or remove {lock_path}", file=sys.stderr)
+            sys.exit(1)
+        except (ProcessLookupError, ValueError):
+            # Stale lock — take it over
+            lock_path.write_text(str(os.getpid()))
+
+    try:
+        await _orchestrate_inner(
+            plan_dir, config, meta, segments, waves, max_wave, log_dir
+        )
+    finally:
+        lock_path.unlink(missing_ok=True)
+
+
+async def _orchestrate_inner(
+    plan_dir: Path,
+    config: OrchestrateConfig,
+    meta,
+    segments: list[Segment],
+    waves: dict[int, list[Segment]],
+    max_wave: int,
+    log_dir: Path,
+) -> None:
+    """Core orchestration logic (called after lock is acquired)."""
     # State
     db_path = plan_dir / "state.db"
     state = StateDB(db_path)
