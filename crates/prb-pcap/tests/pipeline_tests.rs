@@ -662,3 +662,233 @@ fn test_pipeline_stats_accuracy() {
     assert_eq!(stats.tcp_streams, 1, "Should reassemble 1 TCP stream");
     assert_eq!(stats.udp_datagrams, 2, "Should process 2 UDP datagrams");
 }
+
+// WS-4.3: Error / edge-case integration tests
+
+#[test]
+fn test_error_truncated_pcap() {
+    // WS-4.3: PCAP file truncated mid-packet → graceful error, no panic
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("truncated.pcap");
+
+    use std::io::Write;
+    let mut file = std::fs::File::create(&pcap_path).unwrap();
+
+    // PCAP global header
+    let header = [
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    ];
+    file.write_all(&header).unwrap();
+
+    // Packet header indicating 100-byte packet
+    let ts_sec = 1700000000u32;
+    let ts_usec = 0u32;
+    file.write_all(&ts_sec.to_le_bytes()).unwrap();
+    file.write_all(&ts_usec.to_le_bytes()).unwrap();
+    file.write_all(&100u32.to_le_bytes()).unwrap(); // Included length
+    file.write_all(&100u32.to_le_bytes()).unwrap(); // Original length
+
+    // But only write 20 bytes of data (truncated)
+    file.write_all(&[0xAA; 20]).unwrap();
+    file.flush().unwrap();
+    drop(file);
+
+    // Process should not panic
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let events: Vec<_> = adapter.ingest().collect();
+
+    // Should handle gracefully (may produce no events or error events)
+    // Key: no panic occurred
+    // The reader may not count truncated packets, that's OK
+    let _stats = adapter.stats();
+}
+
+#[test]
+fn test_error_empty_pcap() {
+    // WS-4.3: Valid header, zero packets → empty output
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("empty.pcap");
+
+    use std::io::Write;
+    let mut file = std::fs::File::create(&pcap_path).unwrap();
+
+    // PCAP global header only
+    let header = [
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    ];
+    file.write_all(&header).unwrap();
+    file.flush().unwrap();
+    drop(file);
+
+    // Process
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let events: Vec<_> = adapter.ingest().collect();
+
+    assert_eq!(events.len(), 0, "Should produce no events from empty PCAP");
+
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 0, "Should read zero packets");
+}
+
+#[test]
+fn test_error_corrupt_tcp_overlap() {
+    // WS-4.3: Overlapping sequence numbers → no panic, events still emitted
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("tcp_overlap.pcap");
+
+    // Create TCP segments with overlapping sequence numbers
+    let packets = vec![
+        create_tcp_segment(
+            [192, 168, 1, 1],
+            [10, 0, 0, 1],
+            12345,
+            80,
+            1000,
+            0,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            b"data1",
+        ),
+        // Overlapping segment (same seq number)
+        create_tcp_segment(
+            [192, 168, 1, 1],
+            [10, 0, 0, 1],
+            12345,
+            80,
+            1000, // Same sequence number!
+            0,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: true,
+            },
+            b"data2",
+        ),
+    ];
+
+    write_pcap_file(&pcap_path, &packets);
+
+    // Process - should not panic
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let events: Vec<_> = adapter.ingest().collect();
+
+    // Should handle overlapping segments gracefully
+    // TCP reassembler may produce events or skip duplicate
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 2, "Should read both packets");
+}
+
+#[test]
+fn test_error_unknown_link_type() {
+    // WS-4.3: PCAP with linktype 999 → error logged, processing continues
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("unknown_link.pcap");
+
+    use std::io::Write;
+    let mut file = std::fs::File::create(&pcap_path).unwrap();
+
+    // PCAP global header with unknown linktype
+    let mut header = vec![
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xff, 0xff, 0x00, 0x00,
+    ];
+    header.extend_from_slice(&999u32.to_le_bytes()); // Unknown linktype
+    file.write_all(&header).unwrap();
+
+    // Add a packet
+    let ts_sec = 1700000000u32;
+    let packet_data = [0xAA; 60];
+    file.write_all(&ts_sec.to_le_bytes()).unwrap();
+    file.write_all(&0u32.to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&packet_data).unwrap();
+    file.flush().unwrap();
+    drop(file);
+
+    // Process - may fail to parse packet but should not panic
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let _events: Vec<_> = adapter.ingest().collect();
+
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 1, "Should attempt to read packet");
+}
+
+#[test]
+fn test_error_dds_non_rtps_udp() {
+    // WS-4.3: UDP datagrams without RTPS magic → silently skipped
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("non_rtps.pcap");
+
+    // Create UDP datagram with non-RTPS payload
+    let packet = create_udp_datagram(
+        [192, 168, 1, 1],
+        [239, 255, 0, 1],
+        7400,
+        7400,
+        b"NOT_RTPS_DATA_HERE",
+    );
+
+    write_pcap_file(&pcap_path, &[packet]);
+
+    // Process
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let events: Vec<_> = adapter.ingest().collect();
+
+    // Non-RTPS UDP should be processed as raw UDP (or skipped by DDS decoder)
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 1, "Should read UDP packet");
+    assert_eq!(stats.udp_datagrams, 1, "Should process UDP datagram");
+
+    // Events may or may not be produced depending on protocol detection
+    // Key: no panic occurred
+}
+
+#[test]
+fn test_error_large_message_handling() {
+    // WS-4.3: Large message (not quite 4GB but substantial) → handled without OOM
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("large_msg.pcap");
+
+    // Create TCP segment with reasonably large payload (10KB)
+    let large_payload = vec![0x42u8; 10240];
+    let packet = create_tcp_segment(
+        [192, 168, 1, 1],
+        [10, 0, 0, 1],
+        12345,
+        80,
+        1000,
+        0,
+        TcpFlags {
+            syn: false,
+            ack: true,
+            fin: true,
+            rst: false,
+            psh: true,
+        },
+        &large_payload,
+    );
+
+    write_pcap_file(&pcap_path, &[packet]);
+
+    // Process - should handle large payload without OOM
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, None);
+    let events: Vec<_> = adapter.ingest().collect();
+
+    assert!(!events.is_empty(), "Should process large message");
+
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 1, "Should read packet");
+}
