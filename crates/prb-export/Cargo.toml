@@ -1,0 +1,31 @@
+[package]
+name = "prb-export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Export DebugEvents to CSV, HAR, OTLP JSON, Parquet, and HTML"
+
+[features]
+default = []
+parquet = ["dep:arrow", "dep:parquet"]
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+
+csv = "1.4"
+har = "0.8"
+
+# Parquet support (feature-gated)
+arrow = { version = "54", optional = true, default-features = false, features = ["ipc"] }
+parquet = { version = "54", optional = true, default-features = false, features = ["arrow"] }
+
+[dev-dependencies]
+bytes = { workspace = true }
+tempfile = { workspace = true }
