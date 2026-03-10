@@ -1,0 +1,19 @@
+[package]
+name = "prb-detect"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+guess = { version = "0.2", features = ["full"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "detection"
+harness = false
