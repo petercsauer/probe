@@ -363,4 +363,140 @@ mod tests {
     fn parse_trailing_input_is_error() {
         assert!(parse_expr(r#"transport == "gRPC" garbage"#).is_err());
     }
+
+    #[test]
+    fn parse_string_escaping() {
+        let expr = parse_expr(r#"msg == "line1\nline2""#).unwrap();
+        if let Expr::Compare { value: Value::String(s), .. } = expr {
+            assert_eq!(s, "line1\nline2");
+        } else {
+            panic!("Expected string with newline");
+        }
+
+        let expr = parse_expr(r#"msg == "tab\there""#).unwrap();
+        if let Expr::Compare { value: Value::String(s), .. } = expr {
+            assert_eq!(s, "tab\there");
+        } else {
+            panic!("Expected string with tab");
+        }
+
+        let expr = parse_expr(r#"msg == "backslash\\quote\"end""#).unwrap();
+        if let Expr::Compare { value: Value::String(s), .. } = expr {
+            assert_eq!(s, "backslash\\quote\"end");
+        } else {
+            panic!("Expected string with escaped backslash and quote");
+        }
+
+        // Unknown escape sequence
+        let expr = parse_expr(r#"msg == "unknown\x""#).unwrap();
+        if let Expr::Compare { value: Value::String(s), .. } = expr {
+            assert_eq!(s, "unknown\\x");
+        } else {
+            panic!("Expected string with literal backslash-x");
+        }
+    }
+
+    #[test]
+    fn parse_all_comparison_operators() {
+        assert!(matches!(parse_expr("x == 1").unwrap(), Expr::Compare { op: CmpOp::Eq, .. }));
+        assert!(matches!(parse_expr("x != 1").unwrap(), Expr::Compare { op: CmpOp::Ne, .. }));
+        assert!(matches!(parse_expr("x > 1").unwrap(), Expr::Compare { op: CmpOp::Gt, .. }));
+        assert!(matches!(parse_expr("x >= 1").unwrap(), Expr::Compare { op: CmpOp::Ge, .. }));
+        assert!(matches!(parse_expr("x < 1").unwrap(), Expr::Compare { op: CmpOp::Lt, .. }));
+        assert!(matches!(parse_expr("x <= 1").unwrap(), Expr::Compare { op: CmpOp::Le, .. }));
+    }
+
+    #[test]
+    fn parse_negative_and_fractional_numbers() {
+        let expr = parse_expr("x == -42").unwrap();
+        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+            assert_eq!(n, -42.0);
+        } else {
+            panic!("Expected negative number");
+        }
+
+        let expr = parse_expr("x == 3.14159").unwrap();
+        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+            assert!((n - 3.14159).abs() < 0.00001);
+        } else {
+            panic!("Expected fractional number");
+        }
+
+        let expr = parse_expr("x == -0.5").unwrap();
+        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+            assert_eq!(n, -0.5);
+        } else {
+            panic!("Expected negative fractional number");
+        }
+    }
+
+    #[test]
+    fn parse_nested_parentheses() {
+        let expr = parse_expr(r#"((a == 1))"#).unwrap();
+        assert!(matches!(expr, Expr::Compare { .. }));
+
+        let expr = parse_expr(r#"((a == 1 && b == 2) || (c == 3))"#).unwrap();
+        assert!(matches!(expr, Expr::Or(_, _)));
+
+        let expr = parse_expr(r#"!(!(x == 1))"#).unwrap();
+        if let Expr::Not(inner) = expr {
+            assert!(matches!(*inner, Expr::Not(_)));
+        } else {
+            panic!("Expected nested Not");
+        }
+    }
+
+    #[test]
+    fn parse_operator_precedence() {
+        // AND binds tighter than OR
+        let expr = parse_expr(r#"a == 1 || b == 2 && c == 3"#).unwrap();
+        if let Expr::Or(left, right) = expr {
+            assert!(matches!(*left, Expr::Compare { .. }));
+            assert!(matches!(*right, Expr::And(_, _)));
+        } else {
+            panic!("Expected OR at top level with AND on right");
+        }
+
+        let expr = parse_expr(r#"a == 1 && b == 2 || c == 3"#).unwrap();
+        if let Expr::Or(left, _) = expr {
+            assert!(matches!(*left, Expr::And(_, _)));
+        } else {
+            panic!("Expected OR at top level with AND on left");
+        }
+    }
+
+    #[test]
+    fn parse_error_messages() {
+        let result = parse_expr("");
+        assert!(result.is_err());
+        if let Err(QueryError::EmptyExpression) = result {
+            // Expected
+        } else {
+            panic!("Expected EmptyExpression error");
+        }
+
+        let result = parse_expr(r#"field == "unclosed"#);
+        assert!(result.is_err());
+        if let Err(QueryError::ParseError(_)) = result {
+            // Expected
+        } else {
+            panic!("Expected ParseError for unclosed string");
+        }
+
+        let result = parse_expr("field ==");
+        assert!(result.is_err());
+
+        let result = parse_expr("== value");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_whitespace_handling() {
+        let expr1 = parse_expr(r#"  field  ==  "value"  "#).unwrap();
+        let expr2 = parse_expr(r#"field=="value""#).unwrap();
+        assert_eq!(expr1, expr2);
+
+        let expr = parse_expr("  a==1&&b==2  ").unwrap();
+        assert!(matches!(expr, Expr::And(_, _)));
+    }
 }

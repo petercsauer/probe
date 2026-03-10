@@ -444,4 +444,118 @@ mod tests {
 
         assert!(detector.detect(&ctx).is_none());
     }
+
+    #[test]
+    fn test_port_mapping_custom() {
+        let mut detector = PortMappingDetector::with_defaults();
+        detector.add_tcp_mapping(9999, ProtocolId::new("custom-proto"));
+        detector.add_udp_mapping(8888, ProtocolId::new("custom-udp"));
+
+        let tcp_ctx = DetectionContext {
+            initial_bytes: &[],
+            src_port: 12345,
+            dst_port: 9999,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+        let result = detector.detect(&tcp_ctx).unwrap();
+        assert_eq!(result.protocol.0, "custom-proto");
+
+        let udp_ctx = DetectionContext {
+            initial_bytes: &[],
+            src_port: 12345,
+            dst_port: 8888,
+            transport: TransportLayer::Udp,
+            tls_decrypted: false,
+        };
+        let result = detector.detect(&udp_ctx).unwrap();
+        assert_eq!(result.protocol.0, "custom-udp");
+    }
+
+    #[test]
+    fn test_grpc_detector_short_payload() {
+        let detector = GrpcDetector;
+        let ctx = DetectionContext {
+            initial_bytes: b"PRI",
+            src_port: 12345,
+            dst_port: 50051,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        assert!(detector.detect(&ctx).is_none());
+    }
+
+    #[test]
+    fn test_grpc_detector_wrong_transport() {
+        let detector = GrpcDetector;
+        let preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        let ctx = DetectionContext {
+            initial_bytes: preface,
+            src_port: 12345,
+            dst_port: 50051,
+            transport: TransportLayer::Udp,
+            tls_decrypted: false,
+        };
+
+        assert!(detector.detect(&ctx).is_none());
+    }
+
+    #[test]
+    fn test_zmtp_detector_short_payload() {
+        let detector = ZmtpDetector;
+        let ctx = DetectionContext {
+            initial_bytes: &[0xFF, 0, 0, 0],
+            src_port: 12345,
+            dst_port: 5555,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        assert!(detector.detect(&ctx).is_none());
+    }
+
+    #[test]
+    fn test_rtps_detector_short_payload() {
+        let detector = RtpsDetector;
+        let ctx = DetectionContext {
+            initial_bytes: b"RT",
+            src_port: 12345,
+            dst_port: 7400,
+            transport: TransportLayer::Udp,
+            tls_decrypted: false,
+        };
+
+        assert!(detector.detect(&ctx).is_none());
+    }
+
+    #[test]
+    fn test_rtps_detector_wrong_transport() {
+        let detector = RtpsDetector;
+        let header = b"RTPS\x02\x03";
+        let ctx = DetectionContext {
+            initial_bytes: header,
+            src_port: 12345,
+            dst_port: 7400,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        assert!(detector.detect(&ctx).is_none());
+    }
+
+    #[test]
+    fn test_port_mapping_source_port() {
+        let detector = PortMappingDetector::with_defaults();
+        let ctx = DetectionContext {
+            initial_bytes: &[],
+            src_port: 50051,
+            dst_port: 12345,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        let result = detector.detect(&ctx).unwrap();
+        assert_eq!(result.protocol.0, ProtocolId::GRPC);
+    }
 }

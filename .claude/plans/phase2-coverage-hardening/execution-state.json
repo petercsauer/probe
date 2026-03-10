@@ -10,10 +10,10 @@
       "completed": "2026-03-10T18:00:51Z"
     },
     "S02": {
-      "status": "partial",
+      "status": "running",
       "track": "TUI",
       "title": "prb-tui Unit + Render Tests",
-      "attempts": 2,
+      "attempts": 3,
       "completed": "2026-03-10T18:00:51Z"
     },
     "S03": {
@@ -21,14 +21,14 @@
       "track": "CLI",
       "title": "prb-cli Command Tests",
       "attempts": 2,
-      "completed": "2026-03-10T18:00:51Z"
+      "completed": "2026-03-10T18:44:11Z"
     },
     "S04": {
       "status": "pass",
       "track": "Pcap",
       "title": "prb-pcap Pipeline Tests",
       "attempts": 2,
-      "completed": "2026-03-10T18:00:52Z"
+      "completed": "2026-03-10T18:14:10Z"
     },
     "S05": {
       "status": "pass",
@@ -52,22 +52,23 @@
       "completed": "2026-03-10T17:49:35Z"
     },
     "S08": {
-      "status": "running",
+      "status": "pass",
       "track": "Plugin",
       "title": "prb-plugin Test Harness",
-      "attempts": 1
+      "attempts": 1,
+      "completed": "2026-03-10T18:11:29Z"
     },
     "S09": {
-      "status": "pending",
+      "status": "running",
       "track": "Decode",
       "title": "prb-decode Codec Tests",
-      "attempts": 1
+      "attempts": 2
     },
     "S10": {
-      "status": "pending",
+      "status": "running",
       "track": "Misc",
       "title": "prb-detect + export + misc",
-      "attempts": 0
+      "attempts": 1
     },
     "S11": {
       "status": "pending",

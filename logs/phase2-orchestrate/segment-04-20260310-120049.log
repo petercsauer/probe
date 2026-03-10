@@ -1,0 +1,60 @@
+I'll read the iterative-builder protocol and segment brief to understand my mission.
+--- tool: ToolSearch ---
+--- tool: Read ---
+--- tool: Read ---
+Good! I have my operating protocol and segment brief. 
+
+**Mission:** Bring prb-pcap from ~82% to ≥90% coverage in 6 cycles.
+
+**Key targets:**
+- normalize.rs (73% → 90%)
+- streaming.rs (80% → 90%)
+- keylog.rs (60% → 90%)
+- Plus 8 other files with smaller gaps
+
+Let me start by understanding the current test structure in prb-pcap.
+--- tool: ToolSearch ---
+--- tool: Glob ---
+--- tool: Glob ---
+Good, I can see test files already exist. Let me examine the current test coverage for the high-priority files.
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+Great! I can see comprehensive test files already exist for the key coverage gaps. Let me verify the tests are passing and then check what additional coverage we need.
+--- tool: ToolSearch ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: ToolSearch ---
+--- tool: TaskOutput ---
+I see the issue - one test (`test_streaming_channel_capacity_respected`) is hanging. Let me stop this and investigate.
+--- tool: ToolSearch ---
+--- tool: TaskStop ---
+--- tool: Read ---
+I can see the issue. The test `test_streaming_channel_capacity_respected` tries to send 1000 packets synchronously, but the channel capacity is only `batch_size * 4 = 8 * 4 = 32` packets. After 32 packets, the sender blocks, creating a deadlock. The test needs to spawn a thread for sending, like other tests do.
+
+**Cycle 1/6: Fix hanging test**
+--- tool: ToolSearch ---
+--- tool: Edit ---
+Now let me run the tests again to verify they all pass.
+--- tool: Bash ---
+Excellent! All 187 tests pass. Now let me remove the unused `create_vlan_packet` helper that's causing a warning, then verify we've met the coverage targets.
+--- tool: Edit ---
+Now let me run the full build gate to confirm everything is clean.
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Read ---
+Perfect! All tests pass and clippy is clean. Now let me commit this progress and run regression tests.
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+Now let me run regression tests to ensure no workspace breakage.
+--- tool: Bash ---
+--- tool: Bash ---
+Excellent! All 964 workspace tests pass with 1 skip (expected). Now let me verify scope and run the final clippy check.
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---

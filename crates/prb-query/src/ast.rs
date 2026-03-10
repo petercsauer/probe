@@ -73,3 +73,66 @@ impl fmt::Display for Value {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn field_path_display() {
+        let path = FieldPath(vec!["grpc".into(), "method".into()]);
+        assert_eq!(path.to_string(), "grpc.method");
+        assert_eq!(path.dotted(), "grpc.method");
+
+        let single = FieldPath(vec!["transport".into()]);
+        assert_eq!(single.to_string(), "transport");
+    }
+
+    #[test]
+    fn cmp_op_display() {
+        assert_eq!(CmpOp::Eq.to_string(), "==");
+        assert_eq!(CmpOp::Ne.to_string(), "!=");
+        assert_eq!(CmpOp::Gt.to_string(), ">");
+        assert_eq!(CmpOp::Ge.to_string(), ">=");
+        assert_eq!(CmpOp::Lt.to_string(), "<");
+        assert_eq!(CmpOp::Le.to_string(), "<=");
+    }
+
+    #[test]
+    fn value_display() {
+        assert_eq!(Value::String("hello".into()).to_string(), r#""hello""#);
+        assert_eq!(Value::Number(42.5).to_string(), "42.5");
+        assert_eq!(Value::Bool(true).to_string(), "true");
+        assert_eq!(Value::Bool(false).to_string(), "false");
+    }
+
+    #[test]
+    fn expr_variants() {
+        let compare = Expr::Compare {
+            field: FieldPath(vec!["id".into()]),
+            op: CmpOp::Eq,
+            value: Value::Number(42.0),
+        };
+        assert!(matches!(compare, Expr::Compare { .. }));
+
+        let contains = Expr::Contains {
+            field: FieldPath(vec!["name".into()]),
+            substring: "test".into(),
+        };
+        assert!(matches!(contains, Expr::Contains { .. }));
+
+        let exists = Expr::Exists {
+            field: FieldPath(vec!["optional".into()]),
+        };
+        assert!(matches!(exists, Expr::Exists { .. }));
+
+        let not = Expr::Not(Box::new(compare.clone()));
+        assert!(matches!(not, Expr::Not(_)));
+
+        let and = Expr::And(Box::new(compare.clone()), Box::new(exists.clone()));
+        assert!(matches!(and, Expr::And(_, _)));
+
+        let or = Expr::Or(Box::new(compare.clone()), Box::new(exists));
+        assert!(matches!(or, Expr::Or(_, _)));
+    }
+}

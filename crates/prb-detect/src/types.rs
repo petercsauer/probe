@@ -97,3 +97,44 @@ pub trait ProtocolDetector: Send + Sync {
     /// this detector cannot determine the protocol.
     fn detect(&self, ctx: &DetectionContext<'_>) -> Option<DetectionResult>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protocol_id_constants() {
+        assert_eq!(ProtocolId::GRPC, "grpc");
+        assert_eq!(ProtocolId::ZMTP, "zmtp");
+        assert_eq!(ProtocolId::RTPS, "rtps");
+        assert_eq!(ProtocolId::HTTP2, "http2");
+        assert_eq!(ProtocolId::HTTP1, "http1");
+        assert_eq!(ProtocolId::TLS, "tls");
+        assert_eq!(ProtocolId::UNKNOWN, "unknown");
+    }
+
+    #[test]
+    fn protocol_id_from_string() {
+        let id: ProtocolId = "custom".into();
+        assert_eq!(id.0, "custom");
+
+        let id: ProtocolId = String::from("another").into();
+        assert_eq!(id.0, "another");
+
+        let id = ProtocolId::new(ProtocolId::GRPC);
+        assert_eq!(id.0, ProtocolId::GRPC);
+    }
+
+    #[test]
+    fn detection_method_equality() {
+        assert_eq!(DetectionMethod::UserOverride, DetectionMethod::UserOverride);
+        assert_ne!(DetectionMethod::PortMapping, DetectionMethod::MagicBytes);
+        assert_eq!(DetectionMethod::Heuristic, DetectionMethod::Heuristic);
+    }
+
+    #[test]
+    fn transport_layer_equality() {
+        assert_eq!(TransportLayer::Tcp, TransportLayer::Tcp);
+        assert_ne!(TransportLayer::Tcp, TransportLayer::Udp);
+    }
+}

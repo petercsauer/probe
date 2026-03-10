@@ -189,4 +189,56 @@ mod tests {
         assert_eq!(result.confidence, 0.95);
         assert_eq!(result.method, DetectionMethod::MagicBytes);
     }
+
+    #[test]
+    fn test_engine_with_threshold() {
+        let engine = DetectionEngine::with_defaults().with_threshold(0.7);
+        let ctx = DetectionContext {
+            initial_bytes: &[],
+            src_port: 12345,
+            dst_port: 50051,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        let result = engine.detect(&ctx);
+        // Port mapping (0.5) is below threshold (0.7), should fall back to UNKNOWN
+        assert_eq!(result.protocol.0, ProtocolId::UNKNOWN);
+        assert_eq!(result.method, DetectionMethod::Fallback);
+    }
+
+    #[test]
+    fn test_empty_engine() {
+        let engine = DetectionEngine::new();
+        let ctx = DetectionContext {
+            initial_bytes: b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+            src_port: 12345,
+            dst_port: 50051,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        let result = engine.detect(&ctx);
+        assert_eq!(result.protocol.0, ProtocolId::UNKNOWN);
+        assert_eq!(result.method, DetectionMethod::Fallback);
+    }
+
+    #[test]
+    fn test_add_detector() {
+        let mut engine = DetectionEngine::new();
+        engine.add_detector(Box::new(GrpcDetector));
+
+        let preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        let ctx = DetectionContext {
+            initial_bytes: preface,
+            src_port: 12345,
+            dst_port: 50051,
+            transport: TransportLayer::Tcp,
+            tls_decrypted: false,
+        };
+
+        let result = engine.detect(&ctx);
+        assert_eq!(result.protocol.0, ProtocolId::GRPC);
+        assert_eq!(result.confidence, 0.95);
+    }
 }

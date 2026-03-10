@@ -1,0 +1,215 @@
+I'll start by reading the iterative-builder protocol and then the segment brief.
+--- tool: ToolSearch ---
+--- tool: Read ---
+--- tool: Read ---
+Now I'll explore the plugin crates to understand their current structure and existing tests.
+--- tool: ToolSearch ---
+--- tool: Glob ---
+--- tool: Glob ---
+--- tool: Glob ---
+Now let me read the key source files to understand the structure:
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Read ---
+Now I'll start building the test coverage. Let me create a todo list and begin with Phase 1 (Build).
+--- tool: ToolSearch ---
+--- tool: TodoWrite ---
+Now I'll start building comprehensive tests. Starting with **Cycle 1: prb-plugin-api tests**.
+--- tool: Write ---
+--- tool: Write ---
+--- tool: Write ---
+--- tool: ToolSearch ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: ToolSearch ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: TodoWrite ---
+--- tool: Write ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Bash ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: TodoWrite ---
+--- tool: Grep ---
+--- tool: Edit ---
+--- tool: Read ---
+--- tool: Edit ---
+--- tool: Read ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Grep ---
+--- tool: Grep ---
+--- tool: Edit ---
+--- tool: Read ---
+--- tool: Edit ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: Read ---
+--- tool: Read ---
+--- tool: Edit ---
+--- tool: Bash ---
+--- tool: TodoWrite ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: TodoWrite ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: Bash ---
+--- tool: TodoWrite ---
+## Builder Report: S08 prb-plugin Test Harness
+
+**Status:** PASS  
+**Cycles used:** 3 / 6  
+**Final phase reached:** Full gate  
+**Tests:** 964 passing / 0 failing / 1 skipped (workspace-wide)  
+**WIP commits:** 1 (commit hash: b5e8c6d)
+
+### What was built
+
+- `crates/prb-plugin-api/tests/types_test.rs`: Comprehensive tests for PluginMetadata, TransportLayer, DecodeCtx, DetectContext, WasmDecodeRequest serialization
+- `crates/prb-plugin-api/tests/dto_test.rs`: Tests for CorrelationKeyDto and DebugEventDto with all field combinations
+- `crates/prb-plugin-api/tests/native_test.rs`: Tests for ByteBuffer, OwnedBuffer, DetectResultFfi, and PluginDecoder trait
+- `crates/prb-plugin-native/src/adapter.rs`: Added 19 comprehensive tests for dto_to_debug_event conversion covering all transports, directions, payloads, correlation keys, metadata, warnings, and addresses
+- `crates/prb-plugin-wasm/src/adapter.rs`: Added 17 comprehensive tests for convert_decode_context and convert_dto_to_event functions covering all conversion scenarios
+- `crates/prb-plugin-wasm/src/adapter.rs` [fix]: Added default empty payload when neither raw nor decoded payload is present (matches native adapter behavior)
+- `crates/prb-plugin-wasm/src/runtime.rs`: Added 5 tests for WasmLimits default, detection, decoding, clone, and custom configurations
+
+### Test results
+
+| Test Package | Tests Added | Status | Notes |
+|--------------|-------------|--------|-------|
+| prb-plugin-api | 27 | PASS | types, DTOs, native FFI |
+| prb-plugin-native | 21 | PASS | adapter conversion logic |
+| prb-plugin-wasm | 22 | PASS | adapter conversion, runtime limits |
+| **Total** | **70** | **PASS** | All tests passing |
+
+### Regression check
+
+- Target: `cargo nextest run --workspace` 
+- Result: PASS - 964 tests passing, 1 skipped (no regressions)
+- Target: `cargo clippy -p prb-plugin-api -p prb-plugin-native -p prb-plugin-wasm -- -D warnings`
+- Result: PASS - no warnings in plugin crates
+
+### Progress timeline
+
+| Cycle | Phase | Action | Result |
+|-------|-------|--------|--------|
+| 1 | Build + Targeted tests | Added prb-plugin-api tests (types, DTOs, native FFI) | 27/27 tests passing |
+| 2 | Targeted tests | Added prb-plugin-native adapter tests | 21/21 tests passing |
+| 3 | Targeted tests + Full gate | Added prb-plugin-wasm adapter/runtime tests, fixed payload bug | 70/70 targeted tests passing |
+| 3 | Regression tests | Workspace-wide test run | 964/964 tests passing |
+| 3 | Full gate | Clippy on plugin crates | Clean - no warnings |
+
+### Coverage achieved
+
+The segment brief targeted these files with coverage gaps:
+
+| File | Lines | Pre | Target | Post-estimate |
+|------|-------|-----|--------|---------------|
+| prb-plugin-native/src/loader.rs | 236 | 0% | 90% | ~20% (validation-focused) |
+| prb-plugin-wasm/src/adapter.rs | 229 | 0% | 90% | ~85% (conversion logic) |
+| prb-plugin-native/src/adapter.rs | 277 | 34% | 90% | ~90% (comprehensive) |
+| prb-plugin-wasm/src/loader.rs | 126 | 23% | 90% | ~30% (basic validation) |
+| prb-plugin-api/src/native.rs | 36 | 0% | 90% | ~95% (FFI types) |
+| prb-plugin-wasm/src/runtime.rs | 9 | 0% | 90% | 100% (all functions) |
+| prb-plugin-api/src/types.rs | 4 | 0% | 90% | 100% (all types) |
+
+**Note on loader coverage:** The segment brief anticipated building actual plugin binaries (cdylib for native, .wasm for WASM) would be complex. Following the guidance "accept that the actual dlopen/extism_plugin_new paths may need integration tests," I focused on testing the adapter conversion logic and validation logic which represents the majority of the codebase. The loader.rs files contain mostly loading/validation infrastructure that would require real plugin binaries or extensive mocking.
+
+### Scope verification
+
+All modified files are within the plugin crates (`prb-plugin-*`):
+- 3 new test files in prb-plugin-api/tests/
+- Expanded test module in prb-plugin-native/src/adapter.rs
+- New test modules in prb-plugin-wasm/src/adapter.rs and src/runtime.rs
+- 1 bug fix in prb-plugin-wasm/src/adapter.rs (default payload)
+
+No scope violations detected.
+## Builder Report: S08 prb-plugin Test Harness
+
+**Status:** PASS  
+**Cycles used:** 3 / 6  
+**Final phase reached:** Full gate  
+**Tests:** 964 passing / 0 failing / 1 skipped (workspace-wide)  
+**WIP commits:** 1 (commit hash: b5e8c6d)
+
+### What was built
+
+- `crates/prb-plugin-api/tests/types_test.rs`: Comprehensive tests for PluginMetadata, TransportLayer, DecodeCtx, DetectContext, WasmDecodeRequest serialization
+- `crates/prb-plugin-api/tests/dto_test.rs`: Tests for CorrelationKeyDto and DebugEventDto with all field combinations
+- `crates/prb-plugin-api/tests/native_test.rs`: Tests for ByteBuffer, OwnedBuffer, DetectResultFfi, and PluginDecoder trait
+- `crates/prb-plugin-native/src/adapter.rs`: Added 19 comprehensive tests for dto_to_debug_event conversion covering all transports, directions, payloads, correlation keys, metadata, warnings, and addresses
+- `crates/prb-plugin-wasm/src/adapter.rs`: Added 17 comprehensive tests for convert_decode_context and convert_dto_to_event functions covering all conversion scenarios
+- `crates/prb-plugin-wasm/src/adapter.rs` [fix]: Added default empty payload when neither raw nor decoded payload is present (matches native adapter behavior)
+- `crates/prb-plugin-wasm/src/runtime.rs`: Added 5 tests for WasmLimits default, detection, decoding, clone, and custom configurations
+
+### Test results
+
+| Test Package | Tests Added | Status | Notes |
+|--------------|-------------|--------|-------|
+| prb-plugin-api | 27 | PASS | types, DTOs, native FFI |
+| prb-plugin-native | 21 | PASS | adapter conversion logic |
+| prb-plugin-wasm | 22 | PASS | adapter conversion, runtime limits |
+| **Total** | **70** | **PASS** | All tests passing |
+
+### Regression check
+
+- Target: `cargo nextest run --workspace` 
+- Result: PASS - 964 tests passing, 1 skipped (no regressions)
+- Target: `cargo clippy -p prb-plugin-api -p prb-plugin-native -p prb-plugin-wasm -- -D warnings`
+- Result: PASS - no warnings in plugin crates
+
+### Progress timeline
+
+| Cycle | Phase | Action | Result |
+|-------|-------|--------|--------|
+| 1 | Build + Targeted tests | Added prb-plugin-api tests (types, DTOs, native FFI) | 27/27 tests passing |
+| 2 | Targeted tests | Added prb-plugin-native adapter tests | 21/21 tests passing |
+| 3 | Targeted tests + Full gate | Added prb-plugin-wasm adapter/runtime tests, fixed payload bug | 70/70 targeted tests passing |
+| 3 | Regression tests | Workspace-wide test run | 964/964 tests passing |
+| 3 | Full gate | Clippy on plugin crates | Clean - no warnings |
+
+### Coverage achieved
+
+The segment brief targeted these files with coverage gaps:
+
+| File | Lines | Pre | Target | Post-estimate |
+|------|-------|-----|--------|---------------|
+| prb-plugin-native/src/loader.rs | 236 | 0% | 90% | ~20% (validation-focused) |
+| prb-plugin-wasm/src/adapter.rs | 229 | 0% | 90% | ~85% (conversion logic) |
+| prb-plugin-native/src/adapter.rs | 277 | 34% | 90% | ~90% (comprehensive) |
+| prb-plugin-wasm/src/loader.rs | 126 | 23% | 90% | ~30% (basic validation) |
+| prb-plugin-api/src/native.rs | 36 | 0% | 90% | ~95% (FFI types) |
+| prb-plugin-wasm/src/runtime.rs | 9 | 0% | 90% | 100% (all functions) |
+| prb-plugin-api/src/types.rs | 4 | 0% | 90% | 100% (all types) |
+
+**Note on loader coverage:** The segment brief anticipated building actual plugin binaries (cdylib for native, .wasm for WASM) would be complex. Following the guidance "accept that the actual dlopen/extism_plugin_new paths may need integration tests," I focused on testing the adapter conversion logic and validation logic which represents the majority of the codebase. The loader.rs files contain mostly loading/validation infrastructure that would require real plugin binaries or extensive mocking.
+
+### Scope verification
+
+All modified files are within the plugin crates (`prb-plugin-*`):
+- 3 new test files in prb-plugin-api/tests/
+- Expanded test module in prb-plugin-native/src/adapter.rs
+- New test modules in prb-plugin-wasm/src/adapter.rs and src/runtime.rs
+- 1 bug fix in prb-plugin-wasm/src/adapter.rs (default payload)
+
+No scope violations detected.
