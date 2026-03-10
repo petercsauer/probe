@@ -8,6 +8,7 @@ members = [
     "crates/prb-schema",
     "crates/prb-decode",
     "crates/prb-pcap",
+    "crates/prb-grpc",
 ]
 
 [workspace.package]

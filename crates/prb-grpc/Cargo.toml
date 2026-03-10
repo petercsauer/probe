@@ -1,0 +1,24 @@
+[package]
+name = "prb-grpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+prb-decode = { path = "../prb-decode" }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+# HTTP/2 frame parsing (pin exact version for stability)
+h2-sans-io = "=0.1.0"
+
+# gRPC message decompression
+flate2 = "1.0"
+
+[dev-dependencies]
+insta = { workspace = true }
