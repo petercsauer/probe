@@ -1,5 +1,7 @@
 //! PRB CLI entry point.
 
+#![allow(unexpected_cfgs)]
+
 mod cli;
 mod commands;
 mod output;

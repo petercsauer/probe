@@ -144,3 +144,14 @@ No state file — fresh start
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [2026-03-10 05:16:57] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 13
+[2026-03-10 05:57:35] logs/phase2-orchestrate/orchestrate-20260309-221850.log Session 13 exited (code=143, segments_done=28/29)
+[2026-03-10 05:57:35] [0;31m  ⚠ Session 13 failed (exit=143, consecutive=3)[0m
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Session 14 / max 60  |  2026-03-10 05:58:57
+  [███████████████████░] 96%  (28/29 segments)
+  Wave: 6 | ✅ 28 done | ⏳ 0 pending | 🔧 0 active | ❌ 1 blocked
+  Log: logs/phase2-orchestrate/session-20260310-055857-s14.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-03-10 05:58:57] logs/phase2-orchestrate/orchestrate-20260309-221850.log Launching cuiclaude session 14

@@ -189,6 +189,7 @@ pub enum ExportFormat {
     Har,
     Otlp,
     Html,
+    #[allow(unexpected_cfgs)]
     #[cfg(feature = "parquet")]
     Parquet,
 }

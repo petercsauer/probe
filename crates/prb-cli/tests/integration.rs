@@ -589,7 +589,7 @@ fn test_cli_large_input_streaming() {
         .unwrap();
     }
 
-    write!(file, "]}}\n").unwrap();
+    writeln!(file, "]}}").unwrap();
     drop(file);
 
     // Ingest and count output lines
@@ -725,7 +725,7 @@ fn test_cli_inspect_with_metadata_filter() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Should only show inbound events
-    assert!(stdout.len() > 0);
+    assert!(!stdout.is_empty());
 }
 
 #[test]

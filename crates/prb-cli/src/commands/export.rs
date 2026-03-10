@@ -24,6 +24,7 @@ pub fn run(args: ExportArgs) -> Result<()> {
         ExportFormat::Har => "har",
         ExportFormat::Otlp => "otlp",
         ExportFormat::Html => "html",
+        #[allow(unexpected_cfgs)]
         #[cfg(feature = "parquet")]
         ExportFormat::Parquet => "parquet",
     };
@@ -44,6 +45,7 @@ pub fn run(args: ExportArgs) -> Result<()> {
                 ExportFormat::Html => {
                     anyhow::bail!("HTML export requires --output <file.html>")
                 }
+                #[allow(unexpected_cfgs)]
                 #[cfg(feature = "parquet")]
                 ExportFormat::Parquet => {
                     anyhow::bail!("Parquet export requires --output <file.parquet>")

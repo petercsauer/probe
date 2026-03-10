@@ -194,17 +194,17 @@ fn write_events_ndjson(args: &IngestArgs, adapter: &mut dyn CaptureAdapter) -> R
         let event = event_result.context("Failed to read event from adapter")?;
 
         // Apply trace ID filter if provided
-        if let Some(ref trace_id) = args.trace_id {
-            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
-                continue;
-            }
+        if let Some(ref trace_id) = args.trace_id
+            && event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id)
+        {
+            continue;
         }
 
         // Apply span ID filter if provided
-        if let Some(ref span_id) = args.span_id {
-            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
-                continue;
-            }
+        if let Some(ref span_id) = args.span_id
+            && event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id)
+        {
+            continue;
         }
 
         serde_json::to_writer(&mut writer, &event)
@@ -234,17 +234,17 @@ fn write_events_from_vec(args: &IngestArgs, events: Vec<DebugEvent>) -> Result<(
     let mut count = 0;
     for event in events {
         // Apply trace ID filter if provided
-        if let Some(ref trace_id) = args.trace_id {
-            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
-                continue;
-            }
+        if let Some(ref trace_id) = args.trace_id
+            && event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id)
+        {
+            continue;
         }
 
         // Apply span ID filter if provided
-        if let Some(ref span_id) = args.span_id {
-            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
-                continue;
-            }
+        if let Some(ref span_id) = args.span_id
+            && event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id)
+        {
+            continue;
         }
 
         serde_json::to_writer(&mut writer, &event)
@@ -266,10 +266,10 @@ fn effective_jobs_with_env(cli_jobs: usize) -> usize {
         return cli_jobs;
     }
 
-    if let Ok(env_jobs) = std::env::var("PRB_JOBS") {
-        if let Ok(n) = env_jobs.parse::<usize>() {
-            return n;
-        }
+    if let Ok(env_jobs) = std::env::var("PRB_JOBS")
+        && let Ok(n) = env_jobs.parse::<usize>()
+    {
+        return n;
     }
 
     std::thread::available_parallelism()
@@ -298,17 +298,17 @@ fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Re
         let event = event_result.context("Failed to read event from adapter")?;
 
         // Apply trace ID filter if provided
-        if let Some(ref trace_id) = args.trace_id {
-            if event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id) {
-                continue;
-            }
+        if let Some(ref trace_id) = args.trace_id
+            && event.metadata.get(METADATA_KEY_OTEL_TRACE_ID) != Some(trace_id)
+        {
+            continue;
         }
 
         // Apply span ID filter if provided
-        if let Some(ref span_id) = args.span_id {
-            if event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id) {
-                continue;
-            }
+        if let Some(ref span_id) = args.span_id
+            && event.metadata.get(METADATA_KEY_OTEL_SPAN_ID) != Some(span_id)
+        {
+            continue;
         }
 
         writer
