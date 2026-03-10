@@ -5,15 +5,23 @@
 //! Decryption Secrets Blocks (DSB).
 
 mod error;
+pub mod flow_key;
+pub mod mmap_reader;
 mod normalize;
+pub mod parallel;
 mod pipeline;
+mod pipeline_core;
 mod reader;
 pub mod tcp;
 pub mod tls;
 
 pub use error::PcapError;
-pub use normalize::{NormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};
+pub use flow_key::{FlowKey, FlowProtocol};
+pub use mmap_reader::{MmapPcapReader, PacketLocation};
+pub use normalize::{NormalizedPacket, OwnedNormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};
+pub use parallel::{BatchStage, ParallelPipeline, PipelineConfig, StreamStage};
 pub use pipeline::{PcapCaptureAdapter, PipelineStats};
+pub use pipeline_core::{PipelineCore, ProcessedEvents};
 pub use reader::{PcapFileReader, TlsKeyStore};
 pub use tcp::{ReassembledStream, StreamDirection, StreamEvent, TcpReassembler};
 pub use tls::{DecryptedStream, TlsStreamProcessor};

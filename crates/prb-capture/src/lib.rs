@@ -44,6 +44,7 @@
 //! println!("{}", stats);
 //! ```
 
+pub mod adapter;
 pub mod capture;
 pub mod config;
 pub mod error;
@@ -51,6 +52,7 @@ pub mod interfaces;
 pub mod privileges;
 pub mod stats;
 
+pub use adapter::LiveCaptureAdapter;
 pub use capture::{CaptureEngine, OwnedPacket};
 pub use config::CaptureConfig;
 pub use error::CaptureError;

@@ -69,6 +69,61 @@ pub struct NormalizedPacket<'a> {
     pub payload: &'a [u8],
 }
 
+/// Owned variant of `NormalizedPacket` for cross-thread transfer.
+///
+/// This type is `Send + Sync` and can be moved across thread boundaries,
+/// making it suitable for parallel pipeline processing with rayon.
+#[derive(Debug, Clone)]
+pub struct OwnedNormalizedPacket {
+    /// Packet timestamp in microseconds since UNIX epoch.
+    pub timestamp_us: u64,
+    /// Source IP address (IPv4 or IPv6).
+    pub src_ip: IpAddr,
+    /// Destination IP address (IPv4 or IPv6).
+    pub dst_ip: IpAddr,
+    /// Transport protocol information.
+    pub transport: TransportInfo,
+    /// VLAN ID if present (supports single or double VLAN tags).
+    pub vlan_id: Option<u16>,
+    /// Owned payload bytes.
+    pub payload: Vec<u8>,
+}
+
+impl OwnedNormalizedPacket {
+    /// Creates an owned packet from a borrowed packet.
+    ///
+    /// This copies the payload bytes to create an owned variant.
+    pub fn from_borrowed(packet: &NormalizedPacket<'_>) -> Self {
+        Self {
+            timestamp_us: packet.timestamp_us,
+            src_ip: packet.src_ip,
+            dst_ip: packet.dst_ip,
+            transport: packet.transport.clone(),
+            vlan_id: packet.vlan_id,
+            payload: packet.payload.to_vec(),
+        }
+    }
+
+    /// Alias for from_borrowed for convenience.
+    pub fn from_normalized(packet: &NormalizedPacket<'_>) -> Self {
+        Self::from_borrowed(packet)
+    }
+
+    /// Creates a borrowed NormalizedPacket from this owned packet.
+    ///
+    /// The returned packet borrows the payload from `self`.
+    pub fn as_normalized(&self) -> NormalizedPacket<'_> {
+        NormalizedPacket {
+            timestamp_us: self.timestamp_us,
+            src_ip: self.src_ip,
+            dst_ip: self.dst_ip,
+            transport: self.transport.clone(),
+            vlan_id: self.vlan_id,
+            payload: &self.payload,
+        }
+    }
+}
+
 /// Maximum age for incomplete IP fragment trains (5 seconds in microseconds).
 const DEFRAG_TIMEOUT_US: u64 = 5_000_000;
 
