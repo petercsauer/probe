@@ -296,4 +296,299 @@ mod tests {
         assert_eq!(event.transport, TransportKind::Zmq);
         assert!(matches!(event.payload, prb_core::Payload::Decoded { .. }));
     }
+
+    #[test]
+    fn test_dto_to_debug_event_all_transports() {
+        let transports = vec![
+            ("grpc", TransportKind::Grpc),
+            ("http2", TransportKind::Grpc),
+            ("zmtp", TransportKind::Zmq),
+            ("zeromq", TransportKind::Zmq),
+            ("rtps", TransportKind::DdsRtps),
+            ("dds", TransportKind::DdsRtps),
+            ("tcp", TransportKind::RawTcp),
+            ("udp", TransportKind::RawUdp),
+            ("unknown", TransportKind::JsonFixture),
+        ];
+
+        for (transport_str, expected_kind) in transports {
+            let dto = DebugEventDto::minimal(transport_str, "request");
+            let event = dto_to_debug_event(dto).expect("conversion should succeed");
+            assert_eq!(event.transport, expected_kind, "failed for transport: {}", transport_str);
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_all_directions() {
+        let directions = vec![
+            ("request", prb_core::Direction::Inbound),
+            ("subscribe", prb_core::Direction::Inbound),
+            ("inbound", prb_core::Direction::Inbound),
+            ("response", prb_core::Direction::Outbound),
+            ("publish", prb_core::Direction::Outbound),
+            ("outbound", prb_core::Direction::Outbound),
+            ("unknown", prb_core::Direction::Unknown),
+            ("invalid", prb_core::Direction::Unknown),
+        ];
+
+        for (direction_str, expected_dir) in directions {
+            let dto = DebugEventDto::minimal("tcp", direction_str);
+            let event = dto_to_debug_event(dto).expect("conversion should succeed");
+            assert_eq!(event.direction, expected_dir, "failed for direction: {}", direction_str);
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_raw_payload_only() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.payload_raw = Some(vec![1, 2, 3, 4]);
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        match event.payload {
+            prb_core::Payload::Raw { raw } => {
+                assert_eq!(raw.as_ref(), &[1, 2, 3, 4]);
+            }
+            _ => panic!("expected raw payload"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_decoded_payload_only() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.payload_decoded = Some(serde_json::json!({"key": "value", "number": 42}));
+        dto.schema_name = Some("MySchema".to_string());
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        match event.payload {
+            prb_core::Payload::Decoded { raw: _, fields, schema_name } => {
+                assert_eq!(fields["key"], "value");
+                assert_eq!(fields["number"], 42);
+                assert_eq!(schema_name, Some("MySchema".to_string()));
+            }
+            _ => panic!("expected decoded payload"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_stream_id() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "stream_id".to_string(),
+            value: "42".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.correlation_keys.len(), 1);
+        match &event.correlation_keys[0] {
+            prb_core::CorrelationKey::StreamId { id } => assert_eq!(*id, 42),
+            _ => panic!("expected StreamId"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_topic() {
+        let mut dto = DebugEventDto::minimal("zmtp", "publish");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "topic".to_string(),
+            value: "events.topic".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.correlation_keys.len(), 1);
+        match &event.correlation_keys[0] {
+            prb_core::CorrelationKey::Topic { name } => assert_eq!(name, "events.topic"),
+            _ => panic!("expected Topic"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_connection_id() {
+        let mut dto = DebugEventDto::minimal("tcp", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "connection_id".to_string(),
+            value: "conn-abc-123".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.correlation_keys.len(), 1);
+        match &event.correlation_keys[0] {
+            prb_core::CorrelationKey::ConnectionId { id } => assert_eq!(id, "conn-abc-123"),
+            _ => panic!("expected ConnectionId"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_trace_context() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "trace_context".to_string(),
+            value: "trace-abc:span-xyz".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.correlation_keys.len(), 1);
+        match &event.correlation_keys[0] {
+            prb_core::CorrelationKey::TraceContext { trace_id, span_id } => {
+                assert_eq!(trace_id, "trace-abc");
+                assert_eq!(span_id, "span-xyz");
+            }
+            _ => panic!("expected TraceContext"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_trace_invalid() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "trace_context".to_string(),
+            value: "invalid-no-colon".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+        assert_eq!(event.correlation_keys.len(), 0);
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_custom() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "custom_key".to_string(),
+            value: "custom_value".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.correlation_keys.len(), 1);
+        match &event.correlation_keys[0] {
+            prb_core::CorrelationKey::Custom { key, value } => {
+                assert_eq!(key, "custom_key");
+                assert_eq!(value, "custom_value");
+            }
+            _ => panic!("expected Custom"),
+        }
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_correlation_key_invalid_stream_id() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![prb_plugin_api::CorrelationKeyDto {
+            kind: "stream_id".to_string(),
+            value: "not-a-number".to_string(),
+        }];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+        assert_eq!(event.correlation_keys.len(), 0);
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_multiple_correlation_keys() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.correlation_keys = vec![
+            prb_plugin_api::CorrelationKeyDto {
+                kind: "stream_id".to_string(),
+                value: "123".to_string(),
+            },
+            prb_plugin_api::CorrelationKeyDto {
+                kind: "topic".to_string(),
+                value: "test.topic".to_string(),
+            },
+            prb_plugin_api::CorrelationKeyDto {
+                kind: "custom".to_string(),
+                value: "value".to_string(),
+            },
+        ];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+        assert_eq!(event.correlation_keys.len(), 3);
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_metadata() {
+        use std::collections::HashMap;
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        let mut metadata = HashMap::new();
+        metadata.insert("key1".to_string(), "value1".to_string());
+        metadata.insert("key2".to_string(), "value2".to_string());
+        dto.metadata = metadata;
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.metadata.len(), 2);
+        assert_eq!(event.metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(event.metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_warnings() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.warnings = vec![
+            "warning 1".to_string(),
+            "warning 2".to_string(),
+        ];
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.warnings.len(), 2);
+        assert!(event.warnings.contains(&"warning 1".to_string()));
+        assert!(event.warnings.contains(&"warning 2".to_string()));
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_addresses() {
+        let mut dto = DebugEventDto::minimal("tcp", "request");
+        dto.src_addr = Some("192.168.1.1:8080".to_string());
+        dto.dst_addr = Some("192.168.1.2:9090".to_string());
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "192.168.1.1:8080");
+        assert!(event.source.network.is_some());
+
+        let network = event.source.network.unwrap();
+        assert_eq!(network.src, "192.168.1.1:8080");
+        assert_eq!(network.dst, "192.168.1.2:9090");
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_no_addresses() {
+        let dto = DebugEventDto::minimal("tcp", "request");
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "unknown");
+        assert!(event.source.network.is_none());
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_partial_address() {
+        let mut dto = DebugEventDto::minimal("tcp", "request");
+        dto.src_addr = Some("192.168.1.1:8080".to_string());
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.origin, "192.168.1.1:8080");
+        assert!(event.source.network.is_none());
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_with_timestamp() {
+        let mut dto = DebugEventDto::minimal("grpc", "request");
+        dto.timestamp_nanos = 1234567890123456789;
+
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+        assert_eq!(event.timestamp.as_nanos(), 1234567890123456789);
+    }
+
+    #[test]
+    fn test_dto_to_debug_event_source_adapter_name() {
+        let dto = DebugEventDto::minimal("grpc", "request");
+        let event = dto_to_debug_event(dto).expect("conversion should succeed");
+
+        assert_eq!(event.source.adapter, "native-plugin");
+    }
 }
