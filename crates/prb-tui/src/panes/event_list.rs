@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_sort_cycle() {
-        let mut pane = EventListPane::new();
+        let pane = EventListPane::new();
         assert_eq!(pane.sort_column, SortColumn::Time);
 
         // Simulate 's' key press through cycle

@@ -116,18 +116,18 @@ impl FilterState {
         if self.history_cursor.is_none() {
             self.history_temp_text = Some(self.text.clone());
             self.history_cursor = Some(self.history.len() - 1);
-        } else if let Some(cursor) = self.history_cursor
-            && cursor > 0
-        {
-            self.history_cursor = Some(cursor - 1);
+        } else if let Some(cursor) = self.history_cursor {
+            if cursor > 0 {
+                self.history_cursor = Some(cursor - 1);
+            }
         }
 
         // Load history text
-        if let Some(cursor) = self.history_cursor
-            && let Some(entry) = self.history.get(cursor)
-        {
-            self.text = entry.clone();
-            self.last_change = Instant::now();
+        if let Some(cursor) = self.history_cursor {
+            if let Some(entry) = self.history.get(cursor) {
+                self.text = entry.clone();
+                self.last_change = Instant::now();
+            }
         }
     }
 

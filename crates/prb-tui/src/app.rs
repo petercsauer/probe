@@ -164,17 +164,17 @@ impl App {
             store,
         };
 
-        if let Some(ref filter_str) = initial_filter
-            && let Ok(filter) = Filter::parse(filter_str)
-        {
-            state.filtered_indices = state.store.filter_indices(&filter);
-            state.filter_text = filter_str.clone();
-            state.filter = Some(filter);
-            state.selected_event = if state.filtered_indices.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
+        if let Some(ref filter_str) = initial_filter {
+            if let Ok(filter) = Filter::parse(filter_str) {
+                state.filtered_indices = state.store.filter_indices(&filter);
+                state.filter_text = filter_str.clone();
+                state.filter = Some(filter);
+                state.selected_event = if state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
         }
 
         let config = Config::load();
@@ -1082,6 +1082,89 @@ impl App {
         }
     }
 
+    fn handle_command_palette_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Enter => {
+                // Execute selected command
+                if let Some(cmd) = self.command_palette.selected_command() {
+                    match cmd.name.as_str() {
+                        "Filter events" => {
+                            self.input_mode = InputMode::Filter;
+                            self.filter_input = Input::new(self.state.filter_text.clone());
+                            self.filter_error = None;
+                        }
+                        "Clear filter" => {
+                            self.state.filter = None;
+                            self.state.filter_text.clear();
+                            self.state.filtered_indices = self.state.store.all_indices();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Help" => {
+                            self.input_mode = InputMode::Help;
+                            self.help_scroll_offset = 0;
+                        }
+                        "Next pane" => {
+                            self.focus = self.focus.next();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Previous pane" => {
+                            self.focus = self.focus.prev();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "First event" => {
+                            if !self.state.filtered_indices.is_empty() {
+                                self.event_list.selected = 0;
+                                self.process_action(Action::SelectEvent(0));
+                            }
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Last event" => {
+                            if !self.state.filtered_indices.is_empty() {
+                                let last = self.state.filtered_indices.len() - 1;
+                                self.event_list.selected = last;
+                                self.process_action(Action::SelectEvent(last));
+                            }
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Quit" => {
+                            self.input_mode = InputMode::Normal;
+                            return true;
+                        }
+                        _ => {
+                            self.input_mode = InputMode::Normal;
+                        }
+                    }
+                }
+                false
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.command_palette.move_selection(1);
+                false
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.command_palette.move_selection(-1);
+                false
+            }
+            KeyCode::Char(c) => {
+                let mut new_input = self.command_palette.input.clone();
+                new_input.push(c);
+                self.command_palette.update_input(new_input);
+                false
+            }
+            KeyCode::Backspace => {
+                let mut new_input = self.command_palette.input.clone();
+                new_input.pop();
+                self.command_palette.update_input(new_input);
+                false
+            }
+            _ => false,
+        }
+    }
+
     fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
         // Check if key is Esc or configured quit key
         let is_exit_key = key.code == KeyCode::Esc
@@ -1545,21 +1628,21 @@ impl App {
             let bytes = raw.clone();
 
             // Try schema-backed decode first (for gRPC)
-            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
-                && let Some(msg_desc) = registry.get_message(method)
-            {
-                match decode_with_schema(&bytes, &msg_desc) {
-                    Ok(decoded) => {
-                        event.payload = Payload::Decoded {
-                            raw: bytes,
-                            fields: decoded.to_json(),
-                            schema_name: Some(method.to_string()),
-                        };
-                        tracing::debug!("Decoded event {} with schema {}", event.id, method);
-                        return;
-                    }
-                    Err(e) => {
-                        tracing::debug!("Schema decode failed for {}: {}", method, e);
+            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD) {
+                if let Some(msg_desc) = registry.get_message(method) {
+                    match decode_with_schema(&bytes, &msg_desc) {
+                        Ok(decoded) => {
+                            event.payload = Payload::Decoded {
+                                raw: bytes,
+                                fields: decoded.to_json(),
+                                schema_name: Some(method.to_string()),
+                            };
+                            tracing::debug!("Decoded event {} with schema {}", event.id, method);
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::debug!("Schema decode failed for {}: {}", method, e);
+                        }
                     }
                 }
             }

@@ -3,7 +3,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Widget};
 use ratatui::style::{Color, Modifier, Style};
 use tui_input::Input;
 use crate::theme::Theme;
