@@ -100,9 +100,7 @@ pub struct App {
     input_mode: InputMode,
     filter_input: Input,
     filter_error: Option<String>,
-    #[allow(dead_code)]
     filter_state: FilterState,
-    #[allow(dead_code)]
     quick_filter_prefix: bool,
 
     event_list: EventListPane,
@@ -735,6 +733,11 @@ impl App {
                 self.filter_error = None;
                 return false;
             }
+            KeyCode::Char(':') => {
+                self.input_mode = InputMode::CommandPalette;
+                self.command_palette = CommandPaletteOverlay::new();
+                return false;
+            }
             KeyCode::Tab => {
                 self.focus = self.focus.next();
                 return false;
@@ -920,6 +923,275 @@ impl App {
             }
             _ => false,
         }
+    }
+
+    fn handle_export_dialog_key(&mut self, key: KeyEvent) -> bool {
+        let Some(ref mut dialog) = self.export_dialog else {
+            self.input_mode = InputMode::Normal;
+            return false;
+        };
+
+        if dialog.editing_path {
+            match key.code {
+                KeyCode::Enter => {
+                    dialog.editing_path = false;
+                }
+                KeyCode::Esc => {
+                    dialog.editing_path = false;
+                }
+                _ => {
+                    dialog.output_path_input.handle_event(&Event::Key(key));
+                }
+            }
+            return false;
+        }
+
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.export_dialog = None;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                dialog.move_selection(1);
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                dialog.move_selection(-1);
+                false
+            }
+            KeyCode::Tab => {
+                dialog.toggle_path_editing();
+                false
+            }
+            KeyCode::Enter => {
+                self.perform_export();
+                self.export_dialog = None;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_copy_mode_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc => {
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('y') => {
+                self.copy_selected_as_json();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('h') => {
+                self.copy_hex_dump();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('d') => {
+                self.copy_decoded_tree();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('a') => {
+                self.copy_source_address();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn perform_export(&self) {
+        use std::fs::File;
+        use std::io::BufWriter;
+
+        let Some(ref dialog) = self.export_dialog else {
+            return;
+        };
+
+        let Some(format) = dialog.selected_format() else {
+            return;
+        };
+
+        let path = dialog.output_path_input.value();
+
+        let events = match format.format.as_str() {
+            "json" => {
+                if let Some(selected_idx) = self.state.selected_event {
+                    if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                        if let Some(event) = self.state.store.get(store_idx) {
+                            vec![event.clone()]
+                        } else {
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+            }
+            _ => {
+                self.state.filtered_indices
+                    .iter()
+                    .filter_map(|&idx| self.state.store.get(idx).cloned())
+                    .collect()
+            }
+        };
+
+        let export_format = match format.format.as_str() {
+            "json" | "json-all" => "json",
+            other => other,
+        };
+
+        if let Ok(exporter) = prb_export::create_exporter(export_format) {
+            if let Ok(file) = File::create(path) {
+                let mut writer = BufWriter::new(file);
+                let _ = exporter.export(&events, &mut writer);
+            }
+        }
+    }
+
+    fn save_filtered_view(&self) {
+        use std::fs::File;
+        use std::io::BufWriter;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let events: Vec<_> = self.state.filtered_indices
+            .iter()
+            .filter_map(|&idx| self.state.store.get(idx).cloned())
+            .collect();
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let path = format!("./filtered_{}.json", timestamp);
+
+        if let Ok(file) = File::create(&path) {
+            let mut writer = BufWriter::new(file);
+            let _ = serde_json::to_writer_pretty(&mut writer, &events);
+        }
+    }
+
+    fn copy_selected_as_json(&self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    if let Ok(json) = serde_json::to_string_pretty(event) {
+                        Self::osc52_copy(&json);
+                    }
+                }
+            }
+        }
+    }
+
+    fn copy_hex_dump(&self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    let hex_lines = self.hex_dump.format_hex_dump(&event.payload);
+                    let hex_text = hex_lines.join("\n");
+                    Self::osc52_copy(&hex_text);
+                }
+            }
+        }
+    }
+
+    fn copy_decoded_tree(&self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    let decoded_text = self.format_decoded_tree(event);
+                    Self::osc52_copy(&decoded_text);
+                }
+            }
+        }
+    }
+
+    fn copy_source_address(&self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    let address = format!("{}:{}", event.source_addr, event.source_port);
+                    Self::osc52_copy(&address);
+                }
+            }
+        }
+    }
+
+    fn format_decoded_tree(&self, event: &DebugEvent) -> String {
+        let mut lines = Vec::new();
+
+        if let Some(ref registry) = self.state.schema_registry {
+            if let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+                .and_then(|method| registry.get_by_method(method))
+            {
+                if let Ok(wire_msg) = decode_wire_format(&event.payload.as_bytes()) {
+                    if let Ok(decoded) = decode_with_schema(&wire_msg, schema) {
+                        Self::format_wire_value(&decoded, 0, &mut lines);
+                        return lines.join("\n");
+                    }
+                }
+            }
+        }
+
+        if let Ok(wire_msg) = decode_wire_format(&event.payload.as_bytes()) {
+            Self::format_wire_message(&wire_msg, 0, &mut lines);
+        }
+
+        lines.join("\n")
+    }
+
+    fn format_wire_message(msg: &WireMessage, indent: usize, lines: &mut Vec<String>) {
+        for (field_num, value) in &msg.fields {
+            lines.push(format!("{}{}: {:?}", "  ".repeat(indent), field_num, value));
+            if let WireValue::LengthDelimited(LenValue::Message(nested_msg)) = value {
+                Self::format_wire_message(nested_msg, indent + 1, lines);
+            }
+        }
+    }
+
+    fn format_wire_value(value: &JsonValue, indent: usize, lines: &mut Vec<String>) {
+        match value {
+            JsonValue::Object(obj) => {
+                for (key, val) in obj {
+                    lines.push(format!("{}{}: {}", "  ".repeat(indent), key,
+                        if val.is_object() || val.is_array() { "" } else { val.to_string() }));
+                    if val.is_object() || val.is_array() {
+                        Self::format_wire_value(val, indent + 1, lines);
+                    }
+                }
+            }
+            JsonValue::Array(arr) => {
+                for (i, val) in arr.iter().enumerate() {
+                    lines.push(format!("{}[{}]: {}", "  ".repeat(indent), i,
+                        if val.is_object() || val.is_array() { "" } else { val.to_string() }));
+                    if val.is_object() || val.is_array() {
+                        Self::format_wire_value(val, indent + 1, lines);
+                    }
+                }
+            }
+            other => {
+                lines.push(format!("{}{}", "  ".repeat(indent), other));
+            }
+        }
+    }
+
+    fn osc52_copy(text: &str) {
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(text);
+        print!("\x1b]52;c;{}\x07", encoded);
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
     }
 
     /// Render the capture control bar for live mode.
@@ -1191,6 +1463,46 @@ impl App {
         if self.input_mode == InputMode::PluginManager {
             self.plugin_manager.render(area, buf);
         }
+
+        if self.input_mode == InputMode::ExportDialog {
+            if let Some(ref dialog) = self.export_dialog {
+                dialog.render(area, buf);
+            }
+        }
+
+        if self.input_mode == InputMode::CopyMode {
+            let width = 40u16.min(area.width.saturating_sub(4));
+            let height = 8u16.min(area.height.saturating_sub(4));
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+
+            Clear.render(overlay_area, buf);
+
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(Theme::focused_border())
+                .title(" Copy Mode ");
+
+            let inner = block.inner(overlay_area);
+            block.render(overlay_area, buf);
+
+            let help_lines = vec![
+                "y - copy event as JSON",
+                "h - copy hex dump",
+                "d - copy decoded tree",
+                "a - copy source address",
+                "",
+                "Esc - cancel",
+            ];
+
+            for (i, line) in help_lines.iter().enumerate() {
+                if i < inner.height as usize {
+                    let y_pos = inner.y + i as u16;
+                    buf.set_string(inner.x + 2, y_pos, line, Style::default());
+                }
+            }
+        }
     }
 
     /// Check if we're in live capture mode.
@@ -1343,7 +1655,7 @@ impl App {
         };
 
         // Check if we have an active status message (shown for 2 seconds)
-        let show_status_msg = if let Some((ref message, timestamp)) = status_message {
+        let show_status_msg = if let Some((_, timestamp)) = status_message {
             timestamp.elapsed().as_secs() < 2
         } else {
             false
@@ -1352,7 +1664,7 @@ impl App {
         let mut spans = if show_status_msg {
             // Show status message prominently
             vec![Span::styled(
-                format!(" {} ", status_message.as_ref().unwrap().0),
+                format!(" {} ", status_message.unwrap().0),
                 Style::default()
                     .fg(ratatui::style::Color::Black)
                     .bg(ratatui::style::Color::Yellow)
