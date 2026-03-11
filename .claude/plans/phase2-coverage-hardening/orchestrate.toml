@@ -29,7 +29,10 @@ AWS_BEARER_TOKEN_BEDROCK = "${CUI_BEDROCK_API_KEY}"
 
 [notifications]
 enabled = true
-contact = "+12036446182"
+ntfy_topic = "prb-REPLACE-WITH-YOUR-UUID-TOPIC"
+verbosity = "all"
+max_attempts = 3
+retry_delays = [10, 60, 300]
 
 [monitor]
 enabled = true

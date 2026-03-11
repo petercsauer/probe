@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .config import OrchestrateConfig
 from .monitor import MonitorServer
-from .notify import Notifier
+from .notify import _send_ntfy, Notifier
 from .planner import Segment, load_plan
 from .runner import run_segment
 from .state import StateDB
@@ -80,12 +80,45 @@ async def _heartbeat_loop(
         await notifier.heartbeat(summary)
 
 
+async def _notification_worker(
+    notifier: Notifier,
+    state: StateDB,
+    stop_event: asyncio.Event,
+    poll_interval: int = 10,
+) -> None:
+    """Poll the notification outbox and deliver pending messages with backoff."""
+    retry_delays = notifier._config.notify_retry_delays
+    while not stop_event.is_set():
+        try:
+            pending = await state.get_pending_notifications(notifier._max_attempts)
+            for notif in pending:
+                if notif["attempts"] > 0 and notif.get("last_attempt_at"):
+                    delay = retry_delays[min(notif["attempts"] - 1, len(retry_delays) - 1)]
+                    if (time.time() - notif["last_attempt_at"]) < delay:
+                        continue
+                ok = await _send_ntfy(
+                    notifier._topic,
+                    notif["message"],
+                    priority=notif.get("priority", "default"),
+                    click_url=notifier._click_url,
+                )
+                if ok:
+                    await state.mark_notification_sent(notif["id"])
+                else:
+                    await state.mark_notification_failed(notif["id"], "HTTP error")
+        except Exception:
+            log.exception("Notification worker error")
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=poll_interval)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def _run_wave(
     wave: int,
     segments: list[Segment],
     config: OrchestrateConfig,
     state: StateDB,
-    notifier: Notifier,
     log_dir: Path,
     shutting_down: asyncio.Event,
 ) -> list[tuple[int, str]]:
@@ -105,10 +138,9 @@ async def _run_wave(
 
             attempts = 0
             status = "failed"
-            summary = ""
             while attempts <= config.max_retries:
                 attempts = await state.increment_attempts(seg.num)
-                status, summary = await run_segment(seg, config, state, log_dir)
+                status, _ = await run_segment(seg, config, state, log_dir)
                 if status in ("pass", "timeout"):
                     break
                 if attempts > config.max_retries:
@@ -116,7 +148,6 @@ async def _run_wave(
                 log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
                 await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
 
-            await notifier.segment_complete(seg.num, seg.title, status, summary)
             return seg.num, status
 
     tasks = [asyncio.create_task(_run_one(seg)) for seg in segments]
@@ -207,16 +238,16 @@ async def _orchestrate_inner(
     await state.set_meta("started_at", str(time.time()))
     await state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
 
-    notifier = Notifier(config)
+    notifier = Notifier(config, state)
     monitor = MonitorServer(state, log_dir, config.monitor_port)
 
     shutting_down = asyncio.Event()
-    heartbeat_stop = asyncio.Event()
+    worker_stop = asyncio.Event()
 
     # Signal handlers
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: _handle_shutdown(shutting_down, heartbeat_stop))
+        loop.add_signal_handler(sig, lambda: _handle_shutdown(shutting_down, worker_stop))
 
     await monitor.start()
     await notifier.started(meta.title, len(segments), max_wave)
@@ -231,7 +262,10 @@ async def _orchestrate_inner(
     print(f"{'='*60}\n")
 
     heartbeat_task = asyncio.create_task(
-        _heartbeat_loop(state, notifier, config.heartbeat_interval, heartbeat_stop)
+        _heartbeat_loop(state, notifier, config.heartbeat_interval, worker_stop)
+    )
+    notif_task = asyncio.create_task(
+        _notification_worker(notifier, state, worker_stop)
     )
 
     try:
@@ -258,7 +292,6 @@ async def _orchestrate_inner(
             await state.set_meta("current_wave", str(wave_num))
             seg_nums = [s.num for s in pending]
             await state.log_event("wave_start", f"Wave {wave_num}/{max_wave}: {seg_nums}")
-            await notifier.wave_start(wave_num, max_wave, seg_nums)
 
             print(f"\n{'━'*50}")
             print(f"  Wave {wave_num}/{max_wave} — {len(pending)} segments: "
@@ -266,8 +299,17 @@ async def _orchestrate_inner(
             print(f"{'━'*50}")
 
             results = await _run_wave(
-                wave_num, pending, config, state, notifier, log_dir, shutting_down
+                wave_num, pending, config, state, log_dir, shutting_down
             )
+
+            # Batched wave completion notification
+            await notifier.wave_complete(wave_num, max_wave, results)
+            # Individual notifications for non-passing segments
+            for seg_num, status in results:
+                if status not in ("pass", "skipped"):
+                    seg = next((s for s in pending if s.num == seg_num), None)
+                    if seg:
+                        await notifier.segment_complete(seg_num, seg.title, status, "")
 
             # Wave summary
             passed = sum(1 for _, s in results if s == "pass")
@@ -291,8 +333,9 @@ async def _orchestrate_inner(
         log.exception("Orchestration error")
         await notifier.error(str(exc))
     finally:
-        heartbeat_stop.set()
+        worker_stop.set()
         await heartbeat_task
+        await notif_task
 
         progress = await state.progress()
         await state.log_event("run_complete", json.dumps(progress))
@@ -307,10 +350,10 @@ async def _orchestrate_inner(
         print(f"{'='*60}\n")
 
 
-def _handle_shutdown(shutting_down: asyncio.Event, heartbeat_stop: asyncio.Event) -> None:
+def _handle_shutdown(shutting_down: asyncio.Event, worker_stop: asyncio.Event) -> None:
     log.warning("Received shutdown signal")
     shutting_down.set()
-    heartbeat_stop.set()
+    worker_stop.set()
 
 
 async def _cmd_status_async(plan_dir: Path) -> None:

@@ -36,7 +36,10 @@ class OrchestrateConfig:
     gate_command: str = ""
     auth_env: dict[str, str] = field(default_factory=dict)
     notify_enabled: bool = False
-    notify_contact: str = ""
+    ntfy_topic: str = ""
+    notify_verbosity: str = "all"
+    notify_max_attempts: int = 3
+    notify_retry_delays: list[int] = field(default_factory=lambda: [10, 60, 300])
     monitor_port: int = 0
 
     @classmethod
@@ -70,11 +73,6 @@ class OrchestrateConfig:
             if val:
                 auth_env[k] = val
 
-        # Notification contact: fall back to env var
-        contact = notifications.get("contact", "")
-        if not contact:
-            contact = os.environ.get("PRB_NOTIFY_CONTACT", "")
-
         return cls(
             preamble_files=plan.get("preamble", []),
             extra_rules=plan.get("extra_rules", ""),
@@ -87,6 +85,9 @@ class OrchestrateConfig:
             gate_command=gate.get("command", ""),
             auth_env=auth_env,
             notify_enabled=notifications.get("enabled", False),
-            notify_contact=contact,
+            ntfy_topic=notifications.get("ntfy_topic", ""),
+            notify_verbosity=notifications.get("verbosity", "all"),
+            notify_max_attempts=notifications.get("max_attempts", 3),
+            notify_retry_delays=notifications.get("retry_delays", [10, 60, 300]),
             monitor_port=monitor.get("port", 0) if monitor.get("enabled", False) else 0,
         )
