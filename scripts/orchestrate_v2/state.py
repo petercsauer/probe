@@ -349,10 +349,15 @@ class StateDB:
         return count
 
     async def reset_for_retry(self, num: int) -> None:
-        """Reset a single segment back to pending for manual retry."""
+        """Reset a single segment back to pending for manual retry.
+
+        Resets status/attempts/timestamps but preserves segment_attempts history.
+        """
         await self._conn.execute(
-            "UPDATE segments SET status='pending', started_at=NULL,"
-            " finished_at=NULL WHERE num=?",
+            """UPDATE segments
+               SET status='pending', attempts=0, started_at=NULL, finished_at=NULL,
+                   last_seen_at=NULL, last_activity=NULL
+               WHERE num=?""",
             (num,),
         )
         await self._conn.commit()

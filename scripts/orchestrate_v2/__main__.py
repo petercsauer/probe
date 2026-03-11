@@ -21,6 +21,12 @@ from .state import StateDB
 
 log = logging.getLogger("orchestrate")
 
+# Module-level running PIDs registry (seg_num → OS PID).
+# Single dict shared between orchestration and the monitor server so the
+# /api/control kill action can find live processes.  Thread-safe because
+# asyncio is single-threaded.
+_running_pids: dict[int, int] = {}
+
 
 async def _run_gate(config: OrchestrateConfig, log_dir: Path, wave: int) -> tuple[bool, str]:
     """Run the configured gate command after a wave, streaming output to a log file."""
@@ -161,6 +167,10 @@ async def _run_wave(
         async with sem:
             if shutting_down.is_set():
                 return seg.num, "skipped"
+            # Operator may have skipped this segment while it was queued
+            current = await state.get_segment(seg.num)
+            if current and current["status"] == "skipped":
+                return seg.num, "skipped"
 
             attempts = 0
             status = "failed"
@@ -170,6 +180,8 @@ async def _run_wave(
                     seg, config, state, log_dir,
                     notifier=notifier,
                     attempt_num=attempts,
+                    register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
+                    unregister_pid=lambda n: _running_pids.pop(n, None),
                 )
                 if status in ("pass", "timeout"):
                     break
@@ -269,7 +281,7 @@ async def _orchestrate_inner(
     await state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
 
     notifier = Notifier(config, state)
-    monitor = MonitorServer(state, log_dir, config.monitor_port)
+    monitor = MonitorServer(state, log_dir, config.monitor_port, running_pids=_running_pids)
 
     shutting_down = asyncio.Event()
     worker_stop = asyncio.Event()
@@ -308,11 +320,11 @@ async def _orchestrate_inner(
             if not wave_segs:
                 continue
 
-            # Skip segments that already passed (resume support)
+            # Skip segments that already passed or were skipped by operator (resume support)
             pending = []
             for s in wave_segs:
                 seg = await state.get_segment(s.num)
-                if seg and seg.status not in ("pass",):
+                if seg and seg.status not in ("pass", "skipped"):
                     pending.append(s)
 
             if not pending:
@@ -483,6 +495,14 @@ def main() -> None:
     dry_p = sub.add_parser("dry-run", help="Show computed waves")
     dry_p.add_argument("plan_dir", type=Path, help="Path to plan directory")
 
+    skip_p = sub.add_parser("skip", help="Mark a segment as skipped")
+    skip_p.add_argument("seg_num", type=int, metavar="SEG_NUM")
+    skip_p.add_argument("plan_dir", type=Path)
+
+    retry_p = sub.add_parser("retry", help="Reset a segment for retry")
+    retry_p.add_argument("seg_num", type=int, metavar="SEG_NUM")
+    retry_p.add_argument("plan_dir", type=Path)
+
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -497,6 +517,26 @@ def main() -> None:
         cmd_status(args.plan_dir)
     elif args.command == "dry-run":
         cmd_dry_run(args.plan_dir)
+    elif args.command == "skip":
+        async def _do_skip() -> None:
+            db = await StateDB.create(args.plan_dir / "state.db")
+            await db.set_status(args.seg_num, "skipped")
+            await db.log_event("operator_skip", f"S{args.seg_num:02d} skipped via CLI", severity="warn")
+            await db.close()
+            print(f"S{args.seg_num:02d} marked as skipped")
+        asyncio.run(_do_skip())
+    elif args.command == "retry":
+        async def _do_retry() -> None:
+            db = await StateDB.create(args.plan_dir / "state.db")
+            await db.reset_for_retry(args.seg_num)
+            await db.log_event(
+                "operator_retry",
+                f"S{args.seg_num:02d} reset for retry via CLI (restart orchestrator to run)",
+                severity="warn",
+            )
+            await db.close()
+            print(f"S{args.seg_num:02d} reset to pending — restart orchestrator to run it")
+        asyncio.run(_do_retry())
 
 
 if __name__ == "__main__":

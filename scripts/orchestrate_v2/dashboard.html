@@ -99,7 +99,19 @@
   .seg-status.partial { background: var(--partial-bg); color: var(--partial); border: 1px solid var(--partial); }
   .seg-status.blocked { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail); }
   .seg-status.timeout { background: var(--partial-bg); color: var(--timeout); border: 1px solid var(--timeout); }
-  .seg-status.unknown { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .seg-status.unknown  { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .seg-status.skipped  { background: var(--pending-bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* ── Operator action buttons ── */
+  .act-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .act-btn {
+    border: none; border-radius: 4px; padding: 2px 6px; font-size: 11px;
+    cursor: pointer; font-weight: 700; opacity: 0.7; transition: opacity 0.1s;
+  }
+  .act-btn:hover { opacity: 1; }
+  .act-kill  { background: rgba(209,77,65,0.15); color: var(--fail); border: 1px solid var(--fail); }
+  .act-retry { background: rgba(56,189,248,0.15); color: var(--running); border: 1px solid var(--running); }
+  .act-skip  { background: rgba(100,100,100,0.1); color: var(--text-muted); border: 1px solid var(--border); }
 
   /* Gate bar between waves */
   .gate-bar {
@@ -483,6 +495,45 @@
       .catch(() => {});
   }
 
+  function actionButtons(seg) {
+    const btns = [];
+    if (seg.status === 'running') {
+      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process">✕</button>`);
+    }
+    if (['failed','blocked','partial','timeout'].includes(seg.status)) {
+      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry">↺</button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip">⏭</button>`);
+    }
+    if (seg.status === 'pending') {
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip">⏭</button>`);
+    }
+    return btns.length ? `<span class="act-btns">${btns.join('')}</span>` : '';
+  }
+
+  window.controlSeg = async function(num, action) {
+    const messages = {
+      kill:  `Kill S${String(num).padStart(2,'0')}? This terminates the running process.`,
+      retry: `Reset S${String(num).padStart(2,'0')} for retry? (Restart orchestrator to run it.)`,
+      skip:  `Skip S${String(num).padStart(2,'0')}? The wave will proceed without it.`,
+    };
+    if (!confirm(messages[action] || `${action} S${String(num).padStart(2,'0')}?`)) return;
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action, seg_num: num}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed: ${data.error || 'unknown error'}`);
+      } else {
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
   function renderTimeline(segments, maxWave, events, currentWave) {
     const el = document.getElementById('timeline-content');
     const waves = {};
@@ -513,6 +564,7 @@
         html += `<span class="seg-title">${s.title}</span>`;
         html += elapsedStr;
         html += `<span class="seg-status ${s.status}">${s.status}</span>`;
+        html += actionButtons(s);
         html += `</div>`;
       });
 
