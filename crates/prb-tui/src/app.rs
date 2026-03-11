@@ -1127,6 +1127,11 @@ impl App {
                 self.save_filtered_view();
                 return false;
             }
+            KeyCode::Char('m') => {
+                // Toggle metrics dashboard
+                self.metrics_overlay = !self.metrics_overlay;
+                return false;
+            }
             KeyCode::Char('f') => {
                 // Show which-key popup for quick-filter options
                 let options = vec![

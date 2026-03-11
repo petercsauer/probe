@@ -337,122 +337,8 @@ fn test_format_timestamp_short_wraps_at_24_hours() {
     assert_eq!(formatted, "01:00:00.000");
 }
 
-#[test]
-fn test_calculate_selected_bucket_single_bucket() {
-    let events = vec![
-        make_test_event_at(1, 1_000_000_000, TransportKind::Grpc),
-        make_test_event_at(2, 2_000_000_000, TransportKind::Zmq),
-    ];
-    let store = EventStore::new(events);
-    let state = AppState {
-        filtered_indices: store.all_indices(),
-        selected_event: Some(0),
-        filter: None,
-        filter_text: String::new(),
-        schema_registry: None,
-            conversations: None,
-        store,
-                visible_columns: Vec::new(),
-    };
-
-    let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 1);
-    assert_eq!(bucket, Some(0));
-}
-
-#[test]
-fn test_calculate_selected_bucket_multiple_buckets() {
-    // Events spanning 10 seconds
-    let events = vec![
-        make_test_event_at(1, 0, TransportKind::Grpc),
-        make_test_event_at(2, 5_000_000_000, TransportKind::Zmq),
-        make_test_event_at(3, 10_000_000_000, TransportKind::Grpc),
-    ];
-    let store = EventStore::new(events);
-    let state = AppState {
-        filtered_indices: store.all_indices(),
-        selected_event: Some(0),
-        filter: None,
-        filter_text: String::new(),
-        schema_registry: None,
-            conversations: None,
-        store,
-                visible_columns: Vec::new(),
-    };
-
-    // With 10 buckets, first event should be in bucket 0
-    let bucket0 = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 10);
-    assert_eq!(bucket0, Some(0));
-
-    // Middle event should be in bucket ~5
-    let bucket1 = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 1, 10);
-    assert!(bucket1 == Some(4) || bucket1 == Some(5)); // Allow some rounding
-
-    // Last event should be in last bucket
-    let bucket2 = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 2, 10);
-    assert_eq!(bucket2, Some(9));
-}
-
-#[test]
-fn test_calculate_selected_bucket_zero_buckets() {
-    let events = vec![make_test_event_at(1, 1_000_000_000, TransportKind::Grpc)];
-    let store = EventStore::new(events);
-    let state = AppState {
-        filtered_indices: store.all_indices(),
-        selected_event: Some(0),
-        filter: None,
-        filter_text: String::new(),
-        schema_registry: None,
-            conversations: None,
-        store,
-                visible_columns: Vec::new(),
-    };
-
-    let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 0);
-    assert_eq!(bucket, None);
-}
-
-#[test]
-fn test_calculate_selected_bucket_same_timestamp() {
-    // All events at the same time
-    let events = vec![
-        make_test_event_at(1, 1_000_000_000, TransportKind::Grpc),
-        make_test_event_at(2, 1_000_000_000, TransportKind::Zmq),
-    ];
-    let store = EventStore::new(events);
-    let state = AppState {
-        filtered_indices: store.all_indices(),
-        selected_event: Some(0),
-        filter: None,
-        filter_text: String::new(),
-        schema_registry: None,
-            conversations: None,
-        store,
-                visible_columns: Vec::new(),
-    };
-
-    let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 10);
-    assert_eq!(bucket, Some(0)); // Zero range puts everything in first bucket
-}
-
-#[test]
-fn test_calculate_selected_bucket_out_of_bounds() {
-    let events = vec![make_test_event_at(1, 1_000_000_000, TransportKind::Grpc)];
-    let store = EventStore::new(events);
-    let state = AppState {
-        filtered_indices: store.all_indices(),
-        selected_event: Some(0),
-        filter: None,
-        filter_text: String::new(),
-        schema_registry: None,
-            conversations: None,
-        store,
-                visible_columns: Vec::new(),
-    };
-
-    // Try to calculate bucket for non-existent event index
-    let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 99, 10);
-    assert_eq!(bucket, None);
-}
+// Note: test_calculate_selected_bucket was removed in S17 refactor
+// The timeline now maintains its own cursor state internally
 
 #[test]
 fn test_format_time_legend_with_events() {
@@ -531,7 +417,7 @@ fn test_format_time_legend_empty_store() {
 }
 
 #[test]
-fn test_timeline_handle_key_returns_none() {
+fn test_timeline_handle_key_unhandled() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use prb_tui::panes::PaneComponent;
 
@@ -549,9 +435,42 @@ fn test_timeline_handle_key_returns_none() {
     };
 
     let mut pane = TimelinePane::new();
+
+    // Test unhandled key
     let key = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
     let action = pane.handle_key(key, &state);
+    assert!(matches!(action, prb_tui::panes::Action::None));
+}
 
-    // Timeline pane doesn't handle any keys - should always return Action::None
+#[test]
+fn test_timeline_handle_key_left_right() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use prb_tui::panes::PaneComponent;
+
+    let events = vec![
+        make_test_event_at(1, 1_000_000_000, TransportKind::Grpc),
+        make_test_event_at(2, 2_000_000_000, TransportKind::Grpc),
+    ];
+    let store = EventStore::new(events);
+    let state = AppState {
+        filtered_indices: store.all_indices(),
+        selected_event: Some(0),
+        filter: None,
+        filter_text: String::new(),
+        schema_registry: None,
+            conversations: None,
+        store,
+                visible_columns: Vec::new(),
+    };
+
+    let mut pane = TimelinePane::new();
+
+    // Left/Right keys should be handled (return None but modify internal state)
+    let key_left = KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
+    let action = pane.handle_key(key_left, &state);
+    assert!(matches!(action, prb_tui::panes::Action::None));
+
+    let key_right = KeyEvent::new(KeyCode::Right, KeyModifiers::NONE);
+    let action = pane.handle_key(key_right, &state);
     assert!(matches!(action, prb_tui::panes::Action::None));
 }

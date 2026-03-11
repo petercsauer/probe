@@ -91,7 +91,7 @@ impl MetricsOverlay {
                 "  {:8}  {} conv  p50={}  {} errors",
                 format!("{}:", protocol),
                 stats.count,
-                format_duration_ms(stats.p50_ns / 1_000_000),
+                format_duration_ns(stats.p50_ns),
                 stats.error_count
             );
             buf.set_string(inner.x, y, line, theme.normal_row());
@@ -120,14 +120,11 @@ impl MetricsOverlay {
         current_y += 1;
 
         // Line 2: Latency percentiles
-        let p50_ms = metrics.latency_p50_ns / 1_000_000;
-        let p95_ms = metrics.latency_p95_ns / 1_000_000;
-        let p99_ms = metrics.latency_p99_ns / 1_000_000;
         let line2 = format!(
             "Latency:  p50={}  p95={}  p99={}",
-            format_duration_ms(p50_ms),
-            format_duration_ms(p95_ms),
-            format_duration_ms(p99_ms)
+            format_duration_ns(metrics.latency_p50_ns),
+            format_duration_ns(metrics.latency_p95_ns),
+            format_duration_ns(metrics.latency_p99_ns)
         );
         buf.set_string(x, current_y, line2, theme.normal_row());
         current_y += 1;
@@ -202,12 +199,26 @@ struct ProtocolStats {
     p50_ns: u64,
 }
 
-fn format_duration_ms(ms: u64) -> String {
-    if ms == 0 {
+fn format_duration_ns(ns: u64) -> String {
+    if ns == 0 {
         "0ms".to_string()
-    } else if ms < 1000 {
-        format!("{}ms", ms)
+    } else if ns < 1_000 {
+        format!("{}ns", ns)
+    } else if ns < 1_000_000 {
+        let us = ns as f64 / 1_000.0;
+        if us < 10.0 {
+            format!("{:.1}us", us)
+        } else {
+            format!("{}us", (us as u64))
+        }
+    } else if ns < 1_000_000_000 {
+        let ms = ns as f64 / 1_000_000.0;
+        if ms < 10.0 {
+            format!("{:.1}ms", ms)
+        } else {
+            format!("{}ms", (ms as u64))
+        }
     } else {
-        format!("{:.1}s", ms as f64 / 1000.0)
+        format!("{:.1}s", ns as f64 / 1_000_000_000.0)
     }
 }
