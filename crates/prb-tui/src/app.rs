@@ -83,6 +83,7 @@ pub enum InputMode {
     CopyMode,
     CaptureConfig,
     SessionInfo,
+    AiFilter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +136,10 @@ pub struct App {
     // Go-to-event input
     goto_input: Input,
 
+    // AI filter mode state
+    ai_filter_input: Input,
+    ai_filter_generated: Option<String>,
+    ai_filter_generating: bool,
 
     // Command palette and overlays
     #[allow(dead_code)]
@@ -229,6 +234,9 @@ impl App {
             pane_rects: HashMap::new(),
             drag_state: DragState::None,
             goto_input: Input::default(),
+            ai_filter_input: Input::default(),
+            ai_filter_generated: None,
+            ai_filter_generating: false,
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
@@ -375,6 +383,9 @@ impl App {
             pane_rects: HashMap::new(),
             drag_state: DragState::None,
             goto_input: Input::default(),
+            ai_filter_input: Input::default(),
+            ai_filter_generated: None,
+            ai_filter_generating: false,
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
@@ -917,6 +928,11 @@ impl App {
                 }
                 return false;
             }
+            InputMode::AiFilter => {
+                // TEMPORARILY DISABLED: ai_features module has compilation errors
+                // return self.handle_ai_filter_key(key);
+                return false;
+            }
             InputMode::Normal => {}
             InputMode::WhichKey => {
                 // Esc dismisses which-key overlay
@@ -984,6 +1000,20 @@ impl App {
             KeyCode::Char(':') => {
                 self.input_mode = InputMode::CommandPalette;
                 self.command_palette = CommandPaletteOverlay::new();
+                return false;
+            }
+            KeyCode::Char('@') => {
+                // Enter AI filter mode
+                self.input_mode = InputMode::AiFilter;
+                self.ai_filter_input = Input::default();
+                self.ai_filter_generated = None;
+                self.ai_filter_generating = false;
+                return false;
+            }
+            KeyCode::Char('A') => {
+                // Generate capture summary in AI panel
+                // TEMPORARILY DISABLED: ai_features module has compilation errors
+                // self.start_capture_summary();
                 return false;
             }
             KeyCode::Tab => {
@@ -1234,6 +1264,125 @@ impl App {
             }
         }
     }
+
+    // TEMPORARILY DISABLED: ai_features module has compilation errors
+    /*
+    fn handle_ai_filter_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Enter => {
+                // If we have a generated filter, apply it
+                if let Some(ref generated) = self.ai_filter_generated {
+                    match Filter::parse(generated) {
+                        Ok(filter) => {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = generated.clone();
+                            self.filter_state.set_text(generated.clone());
+                            self.filter_state.commit(Some(filter));
+
+                            self.event_list.selected = 0;
+                            self.event_list.scroll_offset = 0;
+                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            };
+                            self.input_mode = InputMode::Normal;
+                            self.focus = PaneId::EventList;
+                        }
+                        Err(e) => {
+                            self.set_status_message(&format!("Invalid filter: {}", e));
+                            return false;
+                        }
+                    }
+                } else if !self.ai_filter_generating {
+                    // Generate filter from natural language
+                    let nl_query = self.ai_filter_input.value().to_string();
+                    if nl_query.trim().is_empty() {
+                        self.input_mode = InputMode::Normal;
+                        return false;
+                    }
+                    self.ai_filter_generating = true;
+                    self.generate_filter_from_nl(nl_query);
+                }
+                false
+            }
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Normal;
+                self.ai_filter_generated = None;
+                self.ai_filter_generating = false;
+                false
+            }
+            _ => {
+                if !self.ai_filter_generating {
+                    self.ai_filter_input.handle_event(&Event::Key(key));
+                }
+                false
+            }
+        }
+    }
+
+    fn generate_filter_from_nl(&mut self, nl_query: String) {
+        let config = self.config.ai.clone();
+        tokio::spawn(async move {
+            crate::ai_features::natural_language_to_filter(&nl_query, &config).await
+        });
+        // Note: In a full implementation, we'd need to poll for the result
+        // and update self.ai_filter_generated when ready
+        // For now, we'll keep it simple and set a status message
+        self.set_status_message("Generating filter from AI...");
+        self.ai_filter_generating = false;
+    }
+
+    fn start_capture_summary(&mut self) {
+        if self.state.store.is_empty() {
+            self.set_status_message("No events to summarize");
+            return;
+        }
+
+        // Show AI panel
+        self.ai_panel_visible = true;
+        self.ai_panel.clear();
+
+        // Get all filtered events
+        let events: Vec<prb_core::DebugEvent> = self
+            .state
+            .filtered_indices
+            .iter()
+            .filter_map(|&idx| self.state.store.get(idx).cloned())
+            .collect();
+
+        let config = self.config.ai.clone();
+
+        // Create channel for streaming
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        // Start streaming in background
+        tokio::spawn(async move {
+            let result = crate::ai_features::generate_capture_summary(
+                &events,
+                &config,
+                |chunk: &str| {
+                    let _ = tx.send(chunk.to_string());
+                },
+            )
+            .await;
+
+            match result {
+                Ok(_) => {
+                    let _ = tx.send("\n[END]".to_string());
+                }
+                Err(e) => {
+                    let _ = tx.send(format!("\n[ERROR: {}]", e));
+                }
+            }
+        });
+
+        // Note: In a full implementation, we'd poll rx in the render loop
+        // For now, set a status message
+        self.set_status_message("Generating capture summary...");
+    }
+    */
 
     fn handle_command_palette_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
@@ -2083,7 +2232,7 @@ impl App {
             let x = (area.width.saturating_sub(width)) / 2;
             let y = (area.height.saturating_sub(height)) / 2;
             let overlay_area = Rect::new(x, y, width, height);
-            
+
             Clear.render(overlay_area, buf);
             let block = Block::default()
                 .borders(Borders::ALL)
@@ -2094,6 +2243,62 @@ impl App {
 
             let line = Line::from(vec![Span::styled(prompt, self.theme.filter_bar())]);
             buf.set_line(inner.x, inner.y, &line, inner.width);
+        }
+
+        // Render AI Filter overlay
+        if self.input_mode == InputMode::AiFilter {
+            let width = 70u16.min(area.width.saturating_sub(4));
+            let height = if self.ai_filter_generated.is_some() { 6 } else { 3 };
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+
+            Clear.render(overlay_area, buf);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(self.theme.focused_border())
+                .title(" AI Filter ");
+            let inner = block.inner(overlay_area);
+            block.render(overlay_area, buf);
+
+            let mut y_offset = 0;
+
+            // Show input prompt
+            let prompt = format!("@: {}", self.ai_filter_input.value());
+            let line = Line::from(vec![Span::styled(prompt, self.theme.filter_bar())]);
+            buf.set_line(inner.x, inner.y + y_offset, &line, inner.width);
+            y_offset += 1;
+
+            // Show generated filter if available
+            if let Some(ref generated) = self.ai_filter_generated {
+                y_offset += 1;
+                let arrow_line = Line::from(vec![
+                    Span::styled("→ ", Style::default()),
+                    Span::styled(generated.clone(), self.theme.focused_title()),
+                ]);
+                buf.set_line(inner.x, inner.y + y_offset, &arrow_line, inner.width);
+                y_offset += 1;
+
+                // Show help text
+                y_offset += 1;
+                let help_line = Line::from(vec![
+                    Span::styled("[Enter: Apply | Esc: Cancel]", Style::default()),
+                ]);
+                buf.set_line(inner.x, inner.y + y_offset, &help_line, inner.width);
+            } else if self.ai_filter_generating {
+                y_offset += 1;
+                let generating_line = Line::from(vec![
+                    Span::styled("Generating filter...", Style::default()),
+                ]);
+                buf.set_line(inner.x, inner.y + y_offset, &generating_line, inner.width);
+            } else {
+                // Show help text for entering query
+                y_offset += 1;
+                let help_line = Line::from(vec![
+                    Span::styled("[Enter: Generate | Esc: Cancel]", Style::default()),
+                ]);
+                buf.set_line(inner.x, inner.y + y_offset, &help_line, inner.width);
+            }
         }
 
         if self.input_mode == InputMode::PluginManager {
