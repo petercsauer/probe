@@ -717,18 +717,24 @@ impl App {
     fn handle_key(&mut self, key: KeyEvent) -> bool {
         match self.input_mode {
             InputMode::Help => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
-                        self.input_mode = InputMode::Normal;
-                        self.help_scroll_offset = 0;
+                // Check if key is configured quit or help key
+                let is_exit_key = key.code == KeyCode::Esc
+                    || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k)
+                    || self.config.tui.keybindings.help_keycode().map_or(false, |k| key.code == k);
+
+                if is_exit_key {
+                    self.input_mode = InputMode::Normal;
+                    self.help_scroll_offset = 0;
+                } else {
+                    match key.code {
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
-                    }
-                    _ => {}
                 }
                 return false;
             }
@@ -773,11 +779,7 @@ impl App {
                 return false;
             }
             InputMode::CommandPalette => {
-                // Esc dismisses command palette
-                if key.code == KeyCode::Esc {
-                    self.input_mode = InputMode::Normal;
-                }
-                return false;
+                return self.handle_command_palette_key(key);
             }
             InputMode::PluginManager => {
                 return self.handle_plugin_manager_key(key);
@@ -1081,16 +1083,22 @@ impl App {
     }
 
     fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
+        // Check if key is Esc or configured quit key
+        let is_exit_key = key.code == KeyCode::Esc
+            || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k);
+
+        if is_exit_key {
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('p') {
+            // Toggle close with Ctrl+P
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
         match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.input_mode = InputMode::Normal;
-                false
-            }
-            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                // Toggle close with Ctrl+P
-                self.input_mode = InputMode::Normal;
-                false
-            }
             KeyCode::Char('j') | KeyCode::Down => {
                 self.plugin_manager.move_down();
                 false
@@ -1132,12 +1140,17 @@ impl App {
             return false;
         }
 
+        // Check if key is Esc or configured quit key
+        let is_exit_key = key.code == KeyCode::Esc
+            || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k);
+
+        if is_exit_key {
+            self.export_dialog = None;
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
         match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.export_dialog = None;
-                self.input_mode = InputMode::Normal;
-                false
-            }
             KeyCode::Char('j') | KeyCode::Down => {
                 dialog.move_selection(1);
                 false

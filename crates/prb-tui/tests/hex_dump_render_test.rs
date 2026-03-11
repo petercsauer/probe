@@ -44,6 +44,7 @@ fn test_hex_dump_renders_with_payload() {
     // Create app state
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
+            conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -82,6 +83,7 @@ fn test_hex_dump_renders_empty_for_no_selection() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
+            conversations: None,
         store,
         filtered_indices: vec![],
         selected_event: None,
@@ -121,6 +123,7 @@ fn test_hex_dump_with_multiline_payload() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
+            conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -160,6 +163,7 @@ fn test_hex_dump_scroll_functionality() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
+            conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -193,6 +197,7 @@ fn test_hex_dump_highlight_visible() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
+            conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),

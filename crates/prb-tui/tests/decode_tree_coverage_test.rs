@@ -46,6 +46,7 @@ fn test_decode_tree_render_no_selection() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -84,6 +85,7 @@ fn test_decode_tree_render_with_warnings() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -115,6 +117,7 @@ fn test_decode_tree_render_all_transport_types() {
             filter: None,
             filter_text: String::new(),
             schema_registry: None,
+            conversations: None,
             store,
         };
 
@@ -136,6 +139,7 @@ fn test_decode_tree_handle_key_space() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -158,6 +162,7 @@ fn test_decode_tree_handle_key_arrows() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -188,6 +193,7 @@ fn test_decode_tree_render_small_area() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -208,6 +214,7 @@ fn test_decode_tree_render_focused_vs_unfocused() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -240,6 +247,7 @@ fn test_decode_tree_with_correlation_keys() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -264,6 +272,7 @@ fn test_decode_tree_with_sequence() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -285,6 +294,7 @@ fn test_decode_tree_handle_key_enter() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -307,6 +317,7 @@ fn test_decode_tree_handle_key_backspace() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -334,6 +345,7 @@ fn test_decode_tree_with_many_metadata_keys() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -359,6 +371,7 @@ fn test_decode_tree_with_large_payload() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 

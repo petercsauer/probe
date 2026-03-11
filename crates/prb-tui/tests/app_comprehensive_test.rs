@@ -130,6 +130,7 @@ fn test_app_state_with_complex_filter() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC" || transport == "ZMQ""#.to_string(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -148,6 +149,7 @@ fn test_app_state_empty_store() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -172,6 +174,7 @@ fn test_app_state_selection_bounds() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 

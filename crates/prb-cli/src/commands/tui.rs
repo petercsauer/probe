@@ -76,7 +76,7 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
             ref message,
             ref remediation,
         } => anyhow::anyhow!("{message}\n\n  {remediation}"),
-        CaptureError::DeviceNotFound(ref dev) => {
+        CaptureError::InterfaceNotFound(ref dev) => {
             anyhow::anyhow!("Network interface '{}' not found.\n\n  Available interfaces:\n{}",
                 dev, format_available_interfaces())
         }

@@ -103,6 +103,7 @@ fn test_app_state_initialization() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -133,6 +134,7 @@ fn test_app_state_with_filter() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 

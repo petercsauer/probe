@@ -82,6 +82,7 @@ fn test_event_list_handle_key_down() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -106,6 +107,7 @@ fn test_event_list_handle_key_up() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -131,6 +133,7 @@ fn test_event_list_handle_key_vim_j_k() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -161,6 +164,7 @@ fn test_event_list_handle_key_home_end() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -193,6 +197,7 @@ fn test_event_list_handle_key_vim_g_g() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -229,6 +234,7 @@ fn test_event_list_handle_key_pagedown_pageup() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -257,6 +263,7 @@ fn test_event_list_handle_key_sort_toggle() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -288,6 +295,7 @@ fn test_event_list_handle_key_empty_store() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -312,6 +320,7 @@ fn test_event_list_handle_key_boundaries() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -343,6 +352,7 @@ fn test_event_list_render_with_events() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -373,6 +383,7 @@ fn test_event_list_render_empty() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -411,6 +422,7 @@ fn test_event_list_sorting_by_different_columns() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
@@ -457,6 +469,7 @@ fn test_event_list_sort_reversed() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
+            conversations: None,
         store,
     };
 
