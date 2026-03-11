@@ -568,7 +568,7 @@ impl App {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let result = self.live_event_loop(&mut terminal);
+        let result = self.event_loop(&mut terminal);
 
         terminal::disable_raw_mode()?;
         execute!(
