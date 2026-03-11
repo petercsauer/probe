@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -720,13 +720,6 @@ impl App {
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
                         self.input_mode = InputMode::Normal;
-                        self.help_scroll_offset = 0;
-                    }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
                     }
                     _ => {}
                 }
@@ -932,15 +925,6 @@ impl App {
                 return false;
             }
             KeyCode::Char('f') => {
-                // Show which-key popup for quick-filter options
-                let options = vec![
-                    ('s', "filter by Source".to_string()),
-                    ('d', "filter by Destination".to_string()),
-                    ('p', "filter by Protocol".to_string()),
-                    ('c', "filter by Conversation".to_string()),
-                ];
-                self.which_key_overlay = Some(WhichKeyOverlay::new('f', options));
-                self.input_mode = InputMode::WhichKey;
                 self.quick_filter_prefix = true;
                 return false;
             }
@@ -1689,10 +1673,10 @@ impl App {
             }
         }
 
-        // Render Welcome overlay when no events loaded
-        if self.input_mode == InputMode::Welcome {
-            WelcomeOverlay::render(area, buf);
-        }
+        // TODO: Render Welcome overlay when no events loaded
+        // if self.input_mode == InputMode::Welcome || (self.state.store.is_empty() && self.input_mode == InputMode::Normal) {
+        //     WelcomeOverlay::render(area, buf);
+        // }
 
         // Render WhichKey overlay
         if self.input_mode == InputMode::WhichKey {
@@ -1807,7 +1791,7 @@ impl App {
         let total = state.store.len();
 
         let mut spans = vec![
-            Span::styled(" / ", theme.help_key()),
+            Span::styled(" / ", Theme::help_key()),
         ];
 
         if filter_display.is_empty() && !is_filtering {
@@ -1820,12 +1804,12 @@ impl App {
             if is_filtering {
                 spans.extend(Self::highlight_filter_syntax(&filter_display, theme));
             } else {
-                spans.push(Span::styled(filter_display, theme.filter_bar()));
+                spans.push(Span::styled(filter_display, Theme::filter_bar()));
             }
         }
 
         if let Some(err) = filter_error {
-            spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
+            spans.push(Span::styled(format!("  ✗ {}", err), Theme::filter_error()));
         } else if is_filtering && filter_state.preview_count.is_some() {
             // Show preview count during typing (yellow for preview)
             let preview_count = filter_state.preview_count.unwrap();
@@ -1841,14 +1825,14 @@ impl App {
         }
 
         if is_filtering {
-            spans.push(Span::styled("▏", theme.help_key()));
+            spans.push(Span::styled("▏", Theme::help_key()));
         }
 
         let line = Line::from(spans);
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, theme: &ThemeConfig) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -1883,7 +1867,7 @@ impl App {
         } else {
             vec![Span::styled(
                 format!(" {} events", total),
-                theme.status_bar(),
+                Theme::status_bar(),
             )]
         };
 
@@ -1896,7 +1880,7 @@ impl App {
 
                 spans.push(Span::styled(
                     format!(" ({} shown)", filtered),
-                    theme.status_bar(),
+                    Theme::status_bar(),
                 ));
 
                 // Add filtered indicator with Esc hint
@@ -1906,11 +1890,11 @@ impl App {
                 ));
             }
 
-            spans.push(Span::styled(" │ ", theme.status_bar()));
+            spans.push(Span::styled(" │ ", Theme::status_bar()));
 
             let counts = state.store.protocol_counts(&state.filtered_indices);
             for (kind, count) in counts.iter().take(4) {
-                let color = theme.transport_color(*kind);
+                let color = Theme::transport_color(*kind);
                 spans.push(Span::styled(
                     format!("{}: {} ", kind, count),
                     Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
@@ -1921,10 +1905,10 @@ impl App {
             if let Some(ref registry) = state.schema_registry {
                 let schema_count = registry.list_messages().len();
                 if schema_count > 0 {
-                    spans.push(Span::styled(" │ ", theme.status_bar()));
+                    spans.push(Span::styled(" │ ", Theme::status_bar()));
                     spans.push(Span::styled(
                         format!("schemas: {} types ", schema_count),
-                        theme.status_bar(),
+                        Theme::status_bar(),
                     ));
                 }
             }
@@ -1941,15 +1925,15 @@ impl App {
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
         spans.push(Span::styled(
             " ".repeat(padding),
-            theme.status_bar(),
+            Theme::status_bar(),
         ));
-        spans.push(Span::styled(hint, theme.status_bar()));
+        spans.push(Span::styled(hint, Theme::status_bar()));
 
         let line = Line::from(spans);
 
         // Fill background
         for x in area.x..area.x + area.width {
-            buf[(x, area.y)].set_style(theme.status_bar());
+            buf[(x, area.y)].set_style(Theme::status_bar());
         }
         buf.set_line(area.x, area.y, &line, area.width);
     }
@@ -1963,18 +1947,10 @@ impl App {
 
         Clear.render(overlay_area, buf);
 
-        let title = if self.help_scroll_offset > 0 {
-            format!(" Help (j/k to scroll, ? to close) [{}/{}] ",
-                self.help_scroll_offset + 1,
-                self.help_scroll_offset + height as usize)
-        } else {
-            " Help (j/k to scroll, ? to close) ".to_string()
-        };
-
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Theme::focused_border())
-            .title(title);
+            .title(" Help (press ? or Esc to close) ");
         let inner = block.inner(overlay_area);
         block.render(overlay_area, buf);
 
@@ -1985,7 +1961,6 @@ impl App {
             ("  Esc", "Clear filter"),
             ("  ?", "Toggle help"),
             ("  q / Ctrl+C", "Quit"),
-            ("  :", "Command palette"),
             ("", ""),
             ("Event List", ""),
             ("  j/k ↑/↓", "Navigate events"),
@@ -2003,12 +1978,10 @@ impl App {
             ("  j/k ↑/↓", "Scroll"),
         ];
 
-        // Apply scroll offset
-        let visible_lines = help_lines.iter()
-            .skip(self.help_scroll_offset)
-            .take(inner.height as usize);
-
-        for (i, (key, desc)) in visible_lines.enumerate() {
+        for (i, (key, desc)) in help_lines.iter().enumerate() {
+            if i as u16 >= inner.height {
+                break;
+            }
             let line = if desc.is_empty() {
                 Line::from(Span::styled(
                     key.to_string(),

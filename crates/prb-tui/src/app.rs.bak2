@@ -82,13 +82,6 @@ pub enum InputMode {
     CaptureConfig,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DragState {
-    None,
-    ResizingVertical(u16),   // dragging horizontal border (splits top/bottom)
-    ResizingHorizontal(u16), // dragging vertical border (splits left/right)
-}
-
 pub struct AppState {
     pub store: EventStore,
     pub filtered_indices: Vec<usize>,
@@ -124,7 +117,6 @@ pub struct App {
     vertical_split: u16,   // event list height %, default 50
     horizontal_split: u16, // decode tree width %, default 50
     pane_rects: HashMap<PaneId, Rect>,
-    drag_state: DragState,
 
     // Go-to-event input
     goto_input: Input,
@@ -203,7 +195,6 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
-            drag_state: DragState::None,
             goto_input: Input::default(),
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
@@ -264,7 +255,6 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
-            drag_state: DragState::None,
             goto_input: Input::default(),
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
@@ -580,27 +570,6 @@ impl App {
             MouseEventKind::Down(MouseButton::Left) => {
                 let (col, row) = (mouse.column, mouse.row);
 
-                // Skip drag detection if zoomed
-                if self.zoomed_pane.is_none() {
-                    // Check if near a horizontal border (vertical split)
-                    if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
-                        let border_row = event_list_rect.y + event_list_rect.height;
-                        if row == border_row || row == border_row.saturating_sub(1) {
-                            self.drag_state = DragState::ResizingVertical(row);
-                            return;
-                        }
-                    }
-
-                    // Check if near a vertical border (horizontal split)
-                    if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
-                        let border_col = decode_tree_rect.x + decode_tree_rect.width;
-                        if col == border_col || col == border_col.saturating_sub(1) {
-                            self.drag_state = DragState::ResizingHorizontal(col);
-                            return;
-                        }
-                    }
-                }
-
                 // Check which pane was clicked
                 for (pane_id, rect) in &self.pane_rects {
                     if col >= rect.x && col < rect.x + rect.width
@@ -620,40 +589,6 @@ impl App {
                         break;
                     }
                 }
-            }
-            MouseEventKind::Drag(MouseButton::Left) => {
-                let (col, row) = (mouse.column, mouse.row);
-
-                match self.drag_state {
-                    DragState::ResizingVertical(_) => {
-                        // Calculate new vertical split based on mouse position
-                        if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
-                            let total_height = event_list_rect.height +
-                                self.pane_rects.get(&PaneId::DecodeTree).map(|r| r.height).unwrap_or(0);
-                            if total_height > 0 {
-                                let event_list_height = row.saturating_sub(event_list_rect.y);
-                                let new_percentage = ((event_list_height as f32 / total_height as f32) * 100.0) as u16;
-                                self.vertical_split = new_percentage.clamp(20, 80);
-                            }
-                        }
-                    }
-                    DragState::ResizingHorizontal(_) => {
-                        // Calculate new horizontal split based on mouse position
-                        if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
-                            let total_width = decode_tree_rect.width +
-                                self.pane_rects.get(&PaneId::HexDump).map(|r| r.width).unwrap_or(0);
-                            if total_width > 0 {
-                                let decode_tree_width = col.saturating_sub(decode_tree_rect.x);
-                                let new_percentage = ((decode_tree_width as f32 / total_width as f32) * 100.0) as u16;
-                                self.horizontal_split = new_percentage.clamp(20, 80);
-                            }
-                        }
-                    }
-                    DragState::None => {}
-                }
-            }
-            MouseEventKind::Up(MouseButton::Left) => {
-                self.drag_state = DragState::None;
             }
             MouseEventKind::ScrollDown => {
                 // Route scroll to focused pane
@@ -703,7 +638,7 @@ impl App {
                         let action = self.decode_tree.handle_key(
                             KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
                             &self.state,
-
+                            
                         );
                         self.process_action(action);
                     }
@@ -720,13 +655,6 @@ impl App {
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
                         self.input_mode = InputMode::Normal;
-                        self.help_scroll_offset = 0;
-                    }
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
                     }
                     _ => {}
                 }
@@ -860,7 +788,9 @@ impl App {
                     "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
                     "Catppuccin Mocha" => ThemeConfig::dracula(),
-                    "Dracula" => ThemeConfig::dark(),
+                    "Dracula" => ThemeConfig::colorblind_safe(),
+                    "Colorblind Safe" => ThemeConfig::high_contrast(),
+                    "High Contrast" => ThemeConfig::dark(),
                     _ => ThemeConfig::dark(),
                 };
                 let message = format!("Theme: {}", self.theme.name);
@@ -930,47 +860,6 @@ impl App {
                 // Quick save filtered view
                 self.save_filtered_view();
                 return false;
-            }
-            KeyCode::Char('f') => {
-                // Show which-key popup for quick-filter options
-                let options = vec![
-                    ('s', "filter by Source".to_string()),
-                    ('d', "filter by Destination".to_string()),
-                    ('p', "filter by Protocol".to_string()),
-                    ('c', "filter by Conversation".to_string()),
-                ];
-                self.which_key_overlay = Some(WhichKeyOverlay::new('f', options));
-                self.input_mode = InputMode::WhichKey;
-                self.quick_filter_prefix = true;
-                return false;
-            }
-            KeyCode::Char('s') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
-                // Quick filter by source
-                self.apply_quick_filter_source();
-                self.quick_filter_prefix = false;
-                return false;
-            }
-            KeyCode::Char('d') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
-                // Quick filter by destination
-                self.apply_quick_filter_dest();
-                self.quick_filter_prefix = false;
-                return false;
-            }
-            KeyCode::Char('p') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
-                // Quick filter by protocol/transport
-                self.apply_quick_filter_transport();
-                self.quick_filter_prefix = false;
-                return false;
-            }
-            KeyCode::Char('c') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
-                // Quick filter by conversation
-                self.apply_quick_filter_conversation();
-                self.quick_filter_prefix = false;
-                return false;
-            }
-            _ if self.quick_filter_prefix => {
-                // Any other key cancels quick-filter mode
-                self.quick_filter_prefix = false;
             }
             _ => {}
         }
@@ -1604,13 +1493,13 @@ impl App {
         self.pane_rects.insert(PaneId::Timeline, main_layout[2]);
 
         Self::render_filter_bar_static(
+            &self.filter_state,
             main_layout[0],
             buf,
             self.input_mode,
             &self.filter_input,
             &self.filter_error,
             &self.state,
-            &self.filter_state,
             &self.theme,
         );
         // Render status bar or capture control bar depending on mode
@@ -1690,7 +1579,7 @@ impl App {
         }
 
         // Render Welcome overlay when no events loaded
-        if self.input_mode == InputMode::Welcome {
+        if self.input_mode == InputMode::Welcome || (self.state.store.is_empty() && self.input_mode == InputMode::Normal) {
             WelcomeOverlay::render(area, buf);
         }
 
@@ -1792,7 +1681,6 @@ impl App {
         filter_input: &Input,
         filter_error: &Option<String>,
         state: &AppState,
-        filter_state: &FilterState,
         theme: &ThemeConfig,
     ) {
         let is_filtering = input_mode == InputMode::Filter;
@@ -1807,7 +1695,7 @@ impl App {
         let total = state.store.len();
 
         let mut spans = vec![
-            Span::styled(" / ", theme.help_key()),
+            Span::styled(" / ", Theme::help_key()),
         ];
 
         if filter_display.is_empty() && !is_filtering {
@@ -1820,19 +1708,12 @@ impl App {
             if is_filtering {
                 spans.extend(Self::highlight_filter_syntax(&filter_display, theme));
             } else {
-                spans.push(Span::styled(filter_display, theme.filter_bar()));
+                spans.push(Span::styled(filter_display, Theme::filter_bar()));
             }
         }
 
         if let Some(err) = filter_error {
-            spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
-        } else if is_filtering && filter_state.preview_count.is_some() {
-            // Show preview count during typing (yellow for preview)
-            let preview_count = filter_state.preview_count.unwrap();
-            spans.push(Span::styled(
-                format!("  [{}/{}]", preview_count, total),
-                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-            ));
+            spans.push(Span::styled(format!("  ✗ {}", err), Theme::filter_error()));
         } else if state.filter.is_some() {
             spans.push(Span::styled(
                 format!("  [{}/{}]", match_count, total),
@@ -1841,14 +1722,14 @@ impl App {
         }
 
         if is_filtering {
-            spans.push(Span::styled("▏", theme.help_key()));
+            spans.push(Span::styled("▏", Theme::help_key()));
         }
 
         let line = Line::from(spans);
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, theme: &ThemeConfig) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -1883,7 +1764,7 @@ impl App {
         } else {
             vec![Span::styled(
                 format!(" {} events", total),
-                theme.status_bar(),
+                Theme::status_bar(),
             )]
         };
 
@@ -1896,7 +1777,7 @@ impl App {
 
                 spans.push(Span::styled(
                     format!(" ({} shown)", filtered),
-                    theme.status_bar(),
+                    Theme::status_bar(),
                 ));
 
                 // Add filtered indicator with Esc hint
@@ -1906,11 +1787,11 @@ impl App {
                 ));
             }
 
-            spans.push(Span::styled(" │ ", theme.status_bar()));
+            spans.push(Span::styled(" │ ", Theme::status_bar()));
 
             let counts = state.store.protocol_counts(&state.filtered_indices);
             for (kind, count) in counts.iter().take(4) {
-                let color = theme.transport_color(*kind);
+                let color = Theme::transport_color(*kind);
                 spans.push(Span::styled(
                     format!("{}: {} ", kind, count),
                     Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
@@ -1921,10 +1802,10 @@ impl App {
             if let Some(ref registry) = state.schema_registry {
                 let schema_count = registry.list_messages().len();
                 if schema_count > 0 {
-                    spans.push(Span::styled(" │ ", theme.status_bar()));
+                    spans.push(Span::styled(" │ ", Theme::status_bar()));
                     spans.push(Span::styled(
                         format!("schemas: {} types ", schema_count),
-                        theme.status_bar(),
+                        Theme::status_bar(),
                     ));
                 }
             }
@@ -1941,15 +1822,15 @@ impl App {
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
         spans.push(Span::styled(
             " ".repeat(padding),
-            theme.status_bar(),
+            Theme::status_bar(),
         ));
-        spans.push(Span::styled(hint, theme.status_bar()));
+        spans.push(Span::styled(hint, Theme::status_bar()));
 
         let line = Line::from(spans);
 
         // Fill background
         for x in area.x..area.x + area.width {
-            buf[(x, area.y)].set_style(theme.status_bar());
+            buf[(x, area.y)].set_style(Theme::status_bar());
         }
         buf.set_line(area.x, area.y, &line, area.width);
     }
@@ -1963,18 +1844,10 @@ impl App {
 
         Clear.render(overlay_area, buf);
 
-        let title = if self.help_scroll_offset > 0 {
-            format!(" Help (j/k to scroll, ? to close) [{}/{}] ",
-                self.help_scroll_offset + 1,
-                self.help_scroll_offset + height as usize)
-        } else {
-            " Help (j/k to scroll, ? to close) ".to_string()
-        };
-
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Theme::focused_border())
-            .title(title);
+            .title(" Help (press ? or Esc to close) ");
         let inner = block.inner(overlay_area);
         block.render(overlay_area, buf);
 
@@ -1985,7 +1858,6 @@ impl App {
             ("  Esc", "Clear filter"),
             ("  ?", "Toggle help"),
             ("  q / Ctrl+C", "Quit"),
-            ("  :", "Command palette"),
             ("", ""),
             ("Event List", ""),
             ("  j/k ↑/↓", "Navigate events"),
@@ -2003,12 +1875,10 @@ impl App {
             ("  j/k ↑/↓", "Scroll"),
         ];
 
-        // Apply scroll offset
-        let visible_lines = help_lines.iter()
-            .skip(self.help_scroll_offset)
-            .take(inner.height as usize);
-
-        for (i, (key, desc)) in visible_lines.enumerate() {
+        for (i, (key, desc)) in help_lines.iter().enumerate() {
+            if i as u16 >= inner.height {
+                break;
+            }
             let line = if desc.is_empty() {
                 Line::from(Span::styled(
                     key.to_string(),
@@ -2060,139 +1930,6 @@ impl App {
     pub fn get_filter_error(&self) -> &Option<String> {
         &self.filter_error
     }
-
-    /// Apply quick filter for source address.
-    fn apply_quick_filter_source(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    let source = event
-                        .source
-                        .network
-                        .as_ref()
-                        .map(|n| n.src.as_str())
-                        .unwrap_or(&event.source.origin);
-                    let filter_text = format!("source == \"{}\"", source);
-                    
-                    if let Ok(filter) = Filter::parse(&filter_text) {
-                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                        self.state.filter = Some(filter.clone());
-                        self.state.filter_text = filter_text.clone();
-                        self.filter_state.set_text(filter_text.clone());
-                        self.filter_state.commit(Some(filter));
-                        self.event_list.selected = 0;
-                        self.event_list.scroll_offset = 0;
-                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                            None
-                        } else {
-                            Some(0)
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    /// Apply quick filter for destination address.
-    fn apply_quick_filter_dest(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    if let Some(ref network) = event.source.network {
-                        let filter_text = format!("dest == \"{}\"", network.dst);
-                        
-                        if let Ok(filter) = Filter::parse(&filter_text) {
-                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                            self.state.filter = Some(filter.clone());
-                            self.state.filter_text = filter_text.clone();
-                            self.filter_state.set_text(filter_text.clone());
-                            self.filter_state.commit(Some(filter));
-                            self.event_list.selected = 0;
-                            self.event_list.scroll_offset = 0;
-                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                                None
-                            } else {
-                                Some(0)
-                            };
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Apply quick filter for transport protocol.
-    fn apply_quick_filter_transport(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    let transport = format!("{}", event.transport);
-                    let filter_text = format!("transport == \"{}\"", transport);
-                    
-                    if let Ok(filter) = Filter::parse(&filter_text) {
-                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                        self.state.filter = Some(filter.clone());
-                        self.state.filter_text = filter_text.clone();
-                        self.filter_state.set_text(filter_text.clone());
-                        self.filter_state.commit(Some(filter));
-                        self.event_list.selected = 0;
-                        self.event_list.scroll_offset = 0;
-                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                            None
-                        } else {
-                            Some(0)
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    /// Apply quick filter for conversation (using correlation keys).
-    fn apply_quick_filter_conversation(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    // Try to build a conversation filter from correlation keys
-                    if let Some(key) = event.correlation_keys.first() {
-                        let filter_text = match key {
-                            prb_core::CorrelationKey::StreamId { id } => {
-                                format!("conversation.stream_id == {}", id)
-                            }
-                            prb_core::CorrelationKey::Topic { name } => {
-                                format!("conversation.topic == \"{}\"", name)
-                            }
-                            prb_core::CorrelationKey::ConnectionId { id } => {
-                                format!("conversation.connection_id == \"{}\"", id)
-                            }
-                            prb_core::CorrelationKey::TraceContext { trace_id, .. } => {
-                                format!("conversation.trace_id == \"{}\"", trace_id)
-                            }
-                            prb_core::CorrelationKey::Custom { key: k, value: v } => {
-                                format!("conversation.{} == \"{}\"", k, v)
-                            }
-                        };
-                        
-                        if let Ok(filter) = Filter::parse(&filter_text) {
-                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                            self.state.filter = Some(filter.clone());
-                            self.state.filter_text = filter_text.clone();
-                            self.filter_state.set_text(filter_text.clone());
-                            self.filter_state.commit(Some(filter));
-                            self.event_list.selected = 0;
-                            self.event_list.scroll_offset = 0;
-                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                                None
-                            } else {
-                                Some(0)
-                            };
-                        }
-                    }
-                }
-            }
-        }
-    }
-
 }
 
 /// Convert a wire-format decoded message to JSON.
@@ -2247,7 +1984,7 @@ fn wire_message_to_json(wire_msg: &WireMessage) -> JsonValue {
                 }
             },
         };
-        fields.insert(key, value);
+        fields.insert(key, field.value);
     }
 
     JsonValue::Object(fields)

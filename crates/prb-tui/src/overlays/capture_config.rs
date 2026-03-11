@@ -3,9 +3,8 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Widget};
 use ratatui::style::{Color, Modifier, Style};
-use crate::theme::Theme;
 use prb_capture::{InterfaceInfo, InterfaceEnumerator, PrivilegeCheck};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

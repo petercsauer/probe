@@ -131,7 +131,7 @@ pub enum SchemasCommand {
 
 #[derive(clap::Args, Debug)]
 pub struct TuiArgs {
-    /// Path to input file (JSON, PCAP, pcapng, or MCAP). Optional if --demo is used.
+    /// Path to input file (JSON, PCAP, pcapng, or MCAP). Optional if --demo or --interface is used.
     pub input: Option<Utf8PathBuf>,
 
     /// Pre-apply a filter expression on open
@@ -149,6 +149,18 @@ pub struct TuiArgs {
     /// Load demo dataset with synthetic events (no input file required)
     #[arg(long)]
     pub demo: bool,
+
+    /// Launch TUI in live capture mode on specified network interface
+    #[arg(short = 'i', long = "interface")]
+    pub interface: Option<String>,
+
+    /// BPF filter expression for live capture (requires --interface)
+    #[arg(short = 'f', long = "filter")]
+    pub bpf_filter: Option<String>,
+
+    /// Path to TLS keylog file for decrypting captured traffic (requires --interface)
+    #[arg(long = "tls-keylog")]
+    pub tls_keylog: Option<Utf8PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]

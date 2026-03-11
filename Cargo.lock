@@ -3852,6 +3852,7 @@ dependencies = [
  "prb-core",
  "prb-dds",
  "prb-decode",
+ "prb-export",
  "prb-fixture",
  "prb-grpc",
  "prb-pcap",

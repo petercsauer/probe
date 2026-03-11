@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from aiohttp import web
 
-from .streamparse import _extract_text_from_stream_line
+from .streamparse import _parse_stream_line_rich
 
 if TYPE_CHECKING:
     from .state import StateDB
@@ -124,7 +124,7 @@ async def _handle_events_sse(request: web.Request) -> web.StreamResponse:
 
 
 async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
-    """Stream a segment's log as SSE, parsing stream-json in real-time."""
+    """Stream a segment's log as SSE with rich structured events."""
     seg_id = request.match_info["seg_id"]
     log_dir: Path = request.app["log_dir"]
     log_file = log_dir / f"{seg_id}.log"
@@ -136,14 +136,22 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
     response.headers["X-Accel-Buffering"] = "no"
     await response.prepare(request)
 
+    async def _emit(event: dict) -> None:
+        await response.write(f"data: {json.dumps(event)}\n\n".encode())
+
     byte_offset = 0
     using_log = False
+    # Buffer incomplete lines across reads
+    line_buf = ""
     try:
         while True:
             # Once the final .log exists, switch to it (segment finished)
             if not using_log and log_file.exists() and log_file.stat().st_size > 0:
                 using_log = True
                 byte_offset = 0
+                line_buf = ""
+                # Emit a marker so the dashboard can show the completed log header
+                await _emit({"type": "_switch_to_log"})
 
             target = log_file if using_log else stream_file
             if target.exists():
@@ -151,21 +159,24 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
                 if len(raw) > byte_offset:
                     new_bytes = raw[byte_offset:]
                     byte_offset = len(raw)
-                    new_text = new_bytes.decode("utf-8", errors="replace")
+                    new_text = line_buf + new_bytes.decode("utf-8", errors="replace")
 
                     if using_log:
-                        for line in new_text.splitlines():
-                            escaped = json.dumps(line)
-                            await response.write(f"data: {escaped}\n\n".encode())
+                        # Finished log: plain text lines emitted as text events
+                        lines = new_text.split("\n")
+                        line_buf = lines[-1]  # keep incomplete last chunk
+                        for line in lines[:-1]:
+                            if line.strip():
+                                await _emit({"type": "text", "text": line})
                     else:
-                        for line in new_text.splitlines():
-                            text = _extract_text_from_stream_line(line)
-                            if text:
-                                for sub in text.splitlines():
-                                    escaped = json.dumps(sub)
-                                    await response.write(f"data: {escaped}\n\n".encode())
+                        # Live stream: parse stream-json for rich events
+                        lines = new_text.split("\n")
+                        line_buf = lines[-1]  # keep incomplete last chunk
+                        for line in lines[:-1]:
+                            for event in _parse_stream_line_rich(line):
+                                await _emit(event)
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
     except (asyncio.CancelledError, ConnectionResetError):
         pass
     return response

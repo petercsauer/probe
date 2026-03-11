@@ -710,6 +710,7 @@ mod tests {
             filter: None,
             filter_text: String::new(),
             schema_registry: None,
+            conversations: None,
         };
 
         // Press 'k' (up) many times

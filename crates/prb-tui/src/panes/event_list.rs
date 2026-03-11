@@ -568,6 +568,7 @@ mod tests {
             filter_text: String::new(),
             store,
             schema_registry: None,
+            conversations: None,
         }
     }
 
@@ -599,8 +600,8 @@ mod tests {
 
         // Test that all indices are valid
         for idx in sorted {
-            assert!(idx < 100);
-            assert!(state.store.get(idx).is_some());
+            assert!(*idx < 100);
+            assert!(state.store.get(*idx).is_some());
         }
     }
 
@@ -927,6 +928,7 @@ mod tests {
             filter_text: r#"transport == "gRPC""#.to_string(),
             store,
             schema_registry: None,
+            conversations: None,
         };
 
         let mut pane = EventListPane::new();
