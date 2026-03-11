@@ -69,8 +69,11 @@ def _build_env(seg_num: int, config: OrchestrateConfig) -> dict[str, str]:
     return env
 
 
-async def _kill_tree(pid: int, grace_seconds: int = 5) -> None:
-    """Kill entire process group rooted at pid."""
+async def _kill_tree(pid: int, grace_seconds: int = 5) -> bool:
+    """Kill entire process group rooted at pid.
+
+    Returns True if successful, False otherwise.
+    """
     try:
         pgid = os.getpgid(pid)
         os.killpg(pgid, signal.SIGTERM)
@@ -78,9 +81,17 @@ async def _kill_tree(pid: int, grace_seconds: int = 5) -> None:
         try:
             os.killpg(pgid, signal.SIGKILL)
         except ProcessLookupError:
-            pass
-    except (ProcessLookupError, PermissionError):
-        pass
+            log.info("Process %d already terminated", pid)
+        return True
+    except ProcessLookupError:
+        log.info("Process %d already terminated", pid)
+        return True
+    except PermissionError:
+        log.warning("Cannot kill process %d: permission denied", pid)
+        return False
+    except Exception as e:
+        log.error("Failed to kill process %d: %s", pid, e)
+        return False
 
 
 def _parse_stream_jsonl(raw_path: Path) -> tuple[str, str]:
@@ -327,14 +338,18 @@ async def run_segment(
         return "failed", str(exc)
 
     finally:
-        if unregister_pid:
-            unregister_pid(seg.num)
-        if heartbeat is not None:
-            heartbeat.cancel()
-            try:
-                await heartbeat
-            except asyncio.CancelledError:
-                pass
+        try:
+            if unregister_pid:
+                unregister_pid(seg.num)
+        except Exception:
+            log.exception("Failed to unregister PID for S%02d", seg.num)
+        finally:
+            if heartbeat is not None:
+                heartbeat.cancel()
+                try:
+                    await heartbeat
+                except asyncio.CancelledError:
+                    pass
 
     # Parse the stream output
     full_text, _result = _parse_stream_jsonl(raw_log)

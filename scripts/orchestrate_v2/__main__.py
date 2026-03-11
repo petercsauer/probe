@@ -274,14 +274,16 @@ async def _run_wave(
 
             return seg.num, status
 
-    tasks = [asyncio.create_task(_run_one(seg)) for seg in segments]
+    # Store segment numbers with tasks to preserve identity
+    task_map = [(seg.num, asyncio.create_task(_run_one(seg), name=f"S{seg.num:02d}")) for seg in segments]
+    tasks = [t for _, t in task_map]
     done = await asyncio.gather(*tasks, return_exceptions=True)
-    for item in done:
-        if isinstance(item, Exception):
-            log.error("Wave %d segment error: %s", wave, item)
-            results.append((0, "error"))
+    for (seg_num, task), result in zip(task_map, done):
+        if isinstance(result, Exception):
+            log.error("Wave %d segment S%02d error: %s", wave, seg_num, result)
+            results.append((seg_num, "error"))
         else:
-            results.append(item)
+            results.append(result)
 
     # Post-gather sweep: catch retries pressed after gather completed but before
     # the wave advances to the next wave. Re-run any segments reset to pending.
