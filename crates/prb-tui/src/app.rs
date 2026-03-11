@@ -159,6 +159,7 @@ pub struct App {
     // conversation_list: crate::panes::conversation_list::ConversationListPane,
     follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
     metrics_overlay: bool,
+    diff_view_overlay: Option<crate::overlays::DiffViewOverlay>,
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -252,6 +253,7 @@ impl App {
             // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
+            diff_view_overlay: None,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -403,7 +405,8 @@ impl App {
             // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
-                        live_source: Some(live_source),
+            diff_view_overlay: None,
+            live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
             auto_follow,
@@ -412,6 +415,95 @@ impl App {
             status_message: None,
             session_info: None,
             input_file_path: None,
+            input_file_size: 0,
+            tls_stats: None,
+        }
+    }
+
+    /// Create app in diff mode comparing two captures.
+    pub fn new_diff(
+        store1: EventStore,
+        store2: EventStore,
+        path1: PathBuf,
+        _path2: PathBuf,
+    ) -> Self {
+        let config = Config::load();
+        let visible_columns = config.tui.columns.visible.clone();
+
+        // Get event slices before moving stores
+        let events1 = store1.events().to_vec();
+        let events2 = store2.events().to_vec();
+
+        // Use the first store as the main store for display
+        let state = AppState {
+            filtered_indices: store1.all_indices(),
+            selected_event: if store1.is_empty() { None } else { Some(0) },
+            filter: None,
+            filter_text: String::new(),
+            schema_registry: None,
+            conversations: None,
+            visible_columns,
+            store: store1,
+        };
+
+        // Create diff view overlay (without conversations for now)
+        let diff_view = crate::overlays::DiffViewOverlay::new(
+            &events1,
+            &events2,
+            None,
+            None,
+        );
+
+        let theme = ThemeConfig::from_name(&config.tui.theme);
+        let plugin_manager = Self::load_plugins();
+
+        App {
+            state,
+            config,
+            focus: PaneId::EventList,
+            input_mode: InputMode::Normal,
+            filter_input: Input::default(),
+            filter_error: None,
+            filter_state: FilterState::new(),
+            quick_filter_prefix: false,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+            waterfall: WaterfallPane::new(),
+            ai_panel: AiPanel::new(),
+            ai_panel_visible: false,
+            theme,
+            plugin_manager,
+            zoomed_pane: None,
+            vertical_split: 55,
+            horizontal_split: 40,
+            pane_rects: HashMap::new(),
+            drag_state: DragState::None,
+            goto_input: Input::default(),
+            ai_filter_input: Input::default(),
+            ai_filter_generated: None,
+            ai_filter_generating: false,
+            command_palette: CommandPaletteOverlay::new(),
+            which_key_overlay: None,
+            help_scroll_offset: 0,
+            export_dialog: None,
+            capture_config: None,
+            copy_mode_active: false,
+            showing_conversations: false,
+            showing_waterfall: false,
+            follow_stream_overlay: None,
+            metrics_overlay: false,
+            diff_view_overlay: Some(diff_view),
+            live_source: None,
+            capture_state: CaptureState::Stopped,
+            capture_stats: None,
+            auto_follow: false,
+            new_events_since_scroll: 0,
+            ring_buffer: None,
+            status_message: None,
+            session_info: None,
+            input_file_path: Some(path1),
             input_file_size: 0,
             tls_stats: None,
         }
@@ -2407,6 +2499,11 @@ impl App {
                 let metrics_overlay = MetricsOverlay::new();
                 metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
             }
+
+        // Render diff view overlay if active
+        if let Some(ref diff_view) = self.diff_view_overlay {
+            diff_view.render(area, buf, &self.theme);
+        }
     }
 
     /// Check if we're in live capture mode.

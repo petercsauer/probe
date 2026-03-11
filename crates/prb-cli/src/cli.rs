@@ -161,6 +161,14 @@ pub struct TuiArgs {
     /// Path to TLS keylog file for decrypting captured traffic (requires --interface)
     #[arg(long = "tls-keylog")]
     pub tls_keylog: Option<Utf8PathBuf>,
+
+    /// Compare two capture files side-by-side (requires exactly 2 file arguments)
+    #[arg(long)]
+    pub diff: bool,
+
+    /// Second file for diff comparison (used with --diff and first positional input)
+    #[arg(long = "diff-file")]
+    pub diff_file: Option<Utf8PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
