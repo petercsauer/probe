@@ -4,7 +4,7 @@ preamble = [".cursor/rules/iterative-builder-prompt.mdc"]
 extra_rules = """
 - This is UNATTENDED. Do NOT ask questions.
 - Do NOT spawn subagents or nested tasks. Work directly.
-- Build dir is set to {isolation_dir} via CARGO_TARGET_DIR env — do not override it.
+- You are building inside an isolated git worktree. All changes stay isolated until merged.
 - You are building inside the prb workspace. All paths are relative to the repo root.
 """
 
@@ -15,8 +15,8 @@ max_retries = 2
 heartbeat_interval = 300
 
 [isolation]
-strategy = "env"
-env.CARGO_TARGET_DIR = "/tmp/orchestrate-S{num:02d}"
+strategy = "worktree"
+# Worktree pool provides git-level isolation - each segment runs in its own worktree
 
 [gate]
 command = "cargo build --workspace && cargo clippy --workspace -- -D warnings"

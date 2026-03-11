@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, SessionInfo, SessionInfoOverlay, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -81,6 +81,7 @@ pub enum InputMode {
     ExportDialog,
     CopyMode,
     CaptureConfig,
+    SessionInfo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,6 +146,10 @@ pub struct App {
     #[allow(dead_code)]
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
+    showing_conversations: bool,
+    conversation_list: crate::panes::conversation_list::ConversationListPane,
+    follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
+    metrics_overlay: bool,
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -155,6 +160,9 @@ pub struct App {
 
     // Status message for temporary notifications (message, timestamp)
     status_message: Option<(String, std::time::Instant)>,
+
+    // Session information for the 'i' overlay
+    session_info: Option<SessionInfo>,
 }
 
 impl App {
@@ -219,6 +227,10 @@ impl App {
             export_dialog: None,
             capture_config: None,
             copy_mode_active: false,
+            showing_conversations: false,
+            conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            follow_stream_overlay: None,
+            metrics_overlay: false,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -226,12 +238,35 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: None,
             status_message: None,
+            session_info: None,
         }
+    }
 
     /// Set a status message that will be displayed for 2 seconds.
     fn set_status_message(&mut self, message: &str) {
         self.status_message = Some((message.to_string(), std::time::Instant::now()));
     }
+
+    /// Build session info from the current app state.
+    fn build_session_info(&mut self) {
+        // Calculate time range from events (convert nanoseconds to microseconds)
+        let time_range = if !self.state.store.is_empty() {
+            let events = self.state.store.events();
+            let first_ts = events.first().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
+            let last_ts = events.last().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
+            Some((first_ts, last_ts))
+        } else {
+            None
+        };
+
+        self.session_info = Some(SessionInfo {
+            file_path: "<loaded data>".to_string(), // Will be set from CLI
+            file_size: 0, // Will be set from CLI
+            event_count: self.state.store.len(),
+            time_range,
+            metadata: None, // Will be populated for MCAP files
+            channel_info: None, // Will be populated for MCAP files
+        });
     }
 
     /// Create a new App instance for live capture mode.
@@ -289,6 +324,10 @@ impl App {
             export_dialog: None,
             capture_config: None,
             copy_mode_active: false,
+            showing_conversations: false,
+            conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            follow_stream_overlay: None,
+            metrics_overlay: false,
                         live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
@@ -296,6 +335,7 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
             status_message: None,
+            session_info: None,
         }
     }
 
@@ -810,6 +850,13 @@ impl App {
             InputMode::CaptureConfig => {
                 return false; // TODO: Implement capture config handler
             }
+            InputMode::SessionInfo => {
+                // Esc or 'i' dismisses session info overlay
+                if key.code == KeyCode::Esc || key.code == KeyCode::Char('i') {
+                    self.input_mode = InputMode::Normal;
+                }
+                return false;
+            }
             InputMode::Normal => {}
             InputMode::WhichKey => {
                 // Esc dismisses which-key overlay
@@ -888,6 +935,21 @@ impl App {
                 return false;
             }
             KeyCode::Esc => {
+                // Clear overlays first if active
+                if self.follow_stream_overlay.is_some() {
+                    self.follow_stream_overlay = None;
+                    return false;
+                }
+                if self.metrics_overlay {
+                    self.metrics_overlay = false;
+                    return false;
+                }
+                // Clear AI panel if active
+                if self.ai_panel_visible {
+                    self.ai_panel_visible = false;
+                    self.ai_panel.clear();
+                    return false;
+                }
                 // Clear zoom first if active
                 if self.zoomed_pane.is_some() {
                     self.zoomed_pane = None;
@@ -952,6 +1014,12 @@ impl App {
                 self.input_mode = InputMode::ExportDialog;
                 return false;
             }
+            KeyCode::Char('i') => {
+                // Show session info overlay
+                self.build_session_info();
+                self.input_mode = InputMode::SessionInfo;
+                return false;
+            }
             KeyCode::Char('y') => {
                 // Enter copy mode
                 self.copy_mode_active = true;
@@ -1009,7 +1077,13 @@ impl App {
 
         // Route to focused pane
         let action = match self.focus {
-            PaneId::EventList => self.event_list.handle_key(key, &self.state),
+            PaneId::EventList => {
+                if self.showing_conversations {
+                    self.conversation_list.handle_key(key, &self.state)
+                } else {
+                    self.event_list.handle_key(key, &self.state)
+                }
+            }
             PaneId::DecodeTree => self.decode_tree.handle_key(key, &self.state),
             PaneId::HexDump => self.hex_dump.handle_key(key, &self.state),
             PaneId::Timeline => self.timeline.handle_key(key, &self.state),
@@ -1212,10 +1286,6 @@ impl App {
             }
             _ => false,
         }
-    }
-
-    fn set_status_message(&mut self, message: &str) {
-        self.status_message = Some((message.to_string(), std::time::Instant::now()));
     }
 
 
@@ -1858,6 +1928,12 @@ impl App {
             WelcomeOverlay::render(area, buf);
         }
 
+        // Render SessionInfo overlay
+        if self.input_mode == InputMode::SessionInfo
+            && let Some(ref session_info) = self.session_info {
+                SessionInfoOverlay::render(area, buf, session_info);
+            }
+
         // Render WhichKey overlay
         if self.input_mode == InputMode::WhichKey
             && let Some(ref overlay) = self.which_key_overlay {
@@ -1868,24 +1944,22 @@ impl App {
         if self.input_mode == InputMode::CommandPalette {
             self.command_palette.render(area, buf);
 
+        }
         // Render follow stream overlay
-        if let Some(ref overlay) = self.follow_stream_overlay {
-            if let Some(ref conv_set) = self.state.conversations {
+        if let Some(ref overlay) = self.follow_stream_overlay
+            && let Some(ref conv_set) = self.state.conversations {
                 let conv_idx = overlay.conversation_idx;
                 if conv_idx < conv_set.conversations.len() {
                     overlay.render(area, buf, &conv_set.conversations[conv_idx], self.state.store.events(), &self.theme);
                 }
             }
-        }
 
         // Render metrics overlay
-        if self.metrics_overlay {
-            if let Some(ref conv_set) = self.state.conversations {
+        if self.metrics_overlay
+            && let Some(ref conv_set) = self.state.conversations {
                 let metrics_overlay = MetricsOverlay::new();
                 metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
             }
-        }
-        }
     }
 
     /// Check if we're in live capture mode.

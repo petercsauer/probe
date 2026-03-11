@@ -2,7 +2,6 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::style::{Color, Style};
 
@@ -105,7 +104,7 @@ impl MetricsOverlay {
         metrics: &prb_core::AggregateMetrics,
         x: u16,
         y: u16,
-        width: u16,
+        _width: u16,
         buf: &mut Buffer,
         theme: &ThemeConfig,
     ) -> u16 {

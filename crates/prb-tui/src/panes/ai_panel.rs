@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use tokio::sync::mpsc;
 
 use crate::app::AppState;
@@ -157,7 +155,7 @@ impl PaneComponent for AiPanel {
         let border_style = if focused {
             theme.focused_border()
         } else {
-            theme.border()
+            theme.unfocused_border()
         };
 
         let title = if self.streaming {
@@ -183,7 +181,7 @@ impl PaneComponent for AiPanel {
         } else {
             let mut text = self.content.clone();
             if self.streaming {
-                text.push_str("▌");
+                text.push('▌');
             }
             text
         };

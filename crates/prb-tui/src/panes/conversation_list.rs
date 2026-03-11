@@ -3,7 +3,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
 };
@@ -106,7 +105,7 @@ impl ConversationListPane {
                 ConvSortColumn::Error => {
                     let status_a = Self::get_status_str(a);
                     let status_b = Self::get_status_str(b);
-                    status_a.cmp(&status_b)
+                    status_a.cmp(status_b)
                 }
             };
 
@@ -216,6 +215,7 @@ impl ConversationListPane {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_row(
         &self,
         conv_idx: usize,

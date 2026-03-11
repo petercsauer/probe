@@ -2,7 +2,6 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
 };
@@ -150,6 +149,7 @@ impl FollowStreamOverlay {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_event(
         &self,
         event: &DebugEvent,
@@ -158,7 +158,7 @@ impl FollowStreamOverlay {
         y: u16,
         width: u16,
         buf: &mut Buffer,
-        theme: &ThemeConfig,
+        _theme: &ThemeConfig,
     ) -> u16 {
         let mut current_y = y;
 
@@ -220,10 +220,10 @@ impl FollowStreamOverlay {
                 let status = event
                     .metadata
                     .get("grpc.status")
-                    .and_then(|s| {
+                    .map(|s| {
                         match s.as_str() {
-                            "0" => Some("OK"),
-                            _ => Some("ERROR"),
+                            "0" => "OK",
+                            _ => "ERROR",
                         }
                     })
                     .unwrap_or("Response");
@@ -268,7 +268,7 @@ impl FollowStreamOverlay {
                         .collect();
                     format!("{{ {} }}", preview.join(", "))
                 } else {
-                    format_json_value(decoded)
+                    format_json_value(fields)
                 }
             }
             prb_core::Payload::Raw { raw } => {
