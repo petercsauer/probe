@@ -1,6 +1,5 @@
 ---
 source: crates/prb-tui/tests/tui_snapshots.rs
-assertion_line: 104
 expression: backend
 ---
 " / transport == "gRPC"  [2/3]                                                                                           "
@@ -42,4 +41,4 @@ expression: backend
 "│█                                                                                                                    █│"
 "│ 00:00:01.000 --- 00:00:03.000  gRPC: 2  (filtered)                                                                   │"
 "└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘"
-" 3 events (2 shown) │ gRPC: 2                                       Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit "
+" 3 events (2 shown) [filtered - Esc to clear] │ gRPC: 2             Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit "

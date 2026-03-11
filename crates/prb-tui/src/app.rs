@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CommandPaletteOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CommandPaletteOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -89,12 +89,15 @@ pub struct AppState {
 
 pub struct App {
     state: AppState,
+    #[allow(dead_code)]
     config: Config,
     focus: PaneId,
     input_mode: InputMode,
     filter_input: Input,
     filter_error: Option<String>,
+    #[allow(dead_code)]
     filter_state: FilterState,
+    #[allow(dead_code)]
     quick_filter_prefix: bool,
 
     event_list: EventListPane,
@@ -115,8 +118,11 @@ pub struct App {
 
 
     // Command palette and overlays
+    #[allow(dead_code)]
     command_palette: CommandPaletteOverlay,
+    #[allow(dead_code)]
     which_key_overlay: Option<WhichKeyOverlay>,
+    #[allow(dead_code)]
     help_scroll_offset: usize,
     // Live capture mode
     live_source: Option<LiveDataSource>,
@@ -154,6 +160,9 @@ impl App {
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
+
+        App {
+            state,
             config,
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
@@ -202,7 +211,7 @@ impl App {
 
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
-        let theme = ThemeConfig::dark(); // TODO: use config.tui.theme
+        let auto_follow = config.tui.auto_follow;
         let plugin_manager = Self::load_plugins();
 
         App {
@@ -330,6 +339,7 @@ impl App {
         result
     }
 
+    #[allow(dead_code)]
     fn event_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -354,7 +364,7 @@ impl App {
     }
 
     /// Live capture event loop with batched event processing.
-        fn live_event_loop(
+    fn live_event_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<()> {
@@ -429,7 +439,7 @@ impl App {
     }
 
     /// Push a new event into the ring buffer and update the event store.
-        fn push_live_event(&mut self, event: DebugEvent) {
+    fn push_live_event(&mut self, event: DebugEvent) {
         if let Some(ref mut ring_buffer) = self.ring_buffer {
             ring_buffer.push(event.clone());
             // Sync EventStore with ring buffer contents
@@ -443,7 +453,7 @@ impl App {
     }
 
     /// Recompute filtered indices after new events arrive.
-        fn recompute_filter(&mut self) {
+    fn recompute_filter(&mut self) {
         if let Some(ref filter) = self.state.filter {
             self.state.filtered_indices = self.state.store.filter_indices(filter);
         } else {
@@ -452,7 +462,7 @@ impl App {
     }
 
     /// Scroll to the bottom of the event list.
-        fn scroll_to_bottom(&mut self) {
+    fn scroll_to_bottom(&mut self) {
         let max_index = self.state.filtered_indices.len().saturating_sub(1);
         self.event_list.selected = max_index;
         self.state.selected_event = if self.state.filtered_indices.is_empty() {
@@ -464,7 +474,7 @@ impl App {
     }
 
     /// Handle keyboard input in live capture mode.
-        fn handle_live_key(&mut self, key: KeyEvent) -> bool {
+    fn handle_live_key(&mut self, key: KeyEvent) -> bool {
         // Live mode specific keys (only in Normal mode)
         if self.input_mode == InputMode::Normal {
             match key.code {
@@ -620,7 +630,7 @@ impl App {
                             // Find the event in filtered indices
                             if let Some(pos) = self.state.filtered_indices
                                 .iter()
-                                .position(|&idx| self.state.store.get(idx).map_or(false, |e| e.id.as_u64() == event_id as u64))
+                                .position(|&idx| self.state.store.get(idx).is_some_and(|e| e.id.as_u64() == event_id as u64))
                             {
                                 self.event_list.selected = pos;
                                 self.process_action(Action::SelectEvent(pos));
@@ -1146,11 +1156,11 @@ impl App {
     }
 
     /// Syntax highlight filter expression for display.
-    fn highlight_filter_syntax(text: &str, theme: &ThemeConfig) -> Vec<Span<'static>> {
+    fn highlight_filter_syntax(text: &str, _theme: &ThemeConfig) -> Vec<Span<'static>> {
         use ratatui::style::Color;
         
         let mut spans = Vec::new();
-        let mut chars: Vec<char> = text.chars().collect();
+        let chars: Vec<char> = text.chars().collect();
         let mut i = 0;
         
         while i < chars.len() {
