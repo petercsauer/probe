@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import aiofiles
+import aiofiles.os
 from aiohttp import web
 
 from .streamparse import _parse_stream_line_rich
@@ -146,7 +148,7 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
     try:
         while True:
             # Once the final .log exists, switch to it (segment finished)
-            if not using_log and log_file.exists() and log_file.stat().st_size > 0:
+            if not using_log and await aiofiles.os.path.exists(str(log_file)) and (await aiofiles.os.stat(str(log_file))).st_size > 0:
                 using_log = True
                 byte_offset = 0
                 line_buf = ""
@@ -154,8 +156,9 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
                 await _emit({"type": "_switch_to_log"})
 
             target = log_file if using_log else stream_file
-            if target.exists():
-                raw = target.read_bytes()
+            if await aiofiles.os.path.exists(str(target)):
+                async with aiofiles.open(target, 'rb') as f:
+                    raw = await f.read()
                 if len(raw) > byte_offset:
                     new_bytes = raw[byte_offset:]
                     byte_offset = len(raw)
