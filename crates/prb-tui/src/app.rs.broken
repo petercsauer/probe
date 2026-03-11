@@ -16,6 +16,7 @@ use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
 use crate::event_store::EventStore;
+use crate::filter_state::FilterState;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -68,8 +69,6 @@ pub struct AppState {
     pub store: EventStore,
     pub filtered_indices: Vec<usize>,
     pub selected_event: Option<usize>,
-    pub filter: Option<Filter>,
-    pub filter_text: String,
     pub schema_registry: Option<SchemaRegistry>,
 }
 
@@ -77,6 +76,7 @@ pub struct App {
     state: AppState,
     focus: PaneId,
     input_mode: InputMode,
+    filter_state: FilterState,
     filter_input: Input,
     filter_error: Option<String>,
 
@@ -116,10 +116,6 @@ impl App {
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
-            theme,
-            theme_names,
-            theme_notification: None,
-            config,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),

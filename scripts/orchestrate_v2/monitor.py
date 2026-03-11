@@ -40,7 +40,7 @@ async def _handle_dashboard(request: web.Request) -> web.Response:
 
 async def _handle_state(request: web.Request) -> web.Response:
     state: StateDB = request.app["state"]
-    return web.json_response(state.all_as_dict())
+    return web.json_response(await state.all_as_dict())
 
 
 async def _handle_events_sse(request: web.Request) -> web.StreamResponse:
@@ -55,7 +55,7 @@ async def _handle_events_sse(request: web.Request) -> web.StreamResponse:
     last_id = 0
     try:
         while True:
-            events = state.get_events(limit=20, after_id=last_id)
+            events = await state.get_events(limit=20, after_id=last_id)
             for ev in reversed(events):  # oldest first
                 data = json.dumps(ev)
                 await response.write(f"id: {ev['id']}\ndata: {data}\n\n".encode())

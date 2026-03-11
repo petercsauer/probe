@@ -169,8 +169,8 @@ async def run_segment(
     raw_log.write_text("", encoding="utf-8")
     human_log.write_text("(running…)\n", encoding="utf-8")
 
-    state.set_status(seg.num, "running", started_at=time.time())
-    state.log_event("segment_start", f"S{seg.num:02d} {seg.title}")
+    await state.set_status(seg.num, "running", started_at=time.time())
+    await state.log_event("segment_start", f"S{seg.num:02d} {seg.title}")
 
     log.info("S%02d starting: %s", seg.num, seg.title)
 
@@ -203,16 +203,16 @@ async def run_segment(
             log.warning("S%02d timed out after %ds", seg.num, config.segment_timeout)
             if proc.pid:
                 await _kill_tree(proc.pid)
-            state.set_status(seg.num, "timeout", finished_at=time.time())
-            state.log_event("segment_timeout", f"S{seg.num:02d} killed after {config.segment_timeout}s")
+            await state.set_status(seg.num, "timeout", finished_at=time.time())
+            await state.log_event("segment_timeout", f"S{seg.num:02d} killed after {config.segment_timeout}s")
             return "timeout", f"Killed after {config.segment_timeout}s"
 
         await proc.wait()
 
     except Exception as exc:
         log.exception("S%02d process error", seg.num)
-        state.set_status(seg.num, "failed", finished_at=time.time())
-        state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
+        await state.set_status(seg.num, "failed", finished_at=time.time())
+        await state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
         return "failed", str(exc)
 
     # Parse the stream output
@@ -222,12 +222,12 @@ async def run_segment(
     status = _extract_status(full_text)
     summary = _extract_summary(full_text)
 
-    state.set_status(
+    await state.set_status(
         seg.num, status,
         finished_at=time.time(),
         result_json=json.dumps({"status": status, "summary": summary}),
     )
-    state.log_event(
+    await state.log_event(
         "segment_complete",
         f"S{seg.num:02d} {status.upper()}: {summary[:200]}",
     )

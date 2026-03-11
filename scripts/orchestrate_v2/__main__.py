@@ -67,11 +67,11 @@ async def _heartbeat_loop(
         except asyncio.TimeoutError:
             pass  # interval elapsed, send heartbeat
 
-        progress = state.progress()
+        progress = await state.progress()
         total = sum(progress.values())
         running = progress.get("running", 0)
         passed = progress.get("pass", 0)
-        current_wave = state.get_meta("current_wave") or "?"
+        current_wave = await state.get_meta("current_wave") or "?"
         summary = (
             f"Wave {current_wave} | "
             f"{passed}/{total} passed, {running} running | "
@@ -107,14 +107,14 @@ async def _run_wave(
             status = "failed"
             summary = ""
             while attempts <= config.max_retries:
-                attempts = state.increment_attempts(seg.num)
+                attempts = await state.increment_attempts(seg.num)
                 status, summary = await run_segment(seg, config, state, log_dir)
                 if status in ("pass", "timeout"):
                     break
                 if attempts > config.max_retries:
                     break
                 log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
-                state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+                await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
 
             await notifier.segment_complete(seg.num, seg.title, status, summary)
             return seg.num, status
@@ -186,26 +186,26 @@ async def _orchestrate_inner(
     """Core orchestration logic (called after lock is acquired)."""
     # State
     db_path = plan_dir / "state.db"
-    state = StateDB(db_path)
-    state.init_segments(segments)
-    state.set_meta("plan_title", meta.title)
-    state.set_meta("plan_goal", meta.goal)
-    state.set_meta("total_segments", str(len(segments)))
-    state.set_meta("max_wave", str(max_wave))
+    state = await StateDB.create(db_path)
+    await state.init_segments(segments)
+    await state.set_meta("plan_title", meta.title)
+    await state.set_meta("plan_goal", meta.goal)
+    await state.set_meta("total_segments", str(len(segments)))
+    await state.set_meta("max_wave", str(max_wave))
 
     # Migrate from old bash script's execution-state.json if present
     old_state = plan_dir / "execution-state.json"
-    migrated = state.migrate_from_json(old_state)
+    migrated = await state.migrate_from_json(old_state)
     if migrated:
         log.info("Migrated %d segment statuses from %s", migrated, old_state.name)
 
     # Reset stale "running" segments from a previous crashed run
-    stale = state.reset_stale_running()
+    stale = await state.reset_stale_running()
     if stale:
         log.info("Reset %d stale running segments to pending", stale)
 
-    state.set_meta("started_at", str(time.time()))
-    state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
+    await state.set_meta("started_at", str(time.time()))
+    await state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
 
     notifier = Notifier(config)
     monitor = MonitorServer(state, log_dir, config.monitor_port)
@@ -245,14 +245,19 @@ async def _orchestrate_inner(
                 continue
 
             # Skip segments that already passed (resume support)
-            pending = [s for s in wave_segs if state.get_segment(s.num).status not in ("pass",)]
+            pending = []
+            for s in wave_segs:
+                seg = await state.get_segment(s.num)
+                if seg and seg.status not in ("pass",):
+                    pending.append(s)
+
             if not pending:
                 log.info("Wave %d: all segments already passed, skipping", wave_num)
                 continue
 
-            state.set_meta("current_wave", str(wave_num))
+            await state.set_meta("current_wave", str(wave_num))
             seg_nums = [s.num for s in pending]
-            state.log_event("wave_start", f"Wave {wave_num}/{max_wave}: {seg_nums}")
+            await state.log_event("wave_start", f"Wave {wave_num}/{max_wave}: {seg_nums}")
             await notifier.wave_start(wave_num, max_wave, seg_nums)
 
             print(f"\n{'━'*50}")
@@ -272,7 +277,7 @@ async def _orchestrate_inner(
             # Gate check
             if config.gate_command and not shutting_down.is_set():
                 gate_ok, gate_output = await _run_gate(config, log_dir, wave_num)
-                state.log_event(
+                await state.log_event(
                     "gate_result",
                     f"Wave {wave_num} gate: {'PASS' if gate_ok else 'FAIL'}",
                 )
@@ -289,12 +294,12 @@ async def _orchestrate_inner(
         heartbeat_stop.set()
         await heartbeat_task
 
-        progress = state.progress()
-        state.log_event("run_complete", json.dumps(progress))
+        progress = await state.progress()
+        await state.log_event("run_complete", json.dumps(progress))
         await notifier.finished(meta.title, progress)
 
         await monitor.stop()
-        state.close()
+        await state.close()
 
         print(f"\n{'='*60}")
         print(f"  ORCHESTRATION COMPLETE")
@@ -308,15 +313,14 @@ def _handle_shutdown(shutting_down: asyncio.Event, heartbeat_stop: asyncio.Event
     heartbeat_stop.set()
 
 
-def cmd_status(plan_dir: Path) -> None:
-    """Print current state summary."""
+async def _cmd_status_async(plan_dir: Path) -> None:
     db_path = plan_dir / "state.db"
     if not db_path.exists():
         print("No state.db found. Has the orchestrator been run?")
         return
-    state = StateDB(db_path)
-    data = state.all_as_dict()
-    state.close()
+    state = await StateDB.create(db_path)
+    data = await state.all_as_dict()
+    await state.close()
 
     print(f"\nPlan: {data['plan_title']}")
     print(f"Wave: {data['current_wave']}/{data['max_wave']}")
@@ -334,6 +338,11 @@ def cmd_status(plan_dir: Path) -> None:
             ts = time.strftime("%H:%M:%S", time.localtime(ev["ts"]))
             print(f"  {ts} {ev['kind']}: {ev['detail'][:80]}")
     print()
+
+
+def cmd_status(plan_dir: Path) -> None:
+    """Print current state summary."""
+    asyncio.run(_cmd_status_async(plan_dir))
 
 
 def cmd_dry_run(plan_dir: Path) -> None:
