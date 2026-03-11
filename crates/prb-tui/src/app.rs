@@ -848,7 +848,7 @@ impl App {
                 return self.handle_copy_mode_key(key);
             }
             InputMode::CaptureConfig => {
-                return false; // TODO: Implement capture config handler
+                return self.handle_capture_config_key(key);
             }
             InputMode::SessionInfo => {
                 // Esc or 'i' dismisses session info overlay
@@ -1018,6 +1018,12 @@ impl App {
                 // Show session info overlay
                 self.build_session_info();
                 self.input_mode = InputMode::SessionInfo;
+                return false;
+            }
+            KeyCode::Char('I') => {
+                // Show live capture configuration overlay
+                self.capture_config = Some(CaptureConfigOverlay::new());
+                self.input_mode = InputMode::CaptureConfig;
                 return false;
             }
             KeyCode::Char('y') => {
@@ -1344,6 +1350,117 @@ impl App {
         }
     }
 
+    fn handle_capture_config_key(&mut self, key: KeyEvent) -> bool {
+        use crate::overlays::capture_config::ConfigField;
+
+        let Some(ref mut config) = self.capture_config else {
+            self.input_mode = InputMode::Normal;
+            return false;
+        };
+
+        // Check if we're editing BPF filter or snaplen
+        let is_editing_text = matches!(
+            config.focused_field,
+            ConfigField::BpfFilter | ConfigField::Snaplen
+        );
+
+        // Handle text input for BPF filter and snaplen fields
+        if is_editing_text {
+            match key.code {
+                KeyCode::Esc => {
+                    // Sync any changes and exit
+                    config.sync_inputs();
+                    self.capture_config = None;
+                    self.input_mode = InputMode::Normal;
+                    return false;
+                }
+                KeyCode::Tab => {
+                    // Sync and move to next field
+                    config.sync_inputs();
+                    config.focused_field = config.focused_field.next();
+                    return false;
+                }
+                KeyCode::Enter => {
+                    // Sync and start capture
+                    config.sync_inputs();
+                    self.start_capture_from_config();
+                    self.capture_config = None;
+                    self.input_mode = InputMode::Normal;
+                    return false;
+                }
+                _ => {
+                    // Pass key event to the appropriate input widget
+                    if config.focused_field == ConfigField::BpfFilter {
+                        config.bpf_filter_input_mut().handle_event(&Event::Key(key));
+                    } else if config.focused_field == ConfigField::Snaplen {
+                        // Only allow digits for snaplen
+                        if let KeyCode::Char(c) = key.code {
+                            if c.is_ascii_digit() {
+                                config.snaplen_input_mut().handle_event(&Event::Key(key));
+                            }
+                        } else {
+                            config.snaplen_input_mut().handle_event(&Event::Key(key));
+                        }
+                    }
+                    return false;
+                }
+            }
+        }
+
+        // Check if key is Esc or configured quit key
+        let is_exit_key = key.code == KeyCode::Esc
+            || key.code == KeyCode::Char('q')
+            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
+
+        if is_exit_key {
+            self.capture_config = None;
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
+        // Handle navigation and actions
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                if config.focused_field == ConfigField::Interface {
+                    config.move_selection(1);
+                } else {
+                    config.focused_field = config.focused_field.next();
+                }
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if config.focused_field == ConfigField::Interface {
+                    config.move_selection(-1);
+                } else {
+                    config.focused_field = config.focused_field.prev();
+                }
+                false
+            }
+            KeyCode::Tab => {
+                config.focused_field = config.focused_field.next();
+                false
+            }
+            KeyCode::BackTab => {
+                config.focused_field = config.focused_field.prev();
+                false
+            }
+            KeyCode::Char(' ') => {
+                if config.focused_field == ConfigField::Promiscuous {
+                    config.toggle_promiscuous();
+                }
+                false
+            }
+            KeyCode::Enter => {
+                // Start capture with current configuration
+                self.start_capture_from_config();
+                self.capture_config = None;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            _ => false,
+        }
+    }
+
     fn handle_copy_mode_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Esc => {
@@ -1377,6 +1494,41 @@ impl App {
             }
             _ => false,
         }
+    }
+
+    fn start_capture_from_config(&mut self) {
+        let Some(ref config_overlay) = self.capture_config else {
+            return;
+        };
+
+        let Some(interface) = config_overlay.get_selected_interface() else {
+            self.set_status_message("No interface selected");
+            return;
+        };
+
+        // Build capture configuration
+        let mut _capture_config = prb_capture::CaptureConfig::new(interface.name.clone())
+            .with_snaplen(config_overlay.snaplen)
+            .with_promisc(config_overlay.promiscuous);
+
+        if !config_overlay.bpf_filter.is_empty() {
+            _capture_config = _capture_config.with_filter(config_overlay.bpf_filter.clone());
+        }
+
+        // Set status message with capture configuration
+        let filter_display = if config_overlay.bpf_filter.is_empty() {
+            "no filter".to_string()
+        } else {
+            format!("filter: {}", config_overlay.bpf_filter)
+        };
+
+        self.set_status_message(&format!(
+            "Capture configured: {} ({})",
+            interface.name, filter_display
+        ));
+
+        // TODO: Actually start the live capture here using _capture_config
+        // This would integrate with the LiveDataSource from S11
     }
 
     fn perform_export(&mut self) {
@@ -1891,6 +2043,11 @@ impl App {
         if self.input_mode == InputMode::ExportDialog
             && let Some(ref dialog) = self.export_dialog {
                 dialog.render(area, buf);
+            }
+
+        if self.input_mode == InputMode::CaptureConfig
+            && let Some(ref config) = self.capture_config {
+                config.render(area, buf);
             }
 
         if self.input_mode == InputMode::CopyMode {
