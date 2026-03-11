@@ -272,6 +272,67 @@ async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
         return False
 
 
+async def _pre_wave_health_check(
+    wave: int,
+    config: OrchestrateConfig,
+    state: StateDB,
+) -> tuple[bool, list[str]]:
+    """Validate workspace health before launching wave segments.
+
+    Args:
+        wave: Wave number for logging
+        config: Orchestration config
+        state: State database for logging events
+
+    Returns:
+        (healthy: bool, errors: list[str])
+
+    If unhealthy, errors list contains compiler error messages.
+    """
+    if not getattr(config, 'enable_preflight_checks', True):
+        log.debug("Pre-flight checks disabled, skipping")
+        return True, []
+
+    log.info(f"Running pre-flight health check for wave {wave}")
+    await state.log_event("preflight_check", f"Wave {wave} pre-flight check starting")
+
+    try:
+        # Create temporary RecoveryAgent to check workspace health
+        recovery = RecoveryAgent(state, config)
+        healthy, errors = await recovery.check_workspace_health()
+
+        if healthy:
+            log.info(f"✓ Pre-flight check passed for wave {wave}")
+            await state.log_event("preflight_pass", f"Wave {wave} pre-flight check passed")
+        else:
+            log.error(
+                f"✗ Pre-flight check failed for wave {wave}: "
+                f"{len(errors)} errors detected"
+            )
+            # Log first 5 errors for context
+            for error in errors[:5]:
+                log.error(f"  - {error}")
+            if len(errors) > 5:
+                log.error(f"  ... and {len(errors) - 5} more")
+
+            await state.log_event(
+                "preflight_fail",
+                f"Wave {wave} pre-flight check failed with {len(errors)} errors"
+            )
+
+        return healthy, errors
+
+    except asyncio.TimeoutError:
+        timeout = getattr(config, 'preflight_timeout', 120)
+        log.error(f"Pre-flight check timed out after {timeout}s")
+        await state.log_event("preflight_timeout", f"Wave {wave} pre-flight check timed out")
+        return False, [f"Health check timed out after {timeout}s"]
+    except Exception as e:
+        log.error(f"Pre-flight check failed with exception: {e}")
+        await state.log_event("preflight_error", f"Wave {wave} pre-flight check error: {e}")
+        return False, [f"Health check exception: {str(e)}"]
+
+
 async def _run_wave(
     wave: int,
     segments: list[Segment],
@@ -657,6 +718,28 @@ async def _orchestrate_inner(
             print(f"{'━'*50}")
 
             await _wait_for_network(notifier, config.network_retry_max)
+
+            # Pre-flight health check
+            if config.enable_preflight_checks:
+                healthy, errors = await _pre_wave_health_check(wave_num, config, state)
+
+                if not healthy:
+                    # Workspace is broken - stop orchestration
+                    log.error(
+                        f"Wave {wave_num} blocked by workspace errors. "
+                        f"Fix errors and resume with: orchestrate resume"
+                    )
+
+                    # Notify operator
+                    if notifier:
+                        await notifier.error(
+                            title=f"Wave {wave_num} Pre-Flight Failed",
+                            body=f"{len(errors)} compilation errors detected",
+                            details=errors[:10],  # First 10 errors
+                        )
+
+                    # Stop orchestration - don't launch any segments
+                    break
 
             results = await _run_wave(
                 wave_num, pending, config, state, notifier, log_dir, shutting_down, pool

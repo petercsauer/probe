@@ -124,6 +124,8 @@ class OrchestrateConfig:
     recovery_max_attempts: int = 1
     recovery_health_check_timeout: int = 120
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
+    enable_preflight_checks: bool = True
+    preflight_timeout: int = 120
 
     @classmethod
     def load(cls, plan_dir: Path) -> OrchestrateConfig:
