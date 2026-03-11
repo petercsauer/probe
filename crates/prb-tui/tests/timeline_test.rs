@@ -49,6 +49,7 @@ fn test_timeline_pane_default() {
 fn test_timeline_render_empty_store() {
     let store = EventStore::new(vec![]);
     let state = AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![],
         selected_event: None,
@@ -89,6 +90,7 @@ fn test_timeline_render_with_events() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -119,6 +121,7 @@ fn test_timeline_render_focused_vs_unfocused() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -146,6 +149,7 @@ fn test_timeline_render_small_area() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -172,6 +176,7 @@ fn test_timeline_render_with_multiple_transports() {
         selected_event: Some(1),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -212,6 +217,7 @@ fn test_timeline_render_with_filter_active() {
         selected_event: Some(0),
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
+        schema_registry: None,
         store,
     };
 
@@ -251,6 +257,7 @@ fn test_timeline_time_range_display() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -327,6 +334,7 @@ fn test_calculate_selected_bucket_single_bucket() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -348,6 +356,7 @@ fn test_calculate_selected_bucket_multiple_buckets() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -373,6 +382,7 @@ fn test_calculate_selected_bucket_zero_buckets() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -393,6 +403,7 @@ fn test_calculate_selected_bucket_same_timestamp() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -409,6 +420,7 @@ fn test_calculate_selected_bucket_out_of_bounds() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -429,6 +441,7 @@ fn test_format_time_legend_with_events() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -457,6 +470,7 @@ fn test_format_time_legend_with_filter() {
         selected_event: Some(0),
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
+        schema_registry: None,
         store,
     };
 
@@ -475,6 +489,7 @@ fn test_format_time_legend_empty_store() {
         selected_event: None,
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -496,6 +511,7 @@ fn test_timeline_handle_key_returns_none() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 

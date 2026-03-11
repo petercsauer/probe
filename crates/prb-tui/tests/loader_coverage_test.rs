@@ -3,7 +3,6 @@
 use prb_tui::loader::load_events;
 use std::io::Write;
 use std::path::Path;
-use tempfile::NamedTempFile;
 
 #[test]
 fn test_load_events_nonexistent_file() {

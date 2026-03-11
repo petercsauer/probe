@@ -29,7 +29,7 @@ fn make_test_event(id: u64, timestamp_nanos: u64, transport: TransportKind) -> D
 #[test]
 fn test_app_new_with_empty_store() {
     let store = EventStore::new(vec![]);
-    let _app = App::new(store, None);
+    let _app = App::new(store, None, None);
     // App should be constructed successfully even with empty store
     // This test verifies initialization doesn't panic
 }
@@ -41,7 +41,7 @@ fn test_app_new_with_events() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let _app = App::new(store, None);
+    let _app = App::new(store, None, None);
     // App should be constructed successfully with events
     // This test verifies initialization doesn't panic
 }
@@ -53,7 +53,7 @@ fn test_app_new_with_initial_filter() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let _app = App::new(store, Some(r#"transport == "gRPC""#.to_string()));
+    let _app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
     // App should be constructed successfully with initial filter
     // This test verifies initialization with filter doesn't panic
 }
@@ -63,7 +63,7 @@ fn test_app_new_with_invalid_initial_filter() {
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
     // Invalid filter should be ignored and app should still construct
-    let _app = App::new(store, Some("invalid filter syntax".to_string()));
+    let _app = App::new(store, Some("invalid filter syntax".to_string()), None);
     // This test verifies initialization with invalid filter doesn't panic
 }
 
@@ -102,6 +102,7 @@ fn test_app_state_initialization() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -131,6 +132,7 @@ fn test_app_state_with_filter() {
         selected_event: Some(0),
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
+        schema_registry: None,
         store,
     };
 

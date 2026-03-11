@@ -131,12 +131,24 @@ pub enum SchemasCommand {
 
 #[derive(clap::Args, Debug)]
 pub struct TuiArgs {
-    /// Path to input file (JSON, PCAP, pcapng, or MCAP)
-    pub input: Utf8PathBuf,
+    /// Path to input file (JSON, PCAP, pcapng, or MCAP). Optional if --demo is used.
+    pub input: Option<Utf8PathBuf>,
 
     /// Pre-apply a filter expression on open
     #[arg(long, name = "where")]
     pub where_clause: Option<String>,
+
+    /// Path to .proto files for schema-based decoding
+    #[arg(long, value_name = "PATH")]
+    pub proto: Vec<Utf8PathBuf>,
+
+    /// Path to .desc descriptor set files
+    #[arg(long, value_name = "PATH")]
+    pub descriptor_set: Vec<Utf8PathBuf>,
+
+    /// Load demo dataset with synthetic events (no input file required)
+    #[arg(long)]
+    pub demo: bool,
 }
 
 #[derive(clap::Args, Debug)]

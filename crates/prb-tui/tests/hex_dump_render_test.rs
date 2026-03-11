@@ -1,5 +1,7 @@
 //! Integration test for hex dump pane rendering with actual payloads.
 
+mod buf_helpers;
+
 use bytes::Bytes;
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use prb_tui::event_store::EventStore;
@@ -8,6 +10,8 @@ use prb_tui::panes::PaneComponent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
+
+use buf_helpers::row_text;
 
 fn make_test_event_with_payload(payload: Vec<u8>) -> DebugEvent {
     DebugEvent {
@@ -38,6 +42,7 @@ fn test_hex_dump_renders_with_payload() {
 
     // Create app state
     let app_state = prb_tui::app::AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -75,6 +80,7 @@ fn test_hex_dump_renders_empty_for_no_selection() {
     let store = EventStore::new(vec![]);
 
     let app_state = prb_tui::app::AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![],
         selected_event: None,
@@ -113,6 +119,7 @@ fn test_hex_dump_with_multiline_payload() {
     let store = EventStore::new(vec![event]);
 
     let app_state = prb_tui::app::AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -151,6 +158,7 @@ fn test_hex_dump_scroll_functionality() {
     let store = EventStore::new(vec![event]);
 
     let app_state = prb_tui::app::AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
@@ -167,20 +175,12 @@ fn test_hex_dump_scroll_functionality() {
     pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &app_state, false);
 
     // When scrolled to line 5, first visible offset should be 0x50 (5 * 16 = 80 = 0x50)
-    // Check for '5' character in the offset column (leftmost part)
-    let mut found_five_in_offset = false;
-    for y in 0..10 {
-        for x in 0..10 {  // Check first 10 columns where offset is displayed
-            if buffer[(x, y)].symbol() == "5" {
-                found_five_in_offset = true;
-                break;
-            }
-        }
-    }
-
+    // The first content row (after border if present) should start with "00000050"
+    let first_content_row = row_text(&buffer, 1); // row 1 = first data row (row 0 = border)
     assert!(
-        found_five_in_offset,
-        "Should show offset containing '5' when scrolled to line 5"
+        first_content_row.starts_with("00000050") || first_content_row.contains("00000050"),
+        "offset should be 0x50 at scroll=5, got: {}",
+        first_content_row
     );
 }
 
@@ -191,6 +191,7 @@ fn test_hex_dump_highlight_visible() {
     let store = EventStore::new(vec![event]);
 
     let app_state = prb_tui::app::AppState {
+        schema_registry: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),

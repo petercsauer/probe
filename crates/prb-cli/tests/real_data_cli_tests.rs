@@ -20,7 +20,8 @@ struct FixtureManifest {
 struct Fixture {
     path: String,
     protocols: Vec<String>,
-    expected_events_min: usize,
+    #[serde(rename = "expected_events_min")]
+    _expected_events_min: usize,
     expected_protocols: Vec<String>,
     has_keylog: bool,
     keylog_path: Option<String>,

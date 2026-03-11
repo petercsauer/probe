@@ -54,6 +54,10 @@ impl EventStore {
         self.events.get(index)
     }
 
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut DebugEvent> {
+        self.events.get_mut(index)
+    }
+
     pub fn events(&self) -> &[DebugEvent] {
         &self.events
     }

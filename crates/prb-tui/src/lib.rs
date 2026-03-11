@@ -1,4 +1,5 @@
 pub mod app;
+pub mod config;
 pub mod error_intel;
 pub mod event_store;
 pub mod live;

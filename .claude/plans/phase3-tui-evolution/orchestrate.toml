@@ -1,0 +1,37 @@
+[plan]
+preamble = [".cursor/rules/iterative-builder-prompt.mdc"]
+
+extra_rules = """
+- This is UNATTENDED. Do NOT ask questions.
+- Do NOT spawn subagents or nested tasks. Work directly.
+- Build dir is set to {isolation_dir} via CARGO_TARGET_DIR env — do not override it.
+- You are building inside the prb workspace. All paths are relative to the repo root.
+"""
+
+[execution]
+max_parallel = 6
+segment_timeout = 3600
+max_retries = 2
+heartbeat_interval = 900
+
+[isolation]
+strategy = "env"
+env.CARGO_TARGET_DIR = "/tmp/orchestrate-S{num:02d}"
+
+[gate]
+command = "cargo build --workspace && cargo clippy --workspace -- -D warnings"
+
+[auth]
+CLAUDE_CODE_USE_BEDROCK = "1"
+AWS_REGION = "us-gov-west-1"
+ANTHROPIC_MODEL = "${CUI_DEFAULT_MODEL:-us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0}"
+ANTHROPIC_HAIKU_MODEL = "${CUI_DEFAULT_HAIKU:-anthropic.claude-3-haiku-20240307-v1:0}"
+AWS_BEARER_TOKEN_BEDROCK = "${CUI_BEDROCK_API_KEY}"
+
+[notifications]
+enabled = true
+contact = "+12036446182"
+
+[monitor]
+enabled = true
+port = 8089

@@ -165,6 +165,9 @@ async def run_segment(
     prompt_file = log_dir / f"S{seg.num:02d}.prompt.txt"
 
     prompt_file.write_text(prompt, encoding="utf-8")
+    # Clear stale log files from prior runs so the dashboard never shows old content.
+    raw_log.write_text("", encoding="utf-8")
+    human_log.write_text("(running…)\n", encoding="utf-8")
 
     state.set_status(seg.num, "running", started_at=time.time())
     state.log_event("segment_start", f"S{seg.num:02d} {seg.title}")
@@ -183,6 +186,7 @@ async def run_segment(
             stderr=asyncio.subprocess.STDOUT,
             env=env,
             start_new_session=True,
+            limit=16 * 1024 * 1024,  # 16 MB — stream-json lines can be very large
         )
 
         async def _drain_stdout():

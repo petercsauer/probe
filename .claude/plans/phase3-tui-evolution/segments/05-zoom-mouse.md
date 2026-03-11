@@ -21,7 +21,7 @@ commit_message: "feat(prb-tui): pane zoom/maximize, resizable splits, mouse clic
 
 - 4-pane layout with fixed split percentages
 - Tab/BackTab cycles focus
-- Mouse capture is enabled in crossterm but no mouse events are handled
+- `EnableMouseCapture` is already called in `app.rs::App::run()` — terminal setup is done; the event loop does not yet dispatch `Event::Mouse(_)` variants
 - No way to zoom into a single pane or resize splits
 
 ## Scope

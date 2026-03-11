@@ -6,7 +6,11 @@
       "timestamp_ns": 1700000000000000000,
       "transport": "grpc",
       "direction": "outbound",
-      "payload_base64": "CgRUZXN0"
+      "payload_base64": "CgRUZXN0",
+      "source": {
+        "src": "10.0.0.1:50051",
+        "dst": "10.0.0.2:8080"
+      }
     },
     {
       "timestamp_ns": 1700000001000000000,
@@ -15,6 +19,10 @@
       "payload_utf8": "test message",
       "metadata": {
         "zmq.topic": "events"
+      },
+      "source": {
+        "src": "10.0.0.3:5555",
+        "dst": "10.0.0.4:5556"
       }
     },
     {
@@ -25,13 +33,21 @@
       "metadata": {
         "dds.domain_id": "0",
         "dds.topic_name": "sensor_data"
+      },
+      "source": {
+        "src": "192.168.1.10:7400",
+        "dst": "239.255.0.1:7400"
       }
     },
     {
       "timestamp_ns": 1700000003000000000,
       "transport": "tcp",
       "direction": "outbound",
-      "payload_utf8": "raw tcp data"
+      "payload_utf8": "raw tcp data",
+      "source": {
+        "src": "172.16.0.5:12345",
+        "dst": "172.16.0.6:80"
+      }
     }
   ]
 }

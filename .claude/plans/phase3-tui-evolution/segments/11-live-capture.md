@@ -24,6 +24,7 @@ commit_message: "feat(prb-tui): live capture mode — async event loop, capture 
 - `CaptureState` enum: `Capturing`, `Paused`, `Stopped`
 - `RingBuffer<T>` with `push`, `len`, `evicted`, capacity management — fully tested
 - `EventStore::push()` exists for appending events
+- `prb-capture` is already a dependency in `crates/prb-tui/Cargo.toml` — no dep change needed
 - **None of this is wired into the App event loop** — the TUI only works in file-load mode
 
 ## Scope

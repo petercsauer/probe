@@ -1,5 +1,7 @@
 //! Detailed rendering tests for app.rs to improve coverage
 
+mod buf_helpers;
+
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
@@ -8,6 +10,8 @@ use prb_tui::App;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
+
+use buf_helpers::row_text;
 
 fn make_test_event_full(
     id: u64,
@@ -46,7 +50,7 @@ fn test_app_render_all_panes_visible() {
         make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -73,7 +77,7 @@ fn test_app_render_filter_bar_with_active_filter() {
         make_test_event_full(3, 3_000_000_000, TransportKind::Grpc, "10.0.0.3:9999", "10.0.0.4:1111"),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()));
+    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -81,16 +85,13 @@ fn test_app_render_filter_bar_with_active_filter() {
     app.test_render_to_buffer(area, &mut buffer);
 
     // Check that filter bar shows match count [2/3]
-    let mut found_bracket = false;
-    for y in 0..area.height {
-        for x in 0..area.width {
-            if buffer[(x, y)].symbol() == "[" {
-                found_bracket = true;
-                break;
-            }
-        }
-    }
-    assert!(found_bracket, "Should show match count in brackets");
+    // Filter bar is typically at the top of the screen (row 0)
+    let filter_bar = row_text(&buffer, 0);
+    assert!(
+        filter_bar.contains("[") && filter_bar.contains("2"),
+        "Filter bar should show match count, got: {}",
+        filter_bar
+    );
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn test_app_render_status_bar_content() {
         make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -108,21 +109,19 @@ fn test_app_render_status_bar_content() {
     app.test_render_to_buffer(area, &mut buffer);
 
     // Status bar should show "2 events" and keybind hints
-    let last_line_y = area.height - 1;
-    let mut status_text = String::new();
-    for x in 0..area.width {
-        status_text.push_str(buffer[(x, last_line_y)].symbol());
-    }
-
-    assert!(status_text.contains("event") || status_text.contains("Tab") || status_text.contains("quit"),
-        "Status bar should show event count or keybinds");
+    let status = row_text(&buffer, area.height - 1);
+    assert!(
+        status.contains("2 events"),
+        "Status bar should show event count, got: {}",
+        status
+    );
 }
 
 #[test]
 fn test_app_render_with_filter_mode_active() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter filter mode
     let slash_key = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
@@ -148,7 +147,7 @@ fn test_app_render_different_pane_focus() {
 
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Focus on different panes and render
     let panes = [
@@ -173,7 +172,7 @@ fn test_app_render_different_pane_focus() {
 fn test_app_render_very_small_terminal() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Minimum viable terminal size
     let area = Rect::new(0, 0, 30, 17);
@@ -187,7 +186,7 @@ fn test_app_render_very_small_terminal() {
 fn test_app_render_very_wide_terminal() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Very wide terminal
     let area = Rect::new(0, 0, 250, 40);
@@ -201,7 +200,7 @@ fn test_app_render_very_wide_terminal() {
 fn test_app_render_help_overlay_small_terminal() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode
     let help_key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -220,7 +219,7 @@ fn test_app_render_help_overlay_small_terminal() {
 fn test_app_render_help_overlay_very_small() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode
     let help_key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -240,7 +239,7 @@ fn test_app_filter_mode_typing_simulation() {
         make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter filter mode
     let slash_key = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
@@ -272,7 +271,7 @@ fn test_app_render_with_multiple_protocol_types() {
         make_test_event_full(4, 4_000_000_000, TransportKind::RawTcp, "10.0.0.4:1111", "10.0.0.5:2222"),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -296,7 +295,7 @@ fn test_app_render_with_multiple_protocol_types() {
 fn test_app_render_empty_filter_prompt() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -318,7 +317,7 @@ fn test_app_key_in_help_mode_ignored() {
 
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode
     let help_key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -344,7 +343,7 @@ fn test_app_process_action_quit() {
 
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Process Quit action (should not panic)
     app.test_process_action(Action::Quit);
@@ -354,7 +353,7 @@ fn test_app_process_action_quit() {
 fn test_app_render_layout_constraints() {
     let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Test various terminal sizes to ensure layout constraints work
     let sizes = vec![

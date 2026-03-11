@@ -36,7 +36,7 @@ fn test_app_with_multiple_transports() {
         make_test_event(4, 4_000_000_000, TransportKind::RawTcp),
     ];
     let store = EventStore::new(events);
-    let _app = App::new(store, None);
+    let _app = App::new(store, None, None);
     // Should handle multiple transport types without panic
 }
 
@@ -46,14 +46,14 @@ fn test_app_with_large_dataset() {
         .map(|i| make_test_event(i, i * 1_000_000, TransportKind::Grpc))
         .collect();
     let store = EventStore::new(events);
-    let _app = App::new(store, None);
+    let _app = App::new(store, None, None);
     // Should handle large dataset without panic
 }
 
 #[test]
 fn test_app_initialization_with_zero_events() {
     let store = EventStore::new(vec![]);
-    let app = App::new(store, None);
+    let app = App::new(store, None, None);
     // App should initialize successfully with no events
     let _ = app;
 }
@@ -65,7 +65,7 @@ fn test_app_with_filter_matching_all() {
         make_test_event(2, 2_000_000_000, TransportKind::Grpc),
     ];
     let store = EventStore::new(events);
-    let _app = App::new(store, Some(r#"transport == "gRPC""#.to_string()));
+    let _app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
     // Should initialize with filter matching all events
 }
 
@@ -76,7 +76,7 @@ fn test_app_with_filter_matching_none() {
         make_test_event(2, 2_000_000_000, TransportKind::Grpc),
     ];
     let store = EventStore::new(events);
-    let _app = App::new(store, Some(r#"transport == "ZMQ""#.to_string()));
+    let _app = App::new(store, Some(r#"transport == "ZMQ""#.to_string()), None);
     // Should initialize with filter matching no events
 }
 
@@ -129,6 +129,7 @@ fn test_app_state_with_complex_filter() {
         selected_event: Some(0),
         filter: Some(filter),
         filter_text: r#"transport == "gRPC" || transport == "ZMQ""#.to_string(),
+        schema_registry: None,
         store,
     };
 
@@ -146,6 +147,7 @@ fn test_app_state_empty_store() {
         selected_event: None,
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -169,6 +171,7 @@ fn test_app_state_selection_bounds() {
         selected_event: Some(1),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -208,7 +211,7 @@ fn test_app_multiple_filter_applications() {
 fn test_app_key_quit() {
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
     let should_quit = app.test_handle_key(key);
@@ -219,7 +222,7 @@ fn test_app_key_quit() {
 fn test_app_key_ctrl_c_quit() {
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
     let should_quit = app.test_handle_key(key);
@@ -232,7 +235,7 @@ fn test_app_key_tab_focus_cycle() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Initial focus should be EventList
     assert_eq!(app.get_focus(), PaneId::EventList);
@@ -261,7 +264,7 @@ fn test_app_key_backtab_reverse_cycle() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Initial focus should be EventList
     assert_eq!(app.get_focus(), PaneId::EventList);
@@ -282,7 +285,7 @@ fn test_app_key_slash_enter_filter_mode() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     assert_eq!(app.get_input_mode(), InputMode::Normal);
 
@@ -298,7 +301,7 @@ fn test_app_key_esc_exit_filter_mode() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter filter mode
     let slash_key = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
@@ -318,7 +321,7 @@ fn test_app_key_esc_clears_filter() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()));
+    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
 
     // Initially should have filter active
     assert!(app.get_state().filter.is_some());
@@ -339,7 +342,7 @@ fn test_app_key_question_mark_help() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     assert_eq!(app.get_input_mode(), InputMode::Normal);
 
@@ -359,7 +362,7 @@ fn test_app_key_esc_exits_help() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode
     let help_key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -381,7 +384,7 @@ fn test_app_filter_mode_enter_apply_filter() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter filter mode
     let slash_key = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
@@ -401,7 +404,7 @@ fn test_app_filter_mode_enter_apply_filter() {
 fn test_app_filter_error_on_invalid_syntax() {
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let app = App::new(store, None);
+    let app = App::new(store, None, None);
 
     // This test verifies that the error state can be accessed
     // The actual filter parsing is tested in prb-query
@@ -419,7 +422,7 @@ fn test_app_render_without_panic() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -438,7 +441,7 @@ fn test_app_render_with_filter() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()));
+    let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -468,7 +471,7 @@ fn test_app_render_help_overlay() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode
     let help_key = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -501,7 +504,7 @@ fn test_app_render_empty_store() {
     use ratatui::layout::Rect;
 
     let store = EventStore::new(vec![]);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -517,7 +520,7 @@ fn test_app_render_small_terminal() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Small terminal (but large enough for minimum layout: filter(1) + content(10) + timeline(5) + status(1) = 17)
     let area = Rect::new(0, 0, 40, 20);
@@ -537,7 +540,7 @@ fn test_app_process_action_select_event() {
         make_test_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Initially should have first event selected
     assert_eq!(app.get_state().selected_event, Some(0));
@@ -555,7 +558,7 @@ fn test_app_process_action_none() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let initial_state = app.get_state().selected_event;
 
@@ -572,7 +575,7 @@ fn test_app_process_action_highlight_bytes() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Process HighlightBytes action (should not panic)
     app.test_process_action(Action::HighlightBytes {
@@ -587,7 +590,7 @@ fn test_app_process_action_clear_highlight() {
 
     let events = vec![make_test_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Set highlight first
     app.test_process_action(Action::HighlightBytes {

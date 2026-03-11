@@ -39,7 +39,7 @@ fn test_app_focus_cycling_full() {
 
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Start at EventList
     assert_eq!(app.get_focus(), PaneId::EventList);
@@ -85,7 +85,7 @@ fn test_app_filter_workflow_complete() {
         make_event(3, 3_000_000_000, TransportKind::Grpc),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Initial state: no filter, 3 events
     assert_eq!(app.get_state().filtered_indices.len(), 3);
@@ -120,7 +120,7 @@ fn test_app_help_mode_interactions() {
 
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     // Enter help mode with '?'
     let question = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
@@ -163,7 +163,7 @@ fn test_app_render_sequence() {
         make_event(2, 2_000_000_000, TransportKind::Zmq),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
 
@@ -191,7 +191,7 @@ fn test_app_with_all_transports_rendered() {
         make_event(6, 6_000_000_000, TransportKind::JsonFixture),
     ];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);
@@ -215,7 +215,7 @@ fn test_app_with_all_transports_rendered() {
 fn test_app_quit_with_ctrl_c() {
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
     let should_quit = app.test_handle_key(ctrl_c);
@@ -227,7 +227,7 @@ fn test_app_quit_with_ctrl_c() {
 fn test_app_quit_with_q() {
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
     let should_quit = app.test_handle_key(q);
@@ -239,7 +239,7 @@ fn test_app_quit_with_q() {
 fn test_app_doesnt_quit_on_random_keys() {
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let random_keys = vec![
         KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
@@ -258,7 +258,7 @@ fn test_app_doesnt_quit_on_random_keys() {
 fn test_app_multiple_renders_different_sizes() {
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let sizes = vec![
         (40, 20),
@@ -283,7 +283,7 @@ fn test_app_initial_state() {
 
     let events = vec![make_event(1, 1_000_000_000, TransportKind::Grpc)];
     let store = EventStore::new(events);
-    let app = App::new(store, None);
+    let app = App::new(store, None, None);
 
     // Check initial state
     assert_eq!(app.get_focus(), PaneId::EventList);
@@ -297,7 +297,7 @@ fn test_app_initial_state_empty_store() {
     use prb_tui::app::{InputMode, PaneId};
 
     let store = EventStore::new(vec![]);
-    let app = App::new(store, None);
+    let app = App::new(store, None, None);
 
     // Check initial state with empty store
     assert_eq!(app.get_focus(), PaneId::EventList);
@@ -320,7 +320,7 @@ fn test_app_render_with_different_directions() {
     }
 
     let store = EventStore::new(events);
-    let mut app = App::new(store, None);
+    let mut app = App::new(store, None, None);
 
     let area = Rect::new(0, 0, 120, 40);
     let mut buffer = Buffer::empty(area);

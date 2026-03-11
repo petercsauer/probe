@@ -25,6 +25,10 @@ independent and execute in parallel (max 4 concurrent).
 
 ```mermaid
 flowchart TD
+    subgraph wave0["Wave 0 — Test Infrastructure"]
+        S00[00 Test Infra<br/>insta snapshots, buf helpers]
+    end
+
     subgraph wave1["Wave 1 — Foundations (all parallel)"]
         S01[01 Visual Polish<br/>theme, selection, status bar]
         S02[02 Column Layout<br/>adaptive, smart fallback]
@@ -71,6 +75,12 @@ flowchart TD
         S25[25 Plugin System<br/>UI, custom decoders]
     end
 
+    %% Wave 0 → Wave 1
+    S00 --> S01
+    S00 --> S02
+    S00 --> S03
+    S00 --> S04
+
     %% Wave 1 → Wave 2
     S01 --> S05
     S01 --> S06
@@ -110,6 +120,7 @@ flowchart TD
     %% Wave 6 → Wave 7
     S04 --> S25
 
+    classDef w0 fill:#1a1a2e,stroke:#66f,color:#fff
     classDef w1 fill:#2d5a3d,stroke:#4a9,color:#fff
     classDef w2 fill:#3d4a6d,stroke:#68a,color:#fff
     classDef w3 fill:#5a3d2d,stroke:#a84,color:#fff
@@ -118,6 +129,7 @@ flowchart TD
     classDef w6 fill:#5a4a2d,stroke:#a96,color:#fff
     classDef w7 fill:#2d4a5a,stroke:#4aa,color:#fff
 
+    class S00 w0
     class S01,S02,S03,S04 w1
     class S05,S06,S07,S08 w2
     class S09,S10,S11,S12 w3
@@ -133,7 +145,8 @@ flowchart TD
 
 | # | Title | File | Depends On | Risk | Complexity | Cycle Budget | Est. Lines | Status |
 |:---:|-------|------|:----------:|:----:|:----------:|:------------:|:----------:|:------:|
-| 01 | Visual Polish & Status Bar | `segments/01-visual-polish.md` | — | 2 | Low | 5 | ~350 | pending |
+| 00 | Test Infrastructure Uplift | `segments/00-test-infrastructure.md` | — | 1 | Low | 3 | ~200 | pending |
+| 01 | Visual Polish & Status Bar | `segments/01-visual-polish.md` | 00 | 2 | Low | 5 | ~350 | pending |
 | 02 | Column Layout & Smart Display | `segments/02-column-layout.md` | — | 3 | Medium | 5 | ~400 | pending |
 | 03 | Error Intelligence | `segments/03-error-intelligence.md` | — | 2 | Low | 5 | ~500 | pending |
 | 04 | Schema-Aware Decode Pipeline | `segments/04-schema-decode.md` | — | 6 | High | 10 | ~700 | pending |
@@ -159,7 +172,7 @@ flowchart TD
 | 24 | Session Comparison | `segments/24-session-comparison.md` | 09, 15 | 6 | High | 10 | ~550 | pending |
 | 25 | Plugin System in TUI | `segments/25-plugin-system.md` | 04 | 5 | Medium | 7 | ~350 | pending |
 
-**Total estimated new code: ~12,800 lines across 25 segments.**
+**Total estimated new code: ~13,000 lines across 26 segments.**
 
 ---
 
@@ -167,6 +180,7 @@ flowchart TD
 
 | Wave | Segments (parallel) | Theme | Rationale |
 |:----:|---------------------|-------|-----------|
+| **0** | 00 | Test Infrastructure | Must run before Wave 1. Establishes `insta` snapshot baseline, `buf_helpers` utilities, and upgrades weak assertions. All subsequent segments inherit these tools. |
 | **1** | 01, 02, 03, 04 | Foundations | All independent, no cross-deps. Fix visual issues, add data display, add static intelligence, wire schema pipeline. |
 | **2** | 05, 06, 07, 08 | Navigation & UX | Depend on visual foundation. Add interaction patterns, filter power, onboarding, pane enhancements. |
 | **3** | 09, 10, 11, 12 | Core Features | Major new capabilities: conversation analysis, export, live capture, AI explain. |
@@ -196,8 +210,14 @@ cargo nextest run --workspace
 # Targeted TUI tests
 cargo nextest run -p prb-tui
 
-# TUI-specific visual regression (if available)
-cargo nextest run -p prb-tui -- render
+# TUI snapshot tests only
+cargo nextest run -p prb-tui -- snapshot
+
+# Accept new/changed snapshots interactively (after S00 lands)
+cargo insta review
+
+# Accept all new snapshots non-interactively (CI first-run or after intentional change)
+INSTA_UPDATE=new cargo nextest run -p prb-tui
 ```
 
 ---
@@ -206,6 +226,7 @@ cargo nextest run -p prb-tui -- render
 
 | Track | Segments | Touches | Est. Lines | Risk |
 |-------|:--------:|---------|:----------:|------|
+| **Test Infrastructure** | 00 | Cargo.toml, tests/*.rs | ~200 | Low |
 | **Visual & UX** | 01, 02, 05, 07, 19, 21 | theme.rs, app.rs, event_list.rs | ~2,800 | Low-moderate |
 | **Data & Decode** | 03, 04, 08 | decode_tree.rs, hex_dump.rs, new error_intel.rs | ~1,650 | Moderate |
 | **Filter & Search** | 06, 13 | filter module, prb-query integration | ~1,050 | Moderate |

@@ -63,6 +63,17 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         })
         .context("failed to start capture")?;
 
+    // Launch TUI in live mode if requested
+    if args.tui {
+        use prb_tui::{App, EventStore, LiveDataSource};
+
+        let live_source = LiveDataSource::start(adapter, interface.clone())
+            .context("failed to create live data source")?;
+        let store = EventStore::empty();
+        let mut app = App::new_live(store, live_source, None);
+        return app.run_live();
+    }
+
     // Install Ctrl+C handler
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = stop.clone();

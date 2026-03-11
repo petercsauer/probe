@@ -1,0 +1,63 @@
+{
+  "plan": ".claude/plans/orchestrate-v2",
+  "started": "2026-03-10T18:00:00Z",
+  "current_wave": 1,
+  "fail_fast": false,
+  "segments": {
+    "S1": {
+      "status": "running",
+      "title": "aiosqlite migration + full schema",
+      "wave": 1,
+      "risk": "7/10",
+      "complexity": "High",
+      "cycle_budget": 20,
+      "depends_on": [],
+      "segment_file": "segments/01-aiosqlite-full-schema.md",
+      "commit_message": "refactor(orchestrate_v2): migrate StateDB to aiosqlite, add full schema"
+    },
+    "S2": {
+      "status": "pending",
+      "title": "ntfy outbox + batching + verbosity",
+      "wave": 2,
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "depends_on": ["S1"],
+      "segment_file": "segments/02-ntfy-outbox-batching.md",
+      "commit_message": "feat(orchestrate_v2): replace osascript with ntfy outbox, add batching and verbosity"
+    },
+    "S3": {
+      "status": "pending",
+      "title": "Heartbeats + network detection + per-segment timeout",
+      "wave": 2,
+      "risk": "4/10",
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "depends_on": ["S1"],
+      "segment_file": "segments/03-heartbeats-network-timeout.md",
+      "commit_message": "feat(orchestrate_v2): add heartbeats, stall detection, network check, per-segment timeout"
+    },
+    "S4": {
+      "status": "pending",
+      "title": "Mobile-first dashboard + UX features",
+      "wave": 3,
+      "risk": "3/10",
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "depends_on": ["S2"],
+      "segment_file": "segments/04-mobile-dashboard-ux.md",
+      "commit_message": "feat(orchestrate_v2): mobile-first dashboard with search, keyboard nav, ETA, and notifications log"
+    },
+    "S5": {
+      "status": "pending",
+      "title": "Operator control API + dashboard buttons + CLI flags",
+      "wave": 4,
+      "risk": "5/10",
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "depends_on": ["S1", "S2", "S3", "S4"],
+      "segment_file": "segments/05-operator-control-api.md",
+      "commit_message": "feat(orchestrate_v2): operator control API with skip/retry/kill, dashboard buttons, CLI flags"
+    }
+  }
+}

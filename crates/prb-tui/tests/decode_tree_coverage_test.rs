@@ -44,6 +44,7 @@ fn test_decode_tree_render_no_selection() {
         selected_event: None, // No selection
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -81,6 +82,7 @@ fn test_decode_tree_render_with_warnings() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -111,6 +113,7 @@ fn test_decode_tree_render_all_transport_types() {
             selected_event: Some(0),
             filter: None,
             filter_text: String::new(),
+            schema_registry: None,
             store,
         };
 
@@ -131,6 +134,7 @@ fn test_decode_tree_handle_key_space() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -152,6 +156,7 @@ fn test_decode_tree_handle_key_arrows() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -181,6 +186,7 @@ fn test_decode_tree_render_small_area() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -200,6 +206,7 @@ fn test_decode_tree_render_focused_vs_unfocused() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -231,6 +238,7 @@ fn test_decode_tree_with_correlation_keys() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -254,6 +262,7 @@ fn test_decode_tree_with_sequence() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -274,6 +283,7 @@ fn test_decode_tree_handle_key_enter() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -295,6 +305,7 @@ fn test_decode_tree_handle_key_backspace() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -321,6 +332,7 @@ fn test_decode_tree_with_many_metadata_keys() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
@@ -345,6 +357,7 @@ fn test_decode_tree_with_large_payload() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+        schema_registry: None,
         store,
     };
 
