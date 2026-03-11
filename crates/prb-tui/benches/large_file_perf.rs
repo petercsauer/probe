@@ -115,20 +115,20 @@ fn benchmark_sort_100k() {
 
     // First call builds the sorted view
     let start = Instant::now();
-    let sorted = pane.sorted_indices(&state);
+    let sorted_len = pane.sorted_indices(&state).len();
     let duration = start.elapsed();
 
-    println!("  Initial sort time: {:?} ({} events)", duration, sorted.len());
+    println!("  Initial sort time: {:?} ({} events)", duration, sorted_len);
     assert!(duration < Duration::from_millis(500), "Sort should complete in <500ms, took {:?}", duration);
 
     // Second call should use cache
     let start = Instant::now();
-    let sorted2 = pane.sorted_indices(&state);
+    let sorted2_len = pane.sorted_indices(&state).len();
     let cached_duration = start.elapsed();
 
     println!("  Cached sort time: {:?}", cached_duration);
     assert!(cached_duration < Duration::from_millis(1), "Cached sort should complete in <1ms, took {:?}", cached_duration);
-    assert_eq!(sorted.len(), sorted2.len());
+    assert_eq!(sorted_len, sorted2_len);
 }
 
 fn benchmark_render_100k() {

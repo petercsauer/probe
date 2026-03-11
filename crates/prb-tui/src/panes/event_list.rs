@@ -153,7 +153,7 @@ impl EventListPane {
         state.filtered_indices.len()
     }
 
-    fn sorted_indices(&mut self, state: &AppState) -> &[usize] {
+    pub fn sorted_indices(&mut self, state: &AppState) -> &[usize] {
         // Compute hash of current filter state
         let mut hasher = DefaultHasher::new();
         state.filtered_indices.hash(&mut hasher);
