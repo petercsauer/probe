@@ -1,0 +1,2436 @@
+use std::collections::HashMap;
+use std::io;
+use std::time::Duration;
+
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{execute, event::EnableMouseCapture, event::DisableMouseCapture};
+use ratatui::backend::CrosstermBackend;
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
+use unicode_width::UnicodeWidthStr;
+use ratatui::Terminal;
+use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
+
+use crate::config::Config;
+use crate::filter_state::FilterState;
+use crate::event_store::EventStore;
+use crate::live::{AppEvent, CaptureState, LiveDataSource};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::panes::ai_panel::AiPanel;
+use crate::panes::decode_tree::DecodeTreePane;
+use crate::panes::event_list::EventListPane;
+use crate::panes::hex_dump::HexDumpPane;
+use crate::panes::timeline::TimelinePane;
+use crate::panes::{Action, PaneComponent};
+use crate::ring_buffer::RingBuffer;
+use crate::theme::ThemeConfig;
+
+use prb_capture::CaptureStats;
+use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
+use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use prb_export;
+use prb_plugin_native::NativePluginLoader;
+use prb_plugin_wasm::WasmPluginLoader;
+use prb_query::Filter;
+use prb_schema::SchemaRegistry;
+use serde_json::{json, Value as JsonValue};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PaneId {
+    EventList,
+    DecodeTree,
+    HexDump,
+    Timeline,
+}
+
+impl PaneId {
+    pub fn next(self) -> Self {
+        match self {
+            PaneId::EventList => PaneId::DecodeTree,
+            PaneId::DecodeTree => PaneId::HexDump,
+            PaneId::HexDump => PaneId::Timeline,
+            PaneId::Timeline => PaneId::EventList,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            PaneId::EventList => PaneId::Timeline,
+            PaneId::DecodeTree => PaneId::EventList,
+            PaneId::HexDump => PaneId::DecodeTree,
+            PaneId::Timeline => PaneId::HexDump,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InputMode {
+    Normal,
+    Filter,
+    Help,
+    GoToEvent,
+    Welcome,
+    WhichKey,
+    CommandPalette,
+    PluginManager,
+    ExportDialog,
+    CopyMode,
+    CaptureConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DragState {
+    None,
+    ResizingVertical(u16),   // dragging horizontal border (splits top/bottom)
+    ResizingHorizontal(u16), // dragging vertical border (splits left/right)
+}
+
+pub struct AppState {
+    pub store: EventStore,
+    pub filtered_indices: Vec<usize>,
+    pub selected_event: Option<usize>,
+    pub filter: Option<Filter>,
+    pub filter_text: String,
+    pub schema_registry: Option<SchemaRegistry>,
+    pub conversations: Option<prb_core::engine::ConversationSet>,
+    pub visible_columns: Vec<String>,
+}
+
+pub struct App {
+    state: AppState,
+    #[allow(dead_code)]
+    config: Config,
+    focus: PaneId,
+    input_mode: InputMode,
+    filter_input: Input,
+    filter_error: Option<String>,
+    filter_state: FilterState,
+    quick_filter_prefix: bool,
+
+    event_list: EventListPane,
+    decode_tree: DecodeTreePane,
+    hex_dump: HexDumpPane,
+    timeline: TimelinePane,
+    #[allow(dead_code)]
+    ai_panel: AiPanel,
+    #[allow(dead_code)]
+    ai_panel_visible: bool,
+    theme: ThemeConfig,
+    plugin_manager: PluginManagerOverlay,
+
+    // Zoom and resize state
+    zoomed_pane: Option<PaneId>,
+    vertical_split: u16,   // event list height %, default 50
+    horizontal_split: u16, // decode tree width %, default 50
+    pane_rects: HashMap<PaneId, Rect>,
+    drag_state: DragState,
+
+    // Go-to-event input
+    goto_input: Input,
+
+
+    // Command palette and overlays
+    #[allow(dead_code)]
+    command_palette: CommandPaletteOverlay,
+    #[allow(dead_code)]
+    which_key_overlay: Option<WhichKeyOverlay>,
+    #[allow(dead_code)]
+    help_scroll_offset: usize,
+    export_dialog: Option<ExportDialogOverlay>,
+    #[allow(dead_code)]
+    capture_config: Option<CaptureConfigOverlay>,
+    
+    // Live capture mode
+    live_source: Option<LiveDataSource>,
+    capture_state: CaptureState,
+    capture_stats: Option<CaptureStats>,
+    auto_follow: bool,
+    new_events_since_scroll: usize,
+    ring_buffer: Option<RingBuffer<DebugEvent>>,
+
+    // Status message for temporary notifications (message, timestamp)
+    status_message: Option<(String, std::time::Instant)>,
+}
+
+impl App {
+    pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
+        let config = Config::load();
+
+        let visible_columns = config.tui.columns.visible.clone();
+
+        let mut state = AppState {
+            filtered_indices: store.all_indices(),
+            selected_event: if store.is_empty() { None } else { Some(0) },
+            filter: None,
+            filter_text: String::new(),
+            schema_registry,
+            conversations: None,
+            visible_columns,
+            store,
+        };
+
+        if let Some(ref filter_str) = initial_filter
+            && let Ok(filter) = Filter::parse(filter_str) {
+                state.filtered_indices = state.store.filter_indices(&filter);
+                state.filter_text = filter_str.clone();
+                state.filter = Some(filter);
+                state.selected_event = if state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
+
+        let theme = ThemeConfig::from_name(&config.tui.theme);
+        let plugin_manager = Self::load_plugins();
+        let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
+
+        App {
+            state,
+            config,
+            focus: PaneId::EventList,
+            input_mode,
+            filter_input: Input::default(),
+            filter_error: None,
+            filter_state: FilterState::new(),
+            quick_filter_prefix: false,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+            ai_panel: AiPanel::new(),
+            ai_panel_visible: false,
+            theme,
+            plugin_manager,
+            zoomed_pane: None,
+            vertical_split: 55,
+            horizontal_split: 40,
+            pane_rects: HashMap::new(),
+            drag_state: DragState::None,
+            goto_input: Input::default(),
+            command_palette: CommandPaletteOverlay::new(),
+            which_key_overlay: None,
+            help_scroll_offset: 0,
+            export_dialog: None,
+            capture_config: None,
+            copy_mode_active: false,
+            live_source: None,
+            capture_state: CaptureState::Stopped,
+            capture_stats: None,
+            auto_follow: false,
+            new_events_since_scroll: 0,
+            ring_buffer: None,
+            status_message: None,
+        }
+
+    /// Set a status message that will be displayed for 2 seconds.
+    fn set_status_message(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
+    }
+
+    /// Create a new App instance for live capture mode.
+    pub fn new_live(
+        store: EventStore,
+        live_source: LiveDataSource,
+        ring_buffer_capacity: usize,
+        schema_registry: Option<SchemaRegistry>,
+    ) -> Self {
+        let config = Config::load();
+
+        let visible_columns = config.tui.columns.visible.clone();
+
+        let state = AppState {
+            filtered_indices: Vec::new(),
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+            schema_registry,
+            conversations: None,
+            visible_columns,
+            store,
+        };
+
+        let theme = ThemeConfig::from_name(&config.tui.theme);
+        let auto_follow = config.tui.auto_follow;
+        let plugin_manager = Self::load_plugins();
+
+        App {
+            state,
+            config,
+            focus: PaneId::EventList,
+            input_mode: InputMode::Normal,
+            filter_state: FilterState::new(),
+            filter_input: Input::default(),
+            filter_error: None,
+            quick_filter_prefix: false,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+            ai_panel: AiPanel::new(),
+            ai_panel_visible: false,
+            theme,
+            plugin_manager,
+            zoomed_pane: None,
+            vertical_split: 55,
+            horizontal_split: 40,
+            pane_rects: HashMap::new(),
+            drag_state: DragState::None,
+            goto_input: Input::default(),
+            command_palette: CommandPaletteOverlay::new(),
+            which_key_overlay: None,
+            help_scroll_offset: 0,
+            export_dialog: None,
+            capture_config: None,
+            copy_mode_active: false,
+                        live_source: Some(live_source),
+            capture_state: CaptureState::Capturing,
+            capture_stats: None,
+            auto_follow,
+            new_events_since_scroll: 0,
+            ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
+            status_message: None,
+        }
+    }
+
+    /// Load plugins from ~/.prb/plugins/ directory.
+    fn load_plugins() -> PluginManagerOverlay {
+        let mut manager = PluginManagerOverlay::new();
+
+        // Get plugin directory path
+        let plugin_dir = if let Some(home) = dirs::home_dir() {
+            home.join(".prb").join("plugins")
+        } else {
+            return manager;
+        };
+
+        if !plugin_dir.exists() {
+            tracing::debug!("Plugin directory does not exist: {}", plugin_dir.display());
+            return manager;
+        }
+
+        tracing::info!("Loading plugins from: {}", plugin_dir.display());
+
+        // Load native plugins
+        let mut native_loader = NativePluginLoader::new();
+        let native_results = native_loader.load_directory(&plugin_dir);
+        for result in native_results {
+            match result {
+                Ok(plugin) => {
+                    let metadata = plugin.metadata().clone();
+                    manager.add_plugin(metadata, PluginType::Native, true);
+                    tracing::info!("Loaded native plugin: {}", plugin.metadata().name);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load native plugin: {}", e);
+                }
+            }
+        }
+
+        // Load WASM plugins
+        let mut wasm_loader = WasmPluginLoader::new();
+        let wasm_results = wasm_loader.load_directory(&plugin_dir);
+        for result in wasm_results {
+            match result {
+                Ok(metadata) => {
+                    manager.add_plugin(metadata.clone(), PluginType::Wasm, true);
+                    tracing::info!("Loaded WASM plugin: {}", metadata.name);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load WASM plugin: {}", e);
+                }
+            }
+        }
+
+        manager
+    }
+
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.live_event_loop(&mut terminal);
+
+        terminal::disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        result
+    }
+
+    /// Run the TUI in live capture mode.
+    pub fn run_live(&mut self) -> anyhow::Result<()> {
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.live_event_loop(&mut terminal);
+
+        terminal::disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        result
+    }
+
+    #[allow(dead_code)]
+    fn event_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        loop {
+            self.draw(terminal)?;
+
+            if event::poll(Duration::from_millis(16))? {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if self.handle_key(key) {
+                            return Ok(());
+                        }
+                    }
+                    Event::Mouse(mouse) => {
+                        self.handle_mouse(mouse);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Live capture event loop with batched event processing.
+    fn live_event_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        // Take the receiver from live_source (can only happen once)
+        let mut rx = self
+            .live_source
+            .as_mut()
+            .and_then(|s| s.take_receiver())
+            .ok_or_else(|| anyhow::anyhow!("No live source receiver available"))?;
+
+        loop {
+            self.draw(terminal)?;
+
+            // Drain capture events (batched for performance)
+            let mut batch_count = 0;
+            while let Ok(event) = rx.try_recv() {
+                match event {
+                    AppEvent::CapturedEvent(debug_event) => {
+                        self.push_live_event(*debug_event);
+                        batch_count += 1;
+                        if batch_count >= 100 {
+                            break;
+                        } // cap per frame
+                    }
+                    AppEvent::CaptureStats(stats) => {
+                        self.capture_stats = Some(stats);
+                    }
+                    AppEvent::CaptureStopped => {
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Recompute filtered indices if new events arrived
+            if batch_count > 0 {
+                self.recompute_filter();
+                if self.auto_follow {
+                    self.scroll_to_bottom();
+                } else {
+                    self.new_events_since_scroll += batch_count;
+                }
+            }
+
+            // Update filter preview if in filter mode and debounce elapsed
+            if self.input_mode == InputMode::Filter && self.filter_state.should_update_preview() {
+                let text = self.filter_input.value();
+                if !text.trim().is_empty() {
+                    match Filter::parse(text) {
+                        Ok(filter) => {
+                            let count = self.state.store.filter_indices(&filter).len();
+                            self.filter_state.update_preview(Some(filter), Some(count));
+                        }
+                        Err(_) => {
+                            self.filter_state.update_preview(None, None);
+                        }
+                    }
+                }
+            }
+
+            // Poll keyboard (33ms = ~30fps)
+            if event::poll(Duration::from_millis(33))? {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if self.handle_live_key(key) {
+                            return Ok(());
+                        }
+                    }
+                    Event::Mouse(mouse) => {
+                        self.handle_mouse(mouse);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn draw(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        terminal.draw(|frame| {
+            let area = frame.area();
+            let buf = frame.buffer_mut();
+            self.render_all(area, buf);
+        })?;
+        Ok(())
+    }
+
+    /// Push a new event into the ring buffer and update the event store.
+    fn push_live_event(&mut self, event: DebugEvent) {
+        if let Some(ref mut ring_buffer) = self.ring_buffer {
+            ring_buffer.push(event.clone());
+            // Sync EventStore with ring buffer contents
+            // For simplicity, we'll keep EventStore as the source of truth
+            // and rebuild it from the ring buffer when needed
+            self.state.store.push(event);
+        } else {
+            // Fallback: no ring buffer, just push to store
+            self.state.store.push(event);
+        }
+    }
+
+    /// Recompute filtered indices after new events arrive.
+    fn recompute_filter(&mut self) {
+        if let Some(ref filter) = self.state.filter {
+            self.state.filtered_indices = self.state.store.filter_indices(filter);
+        } else {
+            self.state.filtered_indices = self.state.store.all_indices();
+        }
+    }
+
+    /// Scroll to the bottom of the event list.
+    fn scroll_to_bottom(&mut self) {
+        let max_index = self.state.filtered_indices.len().saturating_sub(1);
+        self.event_list.selected = max_index;
+        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+            None
+        } else {
+            Some(max_index)
+        };
+        self.new_events_since_scroll = 0;
+    }
+
+    /// Handle keyboard input in live capture mode.
+    fn handle_live_key(&mut self, key: KeyEvent) -> bool {
+        // Live mode specific keys (only in Normal mode)
+        if self.input_mode == InputMode::Normal {
+            match key.code {
+                KeyCode::Char('S') => {
+                    // Stop capture
+                    if let Some(ref live_source) = self.live_source {
+                        live_source.stop();
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    return false;
+                }
+                KeyCode::Char('P') => {
+                    // Toggle pause
+                    self.capture_state = match self.capture_state {
+                        CaptureState::Capturing => CaptureState::Paused,
+                        CaptureState::Paused => CaptureState::Capturing,
+                        CaptureState::Stopped => CaptureState::Stopped,
+                    };
+                    return false;
+                }
+                KeyCode::Char('f') => {
+                    // Toggle auto-follow (only when not filtering)
+                    if self.state.filter.is_none() {
+                        self.auto_follow = !self.auto_follow;
+                        if self.auto_follow {
+                            self.scroll_to_bottom();
+                        }
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Detect scroll-up to disengage auto-follow
+        if self.auto_follow && self.input_mode == InputMode::Normal {
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp | KeyCode::Home => {
+                    self.auto_follow = false;
+                }
+                _ => {}
+            }
+        }
+
+        // Delegate to normal key handler
+        self.handle_key(key)
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let (col, row) = (mouse.column, mouse.row);
+
+                // Skip drag detection if zoomed
+                if self.zoomed_pane.is_none() {
+                    // Check if near a horizontal border (vertical split)
+                    if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
+                        let border_row = event_list_rect.y + event_list_rect.height;
+                        if row == border_row || row == border_row.saturating_sub(1) {
+                            self.drag_state = DragState::ResizingVertical(row);
+                            return;
+                        }
+                    }
+
+                    // Check if near a vertical border (horizontal split)
+                    if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
+                        let border_col = decode_tree_rect.x + decode_tree_rect.width;
+                        if col == border_col || col == border_col.saturating_sub(1) {
+                            self.drag_state = DragState::ResizingHorizontal(col);
+                            return;
+                        }
+                    }
+                }
+
+                // Check which pane was clicked
+                for (pane_id, rect) in &self.pane_rects {
+                    if col >= rect.x && col < rect.x + rect.width
+                        && row >= rect.y && row < rect.y + rect.height
+                    {
+                        self.focus = *pane_id;
+
+                        // If clicked on event list, select the row
+                        if *pane_id == PaneId::EventList {
+                            let row_in_pane = row.saturating_sub(rect.y + 1); // -1 for border
+                            let event_idx = self.event_list.scroll_offset + row_in_pane as usize;
+                            if event_idx < self.state.filtered_indices.len() {
+                                self.event_list.selected = event_idx;
+                                self.process_action(Action::SelectEvent(event_idx));
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                let (col, row) = (mouse.column, mouse.row);
+
+                match self.drag_state {
+                    DragState::ResizingVertical(_) => {
+                        // Calculate new vertical split based on mouse position
+                        if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
+                            let total_height = event_list_rect.height +
+                                self.pane_rects.get(&PaneId::DecodeTree).map(|r| r.height).unwrap_or(0);
+                            if total_height > 0 {
+                                let event_list_height = row.saturating_sub(event_list_rect.y);
+                                let new_percentage = ((event_list_height as f32 / total_height as f32) * 100.0) as u16;
+                                self.vertical_split = new_percentage.clamp(20, 80);
+                            }
+                        }
+                    }
+                    DragState::ResizingHorizontal(_) => {
+                        // Calculate new horizontal split based on mouse position
+                        if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
+                            let total_width = decode_tree_rect.width +
+                                self.pane_rects.get(&PaneId::HexDump).map(|r| r.width).unwrap_or(0);
+                            if total_width > 0 {
+                                let decode_tree_width = col.saturating_sub(decode_tree_rect.x);
+                                let new_percentage = ((decode_tree_width as f32 / total_width as f32) * 100.0) as u16;
+                                self.horizontal_split = new_percentage.clamp(20, 80);
+                            }
+                        }
+                    }
+                    DragState::None => {}
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                self.drag_state = DragState::None;
+            }
+            MouseEventKind::ScrollDown => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_down(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                            &self.state
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            MouseEventKind::ScrollUp => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_up(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                            &self.state,
+
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_key(&mut self, key: KeyEvent) -> bool {
+        match self.input_mode {
+            InputMode::Help => {
+                // Check if key is configured quit or help key
+                let is_exit_key = key.code == KeyCode::Esc
+                    || (self.config.tui.keybindings.quit_keycode() == Some(key.code))
+                    || (self.config.tui.keybindings.help_keycode() == Some(key.code));
+
+                if is_exit_key {
+                    self.input_mode = InputMode::Normal;
+                    self.help_scroll_offset = 0;
+                } else {
+                    match key.code {
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
+                        }
+                        _ => {}
+                    }
+                }
+                return false;
+            }
+            InputMode::Filter => {
+                return self.handle_filter_key(key);
+            }
+            InputMode::GoToEvent => {
+                match key.code {
+                    KeyCode::Enter => {
+                        // Parse event ID and jump to it
+                        let text = self.goto_input.value();
+                        if let Ok(event_id) = text.trim().parse::<usize>() {
+                            // Find the event in filtered indices
+                            if let Some(pos) = self.state.filtered_indices
+                                .iter()
+                                .position(|&idx| self.state.store.get(idx).is_some_and(|e| e.id.as_u64() == event_id as u64))
+                            {
+                                self.event_list.selected = pos;
+                                self.process_action(Action::SelectEvent(pos));
+                            }
+                        }
+                        self.input_mode = InputMode::Normal;
+                    }
+                    KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
+                        self.input_mode = InputMode::Normal;
+                    }
+                    _ => {
+                        self.goto_input.handle_event(&Event::Key(key));
+                    }
+                }
+                return false;
+            }
+            InputMode::Welcome => {
+                // Any key dismisses welcome screen
+                self.input_mode = InputMode::Normal;
+                return false;
+            }
+            InputMode::CommandPalette => {
+                return self.handle_command_palette_key(key);
+            }
+            InputMode::PluginManager => {
+                return self.handle_plugin_manager_key(key);
+            }
+            InputMode::ExportDialog => {
+                return self.handle_export_dialog_key(key);
+            }
+            InputMode::CopyMode => {
+                return self.handle_copy_mode_key(key);
+            }
+            InputMode::CaptureConfig => {
+                return false; // TODO: Implement capture config handler
+            }
+            InputMode::Normal => {}
+            InputMode::WhichKey => {
+                // Esc dismisses which-key overlay
+                if key.code == KeyCode::Esc {
+                    self.input_mode = InputMode::Normal;
+                }
+                return false;
+            }
+        }
+
+        // Global keys
+        // Check for Ctrl+C or configured quit key
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return true;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('p') {
+            self.input_mode = InputMode::PluginManager;
+            return false;
+        }
+
+        // Check configured keybindings
+        if let Some(quit_key) = self.config.tui.keybindings.quit_keycode()
+            && key.code == quit_key {
+                return true;
+            }
+        if let Some(help_key) = self.config.tui.keybindings.help_keycode()
+            && key.code == help_key {
+                self.input_mode = InputMode::Help;
+                return false;
+            }
+        if let Some(filter_key) = self.config.tui.keybindings.filter_keycode()
+            && key.code == filter_key {
+                self.input_mode = InputMode::Filter;
+                self.filter_input = Input::new(self.state.filter_text.clone());
+                self.filter_error = None;
+                return false;
+            }
+        if let Some(theme_key) = self.config.tui.keybindings.theme_cycle_keycode()
+            && key.code == theme_key {
+                self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
+                    "Light" => ThemeConfig::catppuccin_mocha(),
+                    "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    "Dracula" => ThemeConfig::colorblind_safe(),
+                    "Colorblind Safe" => ThemeConfig::high_contrast(),
+                    "High Contrast" => ThemeConfig::dark(),
+                    _ => ThemeConfig::dark(),
+                };
+                let message = format!("Theme: {}", self.theme.name);
+                self.status_message = Some((message, std::time::Instant::now()));
+                return false;
+            }
+        if let Some(zoom_key) = self.config.tui.keybindings.zoom_keycode()
+            && key.code == zoom_key {
+                // Toggle zoom on focused pane
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                } else {
+                    self.zoomed_pane = Some(self.focus);
+                }
+                return false;
+            }
+
+        match key.code {
+            KeyCode::Char(':') => {
+                self.input_mode = InputMode::CommandPalette;
+                self.command_palette = CommandPaletteOverlay::new();
+                return false;
+            }
+            KeyCode::Tab => {
+                self.focus = self.focus.next();
+                return false;
+            }
+            KeyCode::BackTab => {
+                self.focus = self.focus.prev();
+                return false;
+            }
+            KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
+                if self.state.filter.is_some() {
+                    self.state.filter = None;
+                    self.state.filter_text.clear();
+                    self.state.filtered_indices = self.state.store.all_indices();
+                    self.event_list.selected = 0;
+                    self.event_list.scroll_offset = 0;
+                    self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                        None
+                    } else {
+                        Some(0)
+                    };
+                }
+                return false;
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                // Increase split percentage for focused pane's dimension
+                match self.focus {
+                    PaneId::EventList => {
+                        self.vertical_split = (self.vertical_split + 5).min(80);
+                    }
+                    PaneId::DecodeTree => {
+                        self.horizontal_split = (self.horizontal_split + 5).min(80);
+                    }
+                    PaneId::HexDump => {
+                        self.horizontal_split = self.horizontal_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::Timeline => {}
+                }
+                return false;
+            }
+            KeyCode::Char('-') | KeyCode::Char('_') => {
+                // Decrease split percentage for focused pane's dimension
+                match self.focus {
+                    PaneId::EventList => {
+                        self.vertical_split = self.vertical_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::DecodeTree => {
+                        self.horizontal_split = self.horizontal_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::HexDump => {
+                        self.horizontal_split = (self.horizontal_split + 5).min(80);
+                    }
+                    PaneId::Timeline => {}
+                }
+                return false;
+            }
+            KeyCode::Char('#') => {
+                self.input_mode = InputMode::GoToEvent;
+                self.goto_input = Input::default();
+                return false;
+            }
+            KeyCode::Char('e') => {
+                // Open export dialog
+                let filtered_count = self.state.filtered_indices.len();
+                self.export_dialog = Some(ExportDialogOverlay::new(filtered_count));
+                self.input_mode = InputMode::ExportDialog;
+                return false;
+            }
+            KeyCode::Char('y') => {
+                // Enter copy mode
+                self.copy_mode_active = true;
+                self.input_mode = InputMode::CopyMode;
+                return false;
+            }
+            KeyCode::Char('w') => {
+                // Quick save filtered view
+                self.save_filtered_view();
+                return false;
+            }
+            KeyCode::Char('f') => {
+                // Show which-key popup for quick-filter options
+                let options = vec![
+                    ('s', "filter by Source".to_string()),
+                    ('d', "filter by Destination".to_string()),
+                    ('p', "filter by Protocol".to_string()),
+                    ('c', "filter by Conversation".to_string()),
+                ];
+                self.which_key_overlay = Some(WhichKeyOverlay::new('f', options));
+                self.input_mode = InputMode::WhichKey;
+                self.quick_filter_prefix = true;
+                return false;
+            }
+            KeyCode::Char('s') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by source
+                self.apply_quick_filter_source();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('d') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by destination
+                self.apply_quick_filter_dest();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('p') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by protocol/transport
+                self.apply_quick_filter_transport();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('c') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by conversation
+                self.apply_quick_filter_conversation();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            _ if self.quick_filter_prefix => {
+                // Any other key cancels quick-filter mode
+                self.quick_filter_prefix = false;
+            }
+            _ => {}
+        }
+
+        // Route to focused pane
+        let action = match self.focus {
+            PaneId::EventList => self.event_list.handle_key(key, &self.state),
+            PaneId::DecodeTree => self.decode_tree.handle_key(key, &self.state),
+            PaneId::HexDump => self.hex_dump.handle_key(key, &self.state),
+            PaneId::Timeline => self.timeline.handle_key(key, &self.state),
+        };
+
+        self.process_action(action);
+        false
+    }
+
+    fn handle_filter_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Enter => {
+                // Commit the filter from FilterState
+                let text = self.filter_input.value().to_string();
+                self.filter_state.set_text(text.clone());
+
+                if text.trim().is_empty() {
+                    self.state.filter = None;
+                    self.state.filter_text.clear();
+                    self.state.filtered_indices = self.state.store.all_indices();
+                    self.filter_state.commit(None);
+                } else {
+                    match Filter::parse(&text) {
+                        Ok(filter) => {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = text.clone();
+                            self.filter_state.commit(Some(filter));
+                            self.filter_error = None;
+                        }
+                        Err(e) => {
+                            self.filter_error = Some(e.to_string());
+                            return false;
+                        }
+                    }
+                }
+
+                self.event_list.selected = 0;
+                self.event_list.scroll_offset = 0;
+                self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+                self.input_mode = InputMode::Normal;
+                self.focus = PaneId::EventList;
+                false
+            }
+            KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
+                self.input_mode = InputMode::Normal;
+                self.filter_error = None;
+                false
+            }
+            KeyCode::Up => {
+                // Navigate to previous history entry
+                self.filter_state.history_up();
+                self.filter_input = Input::new(self.filter_state.text.clone());
+                self.filter_error = None;
+                false
+            }
+            KeyCode::Down => {
+                // Navigate to next history entry
+                self.filter_state.history_down();
+                self.filter_input = Input::new(self.filter_state.text.clone());
+                self.filter_error = None;
+                false
+            }
+            _ => {
+                self.filter_input.handle_event(&Event::Key(key));
+                // Sync filter_input changes to filter_state
+                let text = self.filter_input.value().to_string();
+                self.filter_state.set_text(text);
+                self.filter_error = None;
+                false
+            }
+        }
+    }
+
+    fn handle_command_palette_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Enter => {
+                // Execute selected command
+                if let Some(cmd) = self.command_palette.selected_command() {
+                    match cmd.name.as_str() {
+                        "Filter events" => {
+                            self.input_mode = InputMode::Filter;
+                            self.filter_input = Input::new(self.state.filter_text.clone());
+                            self.filter_error = None;
+                        }
+                        "Clear filter" => {
+                            self.state.filter = None;
+                            self.state.filter_text.clear();
+                            self.state.filtered_indices = self.state.store.all_indices();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Help" => {
+                            self.input_mode = InputMode::Help;
+                            self.help_scroll_offset = 0;
+                        }
+                        "Next pane" => {
+                            self.focus = self.focus.next();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Previous pane" => {
+                            self.focus = self.focus.prev();
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "First event" => {
+                            if !self.state.filtered_indices.is_empty() {
+                                self.event_list.selected = 0;
+                                self.process_action(Action::SelectEvent(0));
+                            }
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Last event" => {
+                            if !self.state.filtered_indices.is_empty() {
+                                let last = self.state.filtered_indices.len() - 1;
+                                self.event_list.selected = last;
+                                self.process_action(Action::SelectEvent(last));
+                            }
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Quit" => {
+                            self.input_mode = InputMode::Normal;
+                            return true;
+                        }
+                        _ => {
+                            self.input_mode = InputMode::Normal;
+                        }
+                    }
+                }
+                false
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.command_palette.move_selection(1);
+                false
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.command_palette.move_selection(-1);
+                false
+            }
+            KeyCode::Char(c) => {
+                let mut new_input = self.command_palette.input.clone();
+                new_input.push(c);
+                self.command_palette.update_input(new_input);
+                false
+            }
+            KeyCode::Backspace => {
+                let mut new_input = self.command_palette.input.clone();
+                new_input.pop();
+                self.command_palette.update_input(new_input);
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
+        // Check if key is Esc or configured quit key
+        let is_exit_key = key.code == KeyCode::Esc
+            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
+
+        if is_exit_key {
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('p') {
+            // Toggle close with Ctrl+P
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.plugin_manager.move_down();
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.plugin_manager.move_up();
+                false
+            }
+            KeyCode::Char(' ') => {
+                self.plugin_manager.toggle_enabled();
+                false
+            }
+            KeyCode::Char('i') => {
+                self.plugin_manager.show_info = !self.plugin_manager.show_info;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn set_status_message(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
+
+
+    fn handle_export_dialog_key(&mut self, key: KeyEvent) -> bool {
+        let Some(ref mut dialog) = self.export_dialog else {
+            self.input_mode = InputMode::Normal;
+            return false;
+        };
+
+        if dialog.editing_path {
+            match key.code {
+                KeyCode::Enter => {
+                    dialog.editing_path = false;
+                }
+                KeyCode::Esc => {
+                    dialog.editing_path = false;
+                }
+                _ => {
+                    dialog.output_path_input.handle_event(&Event::Key(key));
+                }
+            }
+            return false;
+        }
+
+        // Check if key is Esc or configured quit key
+        let is_exit_key = key.code == KeyCode::Esc
+            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
+
+        if is_exit_key {
+            self.export_dialog = None;
+            self.input_mode = InputMode::Normal;
+            return false;
+        }
+
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                dialog.move_selection(1);
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                dialog.move_selection(-1);
+                false
+            }
+            KeyCode::Tab => {
+                dialog.toggle_path_editing();
+                false
+            }
+            KeyCode::Enter => {
+                self.perform_export();
+                self.export_dialog = None;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_copy_mode_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc => {
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('y') => {
+                self.copy_selected_as_json();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('h') => {
+                self.copy_hex_dump();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('d') => {
+                self.copy_decoded_tree();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('a') => {
+                self.copy_source_address();
+                self.copy_mode_active = false;
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn perform_export(&mut self) {
+        use std::fs::File;
+        use std::io::BufWriter;
+
+        let Some(ref dialog) = self.export_dialog else {
+            return;
+        };
+
+        let Some(format) = dialog.selected_format() else {
+            return;
+        };
+
+        let path = dialog.output_path_input.value();
+
+        let events: Vec<_> = match format.format.as_str() {
+            "json" => {
+                if let Some(selected_idx) = self.state.selected_event {
+                    if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                        if let Some(event) = self.state.store.get(store_idx) {
+                            vec![event.clone()]
+                        } else {
+                            self.set_status_message("No event selected for export");
+                            return;
+                        }
+                    } else {
+                        self.set_status_message("No event selected for export");
+                        return;
+                    }
+                } else {
+                    self.set_status_message("No event selected for export");
+                    return;
+                }
+            }
+            _ => {
+                self.state.filtered_indices
+                    .iter()
+                    .filter_map(|&idx| self.state.store.get(idx).cloned())
+                    .collect()
+            }
+        };
+
+        let export_format = match format.format.as_str() {
+            "json" | "json-all" => {
+                if let Ok(file) = File::create(path) {
+                    let mut writer = BufWriter::new(file);
+                    if let Err(e) = serde_json::to_writer_pretty(&mut writer, &events) {
+                        self.set_status_message(&format!("Export failed: {}", e));
+                    } else {
+                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                    }
+                } else {
+                    self.set_status_message(&format!("Failed to create file: {}", path));
+                }
+                return;
+            }
+            "csv" => "csv",
+            "har" => "har",
+            "html" => "html",
+            "otlp" => "otlp",
+            other => {
+                self.set_status_message(&format!("Unsupported export format: {}", other));
+                return;
+            }
+        };
+
+        match prb_export::create_exporter(export_format) {
+            Ok(exporter) => {
+                if let Ok(file) = File::create(path) {
+                    let mut writer = BufWriter::new(file);
+                    if let Err(e) = exporter.export(&events, &mut writer) {
+                        self.set_status_message(&format!("Export failed: {}", e));
+                    } else {
+                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                    }
+                } else {
+                    self.set_status_message(&format!("Failed to create file: {}", path));
+                }
+            }
+            Err(e) => {
+                self.set_status_message(&format!("Export failed: {}", e));
+            }
+        }
+    }
+    fn save_filtered_view(&self) {
+        use std::fs::File;
+        use std::io::BufWriter;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let events: Vec<_> = self.state.filtered_indices
+            .iter()
+            .filter_map(|&idx| self.state.store.get(idx).cloned())
+            .collect();
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let path = format!("./filtered_{}.json", timestamp);
+
+        if let Ok(file) = File::create(&path) {
+            let mut writer = BufWriter::new(file);
+            let _ = serde_json::to_writer_pretty(&mut writer, &events);
+        }
+    }
+
+    fn copy_selected_as_json(&self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx)
+                    && let Ok(json) = serde_json::to_string_pretty(event) {
+                        Self::osc52_copy(&json);
+                    }
+    }
+
+    fn copy_hex_dump(&self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    // Extract raw bytes from payload
+                    let raw_bytes = match &event.payload {
+                        Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
+                    };
+
+                    // Format as hex dump
+                    let mut hex_lines = Vec::new();
+                    for (offset, chunk) in raw_bytes.chunks(16).enumerate() {
+                        let hex_part: Vec<String> = chunk.iter()
+                            .map(|b| format!("{:02x}", b))
+                            .collect();
+                        let ascii_part: String = chunk.iter()
+                            .map(|&b| if (32..=126).contains(&b) { b as char } else { '.' })
+                            .collect();
+                        hex_lines.push(format!("{:08x}  {:47}  {}",
+                            offset * 16, hex_part.join(" "), ascii_part));
+                    }
+
+                    Self::osc52_copy(&hex_lines.join("\n"));
+                }
+    }
+
+    fn copy_decoded_tree(&self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    let decoded_text = self.format_decoded_tree(event);
+                    Self::osc52_copy(&decoded_text);
+                }
+    }
+
+    fn copy_source_address(&self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    let address = event.source.network
+                        .as_ref()
+                        .map(|n| n.src.clone())
+                        .unwrap_or_else(|| event.source.origin.clone());
+                    Self::osc52_copy(&address);
+                }
+    }
+
+    fn format_decoded_tree(&self, event: &DebugEvent) -> String {
+        let mut lines = Vec::new();
+
+        // Extract raw bytes from payload
+        let raw_bytes = match &event.payload {
+            Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
+        };
+
+        if let Some(ref registry) = self.state.schema_registry
+            && let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+                .and_then(|method| registry.get_message(method))
+                && let Ok(decoded) = decode_with_schema(raw_bytes, &schema) {
+                    Self::format_wire_value(&decoded.to_json(), 0, &mut lines);
+                    return lines.join("\n");
+                }
+
+        if let Ok(wire_msg) = decode_wire_format(raw_bytes) {
+            Self::format_wire_message(&wire_msg, 0, &mut lines);
+        }
+
+        lines.join("\n")
+    }
+
+    fn format_wire_message(msg: &WireMessage, indent: usize, lines: &mut Vec<String>) {
+        for field in &msg.fields {
+            lines.push(format!("{}{}: {:?}", "  ".repeat(indent), field.field_number, field.value));
+            if let WireValue::LengthDelimited(LenValue::SubMessage(nested_msg)) = &field.value {
+                Self::format_wire_message(nested_msg, indent + 1, lines);
+            }
+        }
+    }
+
+    fn format_wire_value(value: &JsonValue, indent: usize, lines: &mut Vec<String>) {
+        match value {
+            JsonValue::Object(obj) => {
+                for (key, val) in obj {
+                    lines.push(format!("{}{}: {}", "  ".repeat(indent), key,
+                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
+                    if val.is_object() || val.is_array() {
+                        Self::format_wire_value(val, indent + 1, lines);
+                    }
+                }
+            }
+            JsonValue::Array(arr) => {
+                for (i, val) in arr.iter().enumerate() {
+                    lines.push(format!("{}[{}]: {}", "  ".repeat(indent), i,
+                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
+                    if val.is_object() || val.is_array() {
+                        Self::format_wire_value(val, indent + 1, lines);
+                    }
+                }
+            }
+            other => {
+                lines.push(format!("{}{}", "  ".repeat(indent), other));
+            }
+        }
+    }
+
+    fn osc52_copy(text: &str) {
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(text);
+        print!("\x1b]52;c;{}\x07", encoded);
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+    }
+
+    /// Render the capture control bar for live mode.
+    fn render_capture_control_bar(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::style::Color;
+
+        let mut spans = Vec::new();
+
+        // State indicator with color
+        let (state_symbol, state_text, state_color) = match self.capture_state {
+            CaptureState::Capturing => ("●", "CAPTURING", Color::Green),
+            CaptureState::Paused => ("■", "PAUSED", Color::Yellow),
+            CaptureState::Stopped => ("□", "STOPPED", Color::Red),
+        };
+
+        spans.push(Span::styled(
+            format!(" {} {} ", state_symbol, state_text),
+            Style::default().fg(state_color).bg(Color::DarkGray),
+        ));
+
+        // Interface name
+        if let Some(ref live_source) = self.live_source {
+            spans.push(Span::styled(
+                format!(" {} ", live_source.interface()),
+                self.theme.status_bar(),
+            ));
+        }
+
+        spans.push(Span::styled(" │ ", self.theme.status_bar()));
+
+        // Event counts
+        let total = self.state.store.len();
+        if let Some(ref ring_buffer) = self.ring_buffer {
+            let evicted = ring_buffer.evicted();
+            let capacity = ring_buffer.capacity();
+            if evicted > 0 {
+                spans.push(Span::styled(
+                    format!("{}/{} events ({} evicted) ", total, capacity, evicted),
+                    self.theme.status_bar(),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    format!("{} events ", total),
+                    self.theme.status_bar(),
+                ));
+            }
+        } else {
+            spans.push(Span::styled(
+                format!("{} events ", total),
+                self.theme.status_bar(),
+            ));
+        }
+
+        // Capture stats
+        if let Some(ref stats) = self.capture_stats {
+            spans.push(Span::styled(" │ ", self.theme.status_bar()));
+            spans.push(Span::styled(
+                format!("{:.0} pps ", stats.packets_per_second),
+                self.theme.status_bar(),
+            ));
+
+            if stats.packets_dropped_kernel > 0 {
+                spans.push(Span::styled(
+                    format!("({} drops) ", stats.packets_dropped_kernel),
+                    Style::default().fg(Color::Yellow),
+                ));
+            }
+        }
+
+        // Auto-follow indicator
+        if self.auto_follow {
+            spans.push(Span::styled(" [FOLLOW] ", Style::default().fg(Color::Cyan)));
+        } else if self.new_events_since_scroll > 0 {
+            spans.push(Span::styled(
+                format!(" +{} new ", self.new_events_since_scroll),
+                Style::default().fg(Color::Yellow),
+            ));
+        }
+
+        // Right-aligned keybind hints
+        let hint = " [S]top [P]ause [f]ollow  Tab:pane  ?:help  q:quit ";
+        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
+        spans.push(Span::styled(
+            " ".repeat(padding),
+            self.theme.status_bar(),
+        ));
+        spans.push(Span::styled(hint, self.theme.status_bar()));
+
+        let line = Line::from(spans);
+
+        // Fill background
+        for x in area.x..area.x + area.width {
+            buf[(x, area.y)].set_style(self.theme.status_bar());
+        }
+        buf.set_line(area.x, area.y, &line, area.width);
+    }
+    fn process_action(&mut self, action: Action) {
+        match action {
+            Action::None => {}
+            Action::SelectEvent(idx) => {
+                self.state.selected_event = Some(idx);
+                self.hex_dump.scroll_offset = 0;
+                self.hex_dump.clear_highlight();
+                self.decode_tree.state = tui_tree_widget::TreeState::default();
+
+                // Try to decode the event on-demand
+                if let Some(store_idx) = self.state.filtered_indices.get(idx) {
+                    self.try_decode_event(*store_idx);
+                }
+            }
+            Action::HighlightBytes { offset, len } => {
+                self.hex_dump.set_highlight(offset, len);
+            }
+            Action::ClearHighlight => {
+                self.hex_dump.clear_highlight();
+            }
+            Action::Quit => {}
+        }
+    }
+
+    /// Attempt on-demand decode of an event when selected.
+    fn try_decode_event(&mut self, store_idx: usize) {
+        let registry = match &self.state.schema_registry {
+            Some(r) => r,
+            None => return,
+        };
+
+        let event = match self.state.store.get_mut(store_idx) {
+            Some(e) => e,
+            None => return,
+        };
+
+        // Only decode if still in Raw format
+        if let Payload::Raw { ref raw } = event.payload {
+            let bytes = raw.clone();
+
+            // Try schema-backed decode first (for gRPC)
+            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+                && let Some(msg_desc) = registry.get_message(method) {
+                    match decode_with_schema(&bytes, &msg_desc) {
+                        Ok(decoded) => {
+                            event.payload = Payload::Decoded {
+                                raw: bytes,
+                                fields: decoded.to_json(),
+                                schema_name: Some(method.to_string()),
+                            };
+                            tracing::debug!("Decoded event {} with schema {}", event.id, method);
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::debug!("Schema decode failed for {}: {}", method, e);
+                        }
+                    }
+                }
+
+            // Fallback: wire-format decode (field numbers only)
+            match decode_wire_format(&bytes) {
+                Ok(wire_msg) => {
+                    // Convert wire message to JSON representation
+                    let fields = wire_message_to_json(&wire_msg);
+                    event.payload = Payload::Decoded {
+                        raw: bytes,
+                        fields,
+                        schema_name: None,
+                    };
+                    tracing::debug!("Wire-format decoded event {}", event.id);
+                }
+                Err(e) => {
+                    tracing::debug!("Wire-format decode failed: {}", e);
+                }
+            }
+        }
+    }
+
+    fn render_all(&mut self, area: Rect, buf: &mut Buffer) {
+        // Handle zoom mode
+        if let Some(zoomed) = self.zoomed_pane {
+            // Clear pane_rects and render only zoomed pane
+            self.pane_rects.clear();
+            self.pane_rects.insert(zoomed, area);
+            
+            let focus = self.focus;
+            match zoomed {
+                PaneId::EventList => {
+                    // TODO: Conversation list support
+                    // if self.showing_conversations {
+                    //     self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    // } else {
+                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    // }
+                }
+                PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
+                PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
+                PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
+            }
+            return;
+        }
+
+        let main_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),  // filter bar
+                Constraint::Min(10),   // main content
+                Constraint::Length(5), // timeline
+                Constraint::Length(1),  // status bar
+            ])
+            .split(area);
+
+        // Split main content: top = event list, bottom = decode tree + hex dump
+        let vert_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(self.vertical_split), Constraint::Percentage(100 - self.vertical_split)])
+            .split(main_layout[1]);
+
+        let horiz_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(self.horizontal_split), Constraint::Percentage(100 - self.horizontal_split)])
+            .split(vert_layout[1]);
+
+        let focus = self.focus;
+        if self.showing_conversations {
+            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        } else {
+            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        }
+        self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
+        self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
+        self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
+
+        // Store pane rectangles for mouse hit-testing
+        self.pane_rects.clear();
+        self.pane_rects.insert(PaneId::EventList, vert_layout[0]);
+        self.pane_rects.insert(PaneId::DecodeTree, horiz_layout[0]);
+        self.pane_rects.insert(PaneId::HexDump, horiz_layout[1]);
+        self.pane_rects.insert(PaneId::Timeline, main_layout[2]);
+
+        Self::render_filter_bar_static(
+            main_layout[0],
+            buf,
+            self.input_mode,
+            &self.filter_input,
+            &self.filter_error,
+            &self.state,
+            &self.filter_state,
+            &self.theme,
+        );
+        // Render status bar or capture control bar depending on mode
+        if self.is_live_mode() {
+            self.render_capture_control_bar(main_layout[3], buf);
+        } else {
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.theme);
+        }
+
+        if self.input_mode == InputMode::Help {
+            self.render_help_overlay(area, buf);
+        }
+
+        // Render GoToEvent overlay
+        if self.input_mode == InputMode::GoToEvent {
+            let prompt = format!("Go to event #: {}", self.goto_input.value());
+            let width = (prompt.len() as u16 + 4).min(60);
+            let height = 3;
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+            
+            Clear.render(overlay_area, buf);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(self.theme.focused_border())
+                .title(" Jump to Event ");
+            let inner = block.inner(overlay_area);
+            block.render(overlay_area, buf);
+
+            let line = Line::from(vec![Span::styled(prompt, self.theme.filter_bar())]);
+            buf.set_line(inner.x, inner.y, &line, inner.width);
+        }
+
+        if self.input_mode == InputMode::PluginManager {
+            self.plugin_manager.render(area, buf);
+        }
+
+        if self.input_mode == InputMode::ExportDialog
+            && let Some(ref dialog) = self.export_dialog {
+                dialog.render(area, buf);
+            }
+
+        if self.input_mode == InputMode::CopyMode {
+            let width = 40u16.min(area.width.saturating_sub(4));
+            let height = 8u16.min(area.height.saturating_sub(4));
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+
+            Clear.render(overlay_area, buf);
+
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(self.theme.focused_border())
+                .title(" Copy Mode ");
+
+            let inner = block.inner(overlay_area);
+            block.render(overlay_area, buf);
+
+            let help_lines = ["y - copy event as JSON",
+                "h - copy hex dump",
+                "d - copy decoded tree",
+                "a - copy source address",
+                "",
+                "Esc - cancel"];
+
+            for (i, line) in help_lines.iter().enumerate() {
+                if i < inner.height as usize {
+                    let y_pos = inner.y + i as u16;
+                    buf.set_string(inner.x + 2, y_pos, line, Style::default());
+                }
+            }
+        }
+
+        // Render Welcome overlay when no events loaded
+        if self.input_mode == InputMode::Welcome {
+            WelcomeOverlay::render(area, buf);
+        }
+
+        // Render WhichKey overlay
+        if self.input_mode == InputMode::WhichKey
+            && let Some(ref overlay) = self.which_key_overlay {
+                overlay.render(area, buf);
+            }
+
+        // Render CommandPalette overlay
+        if self.input_mode == InputMode::CommandPalette {
+            self.command_palette.render(area, buf);
+
+        // Render follow stream overlay
+        if let Some(ref overlay) = self.follow_stream_overlay {
+            if let Some(ref conv_set) = self.state.conversations {
+                let conv_idx = overlay.conversation_idx;
+                if conv_idx < conv_set.conversations.len() {
+                    overlay.render(area, buf, &conv_set.conversations[conv_idx], self.state.store.events(), &self.theme);
+                }
+            }
+        }
+
+        // Render metrics overlay
+        if self.metrics_overlay {
+            if let Some(ref conv_set) = self.state.conversations {
+                let metrics_overlay = MetricsOverlay::new();
+                metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
+            }
+        }
+        }
+    }
+
+    /// Check if we're in live capture mode.
+    fn is_live_mode(&self) -> bool {
+        self.live_source.is_some()
+    }
+
+    /// Syntax highlight filter expression for display.
+    fn highlight_filter_syntax(text: &str, _theme: &ThemeConfig) -> Vec<Span<'static>> {
+        use ratatui::style::Color;
+        
+        let mut spans = Vec::new();
+        let chars: Vec<char> = text.chars().collect();
+        let mut i = 0;
+        
+        while i < chars.len() {
+            // Skip whitespace
+            if chars[i].is_whitespace() {
+                let start = i;
+                while i < chars.len() && chars[i].is_whitespace() {
+                    i += 1;
+                }
+                spans.push(Span::raw(chars[start..i].iter().collect::<String>()));
+                continue;
+            }
+            
+            // String literals
+            if chars[i] == '"' {
+                let start = i;
+                i += 1;
+                while i < chars.len() && chars[i] != '"' {
+                    if chars[i] == '\\' && i + 1 < chars.len() {
+                        i += 2; // Skip escaped character
+                    } else {
+                        i += 1;
+                    }
+                }
+                if i < chars.len() {
+                    i += 1; // Include closing quote
+                }
+                let text: String = chars[start..i].iter().collect();
+                spans.push(Span::styled(text, Style::default().fg(Color::Green)));
+                continue;
+            }
+            
+            // Numbers
+            if chars[i].is_ascii_digit() {
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                    i += 1;
+                }
+                let text: String = chars[start..i].iter().collect();
+                spans.push(Span::styled(text, Style::default().fg(Color::Magenta)));
+                continue;
+            }
+            
+            // Operators and keywords
+            let start = i;
+            while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '"' {
+                i += 1;
+            }
+            let text: String = chars[start..i].iter().collect();
+            
+            // Check if it's an operator
+            if matches!(text.as_str(), "==" | "!=" | "contains" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "and" | "or") {
+                spans.push(Span::styled(text, Style::default().fg(Color::Yellow)));
+            }
+            // Check if it's a field name
+            else if matches!(text.as_str(), "transport" | "source" | "dest" | "origin" | "direction" | "payload" | "metadata" | "conversation") {
+                spans.push(Span::styled(text, Style::default().fg(Color::Cyan)));
+            }
+            // Default
+            else {
+                spans.push(Span::raw(text));
+            }
+        }
+        
+        spans
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_filter_bar_static(
+        area: Rect,
+        buf: &mut Buffer,
+        input_mode: InputMode,
+        filter_input: &Input,
+        filter_error: &Option<String>,
+        state: &AppState,
+        filter_state: &FilterState,
+        theme: &ThemeConfig,
+    ) {
+        let is_filtering = input_mode == InputMode::Filter;
+
+        let filter_display = if is_filtering {
+            filter_input.value().to_string()
+        } else {
+            state.filter_text.clone()
+        };
+
+        let match_count = state.filtered_indices.len();
+        let total = state.store.len();
+
+        let mut spans = vec![
+            Span::styled(" / ", theme.help_key()),
+        ];
+
+        if filter_display.is_empty() && !is_filtering {
+            spans.push(Span::styled(
+                "type / to filter",
+                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+            ));
+        } else {
+            // Syntax highlight the filter text
+            if is_filtering {
+                spans.extend(Self::highlight_filter_syntax(&filter_display, theme));
+            } else {
+                spans.push(Span::styled(filter_display, theme.filter_bar()));
+            }
+        }
+
+        if let Some(err) = filter_error {
+            spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
+        } else if is_filtering {
+            // Show preview count during typing (yellow for preview)
+            if let Some(preview_count) = filter_state.preview_count {
+                spans.push(Span::styled(
+                    format!("  [{}/{}]", preview_count, total),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+            }
+        } else if state.filter.is_some() {
+            spans.push(Span::styled(
+                format!("  [{}/{}]", match_count, total),
+                ratatui::style::Style::default().fg(ratatui::style::Color::Green),
+            ));
+        }
+
+        if is_filtering {
+            spans.push(Span::styled("▏", theme.help_key()));
+        }
+
+        let line = Line::from(spans);
+        buf.set_line(area.x, area.y, &line, area.width);
+    }
+
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, theme: &ThemeConfig) {
+        let total = state.store.len();
+        let filtered = state.filtered_indices.len();
+
+                // Add zoom indicator if active
+        let zoom_indicator = if let Some(pane) = zoomed_pane {
+            format!(" [ZOOMED: {}] ", match pane {
+                PaneId::EventList => "Events",
+                PaneId::DecodeTree => "Decode",
+                PaneId::HexDump => "Hex",
+                PaneId::Timeline => "Timeline",
+            })
+        } else {
+            String::new()
+        };
+
+        // Check if we have an active status message (shown for 2 seconds)
+        let show_status_msg = if let Some((_, timestamp)) = status_message {
+            timestamp.elapsed().as_secs() < 2
+        } else {
+            false
+        };
+
+        let mut spans = if show_status_msg {
+            // Show status message prominently
+            vec![Span::styled(
+                format!(" {} ", &status_message.as_ref().unwrap().0),
+                Style::default()
+                    .fg(ratatui::style::Color::Black)
+                    .bg(ratatui::style::Color::Yellow)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            )]
+        } else {
+            vec![Span::styled(
+                format!(" {} events", total),
+                theme.status_bar(),
+            )]
+        };
+
+        // Only add detailed status info if not showing a status message
+        if !show_status_msg {
+            if state.filter.is_some() {
+                if !zoom_indicator.is_empty() {
+                    spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));
+                }
+
+                spans.push(Span::styled(
+                    format!(" ({} shown)", filtered),
+                    theme.status_bar(),
+                ));
+
+                // Add filtered indicator with Esc hint
+                spans.push(Span::styled(
+                    " [filtered - Esc to clear]",
+                    Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+            }
+
+            spans.push(Span::styled(" │ ", theme.status_bar()));
+
+            let counts = state.store.protocol_counts(&state.filtered_indices);
+            for (kind, count) in counts.iter().take(4) {
+                let color = theme.transport_color(*kind);
+                spans.push(Span::styled(
+                    format!("{}: {} ", kind, count),
+                    Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
+                ));
+            }
+
+            // Show schema count if schemas are loaded
+            if let Some(ref registry) = state.schema_registry {
+                let schema_count = registry.list_messages().len();
+                if schema_count > 0 {
+                    spans.push(Span::styled(" │ ", theme.status_bar()));
+                    spans.push(Span::styled(
+                        format!("schemas: {} types ", schema_count),
+                        theme.status_bar(),
+                    ));
+                }
+            }
+        }
+
+        // Right-aligned keybind hints - context-aware based on focused pane
+        let hint = match focus {
+            PaneId::EventList => " Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit ",
+            PaneId::DecodeTree => " Tab:pane  j/k:nav  Enter:expand  Space:toggle  ?:help  q:quit ",
+            PaneId::HexDump => " Tab:pane  j/k:scroll  g:top  ?:help  q:quit ",
+            PaneId::Timeline => " Tab:pane  ?:help  q:quit ",
+        };
+        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
+        spans.push(Span::styled(
+            " ".repeat(padding),
+            theme.status_bar(),
+        ));
+        spans.push(Span::styled(hint, theme.status_bar()));
+
+        let line = Line::from(spans);
+
+        // Fill background
+        for x in area.x..area.x + area.width {
+            buf[(x, area.y)].set_style(theme.status_bar());
+        }
+        buf.set_line(area.x, area.y, &line, area.width);
+    }
+
+    fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
+        let width = 50u16.min(area.width.saturating_sub(4));
+        let height = 22u16.min(area.height.saturating_sub(4));
+        let x = (area.width.saturating_sub(width)) / 2;
+        let y = (area.height.saturating_sub(height)) / 2;
+        let overlay_area = Rect::new(x, y, width, height);
+
+        Clear.render(overlay_area, buf);
+
+        let title = if self.help_scroll_offset > 0 {
+            format!(" Help (j/k to scroll, ? to close) [{}/{}] ",
+                self.help_scroll_offset + 1,
+                self.help_scroll_offset + height as usize)
+        } else {
+            " Help (j/k to scroll, ? to close) ".to_string()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(self.theme.focused_border())
+            .title(title);
+        let inner = block.inner(overlay_area);
+        block.render(overlay_area, buf);
+
+        let help_lines = vec![
+            ("Global", ""),
+            ("  Tab / Shift+Tab", "Cycle panes"),
+            ("  /", "Open filter bar"),
+            ("  Esc", "Clear filter"),
+            ("  ?", "Toggle help"),
+            ("  q / Ctrl+C", "Quit"),
+            ("  :", "Command palette"),
+            ("", ""),
+            ("Event List", ""),
+            ("  j/k ↑/↓", "Navigate events"),
+            ("  g / Home", "First event"),
+            ("  G / End", "Last event"),
+            ("  PgDn / PgUp", "Page up/down"),
+            ("", ""),
+            ("Decode Tree", ""),
+            ("  j/k ↑/↓", "Navigate nodes"),
+            ("  Enter / →", "Expand"),
+            ("  Backspace / ←", "Collapse"),
+            ("  Space", "Toggle"),
+            ("", ""),
+            ("Hex Dump", ""),
+            ("  j/k ↑/↓", "Scroll"),
+
+        // Add conversation count if available
+        if let Some(ref conv_set) = state.conversations {
+            spans.push(Span::styled(
+                format!(" │ {} conversations", conv_set.conversations.len()),
+                theme.status_bar(),
+            ));
+        }
+        ];
+
+        // Apply scroll offset
+        let visible_lines = help_lines.iter()
+            .skip(self.help_scroll_offset)
+            .take(inner.height as usize);
+
+        for (i, (key, desc)) in visible_lines.enumerate() {
+            let line = if desc.is_empty() {
+                Line::from(Span::styled(
+                    key.to_string(),
+                    self.theme.help_key(),
+                ))
+            } else {
+                Line::from(vec![
+                    Span::styled(format!("{:<20}", key), self.theme.help_key()),
+                    Span::styled(desc.to_string(), self.theme.help_desc()),
+                ])
+            };
+            buf.set_line(inner.x, inner.y + i as u16, &line, inner.width);
+        }
+    }
+
+    // Test helpers - expose private methods for testing
+    // These are public to support integration tests in tests/
+    #[doc(hidden)]
+    pub fn test_handle_key(&mut self, key: KeyEvent) -> bool {
+        self.handle_key(key)
+    }
+
+    #[doc(hidden)]
+    pub fn test_render_to_buffer(&mut self, area: Rect, buf: &mut Buffer) {
+        self.render_all(area, buf);
+    }
+
+    #[doc(hidden)]
+    pub fn test_process_action(&mut self, action: Action) {
+        self.process_action(action);
+    }
+
+    #[doc(hidden)]
+    pub fn get_focus(&self) -> PaneId {
+        self.focus
+    }
+
+    #[doc(hidden)]
+    pub fn get_input_mode(&self) -> InputMode {
+        self.input_mode
+    }
+
+    #[doc(hidden)]
+    pub fn get_state(&self) -> &AppState {
+        &self.state
+    }
+
+    #[doc(hidden)]
+    pub fn get_filter_error(&self) -> &Option<String> {
+        &self.filter_error
+    }
+
+    /// Apply quick filter for source address.
+    fn apply_quick_filter_source(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    let source = event
+                        .source
+                        .network
+                        .as_ref()
+                        .map(|n| n.src.as_str())
+                        .unwrap_or(&event.source.origin);
+                    let filter_text = format!("source == \"{}\"", source);
+                    
+                    if let Ok(filter) = Filter::parse(&filter_text) {
+                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                        self.state.filter = Some(filter.clone());
+                        self.state.filter_text = filter_text.clone();
+                        self.filter_state.set_text(filter_text.clone());
+                        self.filter_state.commit(Some(filter));
+                        self.event_list.selected = 0;
+                        self.event_list.scroll_offset = 0;
+                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                            None
+                        } else {
+                            Some(0)
+                        };
+                    }
+                }
+    }
+
+    /// Apply quick filter for destination address.
+    fn apply_quick_filter_dest(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx)
+                    && let Some(ref network) = event.source.network {
+                        let filter_text = format!("dest == \"{}\"", network.dst);
+                        
+                        if let Ok(filter) = Filter::parse(&filter_text) {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = filter_text.clone();
+                            self.filter_state.set_text(filter_text.clone());
+                            self.filter_state.commit(Some(filter));
+                            self.event_list.selected = 0;
+                            self.event_list.scroll_offset = 0;
+                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            };
+                        }
+                    }
+    }
+
+    /// Apply quick filter for transport protocol.
+    fn apply_quick_filter_transport(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    let transport = format!("{}", event.transport);
+                    let filter_text = format!("transport == \"{}\"", transport);
+                    
+                    if let Ok(filter) = Filter::parse(&filter_text) {
+                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                        self.state.filter = Some(filter.clone());
+                        self.state.filter_text = filter_text.clone();
+                        self.filter_state.set_text(filter_text.clone());
+                        self.filter_state.commit(Some(filter));
+                        self.event_list.selected = 0;
+                        self.event_list.scroll_offset = 0;
+                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                            None
+                        } else {
+                            Some(0)
+                        };
+                    }
+                }
+    }
+
+    /// Apply quick filter for conversation (using correlation keys).
+    fn apply_quick_filter_conversation(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
+                    // Try to build a conversation filter from correlation keys
+                    if let Some(key) = event.correlation_keys.first() {
+                        let filter_text = match key {
+                            prb_core::CorrelationKey::StreamId { id } => {
+                                format!("conversation.stream_id == {}", id)
+                            }
+                            prb_core::CorrelationKey::Topic { name } => {
+                                format!("conversation.topic == \"{}\"", name)
+                            }
+                            prb_core::CorrelationKey::ConnectionId { id } => {
+                                format!("conversation.connection_id == \"{}\"", id)
+                            }
+                            prb_core::CorrelationKey::TraceContext { trace_id, .. } => {
+                                format!("conversation.trace_id == \"{}\"", trace_id)
+                            }
+                            prb_core::CorrelationKey::Custom { key: k, value: v } => {
+                                format!("conversation.{} == \"{}\"", k, v)
+                            }
+                        };
+                        
+                        if let Ok(filter) = Filter::parse(&filter_text) {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = filter_text.clone();
+                            self.filter_state.set_text(filter_text.clone());
+                            self.filter_state.commit(Some(filter));
+                            self.event_list.selected = 0;
+                            self.event_list.scroll_offset = 0;
+                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            };
+                        }
+                    }
+                }
+    }
+
+}
+
+/// Convert a wire-format decoded message to JSON.
+fn wire_message_to_json(wire_msg: &WireMessage) -> JsonValue {
+    let mut fields = serde_json::Map::new();
+
+    for field in &wire_msg.fields {
+        let key = format!("field_{}", field.field_number);
+        let value = match &field.value {
+            WireValue::Varint(v) => {
+                json!({
+                    "wire_type": "varint",
+                    "unsigned": v.unsigned,
+                    "signed_zigzag": v.signed_zigzag,
+                    "as_bool": v.as_bool,
+                })
+            }
+            WireValue::Fixed64(v) => {
+                json!({
+                    "wire_type": "fixed64",
+                    "as_u64": v.as_u64,
+                    "as_i64": v.as_i64,
+                    "as_f64": v.as_f64,
+                })
+            }
+            WireValue::Fixed32(v) => {
+                json!({
+                    "wire_type": "fixed32",
+                    "as_u32": v.as_u32,
+                    "as_i32": v.as_i32,
+                    "as_f32": v.as_f32,
+                })
+            }
+            WireValue::LengthDelimited(len_val) => match len_val {
+                LenValue::SubMessage(sub_msg) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "sub_message": wire_message_to_json(sub_msg),
+                    })
+                }
+                LenValue::String(s) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "string": s,
+                    })
+                }
+                LenValue::Bytes(b) => {
+                    json!({
+                        "wire_type": "length_delimited",
+                        "bytes": format!("{} bytes", b.len()),
+                    })
+                }
+            },
+        };
+        fields.insert(key, value);
+    }
+
+    JsonValue::Object(fields)
+}

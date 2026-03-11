@@ -35,3 +35,8 @@ contact = "+12036446182"
 [monitor]
 enabled = true
 port = 8089
+
+[recovery]
+enabled = true
+max_attempts = 1
+health_check_timeout = 120

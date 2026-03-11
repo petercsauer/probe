@@ -16,6 +16,7 @@ from .config import OrchestrateConfig
 from .monitor import MonitorServer
 from .notify import _send_ntfy, Notifier
 from .planner import Segment, load_plan
+from .recovery import RecoveryAgent
 from .runner import run_segment
 from .state import StateDB
 from .worktree_pool import WorktreePool
@@ -434,6 +435,78 @@ async def _run_wave(
     return results
 
 
+async def _run_recovery_wave(
+    victim_segs: list[int],
+    all_segments: list[Segment],
+    wave_num: int,
+    config: OrchestrateConfig,
+    state: StateDB,
+    notifier: Notifier,
+    log_dir: Path,
+    shutting_down: asyncio.Event,
+    pool: WorktreePool | None,
+) -> list[tuple[int, str]]:
+    """Run a mini-wave to retry victim segments after recovery check.
+
+    Args:
+        victim_segs: List of segment numbers to retry
+        all_segments: All segments in the plan (to look up Segment objects)
+        wave_num: Current wave number (for logging)
+        config: Orchestration config
+        state: State database
+        notifier: Notification handler
+        log_dir: Log directory
+        shutting_down: Shutdown event
+        pool: Optional worktree pool
+
+    Returns:
+        List of (segment_num, status) tuples
+    """
+    log.info("Recovery: Running recovery mini-wave for %d victims: %s", len(victim_segs), victim_segs)
+    await state.log_event("recovery_triggered", f"Wave {wave_num}: retrying {len(victim_segs)} victims: {victim_segs}")
+
+    # Look up Segment objects for victim segment numbers
+    segments_to_retry = []
+    for seg_num in victim_segs:
+        seg = next((s for s in all_segments if s.num == seg_num), None)
+        if seg:
+            segments_to_retry.append(seg)
+        else:
+            log.warning("Recovery: Segment S%02d not found in plan, skipping", seg_num)
+
+    if not segments_to_retry:
+        log.warning("Recovery: No valid segments found to retry")
+        return []
+
+    # Reset segment status to pending for recovery retry
+    for seg in segments_to_retry:
+        await state.set_status(seg.num, "pending")
+        await state.log_event("recovery_retry", f"S{seg.num:02d} reset to pending for recovery")
+
+    # Run the recovery wave (using same _run_wave infrastructure)
+    results = await _run_wave(
+        wave_num,
+        segments_to_retry,
+        config,
+        state,
+        notifier,
+        log_dir,
+        shutting_down,
+        pool,
+    )
+
+    # Log recovery results
+    passed = sum(1 for _, s in results if s == "pass")
+    failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
+    await state.log_event(
+        "recovery_complete",
+        f"Wave {wave_num} recovery: {passed} passed, {failed} failed"
+    )
+    log.info("Recovery mini-wave complete: %d passed, %d failed", passed, failed)
+
+    return results
+
+
 async def orchestrate(plan_dir: Path, monitor_port: int | None = None) -> None:
     """Main orchestration loop."""
     plan_dir = plan_dir.resolve()
@@ -602,6 +675,95 @@ async def _orchestrate_inner(
             passed = sum(1 for _, s in results if s == "pass")
             failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
             print(f"  Wave {wave_num} complete: {passed} passed, {failed} failed")
+
+            # Recovery: Auto-retry cascade victims if enabled
+            if config.recovery_enabled and not shutting_down.is_set():
+                # Check if wave has any failures to trigger recovery
+                has_failures = any(status in ("partial", "blocked") for _, status in results)
+                if has_failures:
+                    log.info("Recovery: Wave has failures, checking workspace health...")
+                    recovery = RecoveryAgent(state, config)
+
+                    # Check workspace health
+                    healthy, errors = await recovery.check_workspace_health()
+                    if healthy:
+                        log.info("Recovery: Workspace is healthy, identifying cascade victims...")
+
+                        # Get segment rows for victim identification
+                        wave_seg_rows = []
+                        for seg in pending:
+                            seg_data = await state.get_segment(seg.num)
+                            if seg_data:
+                                from .state import SegmentRow
+                                wave_seg_rows.append(SegmentRow(
+                                    num=seg.num,
+                                    slug=seg.slug,
+                                    title=seg.title,
+                                    wave=wave_num,
+                                    status=seg_data["status"],
+                                    attempts=seg_data["attempts"],
+                                ))
+
+                        # Identify victims
+                        victims = await recovery.identify_cascade_victims(wave_seg_rows)
+
+                        if victims:
+                            # Apply circuit breaker: filter by max_attempts
+                            filtered_victims = []
+                            for seg_num in victims:
+                                seg_data = await state.get_segment(seg_num)
+                                if seg_data and seg_data["attempts"] < config.recovery_max_attempts:
+                                    filtered_victims.append(seg_num)
+                                else:
+                                    log.info(
+                                        "Recovery: S%02d filtered by circuit breaker (attempts: %d >= max: %d)",
+                                        seg_num,
+                                        seg_data["attempts"] if seg_data else 0,
+                                        config.recovery_max_attempts,
+                                    )
+
+                            if filtered_victims:
+                                log.info(
+                                    "Recovery: Retrying %d victims: %s",
+                                    len(filtered_victims),
+                                    filtered_victims,
+                                )
+                                recovery_results = await _run_recovery_wave(
+                                    filtered_victims,
+                                    segments,
+                                    wave_num,
+                                    config,
+                                    state,
+                                    notifier,
+                                    log_dir,
+                                    shutting_down,
+                                    pool,
+                                )
+
+                                # Update results with recovery outcomes
+                                recovery_map = {num: status for num, status in recovery_results}
+                                results = [
+                                    (num, recovery_map.get(num, status))
+                                    for num, status in results
+                                ]
+
+                                # Update wave summary
+                                passed = sum(1 for _, s in results if s == "pass")
+                                failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
+                                print(f"  After recovery: {passed} passed, {failed} failed")
+                            else:
+                                log.info("Recovery: No victims to retry after circuit breaker filter")
+                        else:
+                            log.info("Recovery: No cascade victims identified")
+                    else:
+                        log.warning(
+                            "Recovery: Workspace health check failed, skipping victim retry. Errors: %s",
+                            errors[:3] if len(errors) > 3 else errors,
+                        )
+                        await state.log_event(
+                            "recovery_skipped",
+                            f"Wave {wave_num}: workspace unhealthy, {len(errors)} errors",
+                        )
 
             # Gate check
             if config.gate_command and not shutting_down.is_set():

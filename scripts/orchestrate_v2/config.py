@@ -50,6 +50,9 @@ class OrchestrateConfig:
     monitor_port: int = 0
     stall_threshold: int = 1800
     network_retry_max: int = 600
+    recovery_enabled: bool = True
+    recovery_max_attempts: int = 1
+    recovery_health_check_timeout: int = 120
 
     @classmethod
     def load(cls, plan_dir: Path) -> OrchestrateConfig:
@@ -68,6 +71,7 @@ class OrchestrateConfig:
         auth = raw.get("auth", {})
         notifications = raw.get("notifications", {})
         monitor = raw.get("monitor", {})
+        recovery = raw.get("recovery", {})
 
         # Isolation env vars: nested table under [isolation]
         iso_env: dict[str, str] = {}
@@ -101,4 +105,7 @@ class OrchestrateConfig:
             monitor_port=monitor.get("port", 0) if monitor.get("enabled", False) else 0,
             stall_threshold=execution.get("stall_threshold", 1800),
             network_retry_max=execution.get("network_retry_max", 600),
+            recovery_enabled=recovery.get("enabled", True),
+            recovery_max_attempts=recovery.get("max_attempts", 1),
+            recovery_health_check_timeout=recovery.get("health_check_timeout", 120),
         )
