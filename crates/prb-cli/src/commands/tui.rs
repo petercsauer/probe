@@ -1,9 +1,10 @@
 use crate::cli::TuiArgs;
 use anyhow::{Context, Result};
 use prb_capture::{CaptureConfig, CaptureError, InterfaceEnumerator, LiveCaptureAdapter};
-use prb_tui::loader::{load_events, load_schemas};
+use prb_tui::loader::{load_events, load_events_streaming, load_schemas, LoadEvent};
 use prb_tui::{generate_demo_events, App, EventStore, LiveDataSource};
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 pub fn run_tui(args: TuiArgs) -> Result<()> {
     // Live capture mode
@@ -19,7 +20,19 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     } else {
         let input = args.input.as_ref().context("Input file required (or use --demo or --interface)")?;
         let path = std::path::PathBuf::from(input.as_str());
-        load_events(&path).context("Failed to load events")?
+
+        // Check file size to decide whether to use streaming load
+        let file_size = std::fs::metadata(&path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        // Use streaming load for files > 10MB or if they have > 10K estimated events
+        if file_size > 10 * 1024 * 1024 {
+            tracing::info!("Loading large file ({:.2} MB) with streaming...", file_size as f64 / (1024.0 * 1024.0));
+            load_with_streaming(&path)?
+        } else {
+            load_events(&path).context("Failed to load events")?
+        }
     };
 
     tracing::info!("Loaded {} events", store.len());
@@ -103,6 +116,59 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
     // Create and run TUI in live mode
     let mut app = App::new_live(store, live_source, RING_BUFFER_CAPACITY, None);
     app.run_live()
+}
+
+/// Load events with streaming and progress display.
+fn load_with_streaming(path: &std::path::Path) -> Result<EventStore> {
+    let (tx, rx) = mpsc::channel();
+
+    // Start streaming load in background thread
+    let path_clone = path.to_owned();
+    std::thread::spawn(move || {
+        if let Err(e) = load_events_streaming(&path_clone, tx.clone()) {
+            let _ = tx.send(LoadEvent::Error(e.to_string()));
+        }
+    });
+
+    // Receive events and build store incrementally
+    let mut store = EventStore::empty();
+    let mut last_progress = std::time::Instant::now();
+    let mut total_loaded = 0;
+
+    loop {
+        match rx.recv() {
+            Ok(LoadEvent::Batch(events)) => {
+                total_loaded += events.len();
+                store.push_batch(events);
+
+                // Show progress every 100ms
+                if last_progress.elapsed() > std::time::Duration::from_millis(100) {
+                    eprint!("\rLoading events... {} loaded", total_loaded);
+                    last_progress = std::time::Instant::now();
+                }
+            }
+            Ok(LoadEvent::Progress { loaded, total }) => {
+                if let Some(t) = total {
+                    eprint!("\rLoading events... {}/{} ({:.1}%)", loaded, t, (loaded as f64 / t as f64) * 100.0);
+                } else {
+                    eprint!("\rLoading events... {} loaded", loaded);
+                }
+            }
+            Ok(LoadEvent::Done) => {
+                eprintln!("\rLoaded {} events successfully", total_loaded);
+                break;
+            }
+            Ok(LoadEvent::Error(e)) => {
+                eprintln!("\rError loading events: {}", e);
+                return Err(anyhow::anyhow!("Failed to load events: {}", e));
+            }
+            Err(_) => {
+                return Err(anyhow::anyhow!("Channel error during streaming load"));
+            }
+        }
+    }
+
+    Ok(store)
 }
 
 /// Format available network interfaces for error messages.
