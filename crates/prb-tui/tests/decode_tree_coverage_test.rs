@@ -7,6 +7,7 @@ use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
 use prb_tui::panes::decode_tree::DecodeTreePane;
 use prb_tui::panes::PaneComponent;
+use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -51,7 +52,7 @@ fn test_decode_tree_render_no_selection() {
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 20));
 
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render "No event selected" message
     let mut found_message = false;
@@ -89,7 +90,7 @@ fn test_decode_tree_render_with_warnings() {
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render warnings section
 }
@@ -121,7 +122,7 @@ fn test_decode_tree_render_all_transport_types() {
         let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
         // Should render without panic for each transport type
-        pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+        pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
     }
 }
 
@@ -194,7 +195,7 @@ fn test_decode_tree_render_small_area() {
     let mut buffer = Buffer::empty(Rect::new(0, 0, 20, 5));
 
     // Should handle very small area gracefully
-    pane.render(Rect::new(0, 0, 20, 5), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 20, 5), &mut buffer, &state, &ThemeConfig::dark(), false);
 }
 
 #[test]
@@ -214,11 +215,11 @@ fn test_decode_tree_render_focused_vs_unfocused() {
 
     // Render focused
     let mut buffer_focused = Buffer::empty(Rect::new(0, 0, 80, 20));
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_focused, &state, true);
+    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_focused, &state, &ThemeConfig::dark(), true);
 
     // Render unfocused
     let mut buffer_unfocused = Buffer::empty(Rect::new(0, 0, 80, 20));
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_unfocused, &state, false);
+    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_unfocused, &state, &ThemeConfig::dark(), false);
 
     // Both should render without panic
 }
@@ -245,7 +246,7 @@ fn test_decode_tree_with_correlation_keys() {
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render correlation keys section
 }
@@ -269,7 +270,7 @@ fn test_decode_tree_with_sequence() {
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render sequence number
 }
@@ -340,7 +341,7 @@ fn test_decode_tree_with_many_metadata_keys() {
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
     // Should handle many metadata entries without panic
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
 }
 
 #[test]
@@ -365,5 +366,5 @@ fn test_decode_tree_with_large_payload() {
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
     // Should handle large payload without panic
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
 }

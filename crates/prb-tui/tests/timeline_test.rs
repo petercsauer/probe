@@ -6,6 +6,7 @@ use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
 use prb_tui::panes::timeline::TimelinePane;
 use prb_tui::panes::PaneComponent;
+use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -60,7 +61,7 @@ fn test_timeline_render_empty_store() {
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render without panic
     // Check that the title "Timeline" is present
@@ -97,7 +98,7 @@ fn test_timeline_render_with_events() {
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render without panic and have some content
     let mut has_content = false;
@@ -129,11 +130,11 @@ fn test_timeline_render_focused_vs_unfocused() {
 
     // Render focused
     let mut buffer_focused = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_focused, &state, true);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_focused, &state, &ThemeConfig::dark(), true);
 
     // Render unfocused
     let mut buffer_unfocused = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_unfocused, &state, false);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_unfocused, &state, &ThemeConfig::dark(), false);
 
     // Both should render without panic
     // Border colors should differ (we can't easily test that in unit tests)
@@ -157,7 +158,7 @@ fn test_timeline_render_small_area() {
 
     // Very small area (should handle gracefully)
     let mut buffer = Buffer::empty(Rect::new(0, 0, 5, 2));
-    pane.render(Rect::new(0, 0, 5, 2), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 5, 2), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should not panic with small area
 }
@@ -183,7 +184,7 @@ fn test_timeline_render_with_multiple_transports() {
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 10));
 
-    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render protocol legend with multiple types
     // Check for numbers that would appear in counts
@@ -224,7 +225,7 @@ fn test_timeline_render_with_filter_active() {
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 10));
 
-    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should show "(filtered)" indicator
     let mut found_filtered = false;
@@ -264,7 +265,7 @@ fn test_timeline_time_range_display() {
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should display time legend with HH:MM:SS format
     // Look for colons in the time display

@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::io;
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, event::EnableMouseCapture, event::DisableMouseCapture};
 use ratatui::backend::CrosstermBackend;
@@ -16,20 +17,26 @@ use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
 use crate::event_store::EventStore;
+use crate::live::{AppEvent, CaptureState, LiveDataSource};
+use crate::overlays::{PluginManagerOverlay, PluginType};
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
+use crate::ring_buffer::RingBuffer;
 use crate::theme::{Theme, ThemeConfig};
 
+use prb_capture::CaptureStats;
+use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
+use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use prb_plugin_native::NativePluginLoader;
+use prb_plugin_wasm::WasmPluginLoader;
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
-use prb_core::{Payload, METADATA_KEY_GRPC_METHOD};
-use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
 use serde_json::{json, Value as JsonValue};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneId {
     EventList,
     DecodeTree,
@@ -57,11 +64,16 @@ impl PaneId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InputMode {
     Normal,
     Filter,
     Help,
+    GoToEvent,
+    Welcome,
+    WhichKey,
+    CommandPalette,
+    PluginManager,
 }
 
 pub struct AppState {
@@ -85,6 +97,24 @@ pub struct App {
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
     theme: ThemeConfig,
+    plugin_manager: PluginManagerOverlay,
+
+    // Zoom and resize state
+    zoomed_pane: Option<PaneId>,
+    vertical_split: u16,   // event list height %, default 50
+    horizontal_split: u16, // decode tree width %, default 50
+    pane_rects: HashMap<PaneId, Rect>,
+
+    // Go-to-event input
+    goto_input: Input,
+
+    // Live capture mode
+    live_source: Option<LiveDataSource>,
+    capture_state: CaptureState,
+    capture_stats: Option<CaptureStats>,
+    auto_follow: bool,
+    new_events_since_scroll: usize,
+    ring_buffer: Option<RingBuffer<DebugEvent>>,
 }
 
 impl App {
@@ -111,6 +141,8 @@ impl App {
             };
         }
 
+        let plugin_manager = Self::load_plugins();
+
         App {
             state,
             focus: PaneId::EventList,
@@ -122,10 +154,139 @@ impl App {
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
             theme: ThemeConfig::dark(),
+            plugin_manager,
+            zoomed_pane: None,
+            vertical_split: 55,
+            horizontal_split: 40,
+            pane_rects: HashMap::new(),
+            goto_input: Input::default(),
+            live_source: None,
+            capture_state: CaptureState::Stopped,
+            capture_stats: None,
+            auto_follow: false,
+            new_events_since_scroll: 0,
+            ring_buffer: None,
         }
     }
 
+    /// Create a new App instance for live capture mode.
+    pub fn new_live(
+        store: EventStore,
+        live_source: LiveDataSource,
+        ring_buffer_capacity: usize,
+        schema_registry: Option<SchemaRegistry>,
+    ) -> Self {
+        let state = AppState {
+            filtered_indices: Vec::new(),
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+            schema_registry,
+            store,
+        };
+
+        let plugin_manager = Self::load_plugins();
+
+        App {
+            state,
+            focus: PaneId::EventList,
+            input_mode: InputMode::Normal,
+            filter_input: Input::default(),
+            filter_error: None,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+            theme: ThemeConfig::dark(),
+            plugin_manager,
+            zoomed_pane: None,
+            vertical_split: 55,
+            horizontal_split: 40,
+            pane_rects: HashMap::new(),
+            goto_input: Input::default(),
+            live_source: Some(live_source),
+            capture_state: CaptureState::Capturing,
+            capture_stats: None,
+            auto_follow: true,
+            new_events_since_scroll: 0,
+            ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
+        }
+    }
+
+    /// Load plugins from ~/.prb/plugins/ directory.
+    fn load_plugins() -> PluginManagerOverlay {
+        let mut manager = PluginManagerOverlay::new();
+
+        // Get plugin directory path
+        let plugin_dir = if let Some(home) = dirs::home_dir() {
+            home.join(".prb").join("plugins")
+        } else {
+            return manager;
+        };
+
+        if !plugin_dir.exists() {
+            tracing::debug!("Plugin directory does not exist: {}", plugin_dir.display());
+            return manager;
+        }
+
+        tracing::info!("Loading plugins from: {}", plugin_dir.display());
+
+        // Load native plugins
+        let mut native_loader = NativePluginLoader::new();
+        let native_results = native_loader.load_directory(&plugin_dir);
+        for result in native_results {
+            match result {
+                Ok(plugin) => {
+                    let metadata = plugin.metadata().clone();
+                    manager.add_plugin(metadata, PluginType::Native, true);
+                    tracing::info!("Loaded native plugin: {}", plugin.metadata().name);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load native plugin: {}", e);
+                }
+            }
+        }
+
+        // Load WASM plugins
+        let mut wasm_loader = WasmPluginLoader::new();
+        let wasm_results = wasm_loader.load_directory(&plugin_dir);
+        for result in wasm_results {
+            match result {
+                Ok(metadata) => {
+                    manager.add_plugin(metadata.clone(), PluginType::Wasm, true);
+                    tracing::info!("Loaded WASM plugin: {}", metadata.name);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load WASM plugin: {}", e);
+                }
+            }
+        }
+
+        manager
+    }
+
     pub fn run(&mut self) -> anyhow::Result<()> {
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.event_loop(&mut terminal);
+
+        terminal::disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        result
+    }
+
+    /// Run the TUI in live capture mode.
+    pub fn run_live(&mut self) -> anyhow::Result<()> {
         terminal::enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -152,11 +313,81 @@ impl App {
         loop {
             self.draw(terminal)?;
 
-            if event::poll(Duration::from_millis(16))?
-                && let Event::Key(key) = event::read()?
-                && self.handle_key(key)
-            {
-                return Ok(());
+            if event::poll(Duration::from_millis(16))? {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if self.handle_key(key) {
+                            return Ok(());
+                        }
+                    }
+                    Event::Mouse(mouse) => {
+                        self.handle_mouse(mouse);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Live capture event loop with batched event processing.
+    fn live_event_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        // Take the receiver from live_source (can only happen once)
+        let mut rx = self
+            .live_source
+            .as_mut()
+            .and_then(|s| s.take_receiver())
+            .ok_or_else(|| anyhow::anyhow!("No live source receiver available"))?;
+
+        loop {
+            self.draw(terminal)?;
+
+            // Drain capture events (batched for performance)
+            let mut batch_count = 0;
+            while let Ok(event) = rx.try_recv() {
+                match event {
+                    AppEvent::CapturedEvent(debug_event) => {
+                        self.push_live_event(*debug_event);
+                        batch_count += 1;
+                        if batch_count >= 100 {
+                            break;
+                        } // cap per frame
+                    }
+                    AppEvent::CaptureStats(stats) => {
+                        self.capture_stats = Some(stats);
+                    }
+                    AppEvent::CaptureStopped => {
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Recompute filtered indices if new events arrived
+            if batch_count > 0 {
+                self.recompute_filter();
+                if self.auto_follow {
+                    self.scroll_to_bottom();
+                } else {
+                    self.new_events_since_scroll += batch_count;
+                }
+            }
+
+            // Poll keyboard (33ms = ~30fps)
+            if event::poll(Duration::from_millis(33))? {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if self.handle_live_key(key) {
+                            return Ok(());
+                        }
+                    }
+                    Event::Mouse(mouse) => {
+                        self.handle_mouse(mouse);
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -173,6 +404,175 @@ impl App {
         Ok(())
     }
 
+    /// Push a new event into the ring buffer and update the event store.
+    fn push_live_event(&mut self, event: DebugEvent) {
+        if let Some(ref mut ring_buffer) = self.ring_buffer {
+            ring_buffer.push(event.clone());
+            // Sync EventStore with ring buffer contents
+            // For simplicity, we'll keep EventStore as the source of truth
+            // and rebuild it from the ring buffer when needed
+            self.state.store.push(event);
+        } else {
+            // Fallback: no ring buffer, just push to store
+            self.state.store.push(event);
+        }
+    }
+
+    /// Recompute filtered indices after new events arrive.
+    fn recompute_filter(&mut self) {
+        if let Some(ref filter) = self.state.filter {
+            self.state.filtered_indices = self.state.store.filter_indices(filter);
+        } else {
+            self.state.filtered_indices = self.state.store.all_indices();
+        }
+    }
+
+    /// Scroll to the bottom of the event list.
+    fn scroll_to_bottom(&mut self) {
+        let max_index = self.state.filtered_indices.len().saturating_sub(1);
+        self.event_list.selected = max_index;
+        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+            None
+        } else {
+            Some(max_index)
+        };
+        self.new_events_since_scroll = 0;
+    }
+
+    /// Handle keyboard input in live capture mode.
+    fn handle_live_key(&mut self, key: KeyEvent) -> bool {
+        // Live mode specific keys (only in Normal mode)
+        if self.input_mode == InputMode::Normal {
+            match key.code {
+                KeyCode::Char('S') => {
+                    // Stop capture
+                    if let Some(ref live_source) = self.live_source {
+                        live_source.stop();
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    return false;
+                }
+                KeyCode::Char('P') => {
+                    // Toggle pause
+                    self.capture_state = match self.capture_state {
+                        CaptureState::Capturing => CaptureState::Paused,
+                        CaptureState::Paused => CaptureState::Capturing,
+                        CaptureState::Stopped => CaptureState::Stopped,
+                    };
+                    return false;
+                }
+                KeyCode::Char('f') => {
+                    // Toggle auto-follow (only when not filtering)
+                    if self.state.filter.is_none() {
+                        self.auto_follow = !self.auto_follow;
+                        if self.auto_follow {
+                            self.scroll_to_bottom();
+                        }
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Detect scroll-up to disengage auto-follow
+        if self.auto_follow && self.input_mode == InputMode::Normal {
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp | KeyCode::Home => {
+                    self.auto_follow = false;
+                }
+                _ => {}
+            }
+        }
+
+        // Delegate to normal key handler
+        self.handle_key(key)
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let (col, row) = (mouse.column, mouse.row);
+
+                // Check which pane was clicked
+                for (pane_id, rect) in &self.pane_rects {
+                    if col >= rect.x && col < rect.x + rect.width
+                        && row >= rect.y && row < rect.y + rect.height
+                    {
+                        self.focus = *pane_id;
+
+                        // If clicked on event list, select the row
+                        if *pane_id == PaneId::EventList {
+                            let row_in_pane = row.saturating_sub(rect.y + 1); // -1 for border
+                            let event_idx = self.event_list.scroll_offset + row_in_pane as usize;
+                            if event_idx < self.state.filtered_indices.len() {
+                                self.event_list.selected = event_idx;
+                                self.process_action(Action::SelectEvent(event_idx));
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_down(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                            &self.state
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            MouseEventKind::ScrollUp => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_up(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                            &self.state,
+                            
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn handle_key(&mut self, key: KeyEvent) -> bool {
         match self.input_mode {
             InputMode::Help => {
@@ -187,6 +587,40 @@ impl App {
             InputMode::Filter => {
                 return self.handle_filter_key(key);
             }
+            InputMode::GoToEvent => {
+                // Stub for GoToEvent handling
+                match key.code {
+                    KeyCode::Esc => {
+                        self.input_mode = InputMode::Normal;
+                    }
+                    _ => {
+                        self.goto_input.handle_event(&Event::Key(key));
+                    }
+                }
+                return false;
+            }
+            InputMode::Welcome => {
+                // Any key dismisses welcome screen
+                self.input_mode = InputMode::Normal;
+                return false;
+            }
+            InputMode::WhichKey => {
+                // Esc dismisses which-key
+                if key.code == KeyCode::Esc {
+                    self.input_mode = InputMode::Normal;
+                }
+                return false;
+            }
+            InputMode::CommandPalette => {
+                // Esc dismisses command palette
+                if key.code == KeyCode::Esc {
+                    self.input_mode = InputMode::Normal;
+                }
+                return false;
+            }
+            InputMode::PluginManager => {
+                return self.handle_plugin_manager_key(key);
+            }
             InputMode::Normal => {}
         }
 
@@ -194,6 +628,10 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return true;
+            }
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.input_mode = InputMode::PluginManager;
+                return false;
             }
             KeyCode::Char('q') => return true,
             KeyCode::Char('?') => {
@@ -299,6 +737,132 @@ impl App {
         }
     }
 
+    fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                // Toggle close with Ctrl+P
+                self.input_mode = InputMode::Normal;
+                false
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.plugin_manager.move_down();
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.plugin_manager.move_up();
+                false
+            }
+            KeyCode::Char(' ') => {
+                self.plugin_manager.toggle_enabled();
+                false
+            }
+            KeyCode::Char('i') => {
+                self.plugin_manager.show_info = !self.plugin_manager.show_info;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// Render the capture control bar for live mode.
+    fn render_capture_control_bar(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::style::Color;
+
+        let mut spans = Vec::new();
+
+        // State indicator with color
+        let (state_symbol, state_text, state_color) = match self.capture_state {
+            CaptureState::Capturing => ("●", "CAPTURING", Color::Green),
+            CaptureState::Paused => ("■", "PAUSED", Color::Yellow),
+            CaptureState::Stopped => ("□", "STOPPED", Color::Red),
+        };
+
+        spans.push(Span::styled(
+            format!(" {} {} ", state_symbol, state_text),
+            Style::default().fg(state_color).bg(Color::DarkGray),
+        ));
+
+        // Interface name
+        if let Some(ref live_source) = self.live_source {
+            spans.push(Span::styled(
+                format!(" {} ", live_source.interface()),
+                Theme::status_bar(),
+            ));
+        }
+
+        spans.push(Span::styled(" │ ", Theme::status_bar()));
+
+        // Event counts
+        let total = self.state.store.len();
+        if let Some(ref ring_buffer) = self.ring_buffer {
+            let evicted = ring_buffer.evicted();
+            let capacity = ring_buffer.capacity();
+            if evicted > 0 {
+                spans.push(Span::styled(
+                    format!("{}/{} events ({} evicted) ", total, capacity, evicted),
+                    Theme::status_bar(),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    format!("{} events ", total),
+                    Theme::status_bar(),
+                ));
+            }
+        } else {
+            spans.push(Span::styled(
+                format!("{} events ", total),
+                Theme::status_bar(),
+            ));
+        }
+
+        // Capture stats
+        if let Some(ref stats) = self.capture_stats {
+            spans.push(Span::styled(" │ ", Theme::status_bar()));
+            spans.push(Span::styled(
+                format!("{:.0} pps ", stats.packets_per_second),
+                Theme::status_bar(),
+            ));
+
+            if stats.packets_dropped_kernel > 0 {
+                spans.push(Span::styled(
+                    format!("({} drops) ", stats.packets_dropped_kernel),
+                    Style::default().fg(Color::Yellow),
+                ));
+            }
+        }
+
+        // Auto-follow indicator
+        if self.auto_follow {
+            spans.push(Span::styled(" [FOLLOW] ", Style::default().fg(Color::Cyan)));
+        } else if self.new_events_since_scroll > 0 {
+            spans.push(Span::styled(
+                format!(" +{} new ", self.new_events_since_scroll),
+                Style::default().fg(Color::Yellow),
+            ));
+        }
+
+        // Right-aligned keybind hints
+        let hint = " [S]top [P]ause [f]ollow  Tab:pane  ?:help  q:quit ";
+        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
+        spans.push(Span::styled(
+            " ".repeat(padding),
+            Theme::status_bar(),
+        ));
+        spans.push(Span::styled(hint, Theme::status_bar()));
+
+        let line = Line::from(spans);
+
+        // Fill background
+        for x in area.x..area.x + area.width {
+            buf[(x, area.y)].set_style(Theme::status_bar());
+        }
+        buf.set_line(area.x, area.y, &line, area.width);
+    }
     fn process_action(&mut self, action: Action) {
         match action {
             Action::None => {}
@@ -379,6 +943,22 @@ impl App {
     }
 
     fn render_all(&mut self, area: Rect, buf: &mut Buffer) {
+        // Handle zoom mode
+        if let Some(zoomed) = self.zoomed_pane {
+            // Clear pane_rects and render only zoomed pane
+            self.pane_rects.clear();
+            self.pane_rects.insert(zoomed, area);
+            
+            let focus = self.focus;
+            match zoomed {
+                PaneId::EventList => self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList),
+                PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
+                PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
+                PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
+            }
+            return;
+        }
+
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -392,12 +972,12 @@ impl App {
         // Split main content: top = event list, bottom = decode tree + hex dump
         let vert_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+            .constraints([Constraint::Percentage(self.vertical_split), Constraint::Percentage(100 - self.vertical_split)])
             .split(main_layout[1]);
 
         let horiz_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([Constraint::Percentage(self.horizontal_split), Constraint::Percentage(100 - self.horizontal_split)])
             .split(vert_layout[1]);
 
         let focus = self.focus;
@@ -405,6 +985,13 @@ impl App {
         self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
         self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
         self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
+
+        // Store pane rectangles for mouse hit-testing
+        self.pane_rects.clear();
+        self.pane_rects.insert(PaneId::EventList, vert_layout[0]);
+        self.pane_rects.insert(PaneId::DecodeTree, horiz_layout[0]);
+        self.pane_rects.insert(PaneId::HexDump, horiz_layout[1]);
+        self.pane_rects.insert(PaneId::Timeline, main_layout[2]);
 
         Self::render_filter_bar_static(
             main_layout[0],
@@ -414,11 +1001,46 @@ impl App {
             &self.filter_error,
             &self.state,
         );
-        Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus);
+        // Render status bar or capture control bar depending on mode
+        if self.is_live_mode() {
+            self.render_capture_control_bar(main_layout[3], buf);
+        } else {
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane);
+        }
 
         if self.input_mode == InputMode::Help {
             self.render_help_overlay(area, buf);
         }
+
+        // Render GoToEvent overlay
+        if self.input_mode == InputMode::GoToEvent {
+            let prompt = format!("Go to event #: {}", self.goto_input.value());
+            let width = (prompt.len() as u16 + 4).min(60);
+            let height = 3;
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+            
+            Clear.render(overlay_area, buf);
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(Theme::focused_border())
+                .title(" Jump to Event ");
+            let inner = block.inner(overlay_area);
+            block.render(overlay_area, buf);
+            
+            let line = Line::from(vec![Span::styled(prompt, Theme::filter_bar())]);
+            buf.set_line(inner.x, inner.y, &line, inner.width);
+        }
+
+        if self.input_mode == InputMode::PluginManager {
+            self.plugin_manager.render(area, buf);
+        }
+    }
+
+    /// Check if we're in live capture mode.
+    fn is_live_mode(&self) -> bool {
+        self.live_source.is_some()
     }
 
     fn render_filter_bar_static(
@@ -430,6 +1052,7 @@ impl App {
         state: &AppState,
     ) {
         let is_filtering = input_mode == InputMode::Filter;
+        let is_goto = input_mode == InputMode::GoToEvent;
 
         let filter_display = if is_filtering {
             filter_input.value().to_string()
@@ -470,17 +1093,33 @@ impl App {
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
-        let mut spans = vec![Span::styled(
+                // Add zoom indicator if active
+        let zoom_indicator = if let Some(pane) = zoomed_pane {
+            format!(" [ZOOMED: {}] ", match pane {
+                PaneId::EventList => "Events",
+                PaneId::DecodeTree => "Decode",
+                PaneId::HexDump => "Hex",
+                PaneId::Timeline => "Timeline",
+            })
+        } else {
+            String::new()
+        };
+
+let mut spans = vec![Span::styled(
             format!(" {} events", total),
             Theme::status_bar(),
         )];
 
         if state.filter.is_some() {
-            spans.push(Span::styled(
+                    if !zoom_indicator.is_empty() {
+            spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));
+        }
+
+spans.push(Span::styled(
                 format!(" ({} shown)", filtered),
                 Theme::status_bar(),
             ));

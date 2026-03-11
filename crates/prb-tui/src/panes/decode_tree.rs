@@ -11,7 +11,7 @@ use prb_core::{DebugEvent, Payload};
 use crate::app::AppState;
 use crate::error_intel;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::{Theme, ThemeConfig};
+use crate::theme::ThemeConfig;
 
 pub struct DecodeTreePane {
     pub state: TreeState<String>,

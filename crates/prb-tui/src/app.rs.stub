@@ -18,7 +18,6 @@ use tui_input::Input;
 
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{PluginManagerOverlay, PluginType};
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -30,8 +29,6 @@ use crate::theme::{Theme, ThemeConfig};
 use prb_capture::CaptureStats;
 use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
 use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
-use prb_plugin_native::NativePluginLoader;
-use prb_plugin_wasm::WasmPluginLoader;
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
 use serde_json::{json, Value as JsonValue};
@@ -73,7 +70,6 @@ pub enum InputMode {
     Welcome,
     WhichKey,
     CommandPalette,
-    PluginManager,
 }
 
 pub struct AppState {
@@ -97,7 +93,6 @@ pub struct App {
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
     theme: ThemeConfig,
-    plugin_manager: PluginManagerOverlay,
 
     // Zoom and resize state
     zoomed_pane: Option<PaneId>,
@@ -141,8 +136,6 @@ impl App {
             };
         }
 
-        let plugin_manager = Self::load_plugins();
-
         App {
             state,
             focus: PaneId::EventList,
@@ -154,7 +147,6 @@ impl App {
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
             theme: ThemeConfig::dark(),
-            plugin_manager,
             zoomed_pane: None,
             vertical_split: 55,
             horizontal_split: 40,
@@ -185,8 +177,6 @@ impl App {
             store,
         };
 
-        let plugin_manager = Self::load_plugins();
-
         App {
             state,
             focus: PaneId::EventList,
@@ -198,7 +188,6 @@ impl App {
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
             theme: ThemeConfig::dark(),
-            plugin_manager,
             zoomed_pane: None,
             vertical_split: 55,
             horizontal_split: 40,
@@ -211,58 +200,6 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
         }
-    }
-
-    /// Load plugins from ~/.prb/plugins/ directory.
-    fn load_plugins() -> PluginManagerOverlay {
-        let mut manager = PluginManagerOverlay::new();
-
-        // Get plugin directory path
-        let plugin_dir = if let Some(home) = dirs::home_dir() {
-            home.join(".prb").join("plugins")
-        } else {
-            return manager;
-        };
-
-        if !plugin_dir.exists() {
-            tracing::debug!("Plugin directory does not exist: {}", plugin_dir.display());
-            return manager;
-        }
-
-        tracing::info!("Loading plugins from: {}", plugin_dir.display());
-
-        // Load native plugins
-        let mut native_loader = NativePluginLoader::new();
-        let native_results = native_loader.load_directory(&plugin_dir);
-        for result in native_results {
-            match result {
-                Ok(plugin) => {
-                    let metadata = plugin.metadata().clone();
-                    manager.add_plugin(metadata, PluginType::Native, true);
-                    tracing::info!("Loaded native plugin: {}", plugin.metadata().name);
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to load native plugin: {}", e);
-                }
-            }
-        }
-
-        // Load WASM plugins
-        let mut wasm_loader = WasmPluginLoader::new();
-        let wasm_results = wasm_loader.load_directory(&plugin_dir);
-        for result in wasm_results {
-            match result {
-                Ok(metadata) => {
-                    manager.add_plugin(metadata.clone(), PluginType::Wasm, true);
-                    tracing::info!("Loaded WASM plugin: {}", metadata.name);
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to load WASM plugin: {}", e);
-                }
-            }
-        }
-
-        manager
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
@@ -618,9 +555,6 @@ impl App {
                 }
                 return false;
             }
-            InputMode::PluginManager => {
-                return self.handle_plugin_manager_key(key);
-            }
             InputMode::Normal => {}
         }
 
@@ -628,10 +562,6 @@ impl App {
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return true;
-            }
-            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.input_mode = InputMode::PluginManager;
-                return false;
             }
             KeyCode::Char('q') => return true,
             KeyCode::Char('?') => {
@@ -737,132 +667,11 @@ impl App {
         }
     }
 
-    fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
-        match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => {
-                self.input_mode = InputMode::Normal;
-                false
-            }
-            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                // Toggle close with Ctrl+P
-                self.input_mode = InputMode::Normal;
-                false
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.plugin_manager.move_down();
-                false
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.plugin_manager.move_up();
-                false
-            }
-            KeyCode::Char(' ') => {
-                self.plugin_manager.toggle_enabled();
-                false
-            }
-            KeyCode::Char('i') => {
-                self.plugin_manager.show_info = !self.plugin_manager.show_info;
-                false
-            }
-            _ => false,
-        }
+
+    fn render_capture_control_bar(&mut self, _area: Rect, _buf: &mut Buffer) {
+        // Capture control bar stub
     }
 
-    /// Render the capture control bar for live mode.
-    fn render_capture_control_bar(&self, area: Rect, buf: &mut Buffer) {
-        use ratatui::style::Color;
-
-        let mut spans = Vec::new();
-
-        // State indicator with color
-        let (state_symbol, state_text, state_color) = match self.capture_state {
-            CaptureState::Capturing => ("●", "CAPTURING", Color::Green),
-            CaptureState::Paused => ("■", "PAUSED", Color::Yellow),
-            CaptureState::Stopped => ("□", "STOPPED", Color::Red),
-        };
-
-        spans.push(Span::styled(
-            format!(" {} {} ", state_symbol, state_text),
-            Style::default().fg(state_color).bg(Color::DarkGray),
-        ));
-
-        // Interface name
-        if let Some(ref live_source) = self.live_source {
-            spans.push(Span::styled(
-                format!(" {} ", live_source.interface()),
-                Theme::status_bar(),
-            ));
-        }
-
-        spans.push(Span::styled(" │ ", Theme::status_bar()));
-
-        // Event counts
-        let total = self.state.store.len();
-        if let Some(ref ring_buffer) = self.ring_buffer {
-            let evicted = ring_buffer.evicted();
-            let capacity = ring_buffer.capacity();
-            if evicted > 0 {
-                spans.push(Span::styled(
-                    format!("{}/{} events ({} evicted) ", total, capacity, evicted),
-                    Theme::status_bar(),
-                ));
-            } else {
-                spans.push(Span::styled(
-                    format!("{} events ", total),
-                    Theme::status_bar(),
-                ));
-            }
-        } else {
-            spans.push(Span::styled(
-                format!("{} events ", total),
-                Theme::status_bar(),
-            ));
-        }
-
-        // Capture stats
-        if let Some(ref stats) = self.capture_stats {
-            spans.push(Span::styled(" │ ", Theme::status_bar()));
-            spans.push(Span::styled(
-                format!("{:.0} pps ", stats.packets_per_second),
-                Theme::status_bar(),
-            ));
-
-            if stats.packets_dropped_kernel > 0 {
-                spans.push(Span::styled(
-                    format!("({} drops) ", stats.packets_dropped_kernel),
-                    Style::default().fg(Color::Yellow),
-                ));
-            }
-        }
-
-        // Auto-follow indicator
-        if self.auto_follow {
-            spans.push(Span::styled(" [FOLLOW] ", Style::default().fg(Color::Cyan)));
-        } else if self.new_events_since_scroll > 0 {
-            spans.push(Span::styled(
-                format!(" +{} new ", self.new_events_since_scroll),
-                Style::default().fg(Color::Yellow),
-            ));
-        }
-
-        // Right-aligned keybind hints
-        let hint = " [S]top [P]ause [f]ollow  Tab:pane  ?:help  q:quit ";
-        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
-        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
-        spans.push(Span::styled(
-            " ".repeat(padding),
-            Theme::status_bar(),
-        ));
-        spans.push(Span::styled(hint, Theme::status_bar()));
-
-        let line = Line::from(spans);
-
-        // Fill background
-        for x in area.x..area.x + area.width {
-            buf[(x, area.y)].set_style(Theme::status_bar());
-        }
-        buf.set_line(area.x, area.y, &line, area.width);
-    }
     fn process_action(&mut self, action: Action) {
         match action {
             Action::None => {}
@@ -943,22 +752,6 @@ impl App {
     }
 
     fn render_all(&mut self, area: Rect, buf: &mut Buffer) {
-        // Handle zoom mode
-        if let Some(zoomed) = self.zoomed_pane {
-            // Clear pane_rects and render only zoomed pane
-            self.pane_rects.clear();
-            self.pane_rects.insert(zoomed, area);
-            
-            let focus = self.focus;
-            match zoomed {
-                PaneId::EventList => self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList),
-                PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
-                PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
-                PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
-            }
-            return;
-        }
-
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -972,12 +765,12 @@ impl App {
         // Split main content: top = event list, bottom = decode tree + hex dump
         let vert_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(self.vertical_split), Constraint::Percentage(100 - self.vertical_split)])
+            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
             .split(main_layout[1]);
 
         let horiz_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(self.horizontal_split), Constraint::Percentage(100 - self.horizontal_split)])
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(vert_layout[1]);
 
         let focus = self.focus;
@@ -985,13 +778,6 @@ impl App {
         self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
         self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
         self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
-
-        // Store pane rectangles for mouse hit-testing
-        self.pane_rects.clear();
-        self.pane_rects.insert(PaneId::EventList, vert_layout[0]);
-        self.pane_rects.insert(PaneId::DecodeTree, horiz_layout[0]);
-        self.pane_rects.insert(PaneId::HexDump, horiz_layout[1]);
-        self.pane_rects.insert(PaneId::Timeline, main_layout[2]);
 
         Self::render_filter_bar_static(
             main_layout[0],
@@ -1010,10 +796,6 @@ impl App {
 
         if self.input_mode == InputMode::Help {
             self.render_help_overlay(area, buf);
-        }
-
-        if self.input_mode == InputMode::PluginManager {
-            self.plugin_manager.render(area, buf);
         }
     }
 

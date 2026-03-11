@@ -9,7 +9,7 @@ use prb_core::Payload;
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::{Theme, ThemeConfig};
+use crate::theme::ThemeConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteGrouping {
@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn test_hex_line_formatting() {
         let bytes = b"Hello, World!";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[]);
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &ThemeConfig::dark());
 
         // Should have offset + hex bytes + ASCII
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
@@ -657,7 +657,7 @@ mod tests {
     #[test]
     fn test_hex_line_non_printable() {
         let bytes = b"\x00\x01\x02\x03";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[]);
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &ThemeConfig::dark());
 
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 

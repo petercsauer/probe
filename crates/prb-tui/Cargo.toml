@@ -17,6 +17,9 @@ prb-dds = { path = "../prb-dds" }
 prb-capture = { path = "../prb-capture" }
 prb-schema = { path = "../prb-schema" }
 prb-decode = { path = "../prb-decode" }
+prb-plugin-api = { path = "../prb-plugin-api" }
+prb-plugin-native = { path = "../prb-plugin-native" }
+prb-plugin-wasm = { path = "../prb-plugin-wasm" }
 
 ratatui = { workspace = true }
 crossterm = { workspace = true }

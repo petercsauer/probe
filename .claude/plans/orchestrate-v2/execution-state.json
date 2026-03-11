@@ -1,6 +1,8 @@
 {
   "plan": ".claude/plans/orchestrate-v2",
   "started": "2026-03-10T18:00:00Z",
+  "completed": "2026-03-10T19:00:00Z",
+  "status": "complete",
   "current_wave": 4,
   "fail_fast": false,
   "segments": {
@@ -36,15 +38,12 @@
       "completed": "2026-03-10T18:55:00Z"
     },
     "S5": {
-      "status": "running",
+      "status": "pass",
       "title": "Operator control API + dashboard buttons + CLI flags",
       "wave": 4,
-      "risk": "5/10",
-      "complexity": "Medium",
-      "cycle_budget": 15,
-      "depends_on": ["S1", "S2", "S3", "S4"],
-      "segment_file": "segments/05-operator-control-api.md",
-      "commit_message": "feat(orchestrate_v2): operator control API with skip/retry/kill, dashboard buttons, CLI flags"
+      "cycles_used": 1,
+      "commit": "3241e15",
+      "completed": "2026-03-10T19:00:00Z"
     }
   }
 }

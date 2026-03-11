@@ -7,6 +7,7 @@ use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
 use prb_tui::panes::event_list::{EventListPane, SortColumn};
 use prb_tui::panes::{Action, PaneComponent};
+use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -348,7 +349,7 @@ fn test_event_list_render_with_events() {
     let mut pane = EventListPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
 
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render without panic and have content
     let mut has_content = false;
@@ -378,7 +379,7 @@ fn test_event_list_render_empty() {
     let mut pane = EventListPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render without panic
     // Check for "No events" or "Empty" message
@@ -418,27 +419,27 @@ fn test_event_list_sorting_by_different_columns() {
     // Sort by ID
     pane.sort_column = SortColumn::Id;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Sort by Protocol
     pane.sort_column = SortColumn::Protocol;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Sort by Source
     pane.sort_column = SortColumn::Source;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Sort by Dest
     pane.sort_column = SortColumn::Dest;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Sort by Direction
     pane.sort_column = SortColumn::Dir;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // All should render without panic
 }
@@ -463,7 +464,7 @@ fn test_event_list_sort_reversed() {
     pane.sort_reversed = true;
 
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, false);
+    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
 
     // Should render without panic with reversed sort
 }
