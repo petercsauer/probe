@@ -154,7 +154,10 @@ impl App {
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
-            config,
+
+        App {
+            state,
+            config: Config::load(),
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_input: Input::default(),

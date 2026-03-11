@@ -39,6 +39,19 @@ pub struct ThemeConfig {
 }
 
 impl ThemeConfig {
+    pub fn from_name(name: &str) -> Self {
+        match name.to_lowercase().as_str() {
+            "dark" => Self::dark(),
+            "light" => Self::light(),
+            "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => Self::catppuccin_mocha(),
+            "dracula" => Self::dracula(),
+            _ => {
+                tracing::warn!("Unknown theme '{}', defaulting to dark", name);
+                Self::dark()
+            }
+        }
+    }
+
     pub fn dark() -> Self {
         let mut transport_colors = HashMap::new();
         transport_colors.insert(TransportKind::Grpc, Color::Green);

@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CommandPaletteOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CommandPaletteOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -153,8 +153,11 @@ impl App {
 
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
+        let auto_follow = config.tui.auto_follow;
         let plugin_manager = Self::load_plugins();
-            config,
+
+        App {
+            state,
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
@@ -202,12 +205,11 @@ impl App {
 
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
-        let theme = ThemeConfig::dark(); // TODO: use config.tui.theme
-        let plugin_manager = Self::load_plugins();
+        let auto_follow = config.tui.auto_follow;
+        let auto_follow = config.tui.auto_follow;
 
         App {
             state,
-            config,
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_state: FilterState::new(),
