@@ -19,6 +19,7 @@ class Segment:
     slug: str
     title: str
     depends_on: list[int] = field(default_factory=list)
+    dependents: list[int] = field(default_factory=list)  # Computed reverse edges
     cycle_budget: int = 15
     risk: int = 5
     complexity: str = "Medium"
@@ -75,6 +76,24 @@ def _parse_frontmatter(path: Path) -> dict:
             pass
         result[key] = value
     return result
+
+
+def _compute_transitive_dependents(segments: list[Segment]) -> None:
+    """Compute reverse edges: for each segment, who depends on it.
+
+    Modifies segments in-place to populate .dependents lists.
+    This enables transitive skip marking when a segment fails.
+    """
+    # Clear all dependents lists
+    for seg in segments:
+        seg.dependents = []
+
+    # Build reverse edges
+    for seg in segments:
+        for dep_num in seg.depends_on:
+            dep = next((s for s in segments if s.num == dep_num), None)
+            if dep:
+                dep.dependents.append(seg.num)
 
 
 def _assign_waves(segments: list[Segment]) -> None:
@@ -140,4 +159,5 @@ def load_plan(plan_dir: Path) -> tuple[PlanMeta, list[Segment]]:
         raise ValueError(f"No segments found in {segments_dir}")
 
     _assign_waves(segments)
+    _compute_transitive_dependents(segments)
     return meta, segments

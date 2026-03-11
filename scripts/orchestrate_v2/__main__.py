@@ -272,6 +272,98 @@ async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
         return False
 
 
+async def _validate_upstream_dependencies(
+    seg: Segment,
+    state: StateDB,
+) -> tuple[bool, list[str]]:
+    """Check that all upstream dependencies passed.
+
+    Args:
+        seg: Segment to check
+        state: State database
+
+    Returns:
+        (can_run: bool, blocking_segments: list[str])
+
+    Example:
+        can_run, blocking = await _validate_upstream_dependencies(seg, state)
+        if not can_run:
+            log.error(f"S{seg.num:02d} blocked by: {blocking}")
+    """
+    blocking = []
+
+    # Check explicit dependencies from frontmatter
+    for dep_num in seg.depends_on:
+        dep_status_data = await state.get_segment(dep_num)
+        if dep_status_data:
+            dep_status = dep_status_data.get("status", "unknown")
+        else:
+            dep_status = "unknown"
+
+        if dep_status != "pass":
+            blocking.append(f"S{dep_num:02d}")
+
+    if blocking:
+        return False, blocking
+
+    # All dependencies passed
+    return True, []
+
+
+async def _mark_dependents_skipped(
+    seg_num: int,
+    state: StateDB,
+    all_segments: list[Segment],
+    reason: str,
+) -> list[int]:
+    """Recursively mark all transitive dependents as skipped.
+
+    Args:
+        seg_num: Failed segment number
+        state: State database
+        all_segments: All segments (for dependency lookup)
+        reason: Why root segment failed
+
+    Returns:
+        List of skipped segment numbers
+    """
+    seg = next((s for s in all_segments if s.num == seg_num), None)
+    if not seg:
+        return []
+
+    skipped = []
+
+    for dep_num in seg.dependents:
+        dep_status_data = await state.get_segment(dep_num)
+        if dep_status_data:
+            dep_status = dep_status_data.get("status", "unknown")
+        else:
+            dep_status = "pending"
+
+        # Only skip if segment is still pending
+        if dep_status in ("pending", None):
+            log.info(
+                f"S{dep_num:02d} auto-skipped (transitive dependency on S{seg_num:02d})"
+            )
+
+            await state.set_status(dep_num, "skipped-dependency-failed")
+            await state.log_event(
+                "dependency_skip",
+                f"S{dep_num:02d} skipped - transitive dependency failed: S{seg_num:02d} ({reason})",
+                severity="info"
+            )
+
+            skipped.append(dep_num)
+
+            # Recursively skip dependents of this segment
+            transitive = await _mark_dependents_skipped(
+                dep_num, state, all_segments, reason
+            )
+            skipped.extend(transitive)
+
+    return skipped
+
+
 async def _pre_wave_health_check(
     wave: int,
     config: OrchestrateConfig,
@@ -342,8 +434,12 @@ async def _run_wave(
     log_dir: Path,
     shutting_down: asyncio.Event,
     pool: "WorktreePool | None" = None,
+    all_segments: list[Segment] | None = None,
 ) -> list[tuple[int, str]]:
     """Execute all segments in a wave with bounded parallelism.
+
+    Args:
+        all_segments: All segments in the plan (for dependency tracking)
 
     Returns list of (segment_num, status).
     """
@@ -360,6 +456,20 @@ async def _run_wave(
             current = await state.get_segment(seg.num)
             if current and current["status"] == "skipped":
                 return seg.num, "skipped"
+
+            # Check if dependencies are satisfied
+            can_run, blocking = await _validate_upstream_dependencies(seg, state)
+            if not can_run:
+                log.warning(
+                    f"S{seg.num:02d} skipped - blocked by dependencies: {blocking}"
+                )
+                await state.set_status(seg.num, "skipped-dependency-failed")
+                await state.log_event(
+                    "dependency_skip",
+                    f"S{seg.num:02d} skipped - upstream dependencies failed: {', '.join(blocking)}",
+                    severity="info"
+                )
+                return seg.num, "skipped-dependency-failed"
 
             status = "failed"
             cwd = None
@@ -517,6 +627,28 @@ async def _run_wave(
             (n, retried_map.get(n, s)) for n, s in results
         ] + [(n, s) for n, s in retried_map.items() if n not in {r[0] for r in results}]
 
+    # Mark transitive dependents as skipped for failed segments
+    if all_segments:
+        for seg_num, status in results:
+            if status in ("failed", "blocked", "partial", "timeout", "skipped-dependency-failed"):
+                # Get summary for context
+                seg_data = await state.get_segment(seg_num)
+                summary = ""
+                if seg_data and seg_data.get("attempts_history"):
+                    last_attempt = seg_data["attempts_history"][-1]
+                    summary = last_attempt.get("summary", "")[:200]
+
+                # Mark all transitive dependents as skipped
+                skipped = await _mark_dependents_skipped(
+                    seg_num, state, all_segments, f"{status}: {summary}"
+                )
+
+                if skipped:
+                    log.info(
+                        f"S{seg_num:02d} failure caused {len(skipped)} segments to be skipped: "
+                        f"{[f'S{n:02d}' for n in skipped]}"
+                    )
+
     return results
 
 
@@ -578,6 +710,7 @@ async def _run_recovery_wave(
         log_dir,
         shutting_down,
         pool,
+        all_segments,
     )
 
     # Log recovery results
@@ -766,7 +899,7 @@ async def _orchestrate_inner(
                     break
 
             results = await _run_wave(
-                wave_num, pending, config, state, notifier, log_dir, shutting_down, pool
+                wave_num, pending, config, state, notifier, log_dir, shutting_down, pool, segments
             )
 
             # Batched wave completion notification
