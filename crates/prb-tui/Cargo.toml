@@ -48,3 +48,7 @@ base64 = { workspace = true }
 tempfile = "3.13"
 etherparse = { workspace = true }
 insta = "1"
+
+[[bench]]
+name = "large_file_perf"
+harness = false

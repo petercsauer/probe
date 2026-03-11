@@ -12,7 +12,7 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     }
 
     // File-based or demo mode
-    let store = if args.demo {
+    let mut store = if args.demo {
         let events = generate_demo_events();
         tracing::info!("Generated {} demo events", events.len());
         EventStore::new(events)
@@ -23,6 +23,13 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     };
 
     tracing::info!("Loaded {} events", store.len());
+
+    // Build index in background for faster filtering (worthwhile for large files)
+    if store.len() > 1000 {
+        tracing::info!("Building event index for {} events...", store.len());
+        store.build_index();
+        tracing::info!("Index built successfully");
+    }
 
     // Load schemas if provided (not applicable in demo mode)
     let schema_registry = if !args.demo && (!args.proto.is_empty() || !args.descriptor_set.is_empty()) {

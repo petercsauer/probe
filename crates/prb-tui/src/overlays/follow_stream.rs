@@ -258,9 +258,9 @@ impl FollowStreamOverlay {
     fn format_payload_preview(&self, event: &DebugEvent) -> String {
         // Try to extract a meaningful preview from the payload
         match &event.payload {
-            prb_core::Payload::Decoded { decoded, .. } => {
+            prb_core::Payload::Decoded { fields, .. } => {
                 // Try to format decoded data compactly
-                if let Some(obj) = decoded.as_object() {
+                if let Some(obj) = fields.as_object() {
                     let preview: Vec<String> = obj
                         .iter()
                         .take(3)
