@@ -146,6 +146,9 @@ fn test_tui_args_no_filter() {
         proto: vec![],
         descriptor_set: vec![],
         demo: false,
+        interface: None,
+        bpf_filter: None,
+        tls_keylog: None,
     };
 
     assert_eq!(args.input.as_ref().unwrap().as_str(), "events.json");
@@ -675,6 +678,9 @@ fn test_tui_with_filter_syntax() {
             proto: vec![],
             descriptor_set: vec![],
             demo: false,
+            interface: None,
+            bpf_filter: None,
+            tls_keylog: None,
         };
         assert_eq!(args.where_clause.as_ref().unwrap(), filter);
     }
@@ -1425,6 +1431,9 @@ fn test_tui_with_long_path() {
         proto: vec![],
         descriptor_set: vec![],
         demo: false,
+        interface: None,
+        bpf_filter: None,
+        tls_keylog: None,
     };
 
     assert!(args.input.as_ref().unwrap().as_str().contains("events.ndjson"));

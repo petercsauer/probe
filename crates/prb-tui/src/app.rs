@@ -114,7 +114,9 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
+    #[allow(dead_code)]
     ai_panel: AiPanel,
+    #[allow(dead_code)]
     ai_panel_visible: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
@@ -138,6 +140,7 @@ pub struct App {
     #[allow(dead_code)]
     help_scroll_offset: usize,
     export_dialog: Option<ExportDialogOverlay>,
+    #[allow(dead_code)]
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
     // Live capture mode

@@ -31,6 +31,7 @@ struct CachedView {
     sort_column: SortColumn,
     sort_reversed: bool,
     sorted_indices: Vec<usize>,
+    #[allow(dead_code)]
     protocol_counts: Vec<(prb_core::TransportKind, usize)>,
 }
 
