@@ -214,6 +214,22 @@ impl PaneComponent for DecodeTreePane {
                 }
                 Action::None
             }
+            KeyCode::Char('h') => {
+                // Highlight payload bytes in hex dump
+                if let Some(sel_idx) = state.selected_event
+                    && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                    && let Some(event) = state.store.get(*event_idx)
+                {
+                    let payload_len = match &event.payload {
+                        Payload::Raw { raw } => raw.len(),
+                        Payload::Decoded { raw, .. } => raw.len(),
+                    };
+                    if payload_len > 0 {
+                        return Action::HighlightBytes { offset: 0, len: payload_len };
+                    }
+                }
+                Action::None
+            }
             _ => Action::None,
         }
     }

@@ -162,6 +162,13 @@ impl FilterState {
             .map(|f| f.source().to_string())
             .unwrap_or_default()
     }
+
+    /// Set an initial filter (for app startup with a filter specified).
+    pub fn set_initial_filter(&mut self, text: String, filter: Filter) {
+        self.text = text;
+        self.committed_filter = Some(filter);
+        self.last_change = Instant::now();
+    }
 }
 
 #[cfg(test)]

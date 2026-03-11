@@ -270,6 +270,7 @@ async def run_segment(
             stderr=asyncio.subprocess.STDOUT,
             env=env,
             start_new_session=True,
+            limit=2**22,  # 4MB — default 64KB trips on large tool-result JSON lines
         )
 
         if register_pid and proc.pid:

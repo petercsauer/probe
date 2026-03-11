@@ -191,8 +191,8 @@ impl App {
             state,
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
+            filter_state: FilterState::new(),
             filter_input: Input::default(),
-            filter_error: None,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
@@ -203,13 +203,18 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
+            drag_state: DragState::None,
             goto_input: Input::default(),
+            command_palette: CommandPaletteOverlay::new(),
+            which_key_overlay: None,
+            help_scroll_offset: 0,
             live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
             auto_follow: true,
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
+            status_message: None,
         }
     }
 
