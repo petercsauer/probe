@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -28,7 +28,7 @@ use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
 use crate::ring_buffer::RingBuffer;
-use crate::theme::{Theme, ThemeConfig};
+use crate::theme::ThemeConfig;
 
 use prb_capture::CaptureStats;
 use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
@@ -802,25 +802,64 @@ impl App {
         }
 
         // Global keys
-        match key.code {
-            KeyCode::Char('q') | KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        // Check for Ctrl+C or configured quit key
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            return true;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('p') {
+            self.input_mode = InputMode::PluginManager;
+            return false;
+        }
+
+        // Check configured keybindings
+        if let Some(quit_key) = self.config.tui.keybindings.quit_keycode() {
+            if key.code == quit_key {
                 return true;
             }
-            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.input_mode = InputMode::PluginManager;
-                return false;
-            }
-            KeyCode::Char('q') => return true,
-            KeyCode::Char('?') => {
+        }
+        if let Some(help_key) = self.config.tui.keybindings.help_keycode() {
+            if key.code == help_key {
                 self.input_mode = InputMode::Help;
                 return false;
             }
-            KeyCode::Char('/') => {
+        }
+        if let Some(filter_key) = self.config.tui.keybindings.filter_keycode() {
+            if key.code == filter_key {
                 self.input_mode = InputMode::Filter;
                 self.filter_input = Input::new(self.state.filter_text.clone());
                 self.filter_error = None;
                 return false;
             }
+        }
+        if let Some(theme_key) = self.config.tui.keybindings.theme_cycle_keycode() {
+            if key.code == theme_key {
+                self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
+                    "Light" => ThemeConfig::catppuccin_mocha(),
+                    "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    "Dracula" => ThemeConfig::colorblind_safe(),
+                    "Colorblind Safe" => ThemeConfig::high_contrast(),
+                    "High Contrast" => ThemeConfig::dark(),
+                    _ => ThemeConfig::dark(),
+                };
+                let message = format!("Theme: {}", self.theme.name);
+                self.status_message = Some((message, std::time::Instant::now()));
+                return false;
+            }
+        }
+        if let Some(zoom_key) = self.config.tui.keybindings.zoom_keycode() {
+            if key.code == zoom_key {
+                // Toggle zoom on focused pane
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                } else {
+                    self.zoomed_pane = Some(self.focus);
+                }
+                return false;
+            }
+        }
+
+        match key.code {
             KeyCode::Char(':') => {
                 self.input_mode = InputMode::CommandPalette;
                 self.command_palette = CommandPaletteOverlay::new();
@@ -852,27 +891,6 @@ impl App {
                     } else {
                         Some(0)
                     };
-                }
-                return false;
-            }
-            KeyCode::Char('T') => {
-                self.theme = match self.theme.name.as_str() {
-                    "Dark" => ThemeConfig::light(),
-                    "Light" => ThemeConfig::catppuccin_mocha(),
-                    "Catppuccin Mocha" => ThemeConfig::dracula(),
-                    "Dracula" => ThemeConfig::dark(),
-                    _ => ThemeConfig::dark(),
-                };
-                let message = format!("Theme: {}", self.theme.name);
-                self.status_message = Some((message, std::time::Instant::now()));
-                return false;
-            }
-            KeyCode::Char('z') => {
-                // Toggle zoom on focused pane
-                if self.zoomed_pane.is_some() {
-                    self.zoomed_pane = None;
-                } else {
-                    self.zoomed_pane = Some(self.focus);
                 }
                 return false;
             }
@@ -1400,11 +1418,11 @@ impl App {
         if let Some(ref live_source) = self.live_source {
             spans.push(Span::styled(
                 format!(" {} ", live_source.interface()),
-                Theme::status_bar(),
+                self.theme.status_bar(),
             ));
         }
 
-        spans.push(Span::styled(" │ ", Theme::status_bar()));
+        spans.push(Span::styled(" │ ", self.theme.status_bar()));
 
         // Event counts
         let total = self.state.store.len();
@@ -1414,27 +1432,27 @@ impl App {
             if evicted > 0 {
                 spans.push(Span::styled(
                     format!("{}/{} events ({} evicted) ", total, capacity, evicted),
-                    Theme::status_bar(),
+                    self.theme.status_bar(),
                 ));
             } else {
                 spans.push(Span::styled(
                     format!("{} events ", total),
-                    Theme::status_bar(),
+                    self.theme.status_bar(),
                 ));
             }
         } else {
             spans.push(Span::styled(
                 format!("{} events ", total),
-                Theme::status_bar(),
+                self.theme.status_bar(),
             ));
         }
 
         // Capture stats
         if let Some(ref stats) = self.capture_stats {
-            spans.push(Span::styled(" │ ", Theme::status_bar()));
+            spans.push(Span::styled(" │ ", self.theme.status_bar()));
             spans.push(Span::styled(
                 format!("{:.0} pps ", stats.packets_per_second),
-                Theme::status_bar(),
+                self.theme.status_bar(),
             ));
 
             if stats.packets_dropped_kernel > 0 {
@@ -1461,15 +1479,15 @@ impl App {
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
         spans.push(Span::styled(
             " ".repeat(padding),
-            Theme::status_bar(),
+            self.theme.status_bar(),
         ));
-        spans.push(Span::styled(hint, Theme::status_bar()));
+        spans.push(Span::styled(hint, self.theme.status_bar()));
 
         let line = Line::from(spans);
 
         // Fill background
         for x in area.x..area.x + area.width {
-            buf[(x, area.y)].set_style(Theme::status_bar());
+            buf[(x, area.y)].set_style(self.theme.status_bar());
         }
         buf.set_line(area.x, area.y, &line, area.width);
     }
@@ -1617,7 +1635,7 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message);
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.theme);
         }
 
         if self.input_mode == InputMode::Help {
@@ -1636,12 +1654,12 @@ impl App {
             Clear.render(overlay_area, buf);
             let block = Block::default()
                 .borders(Borders::ALL)
-                .border_style(Theme::focused_border())
+                .border_style(self.theme.focused_border())
                 .title(" Jump to Event ");
             let inner = block.inner(overlay_area);
             block.render(overlay_area, buf);
-            
-            let line = Line::from(vec![Span::styled(prompt, Theme::filter_bar())]);
+
+            let line = Line::from(vec![Span::styled(prompt, self.theme.filter_bar())]);
             buf.set_line(inner.x, inner.y, &line, inner.width);
         }
 
@@ -1666,7 +1684,7 @@ impl App {
 
             let block = Block::default()
                 .borders(Borders::ALL)
-                .border_style(Theme::focused_border())
+                .border_style(self.theme.focused_border())
                 .title(" Copy Mode ");
 
             let inner = block.inner(overlay_area);
@@ -1973,7 +1991,7 @@ impl App {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Theme::focused_border())
+            .border_style(self.theme.focused_border())
             .title(title);
         let inner = block.inner(overlay_area);
         block.render(overlay_area, buf);
@@ -2012,12 +2030,12 @@ impl App {
             let line = if desc.is_empty() {
                 Line::from(Span::styled(
                     key.to_string(),
-                    Theme::help_key(),
+                    self.theme.help_key(),
                 ))
             } else {
                 Line::from(vec![
-                    Span::styled(format!("{:<20}", key), Theme::help_key()),
-                    Span::styled(desc.to_string(), Theme::help_desc()),
+                    Span::styled(format!("{:<20}", key), self.theme.help_key()),
+                    Span::styled(desc.to_string(), self.theme.help_desc()),
                 ])
             };
             buf.set_line(inner.x, inner.y + i as u16, &line, inner.width);
