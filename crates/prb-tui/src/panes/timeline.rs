@@ -1,7 +1,8 @@
 use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::{Line, Span};
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Sparkline, Widget};
 
 use crate::app::AppState;
@@ -42,6 +43,16 @@ impl PaneComponent for TimelinePane {
         block.render(area, buf);
 
         if inner.height < 1 || inner.width < 10 {
+            return;
+        }
+
+        // Show hint if no events loaded
+        if state.store.is_empty() {
+            let msg = Text::styled(
+                "  Load a capture to see time distribution",
+                Style::default().fg(Color::DarkGray),
+            );
+            Widget::render(msg, inner, buf);
             return;
         }
 

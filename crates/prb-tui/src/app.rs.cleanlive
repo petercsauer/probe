@@ -80,12 +80,6 @@ pub struct App {
     filter_input: Input,
     filter_error: Option<String>,
 
-    // Theme configuration
-    theme: ThemeConfig,
-    theme_names: Vec<String>,
-    theme_notification: Option<(String, Instant)>,
-    config: Config,
-
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -129,7 +123,7 @@ impl App {
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
-            filter_state: FilterState::new(),
+            filter_error: None,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
@@ -301,28 +295,20 @@ impl App {
             }
         }
     }
-
-
     fn handle_goto_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Enter => {
-                let text = self.goto_input.value().to_string();
-                if let Ok(event_id) = text.trim().parse::<usize>() {
+                let text = self.goto_input.value().trim();
+                if let Ok(event_id) = text.parse::<usize>() {
                     // Find the event with this ID in filtered indices
-                    if let Some(pos) = self.state.filtered_indices.iter().position(|&store_idx| {
-                        self.state.store.get(store_idx).map(|e| e.id) == Some(event_id)
+                    if let Some(pos) = self.state.filtered_indices.iter().position(|&idx| {
+                        self.state.store.get(idx).map_or(false, |e| e.id.as_u64() as usize == event_id)
                     }) {
                         self.event_list.selected = pos;
-                        self.event_list.ensure_visible(pos, 20); // ensure_visible with some context
+                        self.event_list.scroll_offset = pos.saturating_sub(5);
                         self.state.selected_event = Some(pos);
-                        self.goto_error = None;
-                    } else {
-                        self.goto_error = Some(format!("Event {} not found in current view", event_id));
-                        return false;
+                        self.process_action(Action::SelectEvent(pos));
                     }
-                } else {
-                    self.goto_error = Some("Invalid event ID".to_string());
-                    return false;
                 }
                 self.input_mode = InputMode::Normal;
                 self.focus = PaneId::EventList;
@@ -330,99 +316,15 @@ impl App {
             }
             KeyCode::Esc => {
                 self.input_mode = InputMode::Normal;
-                self.goto_error = None;
                 false
             }
             _ => {
                 self.goto_input.handle_event(&Event::Key(key));
-                self.goto_error = None;
                 false
             }
         }
     }
 
-    fn handle_mouse(&mut self, mouse: MouseEvent) {
-        match mouse.kind {
-            MouseEventKind::Down(MouseButton::Left) => {
-                let (col, row) = (mouse.column, mouse.row);
-
-                // Check which pane was clicked
-                for (pane_id, rect) in &self.pane_rects {
-                    if col >= rect.x && col < rect.x + rect.width
-                        && row >= rect.y && row < rect.y + rect.height
-                    {
-                        self.focus = *pane_id;
-
-                        // If clicked on event list, select the row
-                        if *pane_id == PaneId::EventList {
-                            let row_in_pane = row.saturating_sub(rect.y + 1); // -1 for border
-                            let event_idx = self.event_list.scroll_offset + row_in_pane as usize;
-                            if event_idx < self.state.filtered_indices.len() {
-                                self.event_list.selected = event_idx;
-                                self.process_action(Action::SelectEvent(event_idx));
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-            MouseEventKind::ScrollDown => {
-                // Route scroll to focused pane
-                match self.focus {
-                    PaneId::EventList => {
-                        for _ in 0..3 {
-                            let action = self.event_list.handle_key(
-                                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                                &self.state
-                            );
-                            self.process_action(action);
-                        }
-                    }
-                    PaneId::HexDump => {
-                        for _ in 0..3 {
-                            self.hex_dump.scroll_down(1);
-                        }
-                    }
-                    PaneId::DecodeTree => {
-                        let action = self.decode_tree.handle_key(
-                            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                            &self.state
-                        );
-                        self.process_action(action);
-                    }
-                    _ => {}
-                }
-            }
-            MouseEventKind::ScrollUp => {
-                // Route scroll to focused pane
-                match self.focus {
-                    PaneId::EventList => {
-                        for _ in 0..3 {
-                            let action = self.event_list.handle_key(
-                                KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
-                                &self.state
-                            );
-                            self.process_action(action);
-                        }
-                    }
-                    PaneId::HexDump => {
-                        for _ in 0..3 {
-                            self.hex_dump.scroll_up(1);
-                        }
-                    }
-                    PaneId::DecodeTree => {
-                        let action = self.decode_tree.handle_key(
-                            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
-                            &self.state
-                        );
-                        self.process_action(action);
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
-    }
 
     fn process_action(&mut self, action: Action) {
         match action {

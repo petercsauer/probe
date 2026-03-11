@@ -1,7 +1,8 @@
 use std::io;
 use std::time::Duration;
+use std::collections::HashMap;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, event::EnableMouseCapture, event::DisableMouseCapture};
 use ratatui::backend::CrosstermBackend;
@@ -16,12 +17,16 @@ use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
 use crate::event_store::EventStore;
+use crate::live::{AppEvent, CaptureState, LiveDataSource};
+use crate::ring_buffer::RingBuffer;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeConfig};
+
+use prb_capture::CaptureStats;
 
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
@@ -80,12 +85,6 @@ pub struct App {
     filter_input: Input,
     filter_error: Option<String>,
 
-    // Theme configuration
-    theme: ThemeConfig,
-    theme_names: Vec<String>,
-    theme_notification: Option<(String, Instant)>,
-    config: Config,
-
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -98,6 +97,7 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
+    theme: ThemeConfig,
 }
 
 impl App {
@@ -129,11 +129,18 @@ impl App {
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
-            filter_state: FilterState::new(),
+            filter_error: None,
+            live_source: None,
+            capture_state: CaptureState::Stopped,
+            capture_stats: None,
+            auto_follow: false,
+            new_events_since_scroll: 0,
+            ring_buffer: None,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            theme: ThemeConfig::dark(),
         }
     }
 
@@ -155,6 +162,150 @@ impl App {
         terminal.show_cursor()?;
 
         result
+    }
+
+    /// Create a new App in live capture mode with an active LiveDataSource.
+    pub fn new_live(mut live_source: LiveDataSource, schema_registry: Option<SchemaRegistry>) -> Self {
+        let store = EventStore::empty();
+        let state = AppState {
+            filtered_indices: Vec::new(),
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+            schema_registry,
+            store,
+        };
+
+        let ring_buffer = Some(RingBuffer::new(100_000)); // 100K event cap
+
+        App {
+            state,
+            focus: PaneId::EventList,
+            input_mode: InputMode::Normal,
+            filter_input: Input::default(),
+            filter_error: None,
+            live_source: Some(live_source),
+            capture_state: CaptureState::Capturing,
+            capture_stats: None,
+            auto_follow: true, // Start with auto-follow enabled
+            new_events_since_scroll: 0,
+            ring_buffer,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+            theme: ThemeConfig::dark(),
+        }
+    }
+
+    /// Run the TUI event loop in live capture mode.
+    pub fn run_live(&mut self) -> anyhow::Result<()> {
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.live_event_loop(&mut terminal);
+
+        terminal::disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        result
+    }
+
+    fn live_event_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        // Take ownership of the receiver from live_source
+        let mut rx = self.live_source.as_mut()
+            .and_then(|ls| ls.take_receiver())
+            .ok_or_else(|| anyhow::anyhow!("No live data source receiver available"))?;
+
+        loop {
+            self.draw(terminal)?;
+
+            // Drain capture events in batches for performance
+            let mut batch_count = 0;
+            while let Ok(event) = rx.try_recv() {
+                        let event = *debug_event;
+                match event {
+                    AppEvent::CapturedEvent(debug_event) => {
+                        // Push to ring buffer
+                        if let Some(ref mut ring_buf) = self.ring_buffer {
+                            ring_buf.push(debug_event.clone());
+                        }
+                        // Also push to store for immediate access
+                        self.state.store.push(*debug_event);
+                        batch_count += 1;
+                        if batch_count >= 100 {
+                            break; // Cap per frame to keep UI responsive
+                        }
+                    }
+                    AppEvent::CaptureStats(stats) => {
+                        self.capture_stats = Some(stats);
+                    }
+                    AppEvent::CaptureStopped => {
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Recompute filtered indices if new events arrived
+            if batch_count > 0 {
+                self.recompute_filter();
+                if self.auto_follow {
+                    self.scroll_to_bottom();
+                } else {
+                    self.new_events_since_scroll += batch_count;
+                }
+            }
+
+            // Poll keyboard events
+            if event::poll(Duration::from_millis(33))? {
+                if let Event::Key(key) = event::read()? {
+                    if self.handle_key(key) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+
+    fn recompute_filter(&mut self) {
+        self.state.filtered_indices = if let Some(ref filter) = self.state.filter {
+            self.state.store.filter_indices(filter)
+        } else {
+            self.state.store.all_indices()
+        };
+
+        // Update selected event if needed
+        if self.state.selected_event.is_some()
+            && self.state.filtered_indices.is_empty()
+        {
+            self.state.selected_event = None;
+        } else if self.state.selected_event.is_none()
+            && !self.state.filtered_indices.is_empty()
+        {
+            self.state.selected_event = Some(0);
+        }
+    }
+
+    fn scroll_to_bottom(&mut self) {
+        if !self.state.filtered_indices.is_empty() {
+            let last_idx = self.state.filtered_indices.len() - 1;
+            self.event_list.selected = last_idx;
+            self.event_list.scroll_offset = last_idx.saturating_sub(10); // Keep some context
+            self.state.selected_event = Some(last_idx);
+            self.new_events_since_scroll = 0;
+        }
     }
 
     fn event_loop(
@@ -299,128 +450,6 @@ impl App {
                 self.filter_error = None;
                 false
             }
-        }
-    }
-
-
-    fn handle_goto_key(&mut self, key: KeyEvent) -> bool {
-        match key.code {
-            KeyCode::Enter => {
-                let text = self.goto_input.value().to_string();
-                if let Ok(event_id) = text.trim().parse::<usize>() {
-                    // Find the event with this ID in filtered indices
-                    if let Some(pos) = self.state.filtered_indices.iter().position(|&store_idx| {
-                        self.state.store.get(store_idx).map(|e| e.id) == Some(event_id)
-                    }) {
-                        self.event_list.selected = pos;
-                        self.event_list.ensure_visible(pos, 20); // ensure_visible with some context
-                        self.state.selected_event = Some(pos);
-                        self.goto_error = None;
-                    } else {
-                        self.goto_error = Some(format!("Event {} not found in current view", event_id));
-                        return false;
-                    }
-                } else {
-                    self.goto_error = Some("Invalid event ID".to_string());
-                    return false;
-                }
-                self.input_mode = InputMode::Normal;
-                self.focus = PaneId::EventList;
-                false
-            }
-            KeyCode::Esc => {
-                self.input_mode = InputMode::Normal;
-                self.goto_error = None;
-                false
-            }
-            _ => {
-                self.goto_input.handle_event(&Event::Key(key));
-                self.goto_error = None;
-                false
-            }
-        }
-    }
-
-    fn handle_mouse(&mut self, mouse: MouseEvent) {
-        match mouse.kind {
-            MouseEventKind::Down(MouseButton::Left) => {
-                let (col, row) = (mouse.column, mouse.row);
-
-                // Check which pane was clicked
-                for (pane_id, rect) in &self.pane_rects {
-                    if col >= rect.x && col < rect.x + rect.width
-                        && row >= rect.y && row < rect.y + rect.height
-                    {
-                        self.focus = *pane_id;
-
-                        // If clicked on event list, select the row
-                        if *pane_id == PaneId::EventList {
-                            let row_in_pane = row.saturating_sub(rect.y + 1); // -1 for border
-                            let event_idx = self.event_list.scroll_offset + row_in_pane as usize;
-                            if event_idx < self.state.filtered_indices.len() {
-                                self.event_list.selected = event_idx;
-                                self.process_action(Action::SelectEvent(event_idx));
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-            MouseEventKind::ScrollDown => {
-                // Route scroll to focused pane
-                match self.focus {
-                    PaneId::EventList => {
-                        for _ in 0..3 {
-                            let action = self.event_list.handle_key(
-                                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                                &self.state
-                            );
-                            self.process_action(action);
-                        }
-                    }
-                    PaneId::HexDump => {
-                        for _ in 0..3 {
-                            self.hex_dump.scroll_down(1);
-                        }
-                    }
-                    PaneId::DecodeTree => {
-                        let action = self.decode_tree.handle_key(
-                            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                            &self.state
-                        );
-                        self.process_action(action);
-                    }
-                    _ => {}
-                }
-            }
-            MouseEventKind::ScrollUp => {
-                // Route scroll to focused pane
-                match self.focus {
-                    PaneId::EventList => {
-                        for _ in 0..3 {
-                            let action = self.event_list.handle_key(
-                                KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
-                                &self.state
-                            );
-                            self.process_action(action);
-                        }
-                    }
-                    PaneId::HexDump => {
-                        for _ in 0..3 {
-                            self.hex_dump.scroll_up(1);
-                        }
-                    }
-                    PaneId::DecodeTree => {
-                        let action = self.decode_tree.handle_key(
-                            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
-                            &self.state
-                        );
-                        self.process_action(action);
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
         }
     }
 

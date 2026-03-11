@@ -1,7 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Widget};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
@@ -35,7 +34,7 @@ impl DecodeTreePane {
     }
 
     fn expand_all_recursive(items: &[TreeItem<'static, String>], identifiers: &mut Vec<Vec<String>>, prefix: Vec<String>) {
-        for item in items.iter() {
+        for (i, item) in items.iter().enumerate() {
             let mut id = prefix.clone();
             id.push(item.identifier().clone());
             identifiers.push(id.clone());
@@ -64,77 +63,10 @@ impl DecodeTreePane {
             return;
         }
 
-        if let Some(value) = extract_value_from_tree(items, selected) {
-            send_osc52_copy(&value);
-        }
-    }
-
-    fn render_diff_overlay(&self, area: Rect, buf: &mut Buffer, state: &AppState) {
-        use ratatui::layout::{Constraint, Direction, Layout};
-        use ratatui::widgets::{BorderType, Clear};
-
-        // Get marked and current events
-        let marked_event = self.marked_event_idx
-            .and_then(|idx| state.filtered_indices.get(idx))
-            .and_then(|&idx| state.store.get(idx));
-        let current_event = state.selected_event
-            .and_then(|idx| state.filtered_indices.get(idx))
-            .and_then(|&idx| state.store.get(idx));
-
-        if marked_event.is_none() || current_event.is_none() {
-            return;
-        }
-
-        // Create overlay area (80% of screen, centered)
-        let width = (area.width * 80 / 100).max(40);
-        let height = (area.height * 80 / 100).max(10);
-        let x = (area.width.saturating_sub(width)) / 2;
-        let y = (area.height.saturating_sub(height)) / 2;
-        let overlay_area = Rect::new(area.x + x, area.y + y, width, height);
-
-        Clear.render(overlay_area, buf);
-
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Theme::focused_border())
-            .title(" Event Diff (press Esc to close) ")
-            .title_style(Theme::focused_title());
-
-        let inner = block.inner(overlay_area);
-        block.render(overlay_area, buf);
-
-        // Split into two columns
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(inner);
-
-        // Render diff content
-        let marked = marked_event.unwrap();
-        let current = current_event.unwrap();
-
-        let diff_result = compute_event_diff(marked, current);
-
-        // Left column: marked event
-        let mut y_offset = 0;
-        for line in diff_result.left_lines.iter() {
-            if y_offset >= columns[0].height {
-                break;
-            }
-            buf.set_line(columns[0].x, columns[0].y + y_offset, line, columns[0].width);
-            y_offset += 1;
-        }
-
-        // Right column: current event
-        y_offset = 0;
-        for line in diff_result.right_lines.iter() {
-            if y_offset >= columns[1].height {
-                break;
-            }
-            buf.set_line(columns[1].x, columns[1].y + y_offset, line, columns[1].width);
-            y_offset += 1;
-        }
+        // TODO: Implement clipboard copy
+        // if let Some(value) = extract_value_from_tree(items, selected) {
+        //     send_osc52_copy(&value);
+        // }
     }
 }
 
@@ -177,7 +109,7 @@ impl PaneComponent for DecodeTreePane {
                 Action::None
             }
             KeyCode::Char('e') => {
-                // Expand all
+                // Expand all - need to build tree items
                 if let Some(sel_idx) = state.selected_event {
                     if let Some(event_idx) = state.filtered_indices.get(sel_idx) {
                         if let Some(event) = state.store.get(*event_idx) {
@@ -261,17 +193,14 @@ impl PaneComponent for DecodeTreePane {
             return;
         }
 
-        // Show diff overlay if active
-        if self.show_diff {
-            self.render_diff_overlay(area, buf, state);
-            return;
-        }
+        // TODO: Implement diff overlay
+        // if self.show_diff {
+        //     self.render_diff_overlay(area, buf, state);
+        //     return;
+        // }
 
         let Some(sel_idx) = state.selected_event else {
-            let msg = Text::styled(
-                "  Select an event above to see decoded layers",
-                Style::default().fg(Color::DarkGray),
-            );
+            let msg = Text::raw("  No event selected");
             Widget::render(msg, inner, buf);
             return;
         };
@@ -289,6 +218,75 @@ impl PaneComponent for DecodeTreePane {
             .highlight_style(Theme::selected_row());
 
         ratatui::widgets::StatefulWidget::render(tree, inner, buf, &mut self.state);
+    }
+
+    fn render_diff_overlay(&self, area: Rect, buf: &mut Buffer, state: &AppState) {
+        use ratatui::layout::{Constraint, Direction, Layout};
+        use ratatui::text::{Line, Span};
+        use ratatui::widgets::{BorderType, Clear};
+
+        // Get marked and current events
+        let marked_event = self.marked_event_idx
+            .and_then(|idx| state.filtered_indices.get(idx))
+            .and_then(|&idx| state.store.get(idx));
+        let current_event = state.selected_event
+            .and_then(|idx| state.filtered_indices.get(idx))
+            .and_then(|&idx| state.store.get(idx));
+
+        if marked_event.is_none() || current_event.is_none() {
+            return;
+        }
+
+        // Create overlay area (80% of screen, centered)
+        let width = (area.width * 80 / 100).max(40);
+        let height = (area.height * 80 / 100).max(10);
+        let x = (area.width.saturating_sub(width)) / 2;
+        let y = (area.height.saturating_sub(height)) / 2;
+        let overlay_area = Rect::new(area.x + x, area.y + y, width, height);
+
+        Clear.render(overlay_area, buf);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Theme::focused_border())
+            .title(" Event Diff (press Esc to close) ")
+            .title_style(Theme::focused_title());
+
+        let inner = block.inner(overlay_area);
+        block.render(overlay_area, buf);
+
+        // Split into two columns
+        let columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(inner);
+
+        // Render diff content
+        let marked = marked_event.unwrap();
+        let current = current_event.unwrap();
+
+        let diff_result = compute_event_diff(marked, current);
+
+        // Left column: marked event
+        let mut y_offset = 0;
+        for line in diff_result.left_lines.iter() {
+            if y_offset >= columns[0].height {
+                break;
+            }
+            buf.set_line(columns[0].x, columns[0].y + y_offset, line, columns[0].width);
+            y_offset += 1;
+        }
+
+        // Right column: current event
+        y_offset = 0;
+        for line in diff_result.right_lines.iter() {
+            if y_offset >= columns[1].height {
+                break;
+            }
+            buf.set_line(columns[1].x, columns[1].y + y_offset, line, columns[1].width);
+            y_offset += 1;
+        }
     }
 }
 
@@ -470,151 +468,6 @@ fn build_tree_items(event: &DebugEvent) -> Vec<TreeItem<'static, String>> {
     }
 
     items
-}
-
-/// Extract value text from a tree item at the given identifier path
-fn extract_value_from_tree(items: &[TreeItem<'static, String>], path: &[String]) -> Option<String> {
-    if path.is_empty() {
-        return None;
-    }
-
-    let mut current_items = items;
-    let mut result = None;
-
-    for (depth, identifier) in path.iter().enumerate() {
-        // Find the item with matching identifier
-        if let Some(item) = current_items.iter().find(|item| item.identifier() == identifier) {
-            // Use the identifier as the value to copy
-            result = Some(identifier.clone());
-
-            // Try to navigate to children for next depth
-            if depth + 1 < path.len() {
-                current_items = item.children();
-            }
-        } else {
-            return None;
-        }
-    }
-
-    result
-}
-
-/// Send text to clipboard using OSC 52 escape sequence
-fn send_osc52_copy(text: &str) {
-    use base64::Engine;
-    let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
-    // OSC 52 sequence: ESC ] 52 ; c ; <base64> ESC \
-    print!("\x1b]52;c;{}\x1b\\", encoded);
-    use std::io::Write;
-    let _ = std::io::stdout().flush();
-}
-
-struct DiffResult {
-    left_lines: Vec<ratatui::text::Line<'static>>,
-    right_lines: Vec<ratatui::text::Line<'static>>,
-}
-
-/// Compute a simple field-level diff between two events
-fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
-    use ratatui::style::{Color, Style};
-    use ratatui::text::{Line, Span};
-    use std::collections::BTreeMap;
-
-    let mut left_lines = Vec::new();
-    let mut right_lines = Vec::new();
-
-    // Helper to extract fields from event
-    let extract_fields = |event: &DebugEvent| -> BTreeMap<String, String> {
-        let mut fields = BTreeMap::new();
-
-        // Timestamp
-        let ts_ns = event.timestamp.as_nanos();
-        let secs = ts_ns / 1_000_000_000;
-        let millis = (ts_ns % 1_000_000_000) / 1_000_000;
-        let h = (secs / 3600) % 24;
-        let m = (secs % 3600) / 60;
-        let s = secs % 60;
-        fields.insert("Timestamp".to_string(), format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis));
-
-        // Direction
-        fields.insert("Direction".to_string(), event.direction.to_string());
-
-        // Transport
-        fields.insert("Transport".to_string(), event.transport.to_string());
-
-        // Metadata
-        for (k, v) in &event.metadata {
-            fields.insert(format!("meta.{}", k), v.clone());
-        }
-
-        // Payload type and size
-        match &event.payload {
-            Payload::Raw { raw } => {
-                fields.insert("Payload.type".to_string(), "Raw".to_string());
-                fields.insert("Payload.size".to_string(), format!("{} bytes", raw.len()));
-            }
-            Payload::Decoded { raw, schema_name, .. } => {
-                fields.insert("Payload.type".to_string(), "Decoded".to_string());
-                fields.insert("Payload.size".to_string(), format!("{} bytes", raw.len()));
-                if let Some(name) = schema_name {
-                    fields.insert("Payload.schema".to_string(), name.clone());
-                }
-            }
-        }
-
-        fields
-    };
-
-    let fields1 = extract_fields(event1);
-    let fields2 = extract_fields(event2);
-
-    // Collect all unique keys
-    let mut all_keys: Vec<_> = fields1.keys().chain(fields2.keys()).collect();
-    all_keys.sort();
-    all_keys.dedup();
-
-    // Header
-    left_lines.push(Line::from(Span::styled("Marked Event", Style::default().fg(Color::Cyan))));
-    right_lines.push(Line::from(Span::styled("Current Event", Style::default().fg(Color::Cyan))));
-    left_lines.push(Line::from(""));
-    right_lines.push(Line::from(""));
-
-    // Compare each field
-    for key in all_keys {
-        let val1 = fields1.get(key);
-        let val2 = fields2.get(key);
-
-        let (style_left, style_right) = match (val1, val2) {
-            (Some(v1), Some(v2)) if v1 == v2 => {
-                // Same value
-                (Style::default(), Style::default())
-            }
-            (Some(_), Some(_)) => {
-                // Different values
-                (Style::default().fg(Color::Yellow), Style::default().fg(Color::Yellow))
-            }
-            (Some(_), None) => {
-                // Only in left
-                (Style::default().fg(Color::Red), Style::default())
-            }
-            (None, Some(_)) => {
-                // Only in right
-                (Style::default(), Style::default().fg(Color::Green))
-            }
-            (None, None) => unreachable!(),
-        };
-
-        let left_text = val1.map(|v| format!("{}: {}", key, v)).unwrap_or_else(|| format!("{}: <missing>", key));
-        let right_text = val2.map(|v| format!("{}: {}", key, v)).unwrap_or_else(|| format!("{}: <missing>", key));
-
-        left_lines.push(Line::from(Span::styled(left_text, style_left)));
-        right_lines.push(Line::from(Span::styled(right_text, style_right)));
-    }
-
-    DiffResult {
-        left_lines,
-        right_lines,
-    }
 }
 
 #[cfg(test)]

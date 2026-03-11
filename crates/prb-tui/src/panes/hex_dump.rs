@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Widget};
 
@@ -301,7 +302,10 @@ impl PaneComponent for HexDumpPane {
         }
 
         let Some(sel_idx) = state.selected_event else {
-            let msg = Text::raw("  No event selected");
+            let msg = Text::styled(
+                "  Select an event to view raw bytes",
+                Style::default().fg(Color::DarkGray),
+            );
             Widget::render(msg, inner, buf);
             return;
         };
@@ -691,7 +695,7 @@ mod tests {
         pane.scroll_offset = 10;
 
         // Simulate up key beyond bounds
-        use crossterm::event::{KeyCode, KeyEvent};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use crate::app::AppState;
         use crate::event_store::EventStore;
 
