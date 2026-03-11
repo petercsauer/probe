@@ -25,6 +25,7 @@ class Segment:
     commit_message: str = ""
     file_path: Path = field(default_factory=Path)
     wave: int = 0
+    timeout: int = 0
 
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
@@ -132,6 +133,7 @@ def load_plan(plan_dir: Path) -> tuple[PlanMeta, list[Segment]]:
             complexity=sfm.get("complexity", "Medium"),
             commit_message=sfm.get("commit_message", ""),
             file_path=f,
+            timeout=sfm.get("timeout", 0),
         ))
 
     if not segments:

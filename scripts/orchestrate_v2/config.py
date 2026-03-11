@@ -41,6 +41,8 @@ class OrchestrateConfig:
     notify_max_attempts: int = 3
     notify_retry_delays: list[int] = field(default_factory=lambda: [10, 60, 300])
     monitor_port: int = 0
+    stall_threshold: int = 1800
+    network_retry_max: int = 600
 
     @classmethod
     def load(cls, plan_dir: Path) -> OrchestrateConfig:
@@ -90,4 +92,6 @@ class OrchestrateConfig:
             notify_max_attempts=notifications.get("max_attempts", 3),
             notify_retry_delays=notifications.get("retry_delays", [10, 60, 300]),
             monitor_port=monitor.get("port", 0) if monitor.get("enabled", False) else 0,
+            stall_threshold=execution.get("stall_threshold", 1800),
+            network_retry_max=execution.get("network_retry_max", 600),
         )

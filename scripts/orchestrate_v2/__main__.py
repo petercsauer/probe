@@ -114,11 +114,37 @@ async def _notification_worker(
             pass
 
 
+async def _wait_for_network(notifier, max_wait: int = 600) -> None:
+    """Poll https://api.anthropic.com until reachable or max_wait seconds elapsed."""
+    import httpx  # noqa: PLC0415
+    waited, notified, delay = 0, False, 10
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                await c.get("https://api.anthropic.com")
+            return  # reachable
+        except Exception:
+            pass
+        waited += delay
+        if waited >= max_wait:
+            log.warning("Network unreachable for %ds, proceeding anyway", max_wait)
+            return
+        if not notified and waited >= 60 and notifier:
+            try:
+                await notifier.network_down(waited)
+            except Exception:
+                pass
+            notified = True
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, 60)
+
+
 async def _run_wave(
     wave: int,
     segments: list[Segment],
     config: OrchestrateConfig,
     state: StateDB,
+    notifier,
     log_dir: Path,
     shutting_down: asyncio.Event,
 ) -> list[tuple[int, str]]:
@@ -140,7 +166,11 @@ async def _run_wave(
             status = "failed"
             while attempts <= config.max_retries:
                 attempts = await state.increment_attempts(seg.num)
-                status, _ = await run_segment(seg, config, state, log_dir)
+                status, _ = await run_segment(
+                    seg, config, state, log_dir,
+                    notifier=notifier,
+                    attempt_num=attempts,
+                )
                 if status in ("pass", "timeout"):
                     break
                 if attempts > config.max_retries:
@@ -298,8 +328,10 @@ async def _orchestrate_inner(
                   f"{', '.join(f'S{s.num:02d}' for s in pending)}")
             print(f"{'━'*50}")
 
+            await _wait_for_network(notifier, config.network_retry_max)
+
             results = await _run_wave(
-                wave_num, pending, config, state, log_dir, shutting_down
+                wave_num, pending, config, state, notifier, log_dir, shutting_down
             )
 
             # Batched wave completion notification
@@ -373,6 +405,22 @@ async def _cmd_status_async(plan_dir: Path) -> None:
         icon = {"PASS": "✅", "RUNNING": "🔄", "PENDING": "⏳", "FAILED": "❌",
                 "BLOCKED": "🚫", "PARTIAL": "⚠️", "TIMEOUT": "⏰"}.get(status, "❓")
         print(f"  {icon} S{seg['num']:02d} [{status:8s}] {seg['title']}")
+        if seg.get("last_seen_at") and seg["status"] == "running":
+            age = int(time.time() - seg["last_seen_at"])
+            act = (seg.get("last_activity") or "")[:60]
+            print(f"    └─ last seen {age}s ago: {act}")
+        for att in seg.get("attempts_history", []):
+            dur = (
+                f"{int(att['finished_at'] - att['started_at'])}s"
+                if att.get("finished_at") and att.get("started_at")
+                else "--"
+            )
+            tok = (
+                f"{att['tokens_in'] + att['tokens_out']:,} tok"
+                if att.get("tokens_in")
+                else ""
+            )
+            print(f"    attempt {att['attempt']}: {att['status']} ({dur}) {tok}")
     print()
 
     if data["events"]:

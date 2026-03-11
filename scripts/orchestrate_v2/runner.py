@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .streamparse import _extract_text_from_stream_line
+
 if TYPE_CHECKING:
     from .config import OrchestrateConfig
     from .planner import Segment
@@ -148,11 +150,86 @@ def _extract_summary(log_text: str, max_len: int = 300) -> str:
     return log_text[-200:].strip() if log_text else "(no output)"
 
 
+async def _segment_heartbeat_task(
+    seg_num: int,
+    raw_log: Path,
+    state: "StateDB",
+    notifier,
+    started_at: float,
+    heartbeat_interval: int = 60,
+    stall_threshold: int = 1800,
+) -> None:
+    """Write last_seen_at/last_activity every heartbeat_interval seconds.
+
+    Detects stalls (file size unchanged past stall_threshold) and enqueues a
+    notification. All errors are swallowed so the heartbeat never kills the run.
+    """
+    last_size, stall_notified = 0, False
+    while True:
+        await asyncio.sleep(heartbeat_interval)
+        activity, current_size = "", 0
+        try:
+            if raw_log.exists():
+                raw = raw_log.read_bytes()
+                current_size = len(raw)
+                # Discard potentially incomplete last line with [:-1]
+                tail = raw[-2048:].decode("utf-8", errors="replace")
+                for line in reversed(tail.splitlines()[:-1]):
+                    text = _extract_text_from_stream_line(line)
+                    if text and text.strip():
+                        activity = text.strip()[:500]
+                        break
+        except Exception:
+            pass
+        try:
+            await state.update_heartbeat(seg_num, time.time(), activity)
+        except Exception:
+            pass
+        elapsed = time.time() - started_at
+        if elapsed > stall_threshold and current_size == last_size:
+            if not stall_notified and notifier:
+                try:
+                    await notifier.stall(seg_num, stall_threshold // 60, activity)
+                except Exception:
+                    pass
+                stall_notified = True
+        else:
+            stall_notified = False
+        last_size = current_size
+
+
+def _extract_token_usage(raw_path: Path) -> tuple[int, int]:
+    """Parse token counts from the stream-json result event.
+
+    Returns (input_tokens, output_tokens), or (0, 0) on any failure.
+    """
+    try:
+        with open(raw_path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if obj.get("type") == "result":
+                    u = obj.get("usage", {})
+                    return u.get("input_tokens", 0), u.get("output_tokens", 0)
+    except Exception:
+        pass
+    return 0, 0
+
+
 async def run_segment(
     seg: "Segment",
-    config: OrchestrateConfig,
+    config: "OrchestrateConfig",
     state: "StateDB",
     log_dir: Path,
+    notifier=None,
+    attempt_num: int = 1,
+    register_pid=None,
+    unregister_pid=None,
 ) -> tuple[str, str]:
     """Execute a single segment via claude CLI.
 
@@ -169,10 +246,17 @@ async def run_segment(
     raw_log.write_text("", encoding="utf-8")
     human_log.write_text("(running…)\n", encoding="utf-8")
 
-    await state.set_status(seg.num, "running", started_at=time.time())
+    started_at = time.time()
+    await state.set_status(seg.num, "running", started_at=started_at)
     await state.log_event("segment_start", f"S{seg.num:02d} {seg.title}")
 
     log.info("S%02d starting: %s", seg.num, seg.title)
+
+    # Per-segment timeout: frontmatter `timeout` field overrides global default.
+    segment_timeout = getattr(seg, "timeout", 0) or config.segment_timeout
+    stall_threshold = getattr(config, "stall_threshold", 1800)
+
+    heartbeat: asyncio.Task | None = None
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -188,6 +272,16 @@ async def run_segment(
             start_new_session=True,
         )
 
+        if register_pid and proc.pid:
+            register_pid(seg.num, proc.pid)
+
+        heartbeat = asyncio.create_task(
+            _segment_heartbeat_task(
+                seg.num, raw_log, state, notifier, started_at,
+                stall_threshold=stall_threshold,
+            )
+        )
+
         async def _drain_stdout():
             with open(raw_log, "w", encoding="utf-8") as f:
                 while True:
@@ -198,22 +292,46 @@ async def run_segment(
                     f.flush()
 
         try:
-            await asyncio.wait_for(_drain_stdout(), timeout=config.segment_timeout)
+            await asyncio.wait_for(_drain_stdout(), timeout=segment_timeout)
         except asyncio.TimeoutError:
-            log.warning("S%02d timed out after %ds", seg.num, config.segment_timeout)
+            log.warning("S%02d timed out after %ds", seg.num, segment_timeout)
             if proc.pid:
                 await _kill_tree(proc.pid)
-            await state.set_status(seg.num, "timeout", finished_at=time.time())
-            await state.log_event("segment_timeout", f"S{seg.num:02d} killed after {config.segment_timeout}s")
-            return "timeout", f"Killed after {config.segment_timeout}s"
+            finished_at = time.time()
+            await state.set_status(seg.num, "timeout", finished_at=finished_at)
+            await state.log_event(
+                "segment_timeout", f"S{seg.num:02d} killed after {segment_timeout}s"
+            )
+            tokens_in, tokens_out = _extract_token_usage(raw_log)
+            await state.record_attempt(
+                seg.num, attempt_num, started_at, finished_at,
+                "timeout", f"Killed after {segment_timeout}s",
+                tokens_in, tokens_out,
+            )
+            return "timeout", f"Killed after {segment_timeout}s"
 
         await proc.wait()
 
     except Exception as exc:
         log.exception("S%02d process error", seg.num)
-        await state.set_status(seg.num, "failed", finished_at=time.time())
+        finished_at = time.time()
+        await state.set_status(seg.num, "failed", finished_at=finished_at)
         await state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
+        await state.record_attempt(
+            seg.num, attempt_num, started_at, finished_at,
+            "failed", str(exc), 0, 0,
+        )
         return "failed", str(exc)
+
+    finally:
+        if unregister_pid:
+            unregister_pid(seg.num)
+        if heartbeat is not None:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
 
     # Parse the stream output
     full_text, _result = _parse_stream_jsonl(raw_log)
@@ -221,15 +339,22 @@ async def run_segment(
 
     status = _extract_status(full_text)
     summary = _extract_summary(full_text)
+    finished_at = time.time()
 
     await state.set_status(
         seg.num, status,
-        finished_at=time.time(),
+        finished_at=finished_at,
         result_json=json.dumps({"status": status, "summary": summary}),
     )
     await state.log_event(
         "segment_complete",
         f"S{seg.num:02d} {status.upper()}: {summary[:200]}",
+    )
+
+    tokens_in, tokens_out = _extract_token_usage(raw_log)
+    await state.record_attempt(
+        seg.num, attempt_num, started_at, finished_at,
+        status, summary, tokens_in, tokens_out,
     )
 
     log.info("S%02d finished: %s", seg.num, status.upper())

@@ -85,6 +85,9 @@ class SegmentRow:
     last_activity: str | None = None
     per_segment_timeout: int | None = None
 
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         if self.result_json:
