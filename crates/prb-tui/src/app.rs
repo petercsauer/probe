@@ -16,9 +16,11 @@ use ratatui::Terminal;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
+use crate::config::Config;
+use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{PluginManagerOverlay, PluginType};
+use crate::overlays::{CommandPaletteOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -91,6 +93,8 @@ pub struct App {
     input_mode: InputMode,
     filter_input: Input,
     filter_error: Option<String>,
+    filter_state: FilterState,
+    quick_filter_prefix: bool,
 
     event_list: EventListPane,
     decode_tree: DecodeTreePane,
@@ -108,6 +112,11 @@ pub struct App {
     // Go-to-event input
     goto_input: Input,
 
+
+    // Command palette and overlays
+    command_palette: CommandPaletteOverlay,
+    which_key_overlay: Option<WhichKeyOverlay>,
+    help_scroll_offset: usize,
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -149,6 +158,8 @@ impl App {
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
+            filter_state: FilterState::new(),
+            quick_filter_prefix: false,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
@@ -160,6 +171,9 @@ impl App {
             horizontal_split: 40,
             pane_rects: HashMap::new(),
             goto_input: Input::default(),
+            command_palette: CommandPaletteOverlay::new(),
+            which_key_overlay: None,
+            help_scroll_offset: 0,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -203,7 +217,6 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
-            drag_state: DragState::None,
             goto_input: Input::default(),
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
@@ -214,7 +227,6 @@ impl App {
             auto_follow: true,
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
-            status_message: None,
         }
     }
 
@@ -277,7 +289,7 @@ impl App {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let result = self.event_loop(&mut terminal);
+        let result = self.live_event_loop(&mut terminal);
 
         terminal::disable_raw_mode()?;
         execute!(
@@ -298,7 +310,7 @@ impl App {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let result = self.event_loop(&mut terminal);
+        let result = self.live_event_loop(&mut terminal);
 
         terminal::disable_raw_mode()?;
         execute!(
@@ -335,8 +347,7 @@ impl App {
     }
 
     /// Live capture event loop with batched event processing.
-    #[allow(dead_code)]
-    fn live_event_loop(
+        fn live_event_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<()> {
@@ -411,8 +422,7 @@ impl App {
     }
 
     /// Push a new event into the ring buffer and update the event store.
-    #[allow(dead_code)]
-    fn push_live_event(&mut self, event: DebugEvent) {
+        fn push_live_event(&mut self, event: DebugEvent) {
         if let Some(ref mut ring_buffer) = self.ring_buffer {
             ring_buffer.push(event.clone());
             // Sync EventStore with ring buffer contents
@@ -426,8 +436,7 @@ impl App {
     }
 
     /// Recompute filtered indices after new events arrive.
-    #[allow(dead_code)]
-    fn recompute_filter(&mut self) {
+        fn recompute_filter(&mut self) {
         if let Some(ref filter) = self.state.filter {
             self.state.filtered_indices = self.state.store.filter_indices(filter);
         } else {
@@ -436,8 +445,7 @@ impl App {
     }
 
     /// Scroll to the bottom of the event list.
-    #[allow(dead_code)]
-    fn scroll_to_bottom(&mut self) {
+        fn scroll_to_bottom(&mut self) {
         let max_index = self.state.filtered_indices.len().saturating_sub(1);
         self.event_list.selected = max_index;
         self.state.selected_event = if self.state.filtered_indices.is_empty() {
@@ -449,8 +457,7 @@ impl App {
     }
 
     /// Handle keyboard input in live capture mode.
-    #[allow(dead_code)]
-    fn handle_live_key(&mut self, key: KeyEvent) -> bool {
+        fn handle_live_key(&mut self, key: KeyEvent) -> bool {
         // Live mode specific keys (only in Normal mode)
         if self.input_mode == InputMode::Normal {
             match key.code {
@@ -598,9 +605,29 @@ impl App {
                 return self.handle_filter_key(key);
             }
             InputMode::GoToEvent => {
-                // Stub for GoToEvent handling
                 match key.code {
+                    KeyCode::Enter => {
+                        // Parse event ID and jump to it
+                        let text = self.goto_input.value();
+                        if let Ok(event_id) = text.trim().parse::<usize>() {
+                            // Find the event in filtered indices
+                            if let Some(pos) = self.state.filtered_indices
+                                .iter()
+                                .position(|&idx| self.state.store.get(idx).map_or(false, |e| e.id.as_u64() == event_id as u64))
+                            {
+                                self.event_list.selected = pos;
+                                self.process_action(Action::SelectEvent(pos));
+                            }
+                        }
+                        self.input_mode = InputMode::Normal;
+                    }
                     KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
                         self.input_mode = InputMode::Normal;
                     }
                     _ => {
@@ -614,13 +641,6 @@ impl App {
                 self.input_mode = InputMode::Normal;
                 return false;
             }
-            InputMode::WhichKey => {
-                // Esc dismisses which-key
-                if key.code == KeyCode::Esc {
-                    self.input_mode = InputMode::Normal;
-                }
-                return false;
-            }
             InputMode::CommandPalette => {
                 // Esc dismisses command palette
                 if key.code == KeyCode::Esc {
@@ -632,6 +652,13 @@ impl App {
                 return self.handle_plugin_manager_key(key);
             }
             InputMode::Normal => {}
+            InputMode::WhichKey => {
+                // Esc dismisses which-key overlay
+                if key.code == KeyCode::Esc {
+                    self.input_mode = InputMode::Normal;
+                }
+                return false;
+            }
         }
 
         // Global keys
@@ -663,6 +690,12 @@ impl App {
                 return false;
             }
             KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
                 if self.state.filter.is_some() {
                     self.state.filter = None;
                     self.state.filter_text.clear();
@@ -679,11 +712,57 @@ impl App {
             }
             KeyCode::Char('T') => {
                 self.theme = match self.theme.name.as_str() {
-                    "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
                     "Catppuccin Mocha" => ThemeConfig::dracula(),
                     _ => ThemeConfig::dark(),
                 };
+                return false;
+            }
+            _ => {}
+            KeyCode::Char('z') => {
+                // Toggle zoom on focused pane
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                } else {
+                    self.zoomed_pane = Some(self.focus);
+                }
+                return false;
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                // Increase split percentage for focused pane's dimension
+                match self.focus {
+                    PaneId::EventList => {
+                        self.vertical_split = (self.vertical_split + 5).min(80);
+                    }
+                    PaneId::DecodeTree => {
+                        self.horizontal_split = (self.horizontal_split + 5).min(80);
+                    }
+                    PaneId::HexDump => {
+                        self.horizontal_split = self.horizontal_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::Timeline => {}
+                }
+                return false;
+            }
+            KeyCode::Char('-') | KeyCode::Char('_') => {
+                // Decrease split percentage for focused pane's dimension
+                match self.focus {
+                    PaneId::EventList => {
+                        self.vertical_split = self.vertical_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::DecodeTree => {
+                        self.horizontal_split = self.horizontal_split.saturating_sub(5).max(20);
+                    }
+                    PaneId::HexDump => {
+                        self.horizontal_split = (self.horizontal_split + 5).min(80);
+                    }
+                    PaneId::Timeline => {}
+                }
+                return false;
+            }
+            KeyCode::Char('#') => {
+                self.input_mode = InputMode::GoToEvent;
+                self.goto_input = Input::default();
                 return false;
             }
             _ => {}
@@ -735,6 +814,12 @@ impl App {
                 false
             }
             KeyCode::Esc => {
+                // Clear zoom first if active
+                if self.zoomed_pane.is_some() {
+                    self.zoomed_pane = None;
+                    return false;
+                }
+                // Then clear filter if active
                 self.input_mode = InputMode::Normal;
                 self.filter_error = None;
                 false
@@ -1053,6 +1138,79 @@ impl App {
         self.live_source.is_some()
     }
 
+    /// Syntax highlight filter expression for display.
+    fn highlight_filter_syntax(text: &str, theme: &ThemeConfig) -> Vec<Span<'static>> {
+        use ratatui::style::Color;
+        
+        let mut spans = Vec::new();
+        let mut chars: Vec<char> = text.chars().collect();
+        let mut i = 0;
+        
+        while i < chars.len() {
+            // Skip whitespace
+            if chars[i].is_whitespace() {
+                let start = i;
+                while i < chars.len() && chars[i].is_whitespace() {
+                    i += 1;
+                }
+                spans.push(Span::raw(chars[start..i].iter().collect::<String>()));
+                continue;
+            }
+            
+            // String literals
+            if chars[i] == '"' {
+                let start = i;
+                i += 1;
+                while i < chars.len() && chars[i] != '"' {
+                    if chars[i] == '\\' && i + 1 < chars.len() {
+                        i += 2; // Skip escaped character
+                    } else {
+                        i += 1;
+                    }
+                }
+                if i < chars.len() {
+                    i += 1; // Include closing quote
+                }
+                let text: String = chars[start..i].iter().collect();
+                spans.push(Span::styled(text, Style::default().fg(Color::Green)));
+                continue;
+            }
+            
+            // Numbers
+            if chars[i].is_ascii_digit() {
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                    i += 1;
+                }
+                let text: String = chars[start..i].iter().collect();
+                spans.push(Span::styled(text, Style::default().fg(Color::Magenta)));
+                continue;
+            }
+            
+            // Operators and keywords
+            let start = i;
+            while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '"' {
+                i += 1;
+            }
+            let text: String = chars[start..i].iter().collect();
+            
+            // Check if it's an operator
+            if matches!(text.as_str(), "==" | "!=" | "contains" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "and" | "or") {
+                spans.push(Span::styled(text, Style::default().fg(Color::Yellow)));
+            }
+            // Check if it's a field name
+            else if matches!(text.as_str(), "transport" | "source" | "dest" | "origin" | "direction" | "payload" | "metadata" | "conversation") {
+                spans.push(Span::styled(text, Style::default().fg(Color::Cyan)));
+            }
+            // Default
+            else {
+                spans.push(Span::raw(text));
+            }
+        }
+        
+        spans
+    }
+
     fn render_filter_bar_static(
         area: Rect,
         buf: &mut Buffer,
@@ -1060,6 +1218,7 @@ impl App {
         filter_input: &Input,
         filter_error: &Option<String>,
         state: &AppState,
+        theme: &ThemeConfig,
     ) {
         let is_filtering = input_mode == InputMode::Filter;
 
@@ -1082,7 +1241,12 @@ impl App {
                 ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
             ));
         } else {
-            spans.push(Span::styled(filter_display, Theme::filter_bar()));
+            // Syntax highlight the filter text
+            if is_filtering {
+                spans.extend(Self::highlight_filter_syntax(&filter_display, theme));
+            } else {
+                spans.push(Span::styled(filter_display, Theme::filter_bar()));
+            }
         }
 
         if let Some(err) = filter_error {
@@ -1131,6 +1295,12 @@ let mut spans = vec![Span::styled(
 spans.push(Span::styled(
                 format!(" ({} shown)", filtered),
                 Theme::status_bar(),
+            ));
+
+            // Add filtered indicator with Esc hint
+            spans.push(Span::styled(
+                " [filtered - Esc to clear]",
+                Style::default().fg(ratatui::style::Color::Yellow),
             ));
         }
 
