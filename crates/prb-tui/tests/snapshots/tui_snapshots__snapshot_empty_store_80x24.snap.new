@@ -1,0 +1,29 @@
+---
+source: crates/prb-tui/tests/tui_snapshots.rs
+assertion_line: 80
+expression: backend
+---
+" / type / to filter                                                             "
+"╭ Events [*] ──────────────────────────────────────────────────────────────────╮"
+"│#     Time^        Origin              Protocol   Dir Summary                 │"
+"│                                                                              │"
+"│         ┌ Welcome to prb ──────────────────────────────────────────┐         │"
+"│         │                                                          │         │"
+"│         │Universal Message Debugger                                │         │"
+"│         │                                                          │         │"
+"│         │Usage: prb tui <file>                                     │         │"
+"╰─────────│                                                          │─────────╯"
+"┌ Decode ─│Supported formats:                                        │─────────┐"
+"│  Select │  • JSON fixtures (.json)                                 │         │"
+"│         │  • Packet captures (.pcap, .pcapng)                      │         │"
+"│         │  • MCAP recordings (.mcap)                               │         │"
+"│         │                                                          │         │"
+"│         │Try demo mode: prb tui --demo                             │         │"
+"│         │                                                          │         │"
+"└─────────│Press any key to continue                                 │─────────┘"
+"┌ Timeline│                                                          │─────────┐"
+"│  Load a └──────────────────────────────────────────────────────────┘         │"
+"│                                                                              │"
+"│                                                                              │"
+"└──────────────────────────────────────────────────────────────────────────────┘"
+" 0 events │                 Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit "
