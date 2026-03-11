@@ -97,7 +97,6 @@ pub struct AppState {
     pub filter_text: String,
     pub schema_registry: Option<SchemaRegistry>,
     pub conversations: Option<prb_core::engine::ConversationSet>,
-    pub visible_columns: Vec<String>,
 }
 
 pub struct App {
@@ -115,9 +114,7 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
-    #[allow(dead_code)]
     ai_panel: AiPanel,
-    #[allow(dead_code)]
     ai_panel_visible: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
@@ -141,7 +138,6 @@ pub struct App {
     #[allow(dead_code)]
     help_scroll_offset: usize,
     export_dialog: Option<ExportDialogOverlay>,
-    #[allow(dead_code)]
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
     // Live capture mode
@@ -159,17 +155,16 @@ pub struct App {
 impl App {
     pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
         let config = Config::load();
-        let visible_columns = config.tui.columns.visible.clone();
 
         let mut state = AppState {
-            filtered_indices: store.all_indices(),
-            selected_event: if store.is_empty() { None } else { Some(0) },
+            store,
+            filtered_indices: state.store.all_indices(),
+            selected_event: if state.store.is_empty() { None } else { Some(0) },
             filter: None,
             filter_text: String::new(),
             schema_registry,
             conversations: None,
-            visible_columns,
-            store,
+            visible_columns: config.tui.columns.visible.clone(),
         };
 
         if let Some(ref filter_str) = initial_filter
@@ -184,7 +179,6 @@ impl App {
                 };
             }
 
-        let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
         let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
@@ -235,9 +229,6 @@ impl App {
         ring_buffer_capacity: usize,
         schema_registry: Option<SchemaRegistry>,
     ) -> Self {
-        let config = Config::load();
-        let visible_columns = config.tui.columns.visible.clone();
-
         let state = AppState {
             filtered_indices: Vec::new(),
             selected_event: None,
@@ -245,7 +236,7 @@ impl App {
             filter_text: String::new(),
             schema_registry,
             conversations: None,
-            visible_columns,
+            visible_columns: config.tui.columns.visible.clone(),
             store,
         };
 
@@ -1888,7 +1879,6 @@ impl App {
         spans
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn render_filter_bar_static(
         area: Rect,
         buf: &mut Buffer,
@@ -1930,14 +1920,13 @@ impl App {
 
         if let Some(err) = filter_error {
             spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
-        } else if is_filtering {
+        } else if is_filtering && filter_state.preview_count.is_some() {
             // Show preview count during typing (yellow for preview)
-            if let Some(preview_count) = filter_state.preview_count {
-                spans.push(Span::styled(
-                    format!("  [{}/{}]", preview_count, total),
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                ));
-            }
+            let preview_count = filter_state.preview_count.unwrap();
+            spans.push(Span::styled(
+                format!("  [{}/{}]", preview_count, total),
+                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+            ));
         } else if state.filter.is_some() {
             spans.push(Span::styled(
                 format!("  [{}/{}]", match_count, total),

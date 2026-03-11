@@ -1,0 +1,16 @@
+@@ -156,10 +156,13 @@
+     pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
+         let config = Config::load();
+ 
++        let filtered_indices = store.all_indices();
++        let selected_event = if store.is_empty() { None } else { Some(0) };
++
+         let mut state = AppState {
+             store,
+-            filtered_indices: store.all_indices(),
+-            selected_event: if store.is_empty() { None } else { Some(0) },
++            filtered_indices,
++            selected_event,
+             filter: None,
+             filter_text: String::new(),
+             schema_registry,

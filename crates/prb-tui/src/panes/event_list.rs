@@ -570,6 +570,7 @@ mod tests {
             store,
             schema_registry: None,
             conversations: None,
+            visible_columns: Vec::new(),
         }
     }
 
@@ -930,6 +931,7 @@ mod tests {
             store,
             schema_registry: None,
             conversations: None,
+            visible_columns: Vec::new(),
         };
 
         let mut pane = EventListPane::new();
