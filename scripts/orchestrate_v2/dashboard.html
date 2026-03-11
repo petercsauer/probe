@@ -23,10 +23,52 @@
   .progress-bar { margin: 10px 0 0; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pass), #2ea043); border-radius: 3px; transition: width 0.5s ease; }
 
-  .layout { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 1fr auto; height: calc(100vh - 90px); }
+  /* ── Desktop layout (≥641px) ── */
+  @media (min-width: 641px) {
+    .layout { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 1fr auto; height: calc(100vh - 90px); }
+    .tab-bar { display: none !important; }
+  }
+
+  /* ── Mobile layout (<640px) ── */
+  @media (max-width: 640px) {
+    .layout { display: block; height: calc(100vh - 100px - 52px); padding-bottom: 52px; }
+    .timeline { display: none; height: 100%; overflow-y: auto; }
+    .log-panel { display: none; height: 100%; }
+    .events { display: none; max-height: calc(100vh - 100px - 52px); }
+    .timeline.tab-active { display: block; }
+    .log-panel.tab-active { display: flex; }
+    .events.tab-active { display: flex; flex-direction: column; }
+    .seg-row { min-height: 48px; padding: 10px 16px; }
+    .tab-bar { display: flex; }
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
+    background: var(--surface); border-top: 1px solid var(--border);
+    z-index: 100;
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none; color: var(--text-dim);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .tab-btn.active { color: var(--running); }
 
   /* ── Wave Timeline (left panel) ── */
   .timeline { overflow-y: auto; border-right: 1px solid var(--border); padding: 16px 0; }
+
+  /* ── Timeline toolbar (status filter) ── */
+  .timeline-toolbar {
+    padding: 6px 12px 10px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .timeline-toolbar label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .timeline-toolbar select {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+  }
+
   .wave-group { margin-bottom: 4px; }
   .wave-header {
     display: flex; align-items: center; gap: 8px; padding: 6px 20px;
@@ -45,6 +87,7 @@
   .seg-row.active { background: rgba(88,166,255,0.1); border-left: 3px solid #58a6ff; padding-left: 17px; }
   .seg-num { font-weight: 700; font-size: 12px; width: 36px; flex-shrink: 0; font-family: 'SF Mono', monospace; }
   .seg-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); }
+  .seg-elapsed { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', monospace; flex-shrink: 0; }
   .seg-status {
     font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
     text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0;
@@ -111,20 +154,61 @@
     font-size: 13px; font-weight: 600; flex-shrink: 0;
   }
   .log-header .live-badge { color: var(--running); font-size: 11px; font-weight: 700; }
+
+  /* ── Log toolbar ── */
+  .log-toolbar {
+    padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .log-toolbar input {
+    flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 10px; font-size: 12px; font-family: 'SF Mono', monospace;
+    outline: none;
+  }
+  .log-toolbar input:focus { border-color: var(--running); }
+  .search-count { font-size: 11px; color: var(--text-muted); flex-shrink: 0; min-width: 24px; text-align: right; }
+
   .log-content {
     flex: 1; overflow-y: auto; padding: 12px 20px; font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace;
-    font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--text-dim);
+    font-size: 12px; line-height: 1.6; word-break: break-word; color: var(--text-dim);
   }
+
+  /* ── Log line classification ── */
+  .log-line { white-space: pre-wrap; }
+  .log-error { color: var(--fail); }
+  .log-warn  { color: var(--partial); }
+  .log-pass  { color: var(--pass); }
+  .log-tool  { color: var(--text-muted); font-style: italic; }
+  .log-result{ color: var(--text-muted); }
+  .log-line.highlight { background: rgba(210, 153, 34, 0.15); }
 
   /* ── Event Feed (bottom full width) ── */
   .events {
     grid-column: 1 / -1; background: var(--surface); border-top: 1px solid var(--border);
-    padding: 8px 24px; max-height: 130px; overflow-y: auto;
+    padding: 8px 24px; max-height: 160px; overflow-y: auto;
   }
+  .events-inner { display: flex; gap: 24px; }
+  .events-col { flex: 1; min-width: 0; }
   .events h3 { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
   .event-line { font-size: 12px; color: var(--text-dim); padding: 1px 0; font-family: 'SF Mono', monospace; }
   .event-line .ts { color: var(--text); margin-right: 8px; }
   .event-line .kind { color: var(--running); font-weight: 600; }
+
+  /* Event severity colors */
+  .ev-error { color: var(--fail); }
+  .ev-warn  { color: var(--partial); }
+
+  /* Notification feed */
+  .notif-line { font-size: 12px; color: var(--text-dim); padding: 1px 0; font-family: 'SF Mono', monospace; }
+  .notif-line .ts { color: var(--text-muted); margin-right: 6px; }
+  .notif-line .kind { color: var(--partial); font-weight: 600; margin-right: 4px; }
+
+  /* Keyboard shortcut hint */
+  .kbd-hint { font-size: 11px; color: var(--text-muted); padding: 4px 20px 0; }
+  .kbd-hint kbd {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+    padding: 1px 5px; font-size: 10px; font-family: 'SF Mono', monospace;
+  }
 </style>
 </head>
 <body>
@@ -135,23 +219,65 @@
     <span id="wave-info">Wave -/-</span>
     <span id="progress-text">0/0 segments</span>
     <span id="elapsed">Elapsed: --</span>
+    <span id="eta-text" style="color: var(--partial);"></span>
   </div>
   <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 </div>
 
 <div class="layout">
-  <div class="timeline" id="timeline"></div>
+  <div class="timeline" id="timeline">
+    <div class="timeline-toolbar">
+      <label for="status-filter">Filter:</label>
+      <select id="status-filter" onchange="applyStatusFilter()">
+        <option value="all">All</option>
+        <option value="running">Running</option>
+        <option value="fail">Failed/Blocked</option>
+        <option value="pending">Pending</option>
+        <option value="pass">Passed</option>
+      </select>
+    </div>
+    <div id="timeline-content"></div>
+    <div class="kbd-hint">
+      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log &nbsp; <kbd>f</kbd> filter &nbsp; <kbd>/</kbd> search
+    </div>
+  </div>
+
   <div class="log-panel">
     <div class="log-header">
       <span>LOG: <span id="log-seg-label">select a segment</span></span>
       <span class="live-badge" id="live-badge"></span>
     </div>
+    <div class="log-toolbar">
+      <input id="log-search" type="text" placeholder="/ search..." autocomplete="off" spellcheck="false">
+      <span id="search-count" class="search-count"></span>
+    </div>
     <div class="log-content" id="log-content"></div>
   </div>
+
   <div class="events">
-    <h3>Event Feed</h3>
-    <div id="event-feed"></div>
+    <div class="events-inner">
+      <div class="events-col">
+        <h3>Event Feed</h3>
+        <div id="event-feed"></div>
+      </div>
+      <div class="events-col" id="notif-col">
+        <h3>Notifications</h3>
+        <div id="notif-feed"></div>
+      </div>
+    </div>
   </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="timeline" onclick="switchTab('timeline')">
+    <span>☰</span><span>Timeline</span>
+  </button>
+  <button class="tab-btn" data-tab="log" onclick="switchTab('log')">
+    <span>📄</span><span>Log</span>
+  </button>
+  <button class="tab-btn" data-tab="events" onclick="switchTab('events')">
+    <span>📡</span><span>Events</span>
+  </button>
 </div>
 
 <script>
@@ -161,6 +287,11 @@
   let eventSource = null;
   let startedAt = null;
   let lastSegments = null;
+  let activeSegList = [];
+
+  // Restore from localStorage
+  const savedSeg = parseInt(localStorage.getItem('orchestrate_activeSeg'));
+  if (savedSeg) activeSeg = savedSeg;
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -186,11 +317,139 @@
         return ev.detail.includes('PASS') ? 'pass' : 'fail';
       }
     }
-    // If the wave is done and we're past it, the gate must be running
     if (waveIsDone && parseInt(currentWave) >= waveNum) return 'running';
     return 'pending';
   }
 
+  function computeEta(segments, maxParallel) {
+    const done = segments.filter(s => s.finished_at && s.started_at);
+    if (done.length < 2) return '';
+    const avg = done.reduce((s, seg) => s + (seg.finished_at - seg.started_at), 0) / done.length;
+    const pending = segments.filter(s => ['pending','running'].includes(s.status)).length;
+    const etaSec = avg * pending / Math.max(maxParallel || 1, 1);
+    return etaSec > 30 ? `ETA: ~${formatElapsed(etaSec)}` : '';
+  }
+
+  // ── Log line classification ──
+  function classifyLogLine(text) {
+    if (/\b(error|ERROR|BLOCKED|blocked)\b/.test(text)) return 'log-error';
+    if (/\b(warn|WARN|⚠️|stall)\b/i.test(text)) return 'log-warn';
+    if (/\b(PASS|✅|success|SUCCESS)\b/.test(text)) return 'log-pass';
+    if (/^→ /.test(text)) return 'log-tool';
+    if (/^  ← /.test(text)) return 'log-result';
+    return '';
+  }
+
+  function appendLogLine(logEl, text) {
+    const div = document.createElement('div');
+    div.className = 'log-line ' + classifyLogLine(text);
+    div.textContent = text;
+    logEl.appendChild(div);
+    const term = document.getElementById('log-search').value.toLowerCase();
+    if (term && !text.toLowerCase().includes(term)) div.style.display = 'none';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ── Tab switching ──
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelector('.timeline').classList.toggle('tab-active', tab === 'timeline');
+    document.querySelector('.log-panel').classList.toggle('tab-active', tab === 'log');
+    document.querySelector('.events').classList.toggle('tab-active', tab === 'events');
+  }
+
+  // ── Status filter ──
+  function applyStatusFilter() {
+    const val = document.getElementById('status-filter').value;
+    document.querySelectorAll('.seg-row[data-status]').forEach(row => {
+      const st = row.dataset.status;
+      let vis = true;
+      if (val === 'running') vis = st === 'running';
+      else if (val === 'fail') vis = st === 'failed' || st === 'blocked';
+      else if (val === 'pending') vis = st === 'pending';
+      else if (val === 'pass') vis = st === 'pass' || st === 'partial';
+      row.style.display = vis ? '' : 'none';
+    });
+  }
+
+  function cycleStatusFilter() {
+    const sel = document.getElementById('status-filter');
+    const opts = Array.from(sel.options).map(o => o.value);
+    const idx = opts.indexOf(sel.value);
+    sel.value = opts[(idx + 1) % opts.length];
+    applyStatusFilter();
+  }
+
+  // ── Segment navigation ──
+  function selectNext() {
+    const idx = activeSegList.indexOf(activeSeg);
+    if (activeSegList.length === 0) return;
+    const next = activeSegList[idx < 0 ? 0 : Math.min(idx + 1, activeSegList.length - 1)];
+    const seg = lastSegments && lastSegments.find(s => s.num === next);
+    if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+  }
+
+  function selectPrev() {
+    const idx = activeSegList.indexOf(activeSeg);
+    if (activeSegList.length === 0) return;
+    const prev = activeSegList[idx <= 0 ? 0 : idx - 1];
+    const seg = lastSegments && lastSegments.find(s => s.num === prev);
+    if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+  }
+
+  // ── Keyboard shortcuts ──
+  document.addEventListener('keydown', function(e) {
+    if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+      if (e.key === 'Escape') {
+        document.getElementById('log-search').value = '';
+        document.getElementById('log-search').dispatchEvent(new Event('input'));
+        e.target.blur();
+      }
+      return;
+    }
+    if (e.key === 'j') { e.preventDefault(); selectNext(); }
+    if (e.key === 'k') { e.preventDefault(); selectPrev(); }
+    if (e.key === 'Enter' && activeSeg != null) {
+      const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
+      if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+    }
+    if (e.key === '/') { e.preventDefault(); document.getElementById('log-search').focus(); }
+    if (e.key === 'Escape') {
+      document.getElementById('log-search').value = '';
+      document.getElementById('log-search').dispatchEvent(new Event('input'));
+    }
+    if (e.key === 'f') cycleStatusFilter();
+  });
+
+  // ── Log search ──
+  document.getElementById('log-search').addEventListener('input', function() {
+    const term = this.value.toLowerCase();
+    const lines = document.querySelectorAll('.log-line');
+    let matches = 0;
+    lines.forEach(l => {
+      const vis = !term || l.textContent.toLowerCase().includes(term);
+      l.style.display = vis ? '' : 'none';
+      l.classList.toggle('highlight', vis && !!term);
+      if (vis && term) matches++;
+    });
+    document.getElementById('search-count').textContent = term ? `${matches}` : '';
+  });
+
+  // ── Notifications ──
+  function renderNotifications(notifs) {
+    const el = document.getElementById('notif-feed');
+    if (!el || !notifs || !notifs.length) return;
+    let html = '';
+    notifs.forEach(n => {
+      const icon = n.sent_at ? '✅' : (n.attempts >= 3 ? '❌' : '⏳');
+      const ts = n.sent_at ? formatTs(n.sent_at) : `${n.attempts} att.`;
+      const preview = (n.message || '').split('\n')[0].slice(0, 60);
+      html += `<div class="notif-line">${icon} <span class="ts">${ts}</span><span class="kind">${n.kind}</span> ${preview}</div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  // ── State refresh ──
   function refreshState() {
     fetch('/api/state')
       .then(r => r.json())
@@ -199,23 +458,38 @@
         document.getElementById('wave-info').textContent = `Wave ${data.current_wave}/${data.max_wave}`;
 
         const total = data.segments.length;
-        const done = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
-        const running = data.segments.filter(s => s.status === 'running').length;
-        document.getElementById('progress-text').textContent = `${done}/${total} done` + (running ? ` · ${running} running` : '');
-        document.getElementById('progress-fill').style.width = total ? `${(done/total*100).toFixed(1)}%` : '0%';
+        const doneCount = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
+        const runningCount = data.segments.filter(s => s.status === 'running').length;
+        document.getElementById('progress-text').textContent = `${doneCount}/${total} done` + (runningCount ? ` · ${runningCount} running` : '');
+        document.getElementById('progress-fill').style.width = total ? `${(doneCount/total*100).toFixed(1)}%` : '0%';
 
         if (data.started_at) startedAt = parseFloat(data.started_at);
 
+        // ETA
+        const eta = computeEta(data.segments, data.max_parallel || 4);
+        document.getElementById('eta-text').textContent = eta;
+
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
+
+        // Auto-select first running segment only if nothing selected yet
+        if (activeSeg == null) {
+          const running = data.segments.find(s => s.status === 'running');
+          if (running) window._selectSeg(running.num, running.title, 'running');
+        }
+
+        renderNotifications(data.notifications);
       })
       .catch(() => {});
   }
 
   function renderTimeline(segments, maxWave, events, currentWave) {
-    const el = document.getElementById('timeline');
+    const el = document.getElementById('timeline-content');
     const waves = {};
     segments.forEach(s => { (waves[s.wave] = waves[s.wave] || []).push(s); });
+
+    // Build ordered segment list for j/k navigation
+    activeSegList = segments.map(s => s.num);
 
     let html = '';
     for (let w = 1; w <= maxWave; w++) {
@@ -231,9 +505,13 @@
 
       segs.forEach(s => {
         const isActive = activeSeg === s.num ? ' active' : '';
-        html += `<div class="seg-row${isActive}" data-num="${s.num}" onclick="window._selectSeg(${s.num},'${s.title.replace(/'/g,"\\'")}','${s.status}')">`;
+        const elapsedStr = s.status === 'running' && s.started_at
+          ? `<span class="seg-elapsed">${formatElapsed(Date.now()/1000 - s.started_at)}</span>`
+          : '';
+        html += `<div class="seg-row${isActive}" data-num="${s.num}" data-status="${s.status}" onclick="window._selectSeg(${s.num},'${s.title.replace(/'/g,"\\'")}','${s.status}')">`;
         html += `<span class="seg-num">S${pad(s.num)}</span>`;
         html += `<span class="seg-title">${s.title}</span>`;
+        html += elapsedStr;
         html += `<span class="seg-status ${s.status}">${s.status}</span>`;
         html += `</div>`;
       });
@@ -259,12 +537,16 @@
       html += `</div>`;
     }
     el.innerHTML = html;
+
+    // Re-apply status filter after re-render
+    applyStatusFilter();
   }
 
   window._selectGate = function(wave, status) {
     activeSeg = null;
+    localStorage.removeItem('orchestrate_activeSeg');
     document.getElementById('log-seg-label').textContent = `Gate — Wave ${wave}`;
-    document.getElementById('log-content').textContent = '';
+    document.getElementById('log-content').innerHTML = '';
     document.querySelectorAll('.seg-row').forEach(r => r.classList.remove('active'));
     if (logSource) logSource.close();
     const badge = document.getElementById('live-badge');
@@ -272,16 +554,15 @@
     logSource = new EventSource(`/api/logs/gate-W${wave}`);
     const logEl = document.getElementById('log-content');
     logSource.onmessage = function(e) {
-      const line = JSON.parse(e.data);
-      logEl.textContent += line + '\n';
-      logEl.scrollTop = logEl.scrollHeight;
+      appendLogLine(logEl, JSON.parse(e.data));
     };
   };
 
   window._selectSeg = function(num, title, status) {
     activeSeg = num;
+    localStorage.setItem('orchestrate_activeSeg', num);
     document.getElementById('log-seg-label').textContent = `S${pad(num)} — ${title}`;
-    document.getElementById('log-content').textContent = '';
+    document.getElementById('log-content').innerHTML = '';
 
     document.querySelectorAll('.seg-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.num) === num));
 
@@ -292,9 +573,7 @@
     logSource = new EventSource(`/api/logs/S${pad(num)}`);
     const logEl = document.getElementById('log-content');
     logSource.onmessage = function(e) {
-      const line = JSON.parse(e.data);
-      logEl.textContent += line + '\n';
-      logEl.scrollTop = logEl.scrollHeight;
+      appendLogLine(logEl, JSON.parse(e.data));
     };
   };
 
@@ -304,7 +583,8 @@
     eventSource.onmessage = function(e) {
       const ev = JSON.parse(e.data);
       const div = document.createElement('div');
-      div.className = 'event-line';
+      const svClass = {error:'ev-error', warn:'ev-warn'}[ev.severity] || '';
+      div.className = `event-line ${svClass}`;
       div.innerHTML = `<span class="ts">${formatTs(ev.ts)}</span> <span class="kind">${ev.kind}</span> ${ev.detail}`;
       feed.insertBefore(div, feed.firstChild);
       while (feed.children.length > 50) feed.removeChild(feed.lastChild);
@@ -317,6 +597,7 @@
     }
   }
 
+  switchTab('timeline');
   refreshState();
   setInterval(refreshState, 5000);
   setInterval(updateElapsed, 1000);
