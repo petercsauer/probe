@@ -13,13 +13,16 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     }
 
     // File-based or demo mode
-    let mut store = if args.demo {
+    let (mut store, input_file_path, input_file_size, tls_stats) = if args.demo {
         let events = generate_demo_events();
         tracing::info!("Generated {} demo events", events.len());
-        EventStore::new(events)
+        (EventStore::new(events), None, 0, None)
     } else {
         let input = args.input.as_ref().context("Input file required (or use --demo or --interface)")?;
         let path = std::path::PathBuf::from(input.as_str());
+
+        // TLS keylog file (for pcap/pcapng decryption)
+        let tls_keylog = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
 
         // Check file size to decide whether to use streaming load
         let file_size = std::fs::metadata(&path)
@@ -27,12 +30,14 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
             .unwrap_or(0);
 
         // Use streaming load for files > 10MB or if they have > 10K estimated events
-        if file_size > 10 * 1024 * 1024 {
+        let (store, tls_stats) = if file_size > 10 * 1024 * 1024 {
             tracing::info!("Loading large file ({:.2} MB) with streaming...", file_size as f64 / (1024.0 * 1024.0));
-            load_with_streaming(&path)?
+            load_with_streaming(&path, tls_keylog)?
         } else {
-            load_events(&path).context("Failed to load events")?
-        }
+            load_events(&path, tls_keylog).context("Failed to load events")?
+        };
+
+        (store, Some(path), file_size, tls_stats)
     };
 
     tracing::info!("Loaded {} events", store.len());
@@ -73,6 +78,17 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     };
 
     let mut app = App::new(store, args.where_clause, schema_registry);
+
+    // Set input file info for session display
+    if let Some(path) = input_file_path {
+        app.set_input_file(path, input_file_size);
+    }
+
+    // Set TLS stats if available
+    if let Some(stats) = tls_stats {
+        app.set_tls_stats(stats);
+    }
+
     app.run()
 }
 
@@ -119,13 +135,13 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
 }
 
 /// Load events with streaming and progress display.
-fn load_with_streaming(path: &std::path::Path) -> Result<EventStore> {
+fn load_with_streaming(path: &std::path::Path, tls_keylog: Option<PathBuf>) -> Result<(EventStore, Option<prb_tui::loader::TlsStats>)> {
     let (tx, rx) = mpsc::channel();
 
     // Start streaming load in background thread
     let path_clone = path.to_owned();
     std::thread::spawn(move || {
-        if let Err(e) = load_events_streaming(&path_clone, tx.clone()) {
+        if let Err(e) = load_events_streaming(&path_clone, tx.clone(), tls_keylog) {
             let _ = tx.send(LoadEvent::Error(e.to_string()));
         }
     });
@@ -134,6 +150,7 @@ fn load_with_streaming(path: &std::path::Path) -> Result<EventStore> {
     let mut store = EventStore::empty();
     let mut last_progress = std::time::Instant::now();
     let mut total_loaded = 0;
+    let mut tls_stats = None;
 
     loop {
         match rx.recv() {
@@ -154,6 +171,9 @@ fn load_with_streaming(path: &std::path::Path) -> Result<EventStore> {
                     eprint!("\rLoading events... {} loaded", loaded);
                 }
             }
+            Ok(LoadEvent::TlsStats(stats)) => {
+                tls_stats = Some(stats);
+            }
             Ok(LoadEvent::Done) => {
                 eprintln!("\rLoaded {} events successfully", total_loaded);
                 break;
@@ -168,7 +188,7 @@ fn load_with_streaming(path: &std::path::Path) -> Result<EventStore> {
         }
     }
 
-    Ok(store)
+    Ok((store, tls_stats))
 }
 
 /// Format available network interfaces for error messages.

@@ -18,7 +18,7 @@ fn fixtures_dir() -> PathBuf {
 #[test]
 fn test_load_json_fixture() {
     let fixture = fixtures_dir().join("sample.json");
-    let store = load_events(&fixture).expect("Failed to load JSON fixture");
+    let store = load_events(&fixture, None).expect("Failed to load JSON fixture").0;
 
     assert!(!store.is_empty(), "Store should contain events");
     assert!(
@@ -30,7 +30,7 @@ fn test_load_json_fixture() {
 #[test]
 fn test_load_multi_transport_json() {
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture).expect("Failed to load multi-transport JSON");
+    let store = load_events(&fixture, None).expect("Failed to load multi-transport JSON").0;
 
     assert!(!store.is_empty(), "Store should contain events");
 
@@ -47,7 +47,7 @@ fn test_load_multi_transport_json() {
 #[test]
 fn test_load_empty_json() {
     let fixture = fixtures_dir().join("empty.json");
-    let store = load_events(&fixture).expect("Failed to load empty JSON");
+    let store = load_events(&fixture, None).expect("Failed to load empty JSON").0;
 
     assert_eq!(store.len(), 0, "Empty fixture should produce empty store");
     assert!(store.is_empty());
@@ -139,7 +139,7 @@ fn test_event_store_filter() {
     use prb_query::Filter;
 
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture).expect("Failed to load fixture");
+    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
 
     // Filter for gRPC only
     let filter = Filter::parse(r#"transport == "gRPC""#).expect("Failed to parse filter");
@@ -157,7 +157,7 @@ fn test_event_store_filter() {
 #[test]
 fn test_event_store_time_buckets() {
     let fixture = fixtures_dir().join("sample.json");
-    let store = load_events(&fixture).expect("Failed to load fixture");
+    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
 
     let indices = store.all_indices();
     let buckets = store.time_buckets(&indices, 10);
@@ -172,7 +172,7 @@ fn test_event_store_time_buckets() {
 #[test]
 fn test_event_store_protocol_counts() {
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture).expect("Failed to load fixture");
+    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
 
     let indices = store.all_indices();
     let counts = store.protocol_counts(&indices);
@@ -253,7 +253,7 @@ fn test_load_pcap_basic() {
     drop(file);
 
     // Load the PCAP file
-    let store = load_events(&pcap_path).expect("Failed to load PCAP");
+    let store = load_events(&pcap_path, None).expect("Failed to load PCAP").0;
 
     assert!(!store.is_empty(), "PCAP should produce events");
 
@@ -323,7 +323,7 @@ fn test_load_mcap_roundtrip() {
     writer.finish().unwrap();
 
     // Load events back from MCAP
-    let store = load_events(&mcap_path).expect("Failed to load MCAP");
+    let store = load_events(&mcap_path, None).expect("Failed to load MCAP").0;
 
     assert_eq!(store.len(), 2, "Should load all events from MCAP");
     assert_eq!(store.get(0).unwrap().transport, TransportKind::Grpc);
@@ -337,7 +337,7 @@ fn test_format_detection() {
     // Test JSON detection
     let json_path = temp_dir.path().join("test.json");
     fs::write(&json_path, r#"{"version": 1, "events": []}"#).unwrap();
-    let store = load_events(&json_path).expect("Failed to load JSON");
+    let store = load_events(&json_path, None).expect("Failed to load JSON").0;
     assert_eq!(store.len(), 0);
 
     // Test MCAP detection
@@ -347,13 +347,13 @@ fn test_format_detection() {
         prb_storage::SessionWriter::new(file, prb_storage::SessionMetadata::new()).unwrap();
     writer.finish().unwrap();
 
-    let store = load_events(&mcap_path).expect("Failed to load MCAP");
+    let store = load_events(&mcap_path, None).expect("Failed to load MCAP").0;
     assert_eq!(store.len(), 0);
 }
 
 #[test]
 fn test_load_nonexistent_file() {
-    let result = load_events(&PathBuf::from("/nonexistent/file.json"));
+    let result = load_events(&PathBuf::from("/nonexistent/file.json"), None);
     assert!(result.is_err(), "Should fail for nonexistent file");
 }
 
@@ -363,7 +363,7 @@ fn test_load_invalid_format() {
     let invalid_path = temp_dir.path().join("test.xyz");
     fs::write(&invalid_path, "invalid content").unwrap();
 
-    let result = load_events(&invalid_path);
+    let result = load_events(&invalid_path, None);
     assert!(
         result.is_err(),
         "Should fail for unknown/unsupported format"
