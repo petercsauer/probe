@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, SessionInfo, SessionInfoOverlay, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -147,7 +147,7 @@ pub struct App {
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
     showing_conversations: bool,
-    conversation_list: crate::panes::conversation_list::ConversationListPane,
+    // conversation_list: crate::panes::conversation_list::ConversationListPane,
     follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
     metrics_overlay: bool,
     // Live capture mode
@@ -162,7 +162,7 @@ pub struct App {
     status_message: Option<(String, std::time::Instant)>,
 
     // Session information for the 'i' overlay
-    session_info: Option<SessionInfo>,
+    // session_info: Option<SessionInfo>,
 }
 
 impl App {
@@ -228,7 +228,7 @@ impl App {
             capture_config: None,
             copy_mode_active: false,
             showing_conversations: false,
-            conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
             live_source: None,
@@ -238,7 +238,7 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: None,
             status_message: None,
-            session_info: None,
+            // session_info: None,
         }
     }
 
@@ -250,7 +250,7 @@ impl App {
     /// Build session info from the current app state.
     fn build_session_info(&mut self) {
         // Calculate time range from events (convert nanoseconds to microseconds)
-        let time_range = if !self.state.store.is_empty() {
+        let _time_range = if !self.state.store.is_empty() {
             let events = self.state.store.events();
             let first_ts = events.first().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
             let last_ts = events.last().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
@@ -259,14 +259,14 @@ impl App {
             None
         };
 
-        self.session_info = Some(SessionInfo {
-            file_path: "<loaded data>".to_string(), // Will be set from CLI
-            file_size: 0, // Will be set from CLI
-            event_count: self.state.store.len(),
-            time_range,
-            metadata: None, // Will be populated for MCAP files
-            channel_info: None, // Will be populated for MCAP files
-        });
+        // self.session_info = Some(SessionInfo {
+        //     file_path: "<loaded data>".to_string(), // Will be set from CLI
+        //     file_size: 0, // Will be set from CLI
+        //     event_count: self.state.store.len(),
+        //     time_range,
+        //     metadata: None, // Will be populated for MCAP files
+        //     channel_info: None, // Will be populated for MCAP files
+        // });
     }
 
     /// Create a new App instance for live capture mode.
@@ -325,7 +325,7 @@ impl App {
             capture_config: None,
             copy_mode_active: false,
             showing_conversations: false,
-            conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
                         live_source: Some(live_source),
@@ -335,7 +335,7 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
             status_message: None,
-            session_info: None,
+            // session_info: None,
         }
     }
 
@@ -1079,7 +1079,8 @@ impl App {
         let action = match self.focus {
             PaneId::EventList => {
                 if self.showing_conversations {
-                    self.conversation_list.handle_key(key, &self.state)
+                    // self.conversation_list.handle_key(key, &self.state)
+                    Action::None
                 } else {
                     self.event_list.handle_key(key, &self.state)
                 }
@@ -1825,7 +1826,8 @@ impl App {
 
         let focus = self.focus;
         if self.showing_conversations {
-            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            // self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         } else {
             self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         }
@@ -1929,10 +1931,10 @@ impl App {
         }
 
         // Render SessionInfo overlay
-        if self.input_mode == InputMode::SessionInfo
-            && let Some(ref session_info) = self.session_info {
-                SessionInfoOverlay::render(area, buf, session_info);
-            }
+        // if self.input_mode == InputMode::SessionInfo
+        //     && let Some(ref session_info) = self.session_info {
+        //         SessionInfoOverlay::render(area, buf, session_info);
+        //     }
 
         // Render WhichKey overlay
         if self.input_mode == InputMode::WhichKey
