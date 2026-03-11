@@ -7,6 +7,11 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 
 pub fn run_tui(args: TuiArgs) -> Result<()> {
+    // Diff mode
+    if args.diff {
+        return run_tui_diff(args);
+    }
+
     // Live capture mode
     if let Some(ref interface) = args.interface {
         return run_tui_live(interface.clone(), args);
@@ -189,6 +194,31 @@ fn load_with_streaming(path: &std::path::Path, tls_keylog: Option<PathBuf>) -> R
     }
 
     Ok((store, tls_stats))
+}
+
+/// Run TUI in diff mode comparing two captures.
+fn run_tui_diff(args: TuiArgs) -> Result<()> {
+    let file1 = args.input.as_ref()
+        .context("First file required for diff mode (use positional argument)")?;
+    let file2 = args.diff_file.as_ref()
+        .context("Second file required for diff mode (use --diff-file)")?;
+
+    let path1 = PathBuf::from(file1.as_str());
+    let path2 = PathBuf::from(file2.as_str());
+
+    tracing::info!("Loading first file: {:?}", path1);
+    let (store1, _) = load_events(&path1, None)
+        .context("Failed to load first file")?;
+
+    tracing::info!("Loading second file: {:?}", path2);
+    let (store2, _) = load_events(&path2, None)
+        .context("Failed to load second file")?;
+
+    tracing::info!("Loaded {} events from file 1, {} from file 2",
+        store1.len(), store2.len());
+
+    let mut app = App::new_diff(store1, store2, path1, path2);
+    app.run()
 }
 
 /// Format available network interfaces for error messages.
