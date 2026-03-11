@@ -33,6 +33,7 @@ use crate::theme::ThemeConfig;
 use prb_capture::CaptureStats;
 use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
 use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use prb_export;
 use prb_plugin_native::NativePluginLoader;
 use prb_plugin_wasm::WasmPluginLoader;
 use prb_query::Filter;
@@ -226,6 +227,11 @@ impl App {
             ring_buffer: None,
             status_message: None,
         }
+
+    /// Set a status message that will be displayed for 2 seconds.
+    fn set_status_message(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
     }
 
     /// Create a new App instance for live capture mode.
@@ -1208,6 +1214,11 @@ impl App {
         }
     }
 
+    fn set_status_message(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
+    }
+
+
     fn handle_export_dialog_key(&mut self, key: KeyEvent) -> bool {
         let Some(ref mut dialog) = self.export_dialog else {
             self.input_mode = InputMode::Normal;
@@ -1297,7 +1308,7 @@ impl App {
         }
     }
 
-    fn perform_export(&self) {
+    fn perform_export(&mut self) {
         use std::fs::File;
         use std::io::BufWriter;
 
@@ -1311,19 +1322,22 @@ impl App {
 
         let path = dialog.output_path_input.value();
 
-        let events = match format.format.as_str() {
+        let events: Vec<_> = match format.format.as_str() {
             "json" => {
                 if let Some(selected_idx) = self.state.selected_event {
                     if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
                         if let Some(event) = self.state.store.get(store_idx) {
                             vec![event.clone()]
                         } else {
+                            self.set_status_message("No event selected for export");
                             return;
                         }
                     } else {
+                        self.set_status_message("No event selected for export");
                         return;
                     }
                 } else {
+                    self.set_status_message("No event selected for export");
                     return;
                 }
             }
@@ -1335,13 +1349,48 @@ impl App {
             }
         };
 
-        // Export to JSON
-        if let Ok(file) = File::create(path) {
-            let mut writer = BufWriter::new(file);
-            let _ = serde_json::to_writer_pretty(&mut writer, &events);
+        let export_format = match format.format.as_str() {
+            "json" | "json-all" => {
+                if let Ok(file) = File::create(path) {
+                    let mut writer = BufWriter::new(file);
+                    if let Err(e) = serde_json::to_writer_pretty(&mut writer, &events) {
+                        self.set_status_message(&format!("Export failed: {}", e));
+                    } else {
+                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                    }
+                } else {
+                    self.set_status_message(&format!("Failed to create file: {}", path));
+                }
+                return;
+            }
+            "csv" => "csv",
+            "har" => "har",
+            "html" => "html",
+            "otlp" => "otlp",
+            other => {
+                self.set_status_message(&format!("Unsupported export format: {}", other));
+                return;
+            }
+        };
+
+        match prb_export::create_exporter(export_format) {
+            Ok(exporter) => {
+                if let Ok(file) = File::create(path) {
+                    let mut writer = BufWriter::new(file);
+                    if let Err(e) = exporter.export(&events, &mut writer) {
+                        self.set_status_message(&format!("Export failed: {}", e));
+                    } else {
+                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                    }
+                } else {
+                    self.set_status_message(&format!("Failed to create file: {}", path));
+                }
+            }
+            Err(e) => {
+                self.set_status_message(&format!("Export failed: {}", e));
+            }
         }
     }
-
     fn save_filtered_view(&self) {
         use std::fs::File;
         use std::io::BufWriter;
@@ -1668,7 +1717,14 @@ impl App {
             
             let focus = self.focus;
             match zoomed {
-                PaneId::EventList => self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList),
+                PaneId::EventList => {
+                    // TODO: Conversation list support
+                    // if self.showing_conversations {
+                    //     self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    // } else {
+                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    // }
+                }
                 PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
                 PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
                 PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
@@ -1698,7 +1754,11 @@ impl App {
             .split(vert_layout[1]);
 
         let focus = self.focus;
-        self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        if self.showing_conversations {
+            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        } else {
+            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        }
         self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
         self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
         self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
@@ -1807,6 +1867,24 @@ impl App {
         // Render CommandPalette overlay
         if self.input_mode == InputMode::CommandPalette {
             self.command_palette.render(area, buf);
+
+        // Render follow stream overlay
+        if let Some(ref overlay) = self.follow_stream_overlay {
+            if let Some(ref conv_set) = self.state.conversations {
+                let conv_idx = overlay.conversation_idx;
+                if conv_idx < conv_set.conversations.len() {
+                    overlay.render(area, buf, &conv_set.conversations[conv_idx], self.state.store.events(), &self.theme);
+                }
+            }
+        }
+
+        // Render metrics overlay
+        if self.metrics_overlay {
+            if let Some(ref conv_set) = self.state.conversations {
+                let metrics_overlay = MetricsOverlay::new();
+                metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
+            }
+        }
         }
     }
 

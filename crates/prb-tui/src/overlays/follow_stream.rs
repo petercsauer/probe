@@ -172,6 +172,10 @@ impl FollowStreamOverlay {
                 "←",
                 Style::default().fg(Color::Blue),
             ),
+            Direction::Unknown => (
+                "?",
+                Style::default().fg(Color::Gray),
+            ),
         };
 
         // Line 1: Direction arrow and addresses
@@ -224,6 +228,9 @@ impl FollowStreamOverlay {
                     })
                     .unwrap_or("Response");
                 format!("    {} Response ({})", event.transport, status)
+            }
+            Direction::Unknown => {
+                format!("    {} Event (direction unknown)", event.transport)
             }
         };
         buf.set_string(x, current_y, truncate(&event_type, width as usize), Style::default());

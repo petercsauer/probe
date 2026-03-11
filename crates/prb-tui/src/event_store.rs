@@ -101,6 +101,29 @@ impl EventStore {
         self.index = None;
     }
 
+    /// Append a batch of events to the store (for streaming file load).
+    ///
+    /// More efficient than calling push() repeatedly.
+    pub fn push_batch(&mut self, mut batch: Vec<DebugEvent>) {
+        if batch.is_empty() {
+            return;
+        }
+
+        // Update time range
+        for event in &batch {
+            let event_ts = event.timestamp;
+            self.time_range = match self.time_range {
+                None => Some((event_ts, event_ts)),
+                Some((start, end)) => Some((start.min(event_ts), end.max(event_ts))),
+            };
+        }
+
+        self.events.append(&mut batch);
+
+        // Invalidate index when new events are added
+        self.index = None;
+    }
+
     pub fn len(&self) -> usize {
         self.events.len()
     }

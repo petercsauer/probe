@@ -33,6 +33,7 @@ use crate::theme::ThemeConfig;
 use prb_capture::CaptureStats;
 use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
 use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use prb_export;
 use prb_plugin_native::NativePluginLoader;
 use prb_plugin_wasm::WasmPluginLoader;
 use prb_query::Filter;
@@ -1668,7 +1669,13 @@ impl App {
             
             let focus = self.focus;
             match zoomed {
-                PaneId::EventList => self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList),
+                PaneId::EventList => {
+                    if self.showing_conversations {
+                        self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    } else {
+                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    }
+                }
                 PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
                 PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
                 PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
@@ -1698,7 +1705,11 @@ impl App {
             .split(vert_layout[1]);
 
         let focus = self.focus;
-        self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        if self.showing_conversations {
+            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        } else {
+            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        }
         self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
         self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
         self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
