@@ -5,6 +5,7 @@ pub mod decode_tree;
 pub mod event_list;
 pub mod hex_dump;
 pub mod timeline;
+pub mod waterfall;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
