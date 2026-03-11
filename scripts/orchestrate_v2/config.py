@@ -25,6 +25,13 @@ def _resolve_env_refs(value: str) -> str:
 
 @dataclass
 class OrchestrateConfig:
+    """Configuration for orchestration.
+
+    isolation_strategy values:
+        - "none": No isolation (default) - segments run in main worktree
+        - "env": Per-segment environment variables only
+        - "worktree": Git worktree pool isolation - each segment gets isolated worktree
+    """
     preamble_files: list[str] = field(default_factory=list)
     extra_rules: str = ""
     max_parallel: int = 4
