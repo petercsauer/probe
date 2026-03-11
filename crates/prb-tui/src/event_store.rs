@@ -1,9 +1,49 @@
 use prb_core::{DebugEvent, Timestamp, TransportKind};
 use prb_query::Filter;
+use std::collections::HashMap;
+
+/// Index structure for fast lookups by protocol, source, and destination.
+#[derive(Debug, Clone)]
+pub struct EventIndex {
+    pub by_protocol: HashMap<TransportKind, Vec<usize>>,
+    pub by_source: HashMap<String, Vec<usize>>,
+    pub by_dest: HashMap<String, Vec<usize>>,
+    pub time_sorted: Vec<usize>,
+}
+
+impl EventIndex {
+    /// Build an index from a list of events.
+    pub fn build(events: &[DebugEvent]) -> Self {
+        let mut by_protocol: HashMap<TransportKind, Vec<usize>> = HashMap::new();
+        let mut by_source: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut by_dest: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut time_sorted: Vec<usize> = (0..events.len()).collect();
+
+        for (idx, event) in events.iter().enumerate() {
+            by_protocol.entry(event.transport).or_default().push(idx);
+
+            if let Some(ref network) = event.source.network {
+                by_source.entry(network.src.clone()).or_default().push(idx);
+                by_dest.entry(network.dst.clone()).or_default().push(idx);
+            }
+        }
+
+        // Sort time_sorted by timestamp
+        time_sorted.sort_by_key(|&idx| events[idx].timestamp);
+
+        EventIndex {
+            by_protocol,
+            by_source,
+            by_dest,
+            time_sorted,
+        }
+    }
+}
 
 pub struct EventStore {
     events: Vec<DebugEvent>,
     time_range: Option<(Timestamp, Timestamp)>,
+    index: Option<EventIndex>,
 }
 
 impl EventStore {
@@ -16,7 +56,22 @@ impl EventStore {
             Some((events[0].timestamp, events[events.len() - 1].timestamp))
         };
 
-        EventStore { events, time_range }
+        EventStore {
+            events,
+            time_range,
+            index: None,
+        }
+    }
+
+    /// Build the index for fast lookups. Should be called in a background task
+    /// after initial loading to avoid blocking the UI.
+    pub fn build_index(&mut self) {
+        self.index = Some(EventIndex::build(&self.events));
+    }
+
+    /// Get the index if it has been built.
+    pub fn index(&self) -> Option<&EventIndex> {
+        self.index.as_ref()
     }
 
     /// Create an empty event store for live capture mode.
@@ -24,6 +79,7 @@ impl EventStore {
         EventStore {
             events: Vec::new(),
             time_range: None,
+            index: None,
         }
     }
 
@@ -40,6 +96,9 @@ impl EventStore {
             None => Some((event_ts, event_ts)),
             Some((start, end)) => Some((start.min(event_ts), end.max(event_ts))),
         };
+
+        // Invalidate index when new events are added
+        self.index = None;
     }
 
     pub fn len(&self) -> usize {

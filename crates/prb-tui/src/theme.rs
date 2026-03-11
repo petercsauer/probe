@@ -45,6 +45,8 @@ impl ThemeConfig {
             "light" => Self::light(),
             "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => Self::catppuccin_mocha(),
             "dracula" => Self::dracula(),
+            "colorblind-safe" | "colorblind_safe" | "colorblind safe" | "accessible" => Self::colorblind_safe(),
+            "high-contrast" | "high_contrast" | "high contrast" => Self::high_contrast(),
             _ => {
                 tracing::warn!("Unknown theme '{}', defaulting to dark", name);
                 Self::dark()
@@ -224,6 +226,96 @@ impl ThemeConfig {
             sparkline_fg: Color::Rgb(139, 233, 253), // Cyan
             help_key_fg: Color::Rgb(241, 250, 140), // Yellow
             help_desc_fg: Color::Rgb(248, 248, 242), // Foreground
+            transport_colors,
+        }
+    }
+
+    pub fn colorblind_safe() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Colorblind-safe palette: avoids red/green confusion
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(0, 119, 187)); // Blue
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(238, 119, 51)); // Orange
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(0, 153, 136)); // Teal
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(204, 187, 68)); // Yellow
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(170, 51, 119)); // Purple
+        transport_colors.insert(TransportKind::JsonFixture, Color::White);
+
+        ThemeConfig {
+            name: "Colorblind Safe".to_string(),
+            selected_row_fg: Color::Black,
+            selected_row_bg: Color::Rgb(0, 119, 187), // Blue (matches gRPC)
+            zebra_bg: Color::Rgb(25, 25, 35),
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(50, 20, 20),
+            focused_border: Color::Rgb(0, 119, 187), // Blue
+            unfocused_border: Color::DarkGray,
+            focused_title_fg: Color::Rgb(0, 119, 187), // Blue
+            unfocused_title_fg: Color::DarkGray,
+            header_fg: Color::Rgb(238, 119, 51), // Orange
+            status_bar_fg: Color::White,
+            status_bar_bg: Color::DarkGray,
+            filter_bar_fg: Color::White,
+            filter_bar_bg: Color::Black,
+            filter_error_fg: Color::Rgb(238, 119, 51), // Orange instead of red
+            warning_fg: Color::Rgb(238, 119, 51), // Orange instead of red
+            tree_key_fg: Color::Rgb(0, 119, 187), // Blue
+            tree_value_fg: Color::White,
+            hex_offset_fg: Color::DarkGray,
+            hex_byte_fg: Color::White,
+            hex_highlight_fg: Color::Black,
+            hex_highlight_bg: Color::Rgb(204, 187, 68), // Yellow
+            hex_search_match_fg: Color::Black,
+            hex_search_match_bg: Color::Rgb(170, 51, 119), // Purple
+            hex_ascii_fg: Color::Rgb(0, 153, 136), // Teal
+            hex_nonprint_fg: Color::DarkGray,
+            sparkline_fg: Color::Rgb(0, 119, 187), // Blue
+            help_key_fg: Color::Rgb(238, 119, 51), // Orange
+            help_desc_fg: Color::White,
+            transport_colors,
+        }
+    }
+
+    pub fn high_contrast() -> Self {
+        let mut transport_colors = HashMap::new();
+        // High contrast with maximum luminance difference
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(100, 200, 255)); // Bright blue
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(255, 255, 100)); // Bright yellow
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(100, 255, 200)); // Bright cyan
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(255, 150, 255)); // Bright magenta
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(255, 150, 100)); // Bright orange
+        transport_colors.insert(TransportKind::JsonFixture, Color::White);
+
+        ThemeConfig {
+            name: "High Contrast".to_string(),
+            selected_row_fg: Color::White,
+            selected_row_bg: Color::Rgb(0, 0, 255), // Pure blue
+            zebra_bg: Color::Rgb(20, 20, 20), // Very dark gray
+            normal_bg: Color::Black,
+            warning_bg: Color::Rgb(80, 0, 0), // Dark red
+            focused_border: Color::White,
+            unfocused_border: Color::Rgb(128, 128, 128), // Mid gray
+            focused_title_fg: Color::White,
+            unfocused_title_fg: Color::Rgb(180, 180, 180), // Light gray
+            header_fg: Color::White,
+            status_bar_fg: Color::White,
+            status_bar_bg: Color::Black,
+            filter_bar_fg: Color::White,
+            filter_bar_bg: Color::Black,
+            filter_error_fg: Color::Rgb(255, 100, 100), // Bright red
+            warning_fg: Color::Rgb(255, 100, 100), // Bright red
+            tree_key_fg: Color::White,
+            tree_value_fg: Color::Rgb(200, 200, 200), // Light gray
+            hex_offset_fg: Color::Rgb(150, 150, 150), // Mid-light gray
+            hex_byte_fg: Color::White,
+            hex_highlight_fg: Color::Black,
+            hex_highlight_bg: Color::White,
+            hex_search_match_fg: Color::Black,
+            hex_search_match_bg: Color::Rgb(255, 255, 0), // Bright yellow
+            hex_ascii_fg: Color::Rgb(150, 255, 150), // Bright green
+            hex_nonprint_fg: Color::Rgb(120, 120, 120), // Gray
+            sparkline_fg: Color::White,
+            help_key_fg: Color::White,
+            help_desc_fg: Color::Rgb(200, 200, 200), // Light gray
             transport_colors,
         }
     }

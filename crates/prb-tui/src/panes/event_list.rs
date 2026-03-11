@@ -10,6 +10,8 @@ use unicode_width::UnicodeWidthStr;
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortColumn {
@@ -19,6 +21,17 @@ pub enum SortColumn {
     Dest,
     Protocol,
     Dir,
+}
+
+/// Cached view of sorted/filtered indices and protocol counts.
+/// Only recomputes when filter or sort changes.
+#[derive(Debug, Clone)]
+struct CachedView {
+    filter_hash: u64,
+    sort_column: SortColumn,
+    sort_reversed: bool,
+    sorted_indices: Vec<usize>,
+    protocol_counts: Vec<(prb_core::TransportKind, usize)>,
 }
 
 impl SortColumn {
@@ -39,6 +52,7 @@ pub struct EventListPane {
     pub scroll_offset: usize,
     pub sort_column: SortColumn,
     pub sort_reversed: bool,
+    cached_view: Option<CachedView>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -121,6 +135,7 @@ impl EventListPane {
             scroll_offset: 0,
             sort_column: SortColumn::Time,
             sort_reversed: false,
+            cached_view: None,
         }
     }
 
@@ -137,45 +152,70 @@ impl EventListPane {
         state.filtered_indices.len()
     }
 
-    fn sorted_indices(&self, state: &AppState) -> Vec<usize> {
-        let mut indices = state.filtered_indices.clone();
+    fn sorted_indices(&mut self, state: &AppState) -> &[usize] {
+        // Compute hash of current filter state
+        let mut hasher = DefaultHasher::new();
+        state.filtered_indices.hash(&mut hasher);
+        let filter_hash = hasher.finish();
 
-        indices.sort_by(|&a, &b| {
-            let event_a = state.store.get(a);
-            let event_b = state.store.get(b);
-
-            if event_a.is_none() || event_b.is_none() {
-                return std::cmp::Ordering::Equal;
-            }
-
-            let event_a = event_a.unwrap();
-            let event_b = event_b.unwrap();
-
-            let cmp = match self.sort_column {
-                SortColumn::Id => event_a.id.as_u64().cmp(&event_b.id.as_u64()),
-                SortColumn::Time => event_a.timestamp.cmp(&event_b.timestamp),
-                SortColumn::Source => {
-                    let src_a = event_a.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
-                    let src_b = event_b.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
-                    src_a.cmp(src_b)
-                }
-                SortColumn::Dest => {
-                    let dst_a = event_a.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
-                    let dst_b = event_b.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
-                    dst_a.cmp(dst_b)
-                }
-                SortColumn::Protocol => event_a.transport.cmp(&event_b.transport),
-                SortColumn::Dir => event_a.direction.cmp(&event_b.direction),
-            };
-
-            if self.sort_reversed {
-                cmp.reverse()
-            } else {
-                cmp
-            }
+        // Check if we can use cached view
+        let needs_recompute = self.cached_view.as_ref().map_or(true, |cache| {
+            cache.filter_hash != filter_hash
+                || cache.sort_column != self.sort_column
+                || cache.sort_reversed != self.sort_reversed
         });
 
-        indices
+        if needs_recompute {
+            let mut indices = state.filtered_indices.clone();
+
+            indices.sort_by(|&a, &b| {
+                let event_a = state.store.get(a);
+                let event_b = state.store.get(b);
+
+                if event_a.is_none() || event_b.is_none() {
+                    return std::cmp::Ordering::Equal;
+                }
+
+                let event_a = event_a.unwrap();
+                let event_b = event_b.unwrap();
+
+                let cmp = match self.sort_column {
+                    SortColumn::Id => event_a.id.as_u64().cmp(&event_b.id.as_u64()),
+                    SortColumn::Time => event_a.timestamp.cmp(&event_b.timestamp),
+                    SortColumn::Source => {
+                        let src_a = event_a.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
+                        let src_b = event_b.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
+                        src_a.cmp(src_b)
+                    }
+                    SortColumn::Dest => {
+                        let dst_a = event_a.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
+                        let dst_b = event_b.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
+                        dst_a.cmp(dst_b)
+                    }
+                    SortColumn::Protocol => event_a.transport.cmp(&event_b.transport),
+                    SortColumn::Dir => event_a.direction.cmp(&event_b.direction),
+                };
+
+                if self.sort_reversed {
+                    cmp.reverse()
+                } else {
+                    cmp
+                }
+            });
+
+            // Compute protocol counts
+            let protocol_counts = state.store.protocol_counts(&indices);
+
+            self.cached_view = Some(CachedView {
+                filter_hash,
+                sort_column: self.sort_column,
+                sort_reversed: self.sort_reversed,
+                sorted_indices: indices,
+                protocol_counts,
+            });
+        }
+
+        &self.cached_view.as_ref().unwrap().sorted_indices
     }
 }
 
@@ -253,16 +293,23 @@ impl PaneComponent for EventListPane {
         }
 
         let vis_height = inner.height.saturating_sub(1) as usize;
+
+        // Copy values we need before borrowing self.sorted_indices
+        let scroll_offset = self.scroll_offset;
+        let selected = self.selected;
+        let sort_column = self.sort_column;
+        let sort_reversed = self.sort_reversed;
+
         let sorted = self.sorted_indices(state);
         let total = sorted.len();
 
         // Collect visible events for column width computation
         let scroll_offset_start = {
-            let mut off = self.scroll_offset;
-            if self.selected < off {
-                off = self.selected;
-            } else if self.selected >= off + vis_height {
-                off = self.selected.saturating_sub(vis_height - 1);
+            let mut off = scroll_offset;
+            if selected < off {
+                off = selected;
+            } else if selected >= off + vis_height {
+                off = selected.saturating_sub(vis_height - 1);
             }
             off
         };
@@ -277,7 +324,7 @@ impl PaneComponent for EventListPane {
         let col_widths = compute_column_widths(&visible_events, inner.width);
 
         // Header row
-        let header = format_header(col_widths, self.sort_column, self.sort_reversed, theme);
+        let header = format_header(col_widths, sort_column, sort_reversed, theme);
         buf.set_line(inner.x, inner.y, &header, inner.width);
 
         for i in 0..vis_height {
@@ -288,7 +335,7 @@ impl PaneComponent for EventListPane {
             let event_idx = sorted[idx];
             if let Some(event) = state.store.get(event_idx) {
                 let y = inner.y + 1 + i as u16;
-                let is_selected = idx == self.selected;
+                let is_selected = idx == selected;
 
                 let row_style = if is_selected {
                     theme.selected_row()
@@ -540,7 +587,7 @@ mod tests {
             .collect();
 
         let state = make_app_state(events);
-        let pane = EventListPane::new();
+        let mut pane = EventListPane::new();
 
         // Initially at top
         assert_eq!(pane.scroll_offset, 0);
@@ -774,7 +821,7 @@ mod tests {
 
     #[test]
     fn test_sort_cycle() {
-        let pane = EventListPane::new();
+        let mut pane = EventListPane::new();
         assert_eq!(pane.sort_column, SortColumn::Time);
 
         // Simulate 's' key press through cycle
@@ -882,7 +929,7 @@ mod tests {
             schema_registry: None,
         };
 
-        let pane = EventListPane::new();
+        let mut pane = EventListPane::new();
         let sorted = pane.sorted_indices(&state);
 
         // Should only have 2 gRPC events
@@ -931,4 +978,9 @@ mod tests {
             assert!(state.store.get(*idx).is_some());
         }
     }
+}
+}
+    }
+}
+ }
 }

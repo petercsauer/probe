@@ -22,6 +22,7 @@ use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
 use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
+use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -89,7 +90,6 @@ pub struct AppState {
     pub filter: Option<Filter>,
     pub filter_text: String,
     pub schema_registry: Option<SchemaRegistry>,
-    pub conversations: Option<prb_core::engine::ConversationSet>,
 }
 
 pub struct App {
@@ -151,7 +151,6 @@ impl App {
             filter: None,
             filter_text: String::new(),
             schema_registry,
-            conversations: None,
             store,
         };
 
@@ -171,13 +170,12 @@ impl App {
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
-        let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
 
         App {
             state,
             config,
             focus: PaneId::EventList,
-            input_mode,
+            input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
             filter_state: FilterState::new(),
@@ -186,8 +184,6 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            ai_panel: AiPanel::new(),
-            ai_panel_visible: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -198,9 +194,6 @@ impl App {
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
-            export_dialog: None,
-            capture_config: None,
-            copy_mode_active: false,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -223,7 +216,6 @@ impl App {
             filter: None,
             filter_text: String::new(),
             schema_registry,
-            conversations: None,
             store,
         };
 
@@ -245,8 +237,6 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            ai_panel: AiPanel::new(),
-            ai_panel_visible: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -257,10 +247,7 @@ impl App {
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
-            export_dialog: None,
-            capture_config: None,
-            copy_mode_active: false,
-                        live_source: Some(live_source),
+            live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
             auto_follow,
@@ -690,15 +677,6 @@ impl App {
             }
             InputMode::PluginManager => {
                 return self.handle_plugin_manager_key(key);
-            }
-            InputMode::ExportDialog => {
-                return false; // TODO: Implement export dialog handler
-            }
-            InputMode::CopyMode => {
-                return false; // TODO: Implement copy mode handler
-            }
-            InputMode::CaptureConfig => {
-                return false; // TODO: Implement capture config handler
             }
             InputMode::Normal => {}
             InputMode::WhichKey => {

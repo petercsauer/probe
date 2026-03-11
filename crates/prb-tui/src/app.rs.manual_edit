@@ -20,7 +20,8 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::loader::LoadEvent;
+use crate::overlays::{CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -38,6 +39,13 @@ use prb_plugin_wasm::WasmPluginLoader;
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
 use serde_json::{json, Value as JsonValue};
+
+/// Loading state for streaming file loads.
+#[derive(Debug, Clone)]
+pub struct LoadingState {
+    pub loaded: usize,
+    pub total: Option<usize>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneId {
@@ -89,7 +97,6 @@ pub struct AppState {
     pub filter: Option<Filter>,
     pub filter_text: String,
     pub schema_registry: Option<SchemaRegistry>,
-    pub conversations: Option<prb_core::engine::ConversationSet>,
 }
 
 pub struct App {
@@ -99,18 +106,15 @@ pub struct App {
     focus: PaneId,
     input_mode: InputMode,
     filter_input: Input,
-    filter_error: Option<String>,
-    #[allow(dead_code)]
+    ai_panel: AiPanel,
+    ai_panel_visible: bool,
     filter_state: FilterState,
-    #[allow(dead_code)]
     quick_filter_prefix: bool,
 
     event_list: EventListPane,
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
-    ai_panel: AiPanel,
-    ai_panel_visible: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
 
@@ -141,6 +145,8 @@ pub struct App {
     auto_follow: bool,
     new_events_since_scroll: usize,
     ring_buffer: Option<RingBuffer<DebugEvent>>,
+    // Streaming file loading
+    loading_state: Option<LoadingState>,
 }
 
 impl App {
@@ -151,7 +157,6 @@ impl App {
             filter: None,
             filter_text: String::new(),
             schema_registry,
-            conversations: None,
             store,
         };
 
@@ -171,13 +176,12 @@ impl App {
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
-        let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
 
         App {
             state,
             config,
             focus: PaneId::EventList,
-            input_mode,
+            input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
             filter_state: FilterState::new(),
@@ -186,8 +190,6 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            ai_panel: AiPanel::new(),
-            ai_panel_visible: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -207,6 +209,7 @@ impl App {
             auto_follow: false,
             new_events_since_scroll: 0,
             ring_buffer: None,
+            loading_state: None,
         }
     }
 
@@ -223,7 +226,6 @@ impl App {
             filter: None,
             filter_text: String::new(),
             schema_registry,
-            conversations: None,
             store,
         };
 
@@ -245,8 +247,6 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            ai_panel: AiPanel::new(),
-            ai_panel_visible: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -260,12 +260,13 @@ impl App {
             export_dialog: None,
             capture_config: None,
             copy_mode_active: false,
-                        live_source: Some(live_source),
+            live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
             auto_follow,
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
+            loading_state: None,
         }
     }
 
@@ -692,13 +693,10 @@ impl App {
                 return self.handle_plugin_manager_key(key);
             }
             InputMode::ExportDialog => {
-                return false; // TODO: Implement export dialog handler
+                return self.handle_export_dialog_key(key);
             }
             InputMode::CopyMode => {
-                return false; // TODO: Implement copy mode handler
-            }
-            InputMode::CaptureConfig => {
-                return false; // TODO: Implement capture config handler
+                return self.handle_copy_mode_key(key);
             }
             InputMode::Normal => {}
             InputMode::WhichKey => {
@@ -761,8 +759,10 @@ impl App {
             }
             KeyCode::Char('T') => {
                 self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
                     "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    "Dracula" => ThemeConfig::dark(),
                     _ => ThemeConfig::dark(),
                 };
                 return false;
@@ -811,6 +811,24 @@ impl App {
             KeyCode::Char('#') => {
                 self.input_mode = InputMode::GoToEvent;
                 self.goto_input = Input::default();
+                return false;
+            }
+            KeyCode::Char('e') => {
+                // Open export dialog
+                let filtered_count = self.state.filtered_indices.len();
+                self.export_dialog = Some(ExportDialogOverlay::new(filtered_count));
+                self.input_mode = InputMode::ExportDialog;
+                return false;
+            }
+            KeyCode::Char('y') => {
+                // Enter copy mode
+                self.copy_mode_active = true;
+                self.input_mode = InputMode::CopyMode;
+                return false;
+            }
+            KeyCode::Char('w') => {
+                // Save filtered view (quick save)
+                self.save_filtered_view();
                 return false;
             }
             _ => {}
@@ -908,6 +926,59 @@ impl App {
                 false
             }
             _ => false,
+
+    fn handle_capture_config_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.input_mode = InputMode::Normal;
+                self.capture_config = None;
+                false
+            }
+            KeyCode::Tab => {
+                if let Some(ref mut config) = self.capture_config {
+                    config.focused_field = config.focused_field.next();
+                }
+                false
+            }
+            KeyCode::BackTab => {
+                if let Some(ref mut config) = self.capture_config {
+                    config.focused_field = config.focused_field.prev();
+                }
+                false
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                if let Some(ref mut config) = self.capture_config {
+                    if config.focused_field == crate::overlays::ConfigField::Interface {
+                        config.move_selection(1);
+                    }
+                }
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if let Some(ref mut config) = self.capture_config {
+                    if config.focused_field == crate::overlays::ConfigField::Interface {
+                        config.move_selection(-1);
+                    }
+                }
+                false
+            }
+            KeyCode::Char(' ') => {
+                if let Some(ref mut config) = self.capture_config {
+                    if config.focused_field == crate::overlays::ConfigField::Promiscuous {
+                        config.toggle_promiscuous();
+                    }
+                }
+                false
+            }
+            KeyCode::Enter => {
+                // TODO: Start capture with selected configuration
+                self.input_mode = InputMode::Normal;
+                self.capture_config = None;
+                false
+            }
+            _ => false,
+        }
+    }
         }
     }
 

@@ -80,6 +80,9 @@ pub enum InputMode {
     ExportDialog,
     CopyMode,
     CaptureConfig,
+    ExportDialog,
+    CopyMode,
+    CaptureConfig,
 }
 
 pub struct AppState {
@@ -111,6 +114,8 @@ pub struct App {
     timeline: TimelinePane,
     ai_panel: AiPanel,
     ai_panel_visible: bool,
+    ai_panel: AiPanel,
+    ai_panel_visible: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
 
@@ -131,6 +136,9 @@ pub struct App {
     which_key_overlay: Option<WhichKeyOverlay>,
     #[allow(dead_code)]
     help_scroll_offset: usize,
+    export_dialog: Option<ExportDialogOverlay>,
+    capture_config: Option<CaptureConfigOverlay>,
+    copy_mode_active: bool,
     export_dialog: Option<ExportDialogOverlay>,
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
@@ -171,13 +179,12 @@ impl App {
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
-        let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
 
         App {
             state,
             config,
             focus: PaneId::EventList,
-            input_mode,
+            input_mode: if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal },
             filter_input: Input::default(),
             filter_error: None,
             filter_state: FilterState::new(),
@@ -186,6 +193,10 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            ai_panel: AiPanel::new(),
+            ai_panel_visible: false,
+            ai_panel: AiPanel::new(),
+            ai_panel_visible: false,
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
             theme,
@@ -198,6 +209,12 @@ impl App {
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
+            export_dialog: None,
+            capture_config: None,
+            copy_mode_active: false,
+            export_dialog: None,
+            capture_config: None,
+            copy_mode_active: false,
             export_dialog: None,
             capture_config: None,
             copy_mode_active: false,
@@ -245,8 +262,6 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            ai_panel: AiPanel::new(),
-            ai_panel_visible: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -1179,6 +1194,37 @@ impl App {
 
         if self.input_mode == InputMode::PluginManager {
             self.plugin_manager.render(area, buf);
+        }
+
+        // Render Welcome overlay
+        if self.input_mode == InputMode::Welcome {
+            WelcomeOverlay::render(area, buf);
+        }
+
+        // Render Command Palette overlay
+        if self.input_mode == InputMode::CommandPalette {
+            self.command_palette.render(area, buf);
+        }
+
+        // Render WhichKey overlay
+        if self.input_mode == InputMode::WhichKey {
+            if let Some(ref overlay) = self.which_key_overlay {
+                overlay.render(area, buf);
+            }
+        }
+
+        // Render Export Dialog overlay
+        if self.input_mode == InputMode::ExportDialog {
+            if let Some(ref dialog) = self.export_dialog {
+                dialog.render(area, buf);
+            }
+        }
+
+        // Render Capture Config overlay
+        if self.input_mode == InputMode::CaptureConfig {
+            if let Some(ref config) = self.capture_config {
+                config.render(area, buf);
+            }
         }
     }
 

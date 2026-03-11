@@ -1,12 +1,26 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 
 use anyhow::{bail, Context, Result};
 use prb_core::{CaptureAdapter, DebugEvent};
 use prb_schema::SchemaRegistry;
 
 use crate::EventStore;
+
+/// Events sent during streaming file loading.
+#[derive(Debug, Clone)]
+pub enum LoadEvent {
+    /// A batch of events has been loaded.
+    Batch(Vec<DebugEvent>),
+    /// Progress update with current loaded count and optional total.
+    Progress { loaded: usize, total: Option<usize> },
+    /// Loading completed successfully.
+    Done,
+    /// An error occurred during loading.
+    Error(String),
+}
 
 #[derive(Debug, Clone, Copy)]
 enum InputFormat {
@@ -53,6 +67,40 @@ pub fn load_events(path: &Path) -> Result<EventStore> {
     Ok(EventStore::new(events))
 }
 
+/// Load events from a file using streaming with progress updates.
+///
+/// This function spawns a background thread to parse the file and sends:
+/// - `LoadEvent::Batch` with chunks of events as they are parsed
+/// - `LoadEvent::Progress` with periodic progress updates
+/// - `LoadEvent::Done` when complete
+/// - `LoadEvent::Error` if an error occurs
+pub fn load_events_streaming(
+    path: &Path,
+    sender: mpsc::Sender<LoadEvent>,
+) -> Result<()> {
+    let format = detect_format(path)?;
+    let path = path.to_owned();
+
+    std::thread::spawn(move || {
+        let result = match format {
+            InputFormat::Json => load_json_streaming(&path, &sender),
+            InputFormat::Pcap | InputFormat::Pcapng => load_pcap_streaming(&path, &sender),
+            InputFormat::Mcap => load_mcap_streaming(&path, &sender),
+        };
+
+        match result {
+            Ok(()) => {
+                let _ = sender.send(LoadEvent::Done);
+            }
+            Err(e) => {
+                let _ = sender.send(LoadEvent::Error(e.to_string()));
+            }
+        }
+    });
+
+    Ok(())
+}
+
 fn load_json(path: &Path) -> Result<Vec<DebugEvent>> {
     use prb_fixture::JsonFixtureAdapter;
     let utf8_path = camino::Utf8PathBuf::try_from(path.to_path_buf())
@@ -93,6 +141,115 @@ fn load_mcap(path: &Path) -> Result<Vec<DebugEvent>> {
         }
     }
     Ok(events)
+}
+
+// Streaming loaders
+
+const BATCH_SIZE: usize = 1000;
+
+fn load_json_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<()> {
+    use prb_fixture::JsonFixtureAdapter;
+    let utf8_path = camino::Utf8PathBuf::try_from(path.to_path_buf())
+        .map_err(|e| anyhow::anyhow!("Invalid UTF-8 path: {}", e))?;
+    let mut adapter = JsonFixtureAdapter::new(utf8_path);
+
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+    let mut loaded = 0;
+
+    for result in adapter.ingest() {
+        match result {
+            Ok(event) => {
+                batch.push(event);
+                loaded += 1;
+
+                if batch.len() >= BATCH_SIZE {
+                    sender.send(LoadEvent::Batch(batch.clone()))
+                        .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
+                    sender.send(LoadEvent::Progress { loaded, total: None })
+                        .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
+                    batch.clear();
+                }
+            }
+            Err(e) => tracing::warn!("Skipping event with error: {}", e),
+        }
+    }
+
+    // Send remaining events
+    if !batch.is_empty() {
+        sender.send(LoadEvent::Batch(batch))
+            .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
+    }
+
+    Ok(())
+}
+
+fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<()> {
+    use prb_pcap::PcapCaptureAdapter;
+    let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), None);
+
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+    let mut loaded = 0;
+
+    for result in adapter.ingest() {
+        match result {
+            Ok(event) => {
+                batch.push(event);
+                loaded += 1;
+
+                if batch.len() >= BATCH_SIZE {
+                    sender.send(LoadEvent::Batch(batch.clone()))
+                        .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
+                    sender.send(LoadEvent::Progress { loaded, total: None })
+                        .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
+                    batch.clear();
+                }
+            }
+            Err(e) => tracing::warn!("Skipping event with error: {}", e),
+        }
+    }
+
+    // Send remaining events
+    if !batch.is_empty() {
+        sender.send(LoadEvent::Batch(batch))
+            .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
+    }
+
+    Ok(())
+}
+
+fn load_mcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<()> {
+    use prb_storage::SessionReader;
+    let reader = SessionReader::open(path)
+        .with_context(|| format!("Failed to open MCAP {}", path.display()))?;
+
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+    let mut loaded = 0;
+
+    for result in reader.events() {
+        match result {
+            Ok(event) => {
+                batch.push(event);
+                loaded += 1;
+
+                if batch.len() >= BATCH_SIZE {
+                    sender.send(LoadEvent::Batch(batch.clone()))
+                        .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
+                    sender.send(LoadEvent::Progress { loaded, total: None })
+                        .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
+                    batch.clear();
+                }
+            }
+            Err(e) => tracing::warn!("Skipping MCAP event with error: {}", e),
+        }
+    }
+
+    // Send remaining events
+    if !batch.is_empty() {
+        sender.send(LoadEvent::Batch(batch))
+            .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
+    }
+
+    Ok(())
 }
 
 /// Load schemas from proto files, descriptor sets, and MCAP auto-extraction.
