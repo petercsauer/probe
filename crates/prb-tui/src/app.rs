@@ -1876,6 +1876,7 @@ impl App {
         spans
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_filter_bar_static(
         area: Rect,
         buf: &mut Buffer,
@@ -1917,13 +1918,14 @@ impl App {
 
         if let Some(err) = filter_error {
             spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
-        } else if is_filtering && filter_state.preview_count.is_some() {
+        } else if is_filtering {
             // Show preview count during typing (yellow for preview)
-            let preview_count = filter_state.preview_count.unwrap();
-            spans.push(Span::styled(
-                format!("  [{}/{}]", preview_count, total),
-                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-            ));
+            if let Some(preview_count) = filter_state.preview_count {
+                spans.push(Span::styled(
+                    format!("  [{}/{}]", preview_count, total),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+            }
         } else if state.filter.is_some() {
             spans.push(Span::styled(
                 format!("  [{}/{}]", match_count, total),

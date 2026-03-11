@@ -129,6 +129,9 @@ fn test_tui_command_struct() {
         proto: vec![],
         descriptor_set: vec![],
         demo: false,
+        interface: None,
+        bpf_filter: None,
+        tls_keylog: None,
     };
 
     assert_eq!(args.input.as_ref().unwrap().as_str(), "test.ndjson");
