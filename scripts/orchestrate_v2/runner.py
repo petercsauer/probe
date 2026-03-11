@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal
 import time
 from pathlib import Path
@@ -19,6 +20,54 @@ if TYPE_CHECKING:
     from .state import StateDB
 
 log = logging.getLogger(__name__)
+
+
+class CircuitBreaker:
+    """Detects permanent failures and prevents wasteful retries.
+
+    Implements simplified circuit breaker pattern for batch orchestration.
+    Checks error messages against known permanent failure patterns.
+    """
+
+    # Permanent failure patterns (regex for flexibility)
+    PERMANENT_PATTERNS = {
+        "nested_session": r"Claude Code cannot be launched inside another",
+        "missing_file": r"No such file or directory",
+        "permission_denied": r"Permission denied",
+        "syntax_error": r"SyntaxError:|syntax error",
+        "module_not_found": r"ModuleNotFoundError|No module named",
+        "import_error": r"ImportError:|cannot import",
+        "invalid_config": r"Invalid configuration|Config validation failed",
+    }
+
+    def should_retry(self, error_message: str) -> tuple[bool, str]:
+        """Check if error is retryable based on pattern matching.
+
+        Args:
+            error_message: Error text from segment output
+
+        Returns:
+            (should_retry: bool, reason: str)
+
+        Examples:
+            >>> cb = CircuitBreaker()
+            >>> cb.should_retry("Permission denied for /etc/shadow")
+            (False, "Permanent failure pattern detected: permission_denied")
+            >>> cb.should_retry("Connection timeout after 30s")
+            (True, "")
+        """
+        for pattern_name, pattern in self.PERMANENT_PATTERNS.items():
+            if re.search(pattern, error_message, re.IGNORECASE):
+                reason = f"Permanent failure pattern detected: {pattern_name}"
+                log.warning(f"Circuit breaker: {reason}")
+                return False, reason
+
+        # No permanent pattern detected - allow retry
+        return True, ""
+
+    def add_pattern(self, name: str, pattern: str):
+        """Add custom permanent failure pattern (for extensibility)."""
+        self.PERMANENT_PATTERNS[name] = pattern
 
 
 def _resolve_isolation_env(seg_num: int, config: OrchestrateConfig) -> dict[str, str]:

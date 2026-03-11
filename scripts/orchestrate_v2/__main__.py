@@ -17,7 +17,7 @@ from .monitor import MonitorServer
 from .notify import _send_ntfy, Notifier
 from .planner import Segment, load_plan
 from .recovery import RecoveryAgent
-from .runner import run_segment
+from .runner import CircuitBreaker, run_segment
 from .state import StateDB
 from .worktree_pool import WorktreePool
 
@@ -371,6 +371,7 @@ async def _run_wave(
 
                     while True:  # outer loop: re-enters when operator hits Retry mid-wave
                         attempts = 0
+                        circuit = CircuitBreaker()  # Create circuit breaker for this segment
                         while attempts <= config.max_retries:
                             attempts = await state.increment_attempts(seg.num)
                             status, summary = await run_segment(
@@ -384,19 +385,30 @@ async def _run_wave(
                             if status in ("pass", "timeout"):
                                 break
 
-                            # Don't retry on environment/configuration errors (will fail same way)
-                            if status == "failed":
-                                if "cannot be launched inside another Claude Code" in summary:
-                                    log.warning("S%02d failed due to environment issue, stopping retries", seg.num)
-                                    break
-                                if "CLAUDECODE" in summary:
-                                    log.warning("S%02d failed due to CLAUDECODE conflict, stopping retries", seg.num)
-                                    break
+                            # Check if status is retryable per policy
+                            if not config.retry_policy.should_retry(status):
+                                log.info("S%02d status '%s' not retryable per policy", seg.num, status)
+                                break
+
+                            # Check circuit breaker for permanent failure patterns
+                            should_retry_cb, circuit_reason = circuit.should_retry(summary)
+                            if not should_retry_cb:
+                                log.warning("S%02d circuit breaker tripped: %s", seg.num, circuit_reason)
+                                await state.log_event(
+                                    "circuit_breaker_trip",
+                                    f"S{seg.num:02d} - {circuit_reason}",
+                                    severity="warning"
+                                )
+                                break
 
                             if attempts > config.max_retries:
                                 break
-                            log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
-                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+
+                            # Exponential backoff before retry
+                            delay = config.retry_policy.get_delay(attempts - 1)
+                            log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                            await asyncio.sleep(delay)
 
                         # Check if operator reset us to pending while we were running or
                         # immediately after — if so, re-run without requiring an orchestrator restart.
@@ -419,6 +431,7 @@ async def _run_wave(
                 # Original path: no worktree
                 while True:  # outer loop: re-enters when operator hits Retry mid-wave
                     attempts = 0
+                    circuit = CircuitBreaker()  # Create circuit breaker for this segment
                     while attempts <= config.max_retries:
                         attempts = await state.increment_attempts(seg.num)
                         status, summary = await run_segment(
@@ -431,19 +444,30 @@ async def _run_wave(
                         if status in ("pass", "timeout"):
                             break
 
-                        # Don't retry on environment/configuration errors (will fail same way)
-                        if status == "failed":
-                            if "cannot be launched inside another Claude Code" in summary:
-                                log.warning("S%02d failed due to environment issue, stopping retries", seg.num)
-                                break
-                            if "CLAUDECODE" in summary:
-                                log.warning("S%02d failed due to CLAUDECODE conflict, stopping retries", seg.num)
-                                break
+                        # Check if status is retryable per policy
+                        if not config.retry_policy.should_retry(status):
+                            log.info("S%02d status '%s' not retryable per policy", seg.num, status)
+                            break
+
+                        # Check circuit breaker for permanent failure patterns
+                        should_retry_cb, circuit_reason = circuit.should_retry(summary)
+                        if not should_retry_cb:
+                            log.warning("S%02d circuit breaker tripped: %s", seg.num, circuit_reason)
+                            await state.log_event(
+                                "circuit_breaker_trip",
+                                f"S{seg.num:02d} - {circuit_reason}",
+                                severity="warning"
+                            )
+                            break
 
                         if attempts > config.max_retries:
                             break
-                        log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
-                        await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+
+                        # Exponential backoff before retry
+                        delay = config.retry_policy.get_delay(attempts - 1)
+                        log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                        await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                        await asyncio.sleep(delay)
 
                     # Check if operator reset us to pending while we were running or
                     # immediately after — if so, re-run without requiring an orchestrator restart.
