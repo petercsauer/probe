@@ -201,7 +201,7 @@ impl WaterfallPane {
         buf.set_string(
             mid_x.saturating_sub(2),
             area.y + 1,
-            &format!("{}{}", scale_ms / 2, unit),
+            format!("{}{}", scale_ms / 2, unit),
             axis_style,
         );
 
@@ -443,7 +443,7 @@ impl PaneComponent for WaterfallPane {
             buf.set_string(
                 inner.x + label_width + bar_width + 2,
                 y,
-                &format!("{:>width$}", duration_str, width = duration_width as usize),
+                format!("{:>width$}", duration_str, width = duration_width as usize),
                 label_style,
             );
 
