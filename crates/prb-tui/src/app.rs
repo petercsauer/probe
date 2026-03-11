@@ -27,6 +27,7 @@ use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
+use crate::panes::waterfall::WaterfallPane;
 use crate::panes::{Action, PaneComponent};
 use crate::ring_buffer::RingBuffer;
 use crate::theme::ThemeConfig;
@@ -119,6 +120,7 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
+    waterfall: WaterfallPane,
     #[allow(dead_code)]
     ai_panel: AiPanel,
     #[allow(dead_code)]
@@ -153,6 +155,7 @@ pub struct App {
     capture_config: Option<CaptureConfigOverlay>,
     copy_mode_active: bool,
     showing_conversations: bool,
+    showing_waterfall: bool,
     // conversation_list: crate::panes::conversation_list::ConversationListPane,
     follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
     metrics_overlay: bool,
@@ -224,6 +227,7 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            waterfall: WaterfallPane::new(),
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
             theme,
@@ -244,6 +248,7 @@ impl App {
             capture_config: None,
             copy_mode_active: false,
             showing_conversations: false,
+            showing_waterfall: false,
             // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
@@ -373,6 +378,7 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            waterfall: WaterfallPane::new(),
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
             theme,
@@ -393,6 +399,7 @@ impl App {
             capture_config: None,
             copy_mode_active: false,
             showing_conversations: false,
+            showing_waterfall: false,
             // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
@@ -1122,6 +1129,11 @@ impl App {
                 self.input_mode = InputMode::CopyMode;
                 return false;
             }
+            KeyCode::Char('W') => {
+                // Toggle waterfall view
+                self.showing_waterfall = !self.showing_waterfall;
+                return false;
+            }
             KeyCode::Char('w') => {
                 // Quick save filtered view
                 self.save_filtered_view();
@@ -1179,7 +1191,9 @@ impl App {
         // Route to focused pane
         let action = match self.focus {
             PaneId::EventList => {
-                if self.showing_conversations {
+                if self.showing_waterfall {
+                    self.waterfall.handle_key(key, &self.state)
+                } else if self.showing_conversations {
                     // self.conversation_list.handle_key(key, &self.state)
                     Action::None
                 } else {
@@ -2155,12 +2169,14 @@ impl App {
             let focus = self.focus;
             match zoomed {
                 PaneId::EventList => {
-                    // TODO: Conversation list support
-                    // if self.showing_conversations {
-                    //     self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
-                    // } else {
+                    if self.showing_waterfall {
+                        self.waterfall.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    } else if self.showing_conversations {
+                        // self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
                         self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
-                    // }
+                    } else {
+                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                    }
                 }
                 PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
                 PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
@@ -2191,7 +2207,9 @@ impl App {
             .split(vert_layout[1]);
 
         let focus = self.focus;
-        if self.showing_conversations {
+        if self.showing_waterfall {
+            self.waterfall.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        } else if self.showing_conversations {
             // self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
             self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         } else {
