@@ -980,11 +980,8 @@ async def _orchestrate_inner(
 
                     # Notify operator
                     if notifier:
-                        await notifier.error(
-                            title=f"Wave {wave_num} Pre-Flight Failed",
-                            body=f"{len(errors)} compilation errors detected",
-                            details=errors[:10],  # First 10 errors
-                        )
+                        error_summary = f"Wave {wave_num} pre-flight failed: {len(errors)} compilation errors. First error: {errors[0][:100] if errors else 'unknown'}"
+                        await notifier.error(error_summary)
 
                     # Stop orchestration - don't launch any segments
                     break
