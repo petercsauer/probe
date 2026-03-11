@@ -142,16 +142,54 @@ def _parse_stream_jsonl(raw_path: Path) -> tuple[str, str]:
 
 
 def _extract_status(log_text: str) -> str:
-    """Extract PASS/PARTIAL/BLOCKED from the builder report in log text."""
-    for marker in ("**Status:** PASS", "Status: PASS"):
-        if marker in log_text:
-            return "pass"
-    for marker in ("**Status:** PARTIAL", "Status: PARTIAL"):
-        if marker in log_text:
-            return "partial"
-    for marker in ("**Status:** BLOCKED", "Status: BLOCKED"):
-        if marker in log_text:
-            return "blocked"
+    """Extract PASS/PARTIAL/BLOCKED from the builder report in log text.
+
+    Uses exact string matching as the primary method (fast path), with regex
+    fallback patterns for common variations. Returns the first match found.
+    Logs warnings when non-standard formats are detected.
+    """
+    import re
+
+    # Find the earliest occurrence among all exact markers
+    earliest_pos = len(log_text)
+    earliest_status = None
+
+    # Check all exact markers and track the earliest
+    markers = [
+        ("**Status:** PASS", "pass"),
+        ("Status: PASS", "pass"),
+        ("**Status:** PARTIAL", "partial"),
+        ("Status: PARTIAL", "partial"),
+        ("**Status:** BLOCKED", "blocked"),
+        ("Status: BLOCKED", "blocked"),
+    ]
+
+    for marker, status in markers:
+        pos = log_text.find(marker)
+        if pos != -1 and pos < earliest_pos:
+            earliest_pos = pos
+            earliest_status = status
+
+    if earliest_status is not None:
+        return earliest_status
+
+    # Lenient patterns for common variations
+    patterns = [
+        (r"\*\*Status:\*\*\s+(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"Status:\s+(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
+        (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
+    ]
+
+    for pattern, status in patterns:
+        match = re.search(pattern, log_text, re.IGNORECASE)
+        if match:
+            log.warning(
+                "Non-standard status format detected: '%s' (mapped to %s)",
+                match.group(1), status
+            )
+            return status
+
     return "unknown"
 
 

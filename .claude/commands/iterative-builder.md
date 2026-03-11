@@ -41,6 +41,21 @@ If segment brief doesn't separate targeted from regression tests, treat all as P
 
 ## Structured Final Report (mandatory on completion)
 
+**CRITICAL: Status Field Format**
+
+You MUST output EXACTLY one of these three strings (case-sensitive):
+- `**Status:** PASS`
+- `**Status:** PARTIAL`
+- `**Status:** BLOCKED`
+
+Do NOT use variations like:
+- ❌ `**Status:** COMPLETE` (will be accepted but logged as non-standard)
+- ❌ `**Status:** SUCCESS` (will be accepted but logged as non-standard)
+- ❌ `**Status:** DONE` (will be accepted but logged as non-standard)
+- ❌ `Segment Execution Complete ✅` (will be marked "unknown")
+
+The orchestrator uses exact string matching as primary method. Variations are accepted as fallback but discouraged.
+
 ```
 ## Builder Report: [Segment Title]
 
