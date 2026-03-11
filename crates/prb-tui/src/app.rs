@@ -20,7 +20,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, PluginManagerOverlay, PluginType, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
@@ -82,6 +82,13 @@ pub enum InputMode {
     CaptureConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DragState {
+    None,
+    ResizingVertical(u16),   // dragging horizontal border (splits top/bottom)
+    ResizingHorizontal(u16), // dragging vertical border (splits left/right)
+}
+
 pub struct AppState {
     pub store: EventStore,
     pub filtered_indices: Vec<usize>,
@@ -117,6 +124,7 @@ pub struct App {
     vertical_split: u16,   // event list height %, default 50
     horizontal_split: u16, // decode tree width %, default 50
     pane_rects: HashMap<PaneId, Rect>,
+    drag_state: DragState,
 
     // Go-to-event input
     goto_input: Input,
@@ -195,6 +203,7 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
+            drag_state: DragState::None,
             goto_input: Input::default(),
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
@@ -255,6 +264,7 @@ impl App {
             vertical_split: 55,
             horizontal_split: 40,
             pane_rects: HashMap::new(),
+            drag_state: DragState::None,
             goto_input: Input::default(),
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
@@ -435,6 +445,22 @@ impl App {
                 }
             }
 
+            // Update filter preview if in filter mode and debounce elapsed
+            if self.input_mode == InputMode::Filter && self.filter_state.should_update_preview() {
+                let text = self.filter_input.value();
+                if !text.trim().is_empty() {
+                    match Filter::parse(text) {
+                        Ok(filter) => {
+                            let count = self.state.store.filter_indices(&filter).len();
+                            self.filter_state.update_preview(Some(filter), Some(count));
+                        }
+                        Err(_) => {
+                            self.filter_state.update_preview(None, None);
+                        }
+                    }
+                }
+            }
+
             // Poll keyboard (33ms = ~30fps)
             if event::poll(Duration::from_millis(33))? {
                 match event::read()? {
@@ -554,6 +580,27 @@ impl App {
             MouseEventKind::Down(MouseButton::Left) => {
                 let (col, row) = (mouse.column, mouse.row);
 
+                // Skip drag detection if zoomed
+                if self.zoomed_pane.is_none() {
+                    // Check if near a horizontal border (vertical split)
+                    if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
+                        let border_row = event_list_rect.y + event_list_rect.height;
+                        if row == border_row || row == border_row.saturating_sub(1) {
+                            self.drag_state = DragState::ResizingVertical(row);
+                            return;
+                        }
+                    }
+
+                    // Check if near a vertical border (horizontal split)
+                    if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
+                        let border_col = decode_tree_rect.x + decode_tree_rect.width;
+                        if col == border_col || col == border_col.saturating_sub(1) {
+                            self.drag_state = DragState::ResizingHorizontal(col);
+                            return;
+                        }
+                    }
+                }
+
                 // Check which pane was clicked
                 for (pane_id, rect) in &self.pane_rects {
                     if col >= rect.x && col < rect.x + rect.width
@@ -573,6 +620,40 @@ impl App {
                         break;
                     }
                 }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                let (col, row) = (mouse.column, mouse.row);
+
+                match self.drag_state {
+                    DragState::ResizingVertical(_) => {
+                        // Calculate new vertical split based on mouse position
+                        if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
+                            let total_height = event_list_rect.height +
+                                self.pane_rects.get(&PaneId::DecodeTree).map(|r| r.height).unwrap_or(0);
+                            if total_height > 0 {
+                                let event_list_height = row.saturating_sub(event_list_rect.y);
+                                let new_percentage = ((event_list_height as f32 / total_height as f32) * 100.0) as u16;
+                                self.vertical_split = new_percentage.clamp(20, 80);
+                            }
+                        }
+                    }
+                    DragState::ResizingHorizontal(_) => {
+                        // Calculate new horizontal split based on mouse position
+                        if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
+                            let total_width = decode_tree_rect.width +
+                                self.pane_rects.get(&PaneId::HexDump).map(|r| r.width).unwrap_or(0);
+                            if total_width > 0 {
+                                let decode_tree_width = col.saturating_sub(decode_tree_rect.x);
+                                let new_percentage = ((decode_tree_width as f32 / total_width as f32) * 100.0) as u16;
+                                self.horizontal_split = new_percentage.clamp(20, 80);
+                            }
+                        }
+                    }
+                    DragState::None => {}
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                self.drag_state = DragState::None;
             }
             MouseEventKind::ScrollDown => {
                 // Route scroll to focused pane
@@ -622,7 +703,7 @@ impl App {
                         let action = self.decode_tree.handle_key(
                             KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
                             &self.state,
-                            
+
                         );
                         self.process_action(action);
                     }
@@ -639,6 +720,13 @@ impl App {
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
                         self.input_mode = InputMode::Normal;
+                        self.help_scroll_offset = 0;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.help_scroll_offset = self.help_scroll_offset.saturating_add(1);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
                     }
                     _ => {}
                 }
@@ -695,10 +783,10 @@ impl App {
                 return self.handle_plugin_manager_key(key);
             }
             InputMode::ExportDialog => {
-                return false; // TODO: Implement export dialog handler
+                return self.handle_export_dialog_key(key);
             }
             InputMode::CopyMode => {
-                return false; // TODO: Implement copy mode handler
+                return self.handle_copy_mode_key(key);
             }
             InputMode::CaptureConfig => {
                 return false; // TODO: Implement capture config handler
@@ -772,9 +860,7 @@ impl App {
                     "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
                     "Catppuccin Mocha" => ThemeConfig::dracula(),
-                    "Dracula" => ThemeConfig::colorblind_safe(),
-                    "Colorblind Safe" => ThemeConfig::high_contrast(),
-                    "High Contrast" => ThemeConfig::dark(),
+                    "Dracula" => ThemeConfig::dark(),
                     _ => ThemeConfig::dark(),
                 };
                 let message = format!("Theme: {}", self.theme.name);
@@ -827,6 +913,56 @@ impl App {
                 self.goto_input = Input::default();
                 return false;
             }
+            KeyCode::Char('e') => {
+                // Open export dialog
+                let filtered_count = self.state.filtered_indices.len();
+                self.export_dialog = Some(ExportDialogOverlay::new(filtered_count));
+                self.input_mode = InputMode::ExportDialog;
+                return false;
+            }
+            KeyCode::Char('y') => {
+                // Enter copy mode
+                self.copy_mode_active = true;
+                self.input_mode = InputMode::CopyMode;
+                return false;
+            }
+            KeyCode::Char('w') => {
+                // Quick save filtered view
+                self.save_filtered_view();
+                return false;
+            }
+            KeyCode::Char('f') => {
+                self.quick_filter_prefix = true;
+                return false;
+            }
+            KeyCode::Char('s') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by source
+                self.apply_quick_filter_source();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('d') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by destination
+                self.apply_quick_filter_dest();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('p') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by protocol/transport
+                self.apply_quick_filter_transport();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            KeyCode::Char('c') if self.quick_filter_prefix && self.focus == PaneId::EventList => {
+                // Quick filter by conversation
+                self.apply_quick_filter_conversation();
+                self.quick_filter_prefix = false;
+                return false;
+            }
+            _ if self.quick_filter_prefix => {
+                // Any other key cancels quick-filter mode
+                self.quick_filter_prefix = false;
+            }
             _ => {}
         }
 
@@ -845,17 +981,22 @@ impl App {
     fn handle_filter_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Enter => {
+                // Commit the filter from FilterState
                 let text = self.filter_input.value().to_string();
+                self.filter_state.set_text(text.clone());
+
                 if text.trim().is_empty() {
                     self.state.filter = None;
                     self.state.filter_text.clear();
                     self.state.filtered_indices = self.state.store.all_indices();
+                    self.filter_state.commit(None);
                 } else {
                     match Filter::parse(&text) {
                         Ok(filter) => {
                             self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                            self.state.filter = Some(filter);
-                            self.state.filter_text = text;
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = text.clone();
+                            self.filter_state.commit(Some(filter));
                             self.filter_error = None;
                         }
                         Err(e) => {
@@ -864,6 +1005,7 @@ impl App {
                         }
                     }
                 }
+
                 self.event_list.selected = 0;
                 self.event_list.scroll_offset = 0;
                 self.state.selected_event = if self.state.filtered_indices.is_empty() {
@@ -886,8 +1028,25 @@ impl App {
                 self.filter_error = None;
                 false
             }
+            KeyCode::Up => {
+                // Navigate to previous history entry
+                self.filter_state.history_up();
+                self.filter_input = Input::new(self.filter_state.text.clone());
+                self.filter_error = None;
+                false
+            }
+            KeyCode::Down => {
+                // Navigate to next history entry
+                self.filter_state.history_down();
+                self.filter_input = Input::new(self.filter_state.text.clone());
+                self.filter_error = None;
+                false
+            }
             _ => {
                 self.filter_input.handle_event(&Event::Key(key));
+                // Sync filter_input changes to filter_state
+                let text = self.filter_input.value().to_string();
+                self.filter_state.set_text(text);
                 self.filter_error = None;
                 false
             }
@@ -1047,16 +1206,10 @@ impl App {
             }
         };
 
-        let export_format = match format.format.as_str() {
-            "json" | "json-all" => "json",
-            other => other,
-        };
-
-        if let Ok(exporter) = prb_export::create_exporter(export_format) {
-            if let Ok(file) = File::create(path) {
-                let mut writer = BufWriter::new(file);
-                let _ = exporter.export(&events, &mut writer);
-            }
+        // Export to JSON
+        if let Ok(file) = File::create(path) {
+            let mut writer = BufWriter::new(file);
+            let _ = serde_json::to_writer_pretty(&mut writer, &events);
         }
     }
 
@@ -1098,9 +1251,25 @@ impl App {
         if let Some(selected_idx) = self.state.selected_event {
             if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
                 if let Some(event) = self.state.store.get(store_idx) {
-                    let hex_lines = self.hex_dump.format_hex_dump(&event.payload);
-                    let hex_text = hex_lines.join("\n");
-                    Self::osc52_copy(&hex_text);
+                    // Extract raw bytes from payload
+                    let raw_bytes = match &event.payload {
+                        Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
+                    };
+
+                    // Format as hex dump
+                    let mut hex_lines = Vec::new();
+                    for (offset, chunk) in raw_bytes.chunks(16).enumerate() {
+                        let hex_part: Vec<String> = chunk.iter()
+                            .map(|b| format!("{:02x}", b))
+                            .collect();
+                        let ascii_part: String = chunk.iter()
+                            .map(|&b| if b >= 32 && b <= 126 { b as char } else { '.' })
+                            .collect();
+                        hex_lines.push(format!("{:08x}  {:47}  {}",
+                            offset * 16, hex_part.join(" "), ascii_part));
+                    }
+
+                    Self::osc52_copy(&hex_lines.join("\n"));
                 }
             }
         }
@@ -1121,7 +1290,10 @@ impl App {
         if let Some(selected_idx) = self.state.selected_event {
             if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
                 if let Some(event) = self.state.store.get(store_idx) {
-                    let address = format!("{}:{}", event.source_addr, event.source_port);
+                    let address = event.source.network
+                        .as_ref()
+                        .map(|n| n.src.clone())
+                        .unwrap_or_else(|| event.source.origin.clone());
                     Self::osc52_copy(&address);
                 }
             }
@@ -1131,20 +1303,23 @@ impl App {
     fn format_decoded_tree(&self, event: &DebugEvent) -> String {
         let mut lines = Vec::new();
 
+        // Extract raw bytes from payload
+        let raw_bytes = match &event.payload {
+            Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
+        };
+
         if let Some(ref registry) = self.state.schema_registry {
             if let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
-                .and_then(|method| registry.get_by_method(method))
+                .and_then(|method| registry.get_message(method))
             {
-                if let Ok(wire_msg) = decode_wire_format(&event.payload.as_bytes()) {
-                    if let Ok(decoded) = decode_with_schema(&wire_msg, schema) {
-                        Self::format_wire_value(&decoded, 0, &mut lines);
-                        return lines.join("\n");
-                    }
+                if let Ok(decoded) = decode_with_schema(raw_bytes, &schema) {
+                    Self::format_wire_value(&decoded.to_json(), 0, &mut lines);
+                    return lines.join("\n");
                 }
             }
         }
 
-        if let Ok(wire_msg) = decode_wire_format(&event.payload.as_bytes()) {
+        if let Ok(wire_msg) = decode_wire_format(raw_bytes) {
             Self::format_wire_message(&wire_msg, 0, &mut lines);
         }
 
@@ -1152,9 +1327,9 @@ impl App {
     }
 
     fn format_wire_message(msg: &WireMessage, indent: usize, lines: &mut Vec<String>) {
-        for (field_num, value) in &msg.fields {
-            lines.push(format!("{}{}: {:?}", "  ".repeat(indent), field_num, value));
-            if let WireValue::LengthDelimited(LenValue::Message(nested_msg)) = value {
+        for field in &msg.fields {
+            lines.push(format!("{}{}: {:?}", "  ".repeat(indent), field.field_number, field.value));
+            if let WireValue::LengthDelimited(LenValue::SubMessage(nested_msg)) = &field.value {
                 Self::format_wire_message(nested_msg, indent + 1, lines);
             }
         }
@@ -1165,7 +1340,7 @@ impl App {
             JsonValue::Object(obj) => {
                 for (key, val) in obj {
                     lines.push(format!("{}{}: {}", "  ".repeat(indent), key,
-                        if val.is_object() || val.is_array() { "" } else { val.to_string() }));
+                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
                     if val.is_object() || val.is_array() {
                         Self::format_wire_value(val, indent + 1, lines);
                     }
@@ -1174,7 +1349,7 @@ impl App {
             JsonValue::Array(arr) => {
                 for (i, val) in arr.iter().enumerate() {
                     lines.push(format!("{}[{}]: {}", "  ".repeat(indent), i,
-                        if val.is_object() || val.is_array() { "" } else { val.to_string() }));
+                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
                     if val.is_object() || val.is_array() {
                         Self::format_wire_value(val, indent + 1, lines);
                     }
@@ -1426,6 +1601,7 @@ impl App {
             &self.filter_input,
             &self.filter_error,
             &self.state,
+            &self.filter_state,
             &self.theme,
         );
         // Render status bar or capture control bar depending on mode
@@ -1502,6 +1678,23 @@ impl App {
                     buf.set_string(inner.x + 2, y_pos, line, Style::default());
                 }
             }
+        }
+
+        // Render Welcome overlay when no events loaded
+        if self.input_mode == InputMode::Welcome {
+            WelcomeOverlay::render(area, buf);
+        }
+
+        // Render WhichKey overlay
+        if self.input_mode == InputMode::WhichKey {
+            if let Some(ref overlay) = self.which_key_overlay {
+                overlay.render(area, buf);
+            }
+        }
+
+        // Render CommandPalette overlay
+        if self.input_mode == InputMode::CommandPalette {
+            self.command_palette.render(area, buf);
         }
     }
 
@@ -1590,6 +1783,7 @@ impl App {
         filter_input: &Input,
         filter_error: &Option<String>,
         state: &AppState,
+        filter_state: &FilterState,
         theme: &ThemeConfig,
     ) {
         let is_filtering = input_mode == InputMode::Filter;
@@ -1623,6 +1817,13 @@ impl App {
 
         if let Some(err) = filter_error {
             spans.push(Span::styled(format!("  ✗ {}", err), Theme::filter_error()));
+        } else if is_filtering && filter_state.preview_count.is_some() {
+            // Show preview count during typing (yellow for preview)
+            let preview_count = filter_state.preview_count.unwrap();
+            spans.push(Span::styled(
+                format!("  [{}/{}]", preview_count, total),
+                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+            ));
         } else if state.filter.is_some() {
             spans.push(Span::styled(
                 format!("  [{}/{}]", match_count, total),
@@ -1664,7 +1865,7 @@ impl App {
         let mut spans = if show_status_msg {
             // Show status message prominently
             vec![Span::styled(
-                format!(" {} ", status_message.unwrap().0),
+                format!(" {} ", &status_message.as_ref().unwrap().0),
                 Style::default()
                     .fg(ratatui::style::Color::Black)
                     .bg(ratatui::style::Color::Yellow)
@@ -1839,6 +2040,139 @@ impl App {
     pub fn get_filter_error(&self) -> &Option<String> {
         &self.filter_error
     }
+
+    /// Apply quick filter for source address.
+    fn apply_quick_filter_source(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    let source = event
+                        .source
+                        .network
+                        .as_ref()
+                        .map(|n| n.src.as_str())
+                        .unwrap_or(&event.source.origin);
+                    let filter_text = format!("source == \"{}\"", source);
+                    
+                    if let Ok(filter) = Filter::parse(&filter_text) {
+                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                        self.state.filter = Some(filter.clone());
+                        self.state.filter_text = filter_text.clone();
+                        self.filter_state.set_text(filter_text.clone());
+                        self.filter_state.commit(Some(filter));
+                        self.event_list.selected = 0;
+                        self.event_list.scroll_offset = 0;
+                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                            None
+                        } else {
+                            Some(0)
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    /// Apply quick filter for destination address.
+    fn apply_quick_filter_dest(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    if let Some(ref network) = event.source.network {
+                        let filter_text = format!("dest == \"{}\"", network.dst);
+                        
+                        if let Ok(filter) = Filter::parse(&filter_text) {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = filter_text.clone();
+                            self.filter_state.set_text(filter_text.clone());
+                            self.filter_state.commit(Some(filter));
+                            self.event_list.selected = 0;
+                            self.event_list.scroll_offset = 0;
+                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Apply quick filter for transport protocol.
+    fn apply_quick_filter_transport(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    let transport = format!("{}", event.transport);
+                    let filter_text = format!("transport == \"{}\"", transport);
+                    
+                    if let Ok(filter) = Filter::parse(&filter_text) {
+                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                        self.state.filter = Some(filter.clone());
+                        self.state.filter_text = filter_text.clone();
+                        self.filter_state.set_text(filter_text.clone());
+                        self.filter_state.commit(Some(filter));
+                        self.event_list.selected = 0;
+                        self.event_list.scroll_offset = 0;
+                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                            None
+                        } else {
+                            Some(0)
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    /// Apply quick filter for conversation (using correlation keys).
+    fn apply_quick_filter_conversation(&mut self) {
+        if let Some(selected_idx) = self.state.selected_event {
+            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
+                if let Some(event) = self.state.store.get(store_idx) {
+                    // Try to build a conversation filter from correlation keys
+                    if let Some(key) = event.correlation_keys.first() {
+                        let filter_text = match key {
+                            prb_core::CorrelationKey::StreamId { id } => {
+                                format!("conversation.stream_id == {}", id)
+                            }
+                            prb_core::CorrelationKey::Topic { name } => {
+                                format!("conversation.topic == \"{}\"", name)
+                            }
+                            prb_core::CorrelationKey::ConnectionId { id } => {
+                                format!("conversation.connection_id == \"{}\"", id)
+                            }
+                            prb_core::CorrelationKey::TraceContext { trace_id, .. } => {
+                                format!("conversation.trace_id == \"{}\"", trace_id)
+                            }
+                            prb_core::CorrelationKey::Custom { key: k, value: v } => {
+                                format!("conversation.{} == \"{}\"", k, v)
+                            }
+                        };
+                        
+                        if let Ok(filter) = Filter::parse(&filter_text) {
+                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                            self.state.filter = Some(filter.clone());
+                            self.state.filter_text = filter_text.clone();
+                            self.filter_state.set_text(filter_text.clone());
+                            self.filter_state.commit(Some(filter));
+                            self.event_list.selected = 0;
+                            self.event_list.scroll_offset = 0;
+                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                                None
+                            } else {
+                                Some(0)
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 /// Convert a wire-format decoded message to JSON.

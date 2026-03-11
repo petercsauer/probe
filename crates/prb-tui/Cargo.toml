@@ -17,6 +17,7 @@ prb-dds = { path = "../prb-dds" }
 prb-capture = { path = "../prb-capture" }
 prb-schema = { path = "../prb-schema" }
 prb-decode = { path = "../prb-decode" }
+prb-export = { path = "../prb-export" }
 prb-ai = { path = "../prb-ai" }
 prb-plugin-api = { path = "../prb-plugin-api" }
 prb-plugin-native = { path = "../prb-plugin-native" }
