@@ -32,6 +32,7 @@ unicode-width = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }
+async-openai = "0.20"
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }
