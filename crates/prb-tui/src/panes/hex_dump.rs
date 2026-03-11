@@ -149,6 +149,14 @@ impl HexDumpPane {
         self.cursor_offset = offset;
         self.scroll_offset = offset / 16;
     }
+
+    pub fn scroll_down(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_add(lines);
+    }
+
+    pub fn scroll_up(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+    }
 }
 
 impl PaneComponent for HexDumpPane {

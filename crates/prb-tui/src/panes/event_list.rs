@@ -124,6 +124,15 @@ impl EventListPane {
         }
     }
 
+    pub fn ensure_visible(&mut self, position: usize, context_lines: usize) {
+        // Ensure the position is visible with some context lines around it
+        if position < self.scroll_offset + context_lines {
+            self.scroll_offset = position.saturating_sub(context_lines);
+        }
+        // Note: We don't adjust for the bottom because we don't know the visible height here
+        // The caller should handle that if needed
+    }
+
     fn total_items(state: &AppState) -> usize {
         state.filtered_indices.len()
     }
