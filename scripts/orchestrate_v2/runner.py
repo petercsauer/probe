@@ -241,8 +241,13 @@ async def run_segment(
     attempt_num: int = 1,
     register_pid=None,
     unregister_pid=None,
+    cwd: Path | None = None,
 ) -> tuple[str, str]:
     """Execute a single segment via claude CLI.
+
+    Args:
+        cwd: Optional working directory for the subprocess. When isolation_strategy="worktree",
+             the orchestrator will pass the worktree path here.
 
     Returns (status, summary).
     """
@@ -282,6 +287,7 @@ async def run_segment(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=env,
+            cwd=cwd,  # Use provided working directory (worktree path when isolation_strategy="worktree")
             start_new_session=True,
             limit=2**22,  # 4MB — default 64KB trips on large tool-result JSON lines
         )
