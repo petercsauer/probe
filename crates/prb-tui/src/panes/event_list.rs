@@ -159,7 +159,7 @@ impl EventListPane {
         let filter_hash = hasher.finish();
 
         // Check if we can use cached view
-        let needs_recompute = self.cached_view.as_ref().map_or(true, |cache| {
+        let needs_recompute = self.cached_view.as_ref().is_none_or(|cache| {
             cache.filter_hash != filter_hash
                 || cache.sort_column != self.sort_column
                 || cache.sort_reversed != self.sort_reversed

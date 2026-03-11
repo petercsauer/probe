@@ -10,6 +10,12 @@ use crate::theme::ThemeConfig;
 
 pub struct AiPanel;
 
+impl Default for AiPanel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AiPanel {
     pub fn new() -> Self {
         AiPanel

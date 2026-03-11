@@ -164,8 +164,8 @@ impl App {
             store,
         };
 
-        if let Some(ref filter_str) = initial_filter {
-            if let Ok(filter) = Filter::parse(filter_str) {
+        if let Some(ref filter_str) = initial_filter
+            && let Ok(filter) = Filter::parse(filter_str) {
                 state.filtered_indices = state.store.filter_indices(&filter);
                 state.filter_text = filter_str.clone();
                 state.filter = Some(filter);
@@ -175,7 +175,6 @@ impl App {
                     Some(0)
                 };
             }
-        }
 
         let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
@@ -719,8 +718,8 @@ impl App {
             InputMode::Help => {
                 // Check if key is configured quit or help key
                 let is_exit_key = key.code == KeyCode::Esc
-                    || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k)
-                    || self.config.tui.keybindings.help_keycode().map_or(false, |k| key.code == k);
+                    || (self.config.tui.keybindings.quit_keycode() == Some(key.code))
+                    || (self.config.tui.keybindings.help_keycode() == Some(key.code));
 
                 if is_exit_key {
                     self.input_mode = InputMode::Normal;
@@ -814,27 +813,24 @@ impl App {
         }
 
         // Check configured keybindings
-        if let Some(quit_key) = self.config.tui.keybindings.quit_keycode() {
-            if key.code == quit_key {
+        if let Some(quit_key) = self.config.tui.keybindings.quit_keycode()
+            && key.code == quit_key {
                 return true;
             }
-        }
-        if let Some(help_key) = self.config.tui.keybindings.help_keycode() {
-            if key.code == help_key {
+        if let Some(help_key) = self.config.tui.keybindings.help_keycode()
+            && key.code == help_key {
                 self.input_mode = InputMode::Help;
                 return false;
             }
-        }
-        if let Some(filter_key) = self.config.tui.keybindings.filter_keycode() {
-            if key.code == filter_key {
+        if let Some(filter_key) = self.config.tui.keybindings.filter_keycode()
+            && key.code == filter_key {
                 self.input_mode = InputMode::Filter;
                 self.filter_input = Input::new(self.state.filter_text.clone());
                 self.filter_error = None;
                 return false;
             }
-        }
-        if let Some(theme_key) = self.config.tui.keybindings.theme_cycle_keycode() {
-            if key.code == theme_key {
+        if let Some(theme_key) = self.config.tui.keybindings.theme_cycle_keycode()
+            && key.code == theme_key {
                 self.theme = match self.theme.name.as_str() {
                     "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
@@ -848,9 +844,8 @@ impl App {
                 self.status_message = Some((message, std::time::Instant::now()));
                 return false;
             }
-        }
-        if let Some(zoom_key) = self.config.tui.keybindings.zoom_keycode() {
-            if key.code == zoom_key {
+        if let Some(zoom_key) = self.config.tui.keybindings.zoom_keycode()
+            && key.code == zoom_key {
                 // Toggle zoom on focused pane
                 if self.zoomed_pane.is_some() {
                     self.zoomed_pane = None;
@@ -859,7 +854,6 @@ impl App {
                 }
                 return false;
             }
-        }
 
         match key.code {
             KeyCode::Char(':') => {
@@ -1168,7 +1162,7 @@ impl App {
     fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
         // Check if key is Esc or configured quit key
         let is_exit_key = key.code == KeyCode::Esc
-            || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k);
+            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
 
         if is_exit_key {
             self.input_mode = InputMode::Normal;
@@ -1225,7 +1219,7 @@ impl App {
 
         // Check if key is Esc or configured quit key
         let is_exit_key = key.code == KeyCode::Esc
-            || self.config.tui.keybindings.quit_keycode().map_or(false, |k| key.code == k);
+            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
 
         if is_exit_key {
             self.export_dialog = None;
@@ -1359,21 +1353,18 @@ impl App {
     }
 
     fn copy_selected_as_json(&self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    if let Ok(json) = serde_json::to_string_pretty(event) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx)
+                    && let Ok(json) = serde_json::to_string_pretty(event) {
                         Self::osc52_copy(&json);
                     }
-                }
-            }
-        }
     }
 
     fn copy_hex_dump(&self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     // Extract raw bytes from payload
                     let raw_bytes = match &event.payload {
                         Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
@@ -1386,7 +1377,7 @@ impl App {
                             .map(|b| format!("{:02x}", b))
                             .collect();
                         let ascii_part: String = chunk.iter()
-                            .map(|&b| if b >= 32 && b <= 126 { b as char } else { '.' })
+                            .map(|&b| if (32..=126).contains(&b) { b as char } else { '.' })
                             .collect();
                         hex_lines.push(format!("{:08x}  {:47}  {}",
                             offset * 16, hex_part.join(" "), ascii_part));
@@ -1394,33 +1385,27 @@ impl App {
 
                     Self::osc52_copy(&hex_lines.join("\n"));
                 }
-            }
-        }
     }
 
     fn copy_decoded_tree(&self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     let decoded_text = self.format_decoded_tree(event);
                     Self::osc52_copy(&decoded_text);
                 }
-            }
-        }
     }
 
     fn copy_source_address(&self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     let address = event.source.network
                         .as_ref()
                         .map(|n| n.src.clone())
                         .unwrap_or_else(|| event.source.origin.clone());
                     Self::osc52_copy(&address);
                 }
-            }
-        }
     }
 
     fn format_decoded_tree(&self, event: &DebugEvent) -> String {
@@ -1431,16 +1416,13 @@ impl App {
             Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
         };
 
-        if let Some(ref registry) = self.state.schema_registry {
-            if let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+        if let Some(ref registry) = self.state.schema_registry
+            && let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
                 .and_then(|method| registry.get_message(method))
-            {
-                if let Ok(decoded) = decode_with_schema(raw_bytes, &schema) {
+                && let Ok(decoded) = decode_with_schema(raw_bytes, &schema) {
                     Self::format_wire_value(&decoded.to_json(), 0, &mut lines);
                     return lines.join("\n");
                 }
-            }
-        }
 
         if let Ok(wire_msg) = decode_wire_format(raw_bytes) {
             Self::format_wire_message(&wire_msg, 0, &mut lines);
@@ -1628,8 +1610,8 @@ impl App {
             let bytes = raw.clone();
 
             // Try schema-backed decode first (for gRPC)
-            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD) {
-                if let Some(msg_desc) = registry.get_message(method) {
+            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+                && let Some(msg_desc) = registry.get_message(method) {
                     match decode_with_schema(&bytes, &msg_desc) {
                         Ok(decoded) => {
                             event.payload = Payload::Decoded {
@@ -1645,7 +1627,6 @@ impl App {
                         }
                     }
                 }
-            }
 
             // Fallback: wire-format decode (field numbers only)
             match decode_wire_format(&bytes) {
@@ -1763,11 +1744,10 @@ impl App {
             self.plugin_manager.render(area, buf);
         }
 
-        if self.input_mode == InputMode::ExportDialog {
-            if let Some(ref dialog) = self.export_dialog {
+        if self.input_mode == InputMode::ExportDialog
+            && let Some(ref dialog) = self.export_dialog {
                 dialog.render(area, buf);
             }
-        }
 
         if self.input_mode == InputMode::CopyMode {
             let width = 40u16.min(area.width.saturating_sub(4));
@@ -1786,14 +1766,12 @@ impl App {
             let inner = block.inner(overlay_area);
             block.render(overlay_area, buf);
 
-            let help_lines = vec![
-                "y - copy event as JSON",
+            let help_lines = ["y - copy event as JSON",
                 "h - copy hex dump",
                 "d - copy decoded tree",
                 "a - copy source address",
                 "",
-                "Esc - cancel",
-            ];
+                "Esc - cancel"];
 
             for (i, line) in help_lines.iter().enumerate() {
                 if i < inner.height as usize {
@@ -1809,11 +1787,10 @@ impl App {
         }
 
         // Render WhichKey overlay
-        if self.input_mode == InputMode::WhichKey {
-            if let Some(ref overlay) = self.which_key_overlay {
+        if self.input_mode == InputMode::WhichKey
+            && let Some(ref overlay) = self.which_key_overlay {
                 overlay.render(area, buf);
             }
-        }
 
         // Render CommandPalette overlay
         if self.input_mode == InputMode::CommandPalette {
@@ -2177,9 +2154,9 @@ impl App {
 
     /// Apply quick filter for source address.
     fn apply_quick_filter_source(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     let source = event
                         .source
                         .network
@@ -2203,16 +2180,14 @@ impl App {
                         };
                     }
                 }
-            }
-        }
     }
 
     /// Apply quick filter for destination address.
     fn apply_quick_filter_dest(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
-                    if let Some(ref network) = event.source.network {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx)
+                    && let Some(ref network) = event.source.network {
                         let filter_text = format!("dest == \"{}\"", network.dst);
                         
                         if let Ok(filter) = Filter::parse(&filter_text) {
@@ -2230,16 +2205,13 @@ impl App {
                             };
                         }
                     }
-                }
-            }
-        }
     }
 
     /// Apply quick filter for transport protocol.
     fn apply_quick_filter_transport(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     let transport = format!("{}", event.transport);
                     let filter_text = format!("transport == \"{}\"", transport);
                     
@@ -2258,15 +2230,13 @@ impl App {
                         };
                     }
                 }
-            }
-        }
     }
 
     /// Apply quick filter for conversation (using correlation keys).
     fn apply_quick_filter_conversation(&mut self) {
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&store_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(store_idx) {
+        if let Some(selected_idx) = self.state.selected_event
+            && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
+                && let Some(event) = self.state.store.get(store_idx) {
                     // Try to build a conversation filter from correlation keys
                     if let Some(key) = event.correlation_keys.first() {
                         let filter_text = match key {
@@ -2303,8 +2273,6 @@ impl App {
                         }
                     }
                 }
-            }
-        }
     }
 
 }
