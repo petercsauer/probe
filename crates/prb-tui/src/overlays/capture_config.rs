@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Widget};
 use ratatui::style::{Color, Modifier, Style};
 use prb_capture::{InterfaceInfo, InterfaceEnumerator, PrivilegeCheck};
+use tui_input::Input;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigField {
@@ -40,7 +41,9 @@ pub struct CaptureConfigOverlay {
     pub interfaces: Vec<InterfaceInfo>,
     pub selected_interface: usize,
     pub bpf_filter: String,
+    pub bpf_filter_input: Input,
     pub snaplen: u32,
+    pub snaplen_input: Input,
     pub promiscuous: bool,
     pub focused_field: ConfigField,
     pub privilege_warning: Option<String>,
@@ -65,7 +68,9 @@ impl CaptureConfigOverlay {
             interfaces,
             selected_interface: 0,
             bpf_filter: String::new(),
+            bpf_filter_input: Input::default(),
             snaplen: 65535,
+            snaplen_input: Input::default().with_value("65535".to_string()),
             promiscuous: true,
             focused_field: ConfigField::Interface,
             privilege_warning,
@@ -114,12 +119,34 @@ impl CaptureConfigOverlay {
 
     /// Update BPF filter string.
     pub fn set_bpf_filter(&mut self, filter: String) {
-        self.bpf_filter = filter;
+        self.bpf_filter = filter.clone();
+        self.bpf_filter_input = Input::default().with_value(filter);
     }
 
     /// Update snaplen value.
     pub fn set_snaplen(&mut self, snaplen: u32) {
         self.snaplen = snaplen;
+        self.snaplen_input = Input::default().with_value(snaplen.to_string());
+    }
+
+    /// Get mutable reference to BPF filter input.
+    pub fn bpf_filter_input_mut(&mut self) -> &mut Input {
+        &mut self.bpf_filter_input
+    }
+
+    /// Get mutable reference to snaplen input.
+    pub fn snaplen_input_mut(&mut self) -> &mut Input {
+        &mut self.snaplen_input
+    }
+
+    /// Sync the input fields to their underlying values.
+    pub fn sync_inputs(&mut self) {
+        self.bpf_filter = self.bpf_filter_input.value().to_string();
+        if let Ok(val) = self.snaplen_input.value().parse::<u32>()
+            && val > 0
+        {
+            self.snaplen = val;
+        }
     }
 
     /// Get the currently selected interface.
@@ -290,14 +317,35 @@ impl CaptureConfigOverlay {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let display_text = if self.bpf_filter.is_empty() {
-            Span::styled("(no filter - capture all traffic)", Style::default().fg(Color::DarkGray))
-        } else {
-            Span::styled(&self.bpf_filter, Style::default().fg(Color::White))
-        };
+        if focused {
+            // Show input widget when focused
+            let input_value = self.bpf_filter_input.value();
+            let display_text = if input_value.is_empty() {
+                "(type filter here...)"
+            } else {
+                input_value
+            };
+            let cursor_pos = self.bpf_filter_input.cursor();
 
-        let line = Line::from(display_text);
-        buf.set_line(inner.x, inner.y, &line, inner.width);
+            let line = Line::from(Span::styled(display_text, Style::default().fg(Color::White)));
+            buf.set_line(inner.x, inner.y, &line, inner.width);
+
+            // Show cursor
+            if cursor_pos < inner.width as usize {
+                buf[(inner.x + cursor_pos as u16, inner.y)]
+                    .set_style(Style::default().bg(Color::White).fg(Color::Black));
+            }
+        } else {
+            // Show static text when not focused
+            let display_text = if self.bpf_filter.is_empty() {
+                Span::styled("(no filter - capture all traffic)", Style::default().fg(Color::DarkGray))
+            } else {
+                Span::styled(&self.bpf_filter, Style::default().fg(Color::White))
+            };
+
+            let line = Line::from(display_text);
+            buf.set_line(inner.x, inner.y, &line, inner.width);
+        }
     }
 
     fn render_settings(&self, area: Rect, buf: &mut Buffer) {
@@ -324,14 +372,34 @@ impl CaptureConfigOverlay {
         } else {
             Style::default()
         };
-        let snaplen_line = Line::from(vec![
-            Span::styled("Snaplen: ", snaplen_style),
-            Span::styled(
-                format!("{} bytes", self.snaplen),
-                snaplen_style,
-            ),
-        ]);
-        buf.set_line(inner.x, inner.y, &snaplen_line, inner.width);
+
+        if focused_snaplen {
+            // Show input widget when focused
+            let input_value = self.snaplen_input.value();
+            let cursor_pos = self.snaplen_input.cursor();
+
+            let snaplen_line = Line::from(vec![
+                Span::styled("Snaplen: ", snaplen_style),
+                Span::styled(format!("{} bytes", input_value), snaplen_style),
+            ]);
+            buf.set_line(inner.x, inner.y, &snaplen_line, inner.width);
+
+            // Show cursor
+            let cursor_x = inner.x + 9 + cursor_pos as u16; // "Snaplen: " = 9 chars
+            if cursor_x < inner.x + inner.width {
+                buf[(cursor_x, inner.y)]
+                    .set_style(Style::default().bg(Color::White).fg(Color::Black));
+            }
+        } else {
+            let snaplen_line = Line::from(vec![
+                Span::styled("Snaplen: ", snaplen_style),
+                Span::styled(
+                    format!("{} bytes", self.snaplen),
+                    snaplen_style,
+                ),
+            ]);
+            buf.set_line(inner.x, inner.y, &snaplen_line, inner.width);
+        }
 
         // Promiscuous mode line
         let promisc_style = if focused_promisc {
