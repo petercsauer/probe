@@ -168,6 +168,9 @@ pub struct App {
     // Store input file path and metadata for session info
     input_file_path: Option<PathBuf>,
     input_file_size: u64,
+
+    // TLS decryption statistics (from PCAP loading with keylog)
+    tls_stats: Option<crate::loader::TlsStats>,
 }
 
 impl App {
@@ -246,6 +249,7 @@ impl App {
             session_info: None,
             input_file_path: None,
             input_file_size: 0,
+            tls_stats: None,
         }
     }
 
@@ -258,6 +262,11 @@ impl App {
     pub fn set_input_file(&mut self, path: PathBuf, size: u64) {
         self.input_file_path = Some(path);
         self.input_file_size = size;
+    }
+
+    /// Set TLS decryption statistics.
+    pub fn set_tls_stats(&mut self, stats: crate::loader::TlsStats) {
+        self.tls_stats = Some(stats);
     }
 
     /// Build session info from the current app state.
@@ -386,6 +395,7 @@ impl App {
             session_info: None,
             input_file_path: None,
             input_file_size: 0,
+            tls_stats: None,
         }
     }
 
@@ -1906,7 +1916,7 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.theme);
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme);
         }
 
         if self.input_mode == InputMode::Help {
@@ -2157,7 +2167,8 @@ impl App {
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, theme: &ThemeConfig) {
+    #[allow(clippy::too_many_arguments)]
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -2236,6 +2247,17 @@ impl App {
                         theme.status_bar(),
                     ));
                 }
+            }
+
+            // Show TLS decryption stats if available
+            if let Some(stats) = tls_stats {
+                spans.push(Span::styled(" │ ", theme.status_bar()));
+                spans.push(Span::styled(
+                    format!("TLS: {}/{} streams decrypted ", stats.decrypted, stats.total),
+                    Style::default()
+                        .fg(if stats.decrypted > 0 { ratatui::style::Color::Green } else { ratatui::style::Color::Yellow })
+                        .bg(ratatui::style::Color::DarkGray),
+                ));
             }
         }
 

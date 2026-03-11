@@ -9,6 +9,15 @@ use prb_schema::SchemaRegistry;
 
 use crate::EventStore;
 
+/// TLS decryption statistics from PCAP loading.
+#[derive(Debug, Clone, Copy)]
+pub struct TlsStats {
+    /// Number of TLS streams successfully decrypted.
+    pub decrypted: u64,
+    /// Total number of TLS streams encountered.
+    pub total: u64,
+}
+
 /// Events sent during streaming file loading.
 #[derive(Debug, Clone)]
 pub enum LoadEvent {
@@ -20,6 +29,8 @@ pub enum LoadEvent {
     Done,
     /// An error occurred during loading.
     Error(String),
+    /// TLS decryption statistics (sent at end of PCAP load).
+    TlsStats(TlsStats),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -57,14 +68,14 @@ fn detect_format(path: &Path) -> Result<InputFormat> {
     }
 }
 
-pub fn load_events(path: &Path, tls_keylog: Option<PathBuf>) -> Result<EventStore> {
+pub fn load_events(path: &Path, tls_keylog: Option<PathBuf>) -> Result<(EventStore, Option<TlsStats>)> {
     let format = detect_format(path)?;
-    let events = match format {
-        InputFormat::Json => load_json(path)?,
+    let (events, tls_stats) = match format {
+        InputFormat::Json => (load_json(path)?, None),
         InputFormat::Pcap | InputFormat::Pcapng => load_pcap(path, tls_keylog)?,
-        InputFormat::Mcap => load_mcap(path)?,
+        InputFormat::Mcap => (load_mcap(path)?, None),
     };
-    Ok(EventStore::new(events))
+    Ok((EventStore::new(events), tls_stats))
 }
 
 /// Load events from a file using streaming with progress updates.
@@ -117,8 +128,9 @@ fn load_json(path: &Path) -> Result<Vec<DebugEvent>> {
     Ok(events)
 }
 
-fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<Vec<DebugEvent>> {
+fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<(Vec<DebugEvent>, Option<TlsStats>)> {
     use prb_pcap::PcapCaptureAdapter;
+    let has_keylog = tls_keylog.is_some();
     let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
     let mut events = Vec::new();
     for result in adapter.ingest() {
@@ -127,7 +139,24 @@ fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<Vec<DebugEvent>
             Err(e) => tracing::warn!("Skipping event with error: {}", e),
         }
     }
-    Ok(events)
+
+    // Get TLS stats if keylog was provided
+    let tls_stats = if has_keylog {
+        let stats = adapter.stats();
+        let total_tls = stats.tls_decrypted + stats.tls_encrypted;
+        if total_tls > 0 {
+            Some(TlsStats {
+                decrypted: stats.tls_decrypted,
+                total: total_tls,
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok((events, tls_stats))
 }
 
 fn load_mcap(path: &Path) -> Result<Vec<DebugEvent>> {
@@ -186,6 +215,7 @@ fn load_json_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
 
 fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog: Option<PathBuf>) -> Result<()> {
     use prb_pcap::PcapCaptureAdapter;
+    let has_keylog = tls_keylog.is_some();
     let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
 
     let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -213,6 +243,19 @@ fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog
     if !batch.is_empty() {
         sender.send(LoadEvent::Batch(batch))
             .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
+    }
+
+    // Send TLS stats if keylog was provided
+    if has_keylog {
+        let stats = adapter.stats();
+        let total_tls = stats.tls_decrypted + stats.tls_encrypted;
+        if total_tls > 0 {
+            sender.send(LoadEvent::TlsStats(TlsStats {
+                decrypted: stats.tls_decrypted,
+                total: total_tls,
+            }))
+            .map_err(|e| anyhow::anyhow!("Failed to send TLS stats: {}", e))?;
+        }
     }
 
     Ok(())

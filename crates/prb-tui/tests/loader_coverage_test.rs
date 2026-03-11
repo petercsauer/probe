@@ -19,7 +19,7 @@ fn test_load_events_empty_json() {
     writeln!(temp_file, r#"{{"events": []}}"#).unwrap();
     temp_file.flush().unwrap();
 
-    let store = load_events(temp_file.path(), None).unwrap();
+    let store = load_events(temp_file.path(), None).unwrap().0;
     assert_eq!(store.len(), 0);
 }
 
@@ -66,7 +66,7 @@ fn test_load_events_json_with_single_event() {
 
     let result = load_events(temp_file.path(), None);
     // May succeed or fail depending on JSON schema - just verify no panic
-    if let Ok(store) = result {
+    if let Ok((store, _)) = result {
         // If it succeeds, should have at most 1 event
         assert!(store.len() <= 1);
     }
@@ -148,7 +148,7 @@ fn test_load_events_empty_file_with_json_extension() {
     // Empty file with .json extension
     let result = load_events(temp_file.path(), None);
     // May succeed with 0 events or fail - just verify no panic
-    if let Ok(store) = result {
+    if let Ok((store, _)) = result {
         assert_eq!(store.len(), 0);
     }
 }
