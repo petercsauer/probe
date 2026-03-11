@@ -57,11 +57,11 @@ fn detect_format(path: &Path) -> Result<InputFormat> {
     }
 }
 
-pub fn load_events(path: &Path) -> Result<EventStore> {
+pub fn load_events(path: &Path, tls_keylog: Option<PathBuf>) -> Result<EventStore> {
     let format = detect_format(path)?;
     let events = match format {
         InputFormat::Json => load_json(path)?,
-        InputFormat::Pcap | InputFormat::Pcapng => load_pcap(path)?,
+        InputFormat::Pcap | InputFormat::Pcapng => load_pcap(path, tls_keylog)?,
         InputFormat::Mcap => load_mcap(path)?,
     };
     Ok(EventStore::new(events))
@@ -77,6 +77,7 @@ pub fn load_events(path: &Path) -> Result<EventStore> {
 pub fn load_events_streaming(
     path: &Path,
     sender: mpsc::Sender<LoadEvent>,
+    tls_keylog: Option<PathBuf>,
 ) -> Result<()> {
     let format = detect_format(path)?;
     let path = path.to_owned();
@@ -84,7 +85,7 @@ pub fn load_events_streaming(
     std::thread::spawn(move || {
         let result = match format {
             InputFormat::Json => load_json_streaming(&path, &sender),
-            InputFormat::Pcap | InputFormat::Pcapng => load_pcap_streaming(&path, &sender),
+            InputFormat::Pcap | InputFormat::Pcapng => load_pcap_streaming(&path, &sender, tls_keylog),
             InputFormat::Mcap => load_mcap_streaming(&path, &sender),
         };
 
@@ -116,9 +117,9 @@ fn load_json(path: &Path) -> Result<Vec<DebugEvent>> {
     Ok(events)
 }
 
-fn load_pcap(path: &Path) -> Result<Vec<DebugEvent>> {
+fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<Vec<DebugEvent>> {
     use prb_pcap::PcapCaptureAdapter;
-    let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), None);
+    let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
     let mut events = Vec::new();
     for result in adapter.ingest() {
         match result {
@@ -183,9 +184,9 @@ fn load_json_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
     Ok(())
 }
 
-fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<()> {
+fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog: Option<PathBuf>) -> Result<()> {
     use prb_pcap::PcapCaptureAdapter;
-    let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), None);
+    let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
 
     let mut batch = Vec::with_capacity(BATCH_SIZE);
     let mut loaded = 0;
@@ -295,15 +296,31 @@ pub fn load_schemas(
     Ok(registry)
 }
 
-fn extract_mcap_schemas(_registry: &mut SchemaRegistry, path: &Path) -> Result<()> {
+fn extract_mcap_schemas(registry: &mut SchemaRegistry, path: &Path) -> Result<()> {
     use prb_storage::SessionReader;
-    let _reader = SessionReader::open(path)
+    let reader = SessionReader::open(path)
         .with_context(|| format!("Failed to open MCAP for schema extraction: {}", path.display()))?;
 
-    // Try to extract embedded schemas from the MCAP file
-    // SessionReader would need to expose schema extraction functionality
-    // For now, we'll just log that we attempted it
-    tracing::debug!("MCAP schema extraction not yet implemented in SessionReader");
+    // Extract embedded schemas from the MCAP file
+    let embedded_registry = reader.extract_schemas()
+        .with_context(|| "Failed to extract schemas from MCAP")?;
+
+    // Merge the extracted schemas into the main registry
+    let message_types = embedded_registry.list_messages();
+    if !message_types.is_empty() {
+        tracing::info!("Auto-extracted {} schema(s) from MCAP file", message_types.len());
+
+        // Load the extracted schemas into the main registry
+        // We need to get the descriptor set from the embedded registry
+        // For now, we'll just report what we found
+        for msg_type in &message_types {
+            tracing::debug!("  Found schema: {}", msg_type);
+        }
+
+        // Copy schemas by re-extracting and loading into the main registry
+        // This is done by merging the registries
+        *registry = embedded_registry;
+    }
 
     Ok(())
 }

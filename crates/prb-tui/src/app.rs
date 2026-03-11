@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
@@ -162,7 +163,11 @@ pub struct App {
     status_message: Option<(String, std::time::Instant)>,
 
     // Session information for the 'i' overlay
-    // session_info: Option<SessionInfo>,
+    session_info: Option<crate::overlays::SessionInfo>,
+
+    // Store input file path and metadata for session info
+    input_file_path: Option<PathBuf>,
+    input_file_size: u64,
 }
 
 impl App {
@@ -238,7 +243,9 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: None,
             status_message: None,
-            // session_info: None,
+            session_info: None,
+            input_file_path: None,
+            input_file_size: 0,
         }
     }
 
@@ -247,10 +254,18 @@ impl App {
         self.status_message = Some((message.to_string(), std::time::Instant::now()));
     }
 
+    /// Set the input file path and size for session info display.
+    pub fn set_input_file(&mut self, path: PathBuf, size: u64) {
+        self.input_file_path = Some(path);
+        self.input_file_size = size;
+    }
+
     /// Build session info from the current app state.
     fn build_session_info(&mut self) {
+        use crate::overlays::{ChannelDisplay, SessionInfo};
+
         // Calculate time range from events (convert nanoseconds to microseconds)
-        let _time_range = if !self.state.store.is_empty() {
+        let time_range = if !self.state.store.is_empty() {
             let events = self.state.store.events();
             let first_ts = events.first().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
             let last_ts = events.last().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
@@ -259,14 +274,47 @@ impl App {
             None
         };
 
-        // self.session_info = Some(SessionInfo {
-        //     file_path: "<loaded data>".to_string(), // Will be set from CLI
-        //     file_size: 0, // Will be set from CLI
-        //     event_count: self.state.store.len(),
-        //     time_range,
-        //     metadata: None, // Will be populated for MCAP files
-        //     channel_info: None, // Will be populated for MCAP files
-        // });
+        // Try to extract MCAP metadata if we have a file path
+        let (metadata, channels) = if let Some(ref path) = self.input_file_path {
+            if let Some("mcap") = path.extension().and_then(|e| e.to_str()) {
+                // Try to open as MCAP and extract metadata
+                if let Ok(reader) = prb_storage::SessionReader::open(path) {
+                    let metadata = reader.metadata().ok().flatten();
+                    let channels_info = reader.channels()
+                        .ok()
+                        .map(|chans| {
+                            chans.into_iter()
+                                .map(|ch| ChannelDisplay {
+                                    topic: ch.topic,
+                                    message_count: ch.message_count,
+                                })
+                                .collect()
+                        });
+                    (metadata, channels_info)
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        let file_path = self.input_file_path
+            .as_ref()
+            .and_then(|p| p.to_str())
+            .unwrap_or("<loaded data>")
+            .to_string();
+
+        self.session_info = Some(SessionInfo {
+            file_path,
+            file_size: self.input_file_size,
+            event_count: self.state.store.len(),
+            time_range,
+            metadata,
+            channel_info: channels,
+        });
     }
 
     /// Create a new App instance for live capture mode.
@@ -335,7 +383,9 @@ impl App {
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
             status_message: None,
-            // session_info: None,
+            session_info: None,
+            input_file_path: None,
+            input_file_size: 0,
         }
     }
 
@@ -1931,10 +1981,10 @@ impl App {
         }
 
         // Render SessionInfo overlay
-        // if self.input_mode == InputMode::SessionInfo
-        //     && let Some(ref session_info) = self.session_info {
-        //         SessionInfoOverlay::render(area, buf, session_info);
-        //     }
+        if self.input_mode == InputMode::SessionInfo
+            && let Some(ref session_info) = self.session_info {
+                crate::overlays::SessionInfoOverlay::render(area, buf, session_info);
+            }
 
         // Render WhichKey overlay
         if self.input_mode == InputMode::WhichKey

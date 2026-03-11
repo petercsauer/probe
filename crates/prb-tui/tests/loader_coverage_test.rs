@@ -6,7 +6,7 @@ use std::path::Path;
 
 #[test]
 fn test_load_events_nonexistent_file() {
-    let result = load_events(Path::new("nonexistent_file_that_does_not_exist.json"));
+    let result = load_events(Path::new("nonexistent_file_that_does_not_exist.json"), None);
     assert!(result.is_err(), "Should fail to load nonexistent file");
 }
 
@@ -19,7 +19,7 @@ fn test_load_events_empty_json() {
     writeln!(temp_file, r#"{{"events": []}}"#).unwrap();
     temp_file.flush().unwrap();
 
-    let store = load_events(temp_file.path()).unwrap();
+    let store = load_events(temp_file.path(), None).unwrap();
     assert_eq!(store.len(), 0);
 }
 
@@ -32,7 +32,7 @@ fn test_load_events_malformed_json() {
     writeln!(temp_file, r#"{{ invalid json"#).unwrap();
     temp_file.flush().unwrap();
 
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // JSON parser may be lenient or may fail - either is acceptable
     // Just verify it doesn't panic
     let _ = result;
@@ -64,7 +64,7 @@ fn test_load_events_json_with_single_event() {
     writeln!(temp_file, "{}", json_content).unwrap();
     temp_file.flush().unwrap();
 
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // May succeed or fail depending on JSON schema - just verify no panic
     if let Ok(store) = result {
         // If it succeeds, should have at most 1 event
@@ -84,7 +84,7 @@ fn test_load_events_pcap_nonexistent() {
     temp_file.flush().unwrap();
 
     // Should attempt to load as PCAP but may fail with invalid content
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // Just verify it doesn't panic - may fail gracefully
     let _ = result;
 }
@@ -101,7 +101,7 @@ fn test_load_events_mcap_empty() {
     temp_file.flush().unwrap();
 
     // Should attempt to load as MCAP
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // Just verify it doesn't panic - may fail with incomplete MCAP
     let _ = result;
 }
@@ -117,7 +117,7 @@ fn test_load_events_unknown_extension() {
     temp_file.flush().unwrap();
 
     // Should fail with unknown format
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     assert!(result.is_err(), "Should fail with unknown format");
 }
 
@@ -133,7 +133,7 @@ fn test_load_events_json_extension_with_pcap_magic() {
     temp_file.flush().unwrap();
 
     // Should detect as PCAP by magic, not by extension
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // May succeed or fail, but should not panic
     let _ = result;
 }
@@ -146,7 +146,7 @@ fn test_load_events_empty_file_with_json_extension() {
         .unwrap();
 
     // Empty file with .json extension
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // May succeed with 0 events or fail - just verify no panic
     if let Ok(store) = result {
         assert_eq!(store.len(), 0);
@@ -165,7 +165,7 @@ fn test_load_events_pcapng_magic() {
     temp_file.flush().unwrap();
 
     // Should attempt to load as PCAPng
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // Just verify it doesn't panic
     let _ = result;
 }
@@ -181,7 +181,7 @@ fn test_load_events_json_array_format() {
     writeln!(temp_file, "[]").unwrap();
     temp_file.flush().unwrap();
 
-    let result = load_events(temp_file.path());
+    let result = load_events(temp_file.path(), None);
     // May succeed with empty array or fail - should not panic
     let _ = result;
 }
