@@ -242,9 +242,11 @@ async def run_segment(
     prompt_file = log_dir / f"S{seg.num:02d}.prompt.txt"
 
     prompt_file.write_text(prompt, encoding="utf-8")
-    # Clear stale log files from prior runs so the dashboard never shows old content.
+    # Clear stale files from prior runs. Do NOT create human_log yet — its
+    # presence signals to the SSE handler that the segment is finished, which
+    # would prevent real-time stream.jsonl content from being shown.
     raw_log.write_text("", encoding="utf-8")
-    human_log.write_text("(running…)\n", encoding="utf-8")
+    human_log.unlink(missing_ok=True)
 
     started_at = time.time()
     await state.set_status(seg.num, "running", started_at=started_at)

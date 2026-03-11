@@ -141,6 +141,9 @@ pub struct App {
     auto_follow: bool,
     new_events_since_scroll: usize,
     ring_buffer: Option<RingBuffer<DebugEvent>>,
+
+    // Status message for temporary notifications (message, timestamp)
+    status_message: Option<(String, std::time::Instant)>,
 }
 
 impl App {
@@ -207,6 +210,7 @@ impl App {
             auto_follow: false,
             new_events_since_scroll: 0,
             ring_buffer: None,
+            status_message: None,
         }
     }
 
@@ -266,6 +270,7 @@ impl App {
             auto_follow,
             new_events_since_scroll: 0,
             ring_buffer: Some(RingBuffer::new(ring_buffer_capacity)),
+            status_message: None,
         }
     }
 
@@ -761,10 +766,16 @@ impl App {
             }
             KeyCode::Char('T') => {
                 self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
                     "Light" => ThemeConfig::catppuccin_mocha(),
                     "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    "Dracula" => ThemeConfig::colorblind_safe(),
+                    "Colorblind Safe" => ThemeConfig::high_contrast(),
+                    "High Contrast" => ThemeConfig::dark(),
                     _ => ThemeConfig::dark(),
                 };
+                let message = format!("Theme: {}", self.theme.name);
+                self.status_message = Some((message, std::time::Instant::now()));
                 return false;
             }
             KeyCode::Char('z') => {
@@ -1149,7 +1160,7 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane);
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message);
         }
 
         if self.input_mode == InputMode::Help {
@@ -1315,7 +1326,7 @@ impl App {
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -1331,48 +1342,69 @@ impl App {
             String::new()
         };
 
-let mut spans = vec![Span::styled(
-            format!(" {} events", total),
-            Theme::status_bar(),
-        )];
+        // Check if we have an active status message (shown for 2 seconds)
+        let show_status_msg = if let Some((ref message, timestamp)) = status_message {
+            timestamp.elapsed().as_secs() < 2
+        } else {
+            false
+        };
 
-        if state.filter.is_some() {
-                    if !zoom_indicator.is_empty() {
-            spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));
-        }
-
-spans.push(Span::styled(
-                format!(" ({} shown)", filtered),
+        let mut spans = if show_status_msg {
+            // Show status message prominently
+            vec![Span::styled(
+                format!(" {} ", status_message.as_ref().unwrap().0),
+                Style::default()
+                    .fg(ratatui::style::Color::Black)
+                    .bg(ratatui::style::Color::Yellow)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            )]
+        } else {
+            vec![Span::styled(
+                format!(" {} events", total),
                 Theme::status_bar(),
-            ));
+            )]
+        };
 
-            // Add filtered indicator with Esc hint
-            spans.push(Span::styled(
-                " [filtered - Esc to clear]",
-                Style::default().fg(ratatui::style::Color::Yellow),
-            ));
-        }
+        // Only add detailed status info if not showing a status message
+        if !show_status_msg {
+            if state.filter.is_some() {
+                if !zoom_indicator.is_empty() {
+                    spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));
+                }
 
-        spans.push(Span::styled(" │ ", Theme::status_bar()));
-
-        let counts = state.store.protocol_counts(&state.filtered_indices);
-        for (kind, count) in counts.iter().take(4) {
-            let color = Theme::transport_color(*kind);
-            spans.push(Span::styled(
-                format!("{}: {} ", kind, count),
-                Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
-            ));
-        }
-
-        // Show schema count if schemas are loaded
-        if let Some(ref registry) = state.schema_registry {
-            let schema_count = registry.list_messages().len();
-            if schema_count > 0 {
-                spans.push(Span::styled(" │ ", Theme::status_bar()));
                 spans.push(Span::styled(
-                    format!("schemas: {} types ", schema_count),
+                    format!(" ({} shown)", filtered),
                     Theme::status_bar(),
                 ));
+
+                // Add filtered indicator with Esc hint
+                spans.push(Span::styled(
+                    " [filtered - Esc to clear]",
+                    Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+            }
+
+            spans.push(Span::styled(" │ ", Theme::status_bar()));
+
+            let counts = state.store.protocol_counts(&state.filtered_indices);
+            for (kind, count) in counts.iter().take(4) {
+                let color = Theme::transport_color(*kind);
+                spans.push(Span::styled(
+                    format!("{}: {} ", kind, count),
+                    Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
+                ));
+            }
+
+            // Show schema count if schemas are loaded
+            if let Some(ref registry) = state.schema_registry {
+                let schema_count = registry.list_messages().len();
+                if schema_count > 0 {
+                    spans.push(Span::styled(" │ ", Theme::status_bar()));
+                    spans.push(Span::styled(
+                        format!("schemas: {} types ", schema_count),
+                        Theme::status_bar(),
+                    ));
+                }
             }
         }
 

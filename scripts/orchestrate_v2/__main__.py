@@ -57,13 +57,55 @@ async def _run_gate(config: OrchestrateConfig, log_dir: Path, wave: int) -> tupl
     return passed, "\n".join(lines)
 
 
+async def _claude_summarise(context: str, config: "OrchestrateConfig") -> str:
+    """Ask Claude for a concise push-notification summary of current run state.
+
+    Falls back to an empty string on any failure so the caller can use a
+    plain-text fallback instead.
+    """
+    prompt = (
+        "Summarise this automated code-build orchestration run in 2-3 sentences "
+        "suitable for a mobile push notification. Be concrete: name the segments "
+        "and what they are doing based on last_activity. "
+        "Do NOT include preamble, headers, or bullet points — plain prose only.\n\n"
+        f"{context}"
+    )
+    env = dict(os.environ)
+    env.update(config.auth_env)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", prompt,
+            "--dangerously-skip-permissions",
+            "--max-turns", "1",
+            "--output-format", "text",
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=env,
+            start_new_session=True,
+            limit=2**20,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
+            return stdout.decode("utf-8", errors="replace").strip()
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ""
+
+
 async def _heartbeat_loop(
     state: StateDB,
     notifier: Notifier,
     interval: int,
     stop_event: asyncio.Event,
+    config: "OrchestrateConfig | None" = None,
 ) -> None:
-    """Periodically send a status summary notification."""
+    """Periodically send an AI-generated status summary notification."""
     if interval <= 0:
         return
     while not stop_event.is_set():
@@ -71,18 +113,48 @@ async def _heartbeat_loop(
             await asyncio.wait_for(stop_event.wait(), timeout=interval)
             break  # stop_event was set
         except asyncio.TimeoutError:
-            pass  # interval elapsed, send heartbeat
+            pass  # interval elapsed — send heartbeat
 
         progress = await state.progress()
         total = sum(progress.values())
-        running = progress.get("running", 0)
         passed = progress.get("pass", 0)
         current_wave = await state.get_meta("current_wave") or "?"
-        summary = (
-            f"Wave {current_wave} | "
-            f"{passed}/{total} passed, {running} running | "
-            f"Breakdown: {json.dumps(progress)}"
-        )
+
+        # Build rich context from live segment state
+        all_data = await state.all_as_dict()
+        segs = all_data.get("segments", [])
+        running_segs = [s for s in segs if s.get("status") == "running"]
+        failed_segs  = [s for s in segs if s.get("status") in ("failed", "blocked", "partial", "timeout")]
+
+        context_lines = [
+            f"Wave {current_wave} | Progress: {json.dumps(progress)} ({passed}/{total} segments passed)",
+        ]
+        if running_segs:
+            context_lines.append("Currently running:")
+            for s in running_segs:
+                elapsed = ""
+                if s.get("started_at"):
+                    elapsed = f" ({int(time.time() - s['started_at'])}s elapsed)"
+                activity = (s.get("last_activity") or "no activity recorded yet")[:300]
+                context_lines.append(f"  S{s['num']:02d} {s['title']}{elapsed} — last activity: {activity}")
+        if failed_segs:
+            context_lines.append("Failed/blocked:")
+            for s in failed_segs:
+                context_lines.append(f"  S{s['num']:02d} {s['title']} [{s['status']}]")
+
+        context = "\n".join(context_lines)
+
+        # Try to get an AI summary; fall back to plain text
+        summary = ""
+        if config and running_segs:
+            summary = await _claude_summarise(context, config)
+        if not summary:
+            summary = (
+                f"Wave {current_wave} | {passed}/{total} passed, "
+                f"{len(running_segs)} running"
+                + (f", {len(failed_segs)} failed" if failed_segs else "")
+            )
+
         await notifier.heartbeat(summary)
 
 
@@ -172,23 +244,33 @@ async def _run_wave(
             if current and current["status"] == "skipped":
                 return seg.num, "skipped"
 
-            attempts = 0
             status = "failed"
-            while attempts <= config.max_retries:
-                attempts = await state.increment_attempts(seg.num)
-                status, _ = await run_segment(
-                    seg, config, state, log_dir,
-                    notifier=notifier,
-                    attempt_num=attempts,
-                    register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
-                    unregister_pid=lambda n: _running_pids.pop(n, None),
-                )
-                if status in ("pass", "timeout"):
-                    break
-                if attempts > config.max_retries:
-                    break
-                log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
-                await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+            while True:  # outer loop: re-enters when operator hits Retry mid-wave
+                attempts = 0
+                while attempts <= config.max_retries:
+                    attempts = await state.increment_attempts(seg.num)
+                    status, _ = await run_segment(
+                        seg, config, state, log_dir,
+                        notifier=notifier,
+                        attempt_num=attempts,
+                        register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
+                        unregister_pid=lambda n: _running_pids.pop(n, None),
+                    )
+                    if status in ("pass", "timeout"):
+                        break
+                    if attempts > config.max_retries:
+                        break
+                    log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
+                    await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+
+                # Check if operator reset us to pending while we were running or
+                # immediately after — if so, re-run without requiring an orchestrator restart.
+                refreshed = await state.get_segment(seg.num)
+                if refreshed and refreshed["status"] == "pending":
+                    log.info("S%02d operator retry detected, re-running in-wave", seg.num)
+                    await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
+                    continue
+                break
 
             return seg.num, status
 
@@ -200,6 +282,28 @@ async def _run_wave(
             results.append((0, "error"))
         else:
             results.append(item)
+
+    # Post-gather sweep: catch retries pressed after gather completed but before
+    # the wave advances to the next wave. Re-run any segments reset to pending.
+    retry_segs = []
+    for seg in segments:
+        refreshed = await state.get_segment(seg.num)
+        if refreshed and refreshed["status"] == "pending":
+            retry_segs.append(seg)
+    if retry_segs:
+        log.info("Wave %d: re-running %d operator-retried segment(s): %s",
+                 wave, len(retry_segs), [s.num for s in retry_segs])
+        retry_tasks = [asyncio.create_task(_run_one(seg)) for seg in retry_segs]
+        retry_done = await asyncio.gather(*retry_tasks, return_exceptions=True)
+        # Replace old results for retried segments
+        retried_map = {}
+        for item in retry_done:
+            if isinstance(item, tuple):
+                retried_map[item[0]] = item[1]
+        results = [
+            (n, retried_map.get(n, s)) for n, s in results
+        ] + [(n, s) for n, s in retried_map.items() if n not in {r[0] for r in results}]
+
     return results
 
 
@@ -304,7 +408,7 @@ async def _orchestrate_inner(
     print(f"{'='*60}\n")
 
     heartbeat_task = asyncio.create_task(
-        _heartbeat_loop(state, notifier, config.heartbeat_interval, worker_stop)
+        _heartbeat_loop(state, notifier, config.heartbeat_interval, worker_stop, config)
     )
     notif_task = asyncio.create_task(
         _notification_worker(notifier, state, worker_stop)

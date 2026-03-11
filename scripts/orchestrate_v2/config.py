@@ -30,7 +30,7 @@ class OrchestrateConfig:
     max_parallel: int = 4
     segment_timeout: int = 3600
     max_retries: int = 2
-    heartbeat_interval: int = 900
+    heartbeat_interval: int = 300
     isolation_strategy: str = "none"
     isolation_env: dict[str, str] = field(default_factory=dict)
     gate_command: str = ""
