@@ -57,6 +57,7 @@ fn test_timeline_render_empty_store() {
         selected_event: None,
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -95,6 +96,7 @@ fn test_timeline_render_with_events() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -127,6 +129,7 @@ fn test_timeline_render_focused_vs_unfocused() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -156,6 +159,7 @@ fn test_timeline_render_small_area() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -184,6 +188,7 @@ fn test_timeline_render_with_multiple_transports() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -226,6 +231,7 @@ fn test_timeline_render_with_filter_active() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -267,6 +273,7 @@ fn test_timeline_time_range_display() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -345,6 +352,7 @@ fn test_calculate_selected_bucket_single_bucket() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 1);
@@ -368,6 +376,7 @@ fn test_calculate_selected_bucket_multiple_buckets() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     // With 10 buckets, first event should be in bucket 0
@@ -395,6 +404,7 @@ fn test_calculate_selected_bucket_zero_buckets() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 0);
@@ -417,6 +427,7 @@ fn test_calculate_selected_bucket_same_timestamp() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let bucket = prb_tui::panes::timeline::test_calculate_selected_bucket(&state, 0, 10);
@@ -435,6 +446,7 @@ fn test_calculate_selected_bucket_out_of_bounds() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     // Try to calculate bucket for non-existent event index
@@ -457,6 +469,7 @@ fn test_format_time_legend_with_events() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -487,6 +500,7 @@ fn test_format_time_legend_with_filter() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -507,6 +521,7 @@ fn test_format_time_legend_empty_store() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -530,6 +545,7 @@ fn test_timeline_handle_key_returns_none() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();

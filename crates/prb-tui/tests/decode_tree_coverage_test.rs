@@ -48,6 +48,7 @@ fn test_decode_tree_render_no_selection() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -87,6 +88,7 @@ fn test_decode_tree_render_with_warnings() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -119,6 +121,7 @@ fn test_decode_tree_render_all_transport_types() {
             schema_registry: None,
             conversations: None,
             store,
+                    visible_columns: Vec::new(),
         };
 
         let mut pane = DecodeTreePane::new();
@@ -141,6 +144,7 @@ fn test_decode_tree_handle_key_space() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -164,6 +168,7 @@ fn test_decode_tree_handle_key_arrows() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -195,6 +200,7 @@ fn test_decode_tree_render_small_area() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -216,6 +222,7 @@ fn test_decode_tree_render_focused_vs_unfocused() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -249,6 +256,7 @@ fn test_decode_tree_with_correlation_keys() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -274,6 +282,7 @@ fn test_decode_tree_with_sequence() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -296,6 +305,7 @@ fn test_decode_tree_handle_key_enter() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -319,6 +329,7 @@ fn test_decode_tree_handle_key_backspace() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -347,6 +358,7 @@ fn test_decode_tree_with_many_metadata_keys() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -373,6 +385,7 @@ fn test_decode_tree_with_large_payload() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();

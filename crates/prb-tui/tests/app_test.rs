@@ -105,6 +105,7 @@ fn test_app_state_initialization() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     assert_eq!(state.filtered_indices.len(), 2);
@@ -136,6 +137,7 @@ fn test_app_state_with_filter() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     // Should have 2 gRPC events

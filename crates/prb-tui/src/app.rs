@@ -159,6 +159,7 @@ pub struct App {
 impl App {
     pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
         let config = Config::load();
+
         let visible_columns = config.tui.columns.visible.clone();
 
         let mut state = AppState {
@@ -184,7 +185,6 @@ impl App {
                 };
             }
 
-        let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
         let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
@@ -236,6 +236,7 @@ impl App {
         schema_registry: Option<SchemaRegistry>,
     ) -> Self {
         let config = Config::load();
+
         let visible_columns = config.tui.columns.visible.clone();
 
         let state = AppState {
@@ -249,7 +250,6 @@ impl App {
             store,
         };
 
-        let config = Config::load();
         let theme = ThemeConfig::from_name(&config.tui.theme);
         let auto_follow = config.tui.auto_follow;
         let plugin_manager = Self::load_plugins();

@@ -50,6 +50,7 @@ fn test_hex_dump_renders_with_payload() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     // Create hex dump pane
@@ -89,6 +90,7 @@ fn test_hex_dump_renders_empty_for_no_selection() {
         selected_event: None,
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
@@ -129,6 +131,7 @@ fn test_hex_dump_with_multiline_payload() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
@@ -169,6 +172,7 @@ fn test_hex_dump_scroll_functionality() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
@@ -203,6 +207,7 @@ fn test_hex_dump_highlight_visible() {
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
+                visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();

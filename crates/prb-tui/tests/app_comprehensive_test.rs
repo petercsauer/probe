@@ -132,6 +132,7 @@ fn test_app_state_with_complex_filter() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     // Should match gRPC (2) + ZMQ (1) = 3 events
@@ -151,6 +152,7 @@ fn test_app_state_empty_store() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     assert!(state.filtered_indices.is_empty());
@@ -176,6 +178,7 @@ fn test_app_state_selection_bounds() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     assert_eq!(state.selected_event, Some(1));

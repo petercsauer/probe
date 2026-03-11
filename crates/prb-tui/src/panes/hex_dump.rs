@@ -711,6 +711,7 @@ mod tests {
             filter_text: String::new(),
             schema_registry: None,
             conversations: None,
+            visible_columns: vec![],
         };
 
         // Press 'k' (up) many times

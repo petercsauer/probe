@@ -84,6 +84,7 @@ fn test_event_list_handle_key_down() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -109,6 +110,7 @@ fn test_event_list_handle_key_up() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -135,6 +137,7 @@ fn test_event_list_handle_key_vim_j_k() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -166,6 +169,7 @@ fn test_event_list_handle_key_home_end() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -199,6 +203,7 @@ fn test_event_list_handle_key_vim_g_g() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -236,6 +241,7 @@ fn test_event_list_handle_key_pagedown_pageup() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -265,6 +271,7 @@ fn test_event_list_handle_key_sort_toggle() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -297,6 +304,7 @@ fn test_event_list_handle_key_empty_store() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -322,6 +330,7 @@ fn test_event_list_handle_key_boundaries() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -354,6 +363,7 @@ fn test_event_list_render_with_events() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -385,6 +395,7 @@ fn test_event_list_render_empty() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -424,6 +435,7 @@ fn test_event_list_sorting_by_different_columns() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -471,6 +483,7 @@ fn test_event_list_sort_reversed() {
         schema_registry: None,
             conversations: None,
         store,
+                visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
