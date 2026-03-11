@@ -330,6 +330,7 @@ impl App {
     }
 
     /// Live capture event loop with batched event processing.
+    #[allow(dead_code)]
     fn live_event_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -405,6 +406,7 @@ impl App {
     }
 
     /// Push a new event into the ring buffer and update the event store.
+    #[allow(dead_code)]
     fn push_live_event(&mut self, event: DebugEvent) {
         if let Some(ref mut ring_buffer) = self.ring_buffer {
             ring_buffer.push(event.clone());
@@ -419,6 +421,7 @@ impl App {
     }
 
     /// Recompute filtered indices after new events arrive.
+    #[allow(dead_code)]
     fn recompute_filter(&mut self) {
         if let Some(ref filter) = self.state.filter {
             self.state.filtered_indices = self.state.store.filter_indices(filter);
@@ -428,6 +431,7 @@ impl App {
     }
 
     /// Scroll to the bottom of the event list.
+    #[allow(dead_code)]
     fn scroll_to_bottom(&mut self) {
         let max_index = self.state.filtered_indices.len().saturating_sub(1);
         self.event_list.selected = max_index;
@@ -440,6 +444,7 @@ impl App {
     }
 
     /// Handle keyboard input in live capture mode.
+    #[allow(dead_code)]
     fn handle_live_key(&mut self, key: KeyEvent) -> bool {
         // Live mode specific keys (only in Normal mode)
         if self.input_mode == InputMode::Normal {
@@ -1052,7 +1057,6 @@ impl App {
         state: &AppState,
     ) {
         let is_filtering = input_mode == InputMode::Filter;
-        let is_goto = input_mode == InputMode::GoToEvent;
 
         let filter_display = if is_filtering {
             filter_input.value().to_string()

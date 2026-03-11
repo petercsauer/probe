@@ -3,7 +3,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::style::{Color, Modifier, Style};
 use crate::theme::Theme;
 use prb_plugin_api::PluginMetadata;
@@ -114,7 +114,6 @@ impl PluginManagerOverlay {
                 Style::default().fg(Color::DarkGray),
             ));
             buf.set_line(inner.x, y, &line, inner.width);
-            y += 1;
         } else {
             for (i, entry) in self.plugins.iter().enumerate() {
                 if y >= inner.y + inner.height - 2 {
