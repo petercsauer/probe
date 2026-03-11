@@ -64,6 +64,11 @@ def _build_prompt(seg: "Segment", config: OrchestrateConfig) -> str:
 def _build_env(seg_num: int, config: OrchestrateConfig) -> dict[str, str]:
     """Build environment dict: inherit shell + auth + isolation."""
     env = dict(os.environ)
+
+    # CRITICAL FIX: Remove CLAUDECODE to prevent nested session detection
+    env.pop('CLAUDECODE', None)
+    env.pop('CLAUDE_CODE_ENTRYPOINT', None)
+
     env.update(config.auth_env)
     env.update(_resolve_isolation_env(seg_num, config))
     return env
