@@ -67,7 +67,7 @@ impl MetricsOverlay {
                 inner.x,
                 y,
                 "─".repeat(inner.width as usize),
-                theme.border,
+                theme.focused_border(),
             );
             y += 1;
         }
@@ -95,7 +95,7 @@ impl MetricsOverlay {
                 format_duration_ms(stats.p50_ns / 1_000_000),
                 stats.error_count
             );
-            buf.set_string(inner.x, y, line, theme.normal);
+            buf.set_string(inner.x, y, line, theme.normal_row());
             y += 1;
         }
     }
@@ -117,7 +117,7 @@ impl MetricsOverlay {
             "Conversations: {}    Error rate: {:.1}%",
             metrics.total_conversations, error_rate_pct as f64
         );
-        buf.set_string(x, current_y, line1, theme.normal);
+        buf.set_string(x, current_y, line1, theme.normal_row());
         current_y += 1;
 
         // Line 2: Latency percentiles
@@ -130,7 +130,7 @@ impl MetricsOverlay {
             format_duration_ms(p95_ms),
             format_duration_ms(p99_ms)
         );
-        buf.set_string(x, current_y, line2, theme.normal);
+        buf.set_string(x, current_y, line2, theme.normal_row());
         current_y += 1;
 
         // Line 3: Throughput
@@ -139,7 +139,7 @@ impl MetricsOverlay {
             "Throughput: {:.1} conv/s  {:.1} KB/s",
             metrics.conversations_per_second, kb_per_s
         );
-        buf.set_string(x, current_y, line3, theme.normal);
+        buf.set_string(x, current_y, line3, theme.normal_row());
         current_y += 1;
 
         current_y
