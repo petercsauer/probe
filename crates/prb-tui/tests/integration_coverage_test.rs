@@ -301,7 +301,7 @@ fn test_app_initial_state_empty_store() {
 
     // Check initial state with empty store
     assert_eq!(app.get_focus(), PaneId::EventList);
-    assert_eq!(app.get_input_mode(), InputMode::Normal);
+    assert_eq!(app.get_input_mode(), InputMode::Welcome);
     assert_eq!(app.get_state().selected_event, None); // No selection
     assert!(app.get_filter_error().is_none());
 }
