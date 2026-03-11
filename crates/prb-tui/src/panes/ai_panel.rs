@@ -20,6 +20,14 @@ impl AiPanel {
     pub fn new() -> Self {
         AiPanel
     }
+
+    pub fn clear(&mut self) {
+        // Stub - not yet implemented
+    }
+
+    pub fn start_explain(&mut self, _event: &prb_core::DebugEvent, _all_events: &[prb_core::DebugEvent], _config: &prb_ai::AiConfig) {
+        // Stub - not yet implemented
+    }
 }
 
 impl PaneComponent for AiPanel {
