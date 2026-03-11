@@ -219,12 +219,13 @@ async def _wait_for_network(notifier, max_wait: int = 600) -> None:
 
 
 async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
-    """Merge successful segment changes from worktree branch back to main.
+    """Merge successful segment changes from worktree branch back to HEAD.
 
     Returns True on clean merge, False on conflict.
+    Works in both named branch and detached HEAD states.
     """
     try:
-        # Get current branch or HEAD ref
+        # Get current branch name for logging (may be None in detached HEAD)
         proc = await asyncio.create_subprocess_exec(
             "git", "symbolic-ref", "--short", "HEAD",
             stdout=asyncio.subprocess.PIPE,
@@ -233,14 +234,12 @@ async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
         stdout, stderr = await proc.communicate()
         current_branch = stdout.decode().strip() if proc.returncode == 0 else None
 
-        # If not on a branch (detached HEAD), we can't merge
-        # This is expected during orchestrator execution - skip merge for now
-        if not current_branch:
-            log.warning("Skipping merge for S%02d - not on a branch (detached HEAD)", seg.num)
-            log.info("To merge manually: git merge --no-ff %s", wt.branch)
-            return True  # Don't fail the segment
+        if current_branch:
+            log.info("Merging S%02d from %s to branch %s", seg.num, wt.branch, current_branch)
+        else:
+            log.info("Merging S%02d from %s to detached HEAD", seg.num, wt.branch)
 
-        # Merge the worktree branch into current branch
+        # Merge the worktree branch into current HEAD
         proc = await asyncio.create_subprocess_exec(
             "git", "merge", "--no-ff", "-m",
             f"Merge segment S{seg.num:02d}: {seg.title}",
@@ -263,7 +262,8 @@ async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
             )
             return False
 
-        log.info("Successfully merged S%02d changes from %s to %s", seg.num, wt.branch, current_branch)
+        target = current_branch if current_branch else "detached HEAD"
+        log.info("Successfully merged S%02d changes from %s to %s", seg.num, wt.branch, target)
         return True
 
     except Exception as e:
@@ -311,7 +311,7 @@ async def _run_wave(
                         attempts = 0
                         while attempts <= config.max_retries:
                             attempts = await state.increment_attempts(seg.num)
-                            status, _ = await run_segment(
+                            status, summary = await run_segment(
                                 seg, config, state, log_dir,
                                 notifier=notifier,
                                 attempt_num=attempts,
@@ -321,6 +321,16 @@ async def _run_wave(
                             )
                             if status in ("pass", "timeout"):
                                 break
+
+                            # Don't retry on environment/configuration errors (will fail same way)
+                            if status == "failed":
+                                if "cannot be launched inside another Claude Code" in summary:
+                                    log.warning("S%02d failed due to environment issue, stopping retries", seg.num)
+                                    break
+                                if "CLAUDECODE" in summary:
+                                    log.warning("S%02d failed due to CLAUDECODE conflict, stopping retries", seg.num)
+                                    break
+
                             if attempts > config.max_retries:
                                 break
                             log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
@@ -349,7 +359,7 @@ async def _run_wave(
                     attempts = 0
                     while attempts <= config.max_retries:
                         attempts = await state.increment_attempts(seg.num)
-                        status, _ = await run_segment(
+                        status, summary = await run_segment(
                             seg, config, state, log_dir,
                             notifier=notifier,
                             attempt_num=attempts,
@@ -358,6 +368,16 @@ async def _run_wave(
                         )
                         if status in ("pass", "timeout"):
                             break
+
+                        # Don't retry on environment/configuration errors (will fail same way)
+                        if status == "failed":
+                            if "cannot be launched inside another Claude Code" in summary:
+                                log.warning("S%02d failed due to environment issue, stopping retries", seg.num)
+                                break
+                            if "CLAUDECODE" in summary:
+                                log.warning("S%02d failed due to CLAUDECODE conflict, stopping retries", seg.num)
+                                break
+
                         if attempts > config.max_retries:
                             break
                         log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
