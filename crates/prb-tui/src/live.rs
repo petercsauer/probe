@@ -104,9 +104,6 @@ fn capture_event_forwarder(
     let mut event_count = 0u64;
     let mut last_stats = std::time::Instant::now();
 
-    // Get a runtime handle to send messages to the async channel
-    let rt = tokio::runtime::Handle::current();
-
     for event_result in adapter.ingest() {
         if stop_flag.load(Ordering::Relaxed) {
             break;
@@ -116,8 +113,8 @@ fn capture_event_forwarder(
             Ok(event) => {
                 event_count += 1;
 
-                // Send event to TUI (blocking send)
-                if rt.block_on(tx.send(AppEvent::CapturedEvent(Box::new(event)))).is_err() {
+                // Send event to TUI (blocking send from non-async context)
+                if tx.blocking_send(AppEvent::CapturedEvent(Box::new(event))).is_err() {
                     tracing::debug!("TUI event channel closed, stopping capture");
                     break;
                 }
@@ -134,7 +131,7 @@ fn capture_event_forwarder(
                         packets_per_second: event_count as f64 / last_stats.elapsed().as_secs_f64(),
                         bytes_per_second: 0.0,
                     };
-                    let _ = rt.block_on(tx.send(AppEvent::CaptureStats(stats)));
+                    let _ = tx.blocking_send(AppEvent::CaptureStats(stats));
                     last_stats = std::time::Instant::now();
                 }
             }
@@ -145,6 +142,6 @@ fn capture_event_forwarder(
     }
 
     // Notify TUI that capture has stopped
-    let _ = rt.block_on(tx.send(AppEvent::CaptureStopped));
+    let _ = tx.blocking_send(AppEvent::CaptureStopped);
     tracing::info!("Capture event forwarder stopped");
 }

@@ -638,9 +638,10 @@ impl App {
             .and_then(|s| s.take_receiver())
             .ok_or_else(|| anyhow::anyhow!("No live source receiver available"))?;
 
-        loop {
-            self.draw(terminal)?;
+        let mut last_draw = std::time::Instant::now();
+        let frame_duration = Duration::from_millis(33); // ~30fps
 
+        loop {
             // Drain capture events (batched for performance)
             let mut batch_count = 0;
             while let Ok(event) = rx.try_recv() {
@@ -666,7 +667,17 @@ impl App {
             if batch_count > 0 {
                 self.recompute_filter();
                 if self.auto_follow {
-                    self.scroll_to_bottom();
+                    // Only actually scroll if we're already at or very close to the bottom
+                    // This prevents jarring jumps if user was near bottom but not exactly there
+                    let max_index = self.state.filtered_indices.len().saturating_sub(1);
+                    let near_bottom = self.event_list.selected >= max_index.saturating_sub(5);
+                    if near_bottom || max_index < 10 {
+                        self.scroll_to_bottom();
+                    } else {
+                        // User has scrolled away from bottom, disable auto-follow
+                        self.auto_follow = false;
+                        self.new_events_since_scroll += batch_count;
+                    }
                 } else {
                     self.new_events_since_scroll += batch_count;
                 }
@@ -688,8 +699,14 @@ impl App {
                 }
             }
 
-            // Poll keyboard (33ms = ~30fps)
-            if event::poll(Duration::from_millis(33))? {
+            // Draw only if enough time has passed since last frame
+            if last_draw.elapsed() >= frame_duration {
+                self.draw(terminal)?;
+                last_draw = std::time::Instant::now();
+            }
+
+            // Poll keyboard with timeout
+            if event::poll(Duration::from_millis(16))? {
                 match event::read()? {
                     Event::Key(key) => {
                         if self.handle_live_key(key) {
@@ -698,6 +715,10 @@ impl App {
                     }
                     Event::Mouse(mouse) => {
                         self.handle_mouse(mouse);
+                    }
+                    Event::Resize(_, _) => {
+                        // Force immediate redraw on resize
+                        last_draw = std::time::Instant::now() - frame_duration;
                     }
                     _ => {}
                 }
@@ -2181,6 +2202,13 @@ impl App {
                 self.hex_dump.scroll_offset = 0;
                 self.hex_dump.clear_highlight();
                 self.decode_tree.state = tui_tree_widget::TreeState::default();
+
+                // Disable auto-follow when user manually selects an event
+                // Unless they selected the last event (in which case re-enable follow)
+                let is_last = idx == self.state.filtered_indices.len().saturating_sub(1);
+                if !is_last {
+                    self.auto_follow = false;
+                }
 
                 // Try to decode the event on-demand
                 if let Some(store_idx) = self.state.filtered_indices.get(idx) {

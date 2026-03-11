@@ -1,0 +1,87 @@
+# Orchestrate v2 Configuration for Phase 3 TUI v2
+# Auto-discovery and parallel execution of TUI completion work
+
+[plan]
+name = "phase3-tui-v2"
+description = "Complete TUI evolution: enable existing features, implement missing capabilities, polish UX"
+workspace_root = "/Users/psauer/probe"
+plan_root = "/Users/psauer/probe/.claude/plans/phase3-tui-v2"
+
+[execution]
+max_concurrent = 4
+cycle_timeout_minutes = 30
+max_retries = 2
+persist_state = true
+state_file = "state.db"
+
+[build]
+# Use separate build directory to avoid conflicts with other builds
+target_dir = "/tmp/orchestrate-phase3-v2"
+pre_build_clean = false
+
+[commands]
+# Standard Rust/Cargo commands
+build = "cargo build --workspace"
+test = "cargo nextest run --workspace"
+clippy = "cargo clippy --workspace --all-targets -- -D warnings"
+fmt_check = "cargo fmt --all -- --check"
+
+# TUI-specific commands
+tui_build = "cargo build -p prb-tui"
+tui_test = "cargo nextest run -p prb-tui"
+tui_check = "cargo check -p prb-tui"
+
+[validation]
+# Gates that must pass for each segment
+required_gates = ["build", "test", "clippy"]
+optional_gates = ["fmt_check"]
+
+# Regression tests (run on main after merge)
+regression_test_command = "cargo nextest run --workspace"
+regression_clippy_command = "cargo clippy --workspace --all-targets -- -D warnings"
+
+[git]
+main_branch = "main"
+segment_branch_prefix = "orchestrate/phase3-v2/S"
+commit_message_template = "WIP: Segment {number} {title} - cycle {cycle}"
+auto_commit = true
+auto_push = false
+
+[waves]
+# Wave definitions from manifest
+wave_1 = [1, 2, 3, 4]
+wave_2 = [5, 6, 7, 8]
+wave_3 = [9, 10, 11, 12]
+wave_4 = [13, 14, 15]
+wave_5 = [16, 17, 18, 19]
+
+[discovery]
+# Auto-discover segments from segments/ directory
+segment_pattern = "segments/{number:02d}-*.md"
+handoff_pattern = "handoff/S{number:02d}-*.md"
+
+[notifications]
+# Notification preferences
+notify_on_complete = true
+notify_on_error = true
+notify_on_wave_complete = true
+
+[logging]
+level = "info"
+log_file = "orchestrate.log"
+color = true
+
+[hooks]
+# Pre/post hooks for segments
+pre_segment = []
+post_segment = []
+pre_wave = []
+post_wave = []
+
+[features]
+# Feature flags for orchestrator behavior
+parallel_execution = true
+worktree_isolation = true
+auto_merge = false  # Require manual review
+interactive_mode = false
+dry_run = false

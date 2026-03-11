@@ -191,9 +191,13 @@ impl PcapCaptureAdapter {
                 self.event_queue.push_back(Ok(event));
             }
 
-            // Log warnings
+            // Log warnings (skip ARP normalization warnings as they're expected)
             for warning in result.warnings {
-                tracing::warn!("{}", warning);
+                if warning.contains("ARP packets not supported") {
+                    tracing::debug!("{}", warning);
+                } else {
+                    tracing::warn!("{}", warning);
+                }
             }
         }
 

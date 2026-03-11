@@ -101,30 +101,59 @@ fn compute_column_widths(
     let has_network = events.iter().any(|e| e.source.network.is_some());
 
     if has_network {
-        // Full layout: #(6) Time(13) Src(19) Dst(19) Proto(11) Dir(4) Summary(fill)
-        let fixed = 6 + 13 + 19 + 19 + 11 + 4;
-        let summary = (total_width as usize).saturating_sub(fixed) as u16;
+        // Full layout: #(6) Time(16) Src(flexible) Dst(flexible) Proto(12) Dir(5) Summary(fill)
+        // Scale src/dst columns with available width
+        let available = total_width as usize;
+        let (src_width, dst_width) = if available >= 180 {
+            // Very wide terminal: give lots of space to addresses
+            (45, 45)
+        } else if available >= 140 {
+            // Wide terminal: generous space for addresses
+            (35, 35)
+        } else if available >= 110 {
+            // Medium-wide terminal: balanced
+            (28, 28)
+        } else if available >= 90 {
+            // Medium terminal: compact but readable
+            (22, 22)
+        } else {
+            // Narrow terminal: minimal
+            (18, 18)
+        };
+
+        let fixed = 6 + 16 + src_width + dst_width + 12 + 5;
+        let summary = available.saturating_sub(fixed);
+
         ColumnWidths {
             id: 6,
-            time: 13,
-            src: 19,
-            dst: 19,
-            proto: 11,
-            dir: 4,
-            summary,
+            time: 16,
+            src: src_width as u16,
+            dst: dst_width as u16,
+            proto: 12,
+            dir: 5,
+            summary: summary as u16,
         }
     } else {
-        // Collapsed: #(6) Time(13) Origin(20) Proto(11) Dir(4) Summary(fill)
-        let fixed = 6 + 13 + 20 + 11 + 4;
-        let summary = (total_width as usize).saturating_sub(fixed) as u16;
+        // Collapsed: #(6) Time(16) Origin(flexible) Proto(12) Dir(5) Summary(fill)
+        let available = total_width as usize;
+        let src_width = if available >= 140 {
+            40
+        } else if available >= 100 {
+            30
+        } else {
+            20
+        };
+        let fixed = 6 + 16 + src_width + 12 + 5;
+        let summary = available.saturating_sub(fixed);
+
         ColumnWidths {
             id: 6,
-            time: 13,
-            src: 20,
+            time: 16,
+            src: src_width as u16,
             dst: 0,
-            proto: 11,
-            dir: 4,
-            summary,
+            proto: 12,
+            dir: 5,
+            summary: summary as u16,
         }
     }
 }
@@ -197,10 +226,17 @@ impl EventListPane {
                     SortColumn::Dir => event_a.direction.cmp(&event_b.direction),
                 };
 
-                if self.sort_reversed {
+                // Apply primary sort with reversal if needed
+                let primary_cmp = if self.sort_reversed {
                     cmp.reverse()
                 } else {
                     cmp
+                };
+
+                // For stable sort: if primary comparison is equal, use ID as tiebreaker
+                match primary_cmp {
+                    std::cmp::Ordering::Equal => event_a.id.as_u64().cmp(&event_b.id.as_u64()),
+                    other => other,
                 }
             });
 
@@ -324,6 +360,13 @@ impl PaneComponent for EventListPane {
 
         let col_widths = compute_column_widths(&visible_events, inner.width);
 
+        // Debug: log widths to see what's happening
+        tracing::trace!(
+            "EventList render: inner.width={}, cols: id={} time={} src={} dst={} proto={} dir={} summary={}",
+            inner.width, col_widths.id, col_widths.time, col_widths.src, col_widths.dst,
+            col_widths.proto, col_widths.dir, col_widths.summary
+        );
+
         // Header row
         let header = format_header(col_widths, sort_column, sort_reversed, theme);
         buf.set_line(inner.x, inner.y, &header, inner.width);
@@ -382,13 +425,12 @@ impl PaneComponent for EventListPane {
                     row_style
                 };
 
+                let id_text = format!("{}{:>4}", warning_indicator, event.id.as_u64());
+                let time_text = format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis);
+
                 let mut spans = vec![
-                    Span::styled(warning_indicator, warning_style),
-                    Span::styled(format!("{:>4} ", event.id.as_u64()), row_style),
-                    Span::styled(
-                        format!("{:02}:{:02}:{:02}.{:03} ", h, m, s, millis),
-                        row_style,
-                    ),
+                    Span::styled(pad_to_width(&id_text, col_widths.id as usize), if !event.warnings.is_empty() && !is_selected { warning_style } else { row_style }),
+                    Span::styled(pad_to_width(&time_text, col_widths.time as usize), row_style),
                     Span::styled(pad_to_width(&src, col_widths.src as usize), row_style),
                 ];
 
@@ -406,7 +448,7 @@ impl PaneComponent for EventListPane {
                     ),
                     Span::styled(pad_to_width(dir_sym, col_widths.dir as usize), row_style),
                     Span::styled(
-                        truncate_str(&summary, col_widths.summary as usize),
+                        pad_to_width(&summary, col_widths.summary as usize),
                         row_style,
                     ),
                 ]);

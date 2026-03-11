@@ -40,7 +40,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         tls_keylog_path: args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str())),
     };
 
-    // Create and start adapter
+    // Create adapter
     let mut adapter = LiveCaptureAdapter::new(config).map_err(|e| match e {
         CaptureError::InsufficientPrivileges {
             ref message,
@@ -49,25 +49,11 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         _ => anyhow::anyhow!("{e}"),
     })?;
 
-    adapter
-        .start()
-        .map_err(|e| match e {
-            CaptureError::InsufficientPrivileges {
-                ref message,
-                ref remediation,
-            } => anyhow::anyhow!("{message}\n\n  {remediation}"),
-            CaptureError::FilterCompilationFailed(ref msg) => {
-                anyhow::anyhow!("BPF filter compilation failed: {}", msg)
-            }
-            _ => anyhow::anyhow!("{e}"),
-        })
-        .context("failed to start capture")?;
-
     // Launch TUI in live mode if requested
     if args.tui {
         use prb_tui::{App, EventStore, LiveDataSource};
 
-        // Create live data source (adapter already started)
+        // Create live data source (will start the adapter)
         let live_source = LiveDataSource::start(adapter, interface.clone())
             .context("failed to start live capture data source")?;
 
@@ -81,6 +67,21 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         let mut app = App::new_live(store, live_source, RING_BUFFER_CAPACITY, None);
         return app.run_live();
     }
+
+    // Non-TUI mode: start the adapter now
+    adapter
+        .start()
+        .map_err(|e| match e {
+            CaptureError::InsufficientPrivileges {
+                ref message,
+                ref remediation,
+            } => anyhow::anyhow!("{message}\n\n  {remediation}"),
+            CaptureError::FilterCompilationFailed(ref msg) => {
+                anyhow::anyhow!("BPF filter compilation failed: {}", msg)
+            }
+            _ => anyhow::anyhow!("{e}"),
+        })
+        .context("failed to start capture")?;
 
     // Install Ctrl+C handler
     let stop = Arc::new(AtomicBool::new(false));
