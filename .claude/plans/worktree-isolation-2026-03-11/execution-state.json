@@ -1,0 +1,61 @@
+{
+  "plan": ".claude/plans/worktree-isolation-2026-03-11/PLAN.md",
+  "started": "2026-03-11T00:00:00Z",
+  "current_wave": 3,
+  "segments": {
+    "S1": {
+      "status": "pass",
+      "title": "Core Bug Fixes Bundle",
+      "risk": 3,
+      "complexity": "Low",
+      "cycle_budget": 10,
+      "wave": 1,
+      "cycles_used": 2,
+      "commit": "eeb723b",
+      "completed": "2026-03-11T00:15:00Z"
+    },
+    "S2": {
+      "status": "pass",
+      "title": "Worktree Pool Infrastructure",
+      "risk": 5,
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "wave": 1,
+      "cycles_used": 4,
+      "commit": "2328962",
+      "completed": "2026-03-11T00:20:00Z"
+    },
+    "S5": {
+      "status": "pass",
+      "title": "Async File I/O for Monitor",
+      "risk": 4,
+      "complexity": "Low",
+      "cycle_budget": 10,
+      "wave": 1,
+      "cycles_used": 3,
+      "commit": "02525f7",
+      "completed": "2026-03-11T00:18:00Z"
+    },
+    "S3": {
+      "status": "pass",
+      "title": "Runner Worktree Integration",
+      "risk": 5,
+      "complexity": "Medium",
+      "cycle_budget": 15,
+      "wave": 2,
+      "depends_on": ["S2"],
+      "cycles_used": 1,
+      "commit": "8b60483",
+      "completed": "2026-03-11T00:25:00Z"
+    },
+    "S4": {
+      "status": "running",
+      "title": "Orchestrator Integration + Merge Automation",
+      "risk": 7,
+      "complexity": "High",
+      "cycle_budget": 15,
+      "wave": 3,
+      "depends_on": ["S3"]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+[plan]
+preamble = []
+extra_rules = ""
+
+[execution]
+max_parallel = 2
+segment_timeout = 3600
+max_retries = 0
+heartbeat_interval = 900
+stall_threshold = 1800
+network_retry_max = 600
+
+[isolation]
+strategy = "worktree"
+
+[gate]
+command = ""
+
+[auth]
+ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY}"
+
+[notifications]
+enabled = false
+ntfy_topic = ""
+verbosity = "all"
+max_attempts = 3
+retry_delays = [10, 60, 300]
+
+[monitor]
+enabled = false
+port = 0

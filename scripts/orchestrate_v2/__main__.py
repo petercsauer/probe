@@ -18,6 +18,7 @@ from .notify import _send_ntfy, Notifier
 from .planner import Segment, load_plan
 from .runner import run_segment
 from .state import StateDB
+from .worktree_pool import WorktreePool
 
 log = logging.getLogger("orchestrate")
 
@@ -217,6 +218,59 @@ async def _wait_for_network(notifier, max_wait: int = 600) -> None:
         delay = min(delay * 2, 60)
 
 
+async def _merge_worktree_changes(wt: "Worktree", seg: "Segment") -> bool:
+    """Merge successful segment changes from worktree branch back to main.
+
+    Returns True on clean merge, False on conflict.
+    """
+    try:
+        # Get current branch or HEAD ref
+        proc = await asyncio.create_subprocess_exec(
+            "git", "symbolic-ref", "--short", "HEAD",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        current_branch = stdout.decode().strip() if proc.returncode == 0 else None
+
+        # If not on a branch (detached HEAD), we can't merge
+        # This is expected during orchestrator execution - skip merge for now
+        if not current_branch:
+            log.warning("Skipping merge for S%02d - not on a branch (detached HEAD)", seg.num)
+            log.info("To merge manually: git merge --no-ff %s", wt.branch)
+            return True  # Don't fail the segment
+
+        # Merge the worktree branch into current branch
+        proc = await asyncio.create_subprocess_exec(
+            "git", "merge", "--no-ff", "-m",
+            f"Merge segment S{seg.num:02d}: {seg.title}",
+            wt.branch,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            # Merge conflict - abort merge and log
+            await asyncio.create_subprocess_exec(
+                "git", "merge", "--abort",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            log.error(
+                "Merge conflict for S%02d:\nstdout: %s\nstderr: %s",
+                seg.num, stdout.decode(), stderr.decode()
+            )
+            return False
+
+        log.info("Successfully merged S%02d changes from %s to %s", seg.num, wt.branch, current_branch)
+        return True
+
+    except Exception as e:
+        log.exception("Exception during merge for S%02d: %s", seg.num, e)
+        return False
+
+
 async def _run_wave(
     wave: int,
     segments: list[Segment],
@@ -225,6 +279,7 @@ async def _run_wave(
     notifier,
     log_dir: Path,
     shutting_down: asyncio.Event,
+    pool: "WorktreePool | None" = None,
 ) -> list[tuple[int, str]]:
     """Execute all segments in a wave with bounded parallelism.
 
@@ -245,34 +300,79 @@ async def _run_wave(
                 return seg.num, "skipped"
 
             status = "failed"
-            while True:  # outer loop: re-enters when operator hits Retry mid-wave
-                attempts = 0
-                while attempts <= config.max_retries:
-                    attempts = await state.increment_attempts(seg.num)
-                    status, _ = await run_segment(
-                        seg, config, state, log_dir,
-                        notifier=notifier,
-                        attempt_num=attempts,
-                        register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
-                        unregister_pid=lambda n: _running_pids.pop(n, None),
-                    )
-                    if status in ("pass", "timeout"):
-                        break
-                    if attempts > config.max_retries:
-                        break
-                    log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
-                    await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+            cwd = None
 
-                # Check if operator reset us to pending while we were running or
-                # immediately after — if so, re-run without requiring an orchestrator restart.
-                refreshed = await state.get_segment(seg.num)
-                if refreshed and refreshed["status"] == "pending":
-                    log.info("S%02d operator retry detected, re-running in-wave", seg.num)
-                    await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
-                    continue
-                break
+            # NEW: Acquire worktree if pool exists
+            if pool and config.isolation_strategy == "worktree":
+                async with pool.acquire(seg.num) as wt:
+                    cwd = wt.path
 
-            return seg.num, status
+                    while True:  # outer loop: re-enters when operator hits Retry mid-wave
+                        attempts = 0
+                        while attempts <= config.max_retries:
+                            attempts = await state.increment_attempts(seg.num)
+                            status, _ = await run_segment(
+                                seg, config, state, log_dir,
+                                notifier=notifier,
+                                attempt_num=attempts,
+                                register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
+                                unregister_pid=lambda n: _running_pids.pop(n, None),
+                                cwd=cwd,  # NEW: pass worktree path
+                            )
+                            if status in ("pass", "timeout"):
+                                break
+                            if attempts > config.max_retries:
+                                break
+                            log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+
+                        # Check if operator reset us to pending while we were running or
+                        # immediately after — if so, re-run without requiring an orchestrator restart.
+                        refreshed = await state.get_segment(seg.num)
+                        if refreshed and refreshed["status"] == "pending":
+                            log.info("S%02d operator retry detected, re-running in-wave", seg.num)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
+                            continue
+                        break
+
+                    # NEW: Auto-merge on success
+                    if status == "pass" and config.isolation_strategy == "worktree":
+                        merge_ok = await _merge_worktree_changes(wt, seg)
+                        if not merge_ok:
+                            log.warning("S%02d passed but merge failed - manual intervention needed", seg.num)
+                            return seg.num, "pass-merge-conflict"
+
+                    return seg.num, status
+            else:
+                # Original path: no worktree
+                while True:  # outer loop: re-enters when operator hits Retry mid-wave
+                    attempts = 0
+                    while attempts <= config.max_retries:
+                        attempts = await state.increment_attempts(seg.num)
+                        status, _ = await run_segment(
+                            seg, config, state, log_dir,
+                            notifier=notifier,
+                            attempt_num=attempts,
+                            register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
+                            unregister_pid=lambda n: _running_pids.pop(n, None),
+                        )
+                        if status in ("pass", "timeout"):
+                            break
+                        if attempts > config.max_retries:
+                            break
+                        log.info("S%02d retrying (attempt %d/%d)", seg.num, attempts, config.max_retries)
+                        await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts}")
+
+                    # Check if operator reset us to pending while we were running or
+                    # immediately after — if so, re-run without requiring an orchestrator restart.
+                    refreshed = await state.get_segment(seg.num)
+                    if refreshed and refreshed["status"] == "pending":
+                        log.info("S%02d operator retry detected, re-running in-wave", seg.num)
+                        await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
+                        continue
+                    break
+
+                return seg.num, status
 
     # Store segment numbers with tasks to preserve identity
     task_map = [(seg.num, asyncio.create_task(_run_one(seg), name=f"S{seg.num:02d}")) for seg in segments]
@@ -283,7 +383,12 @@ async def _run_wave(
             log.error("Wave %d segment S%02d error: %s", wave, seg_num, result)
             results.append((seg_num, "error"))
         else:
-            results.append(result)
+            num, status = result
+            results.append((num, status))
+
+            # NEW: Treat merge conflicts as partial success
+            if status == "pass-merge-conflict":
+                log.warning("S%02d completed but has merge conflicts - manual intervention needed", num)
 
     # Post-gather sweep: catch retries pressed after gather completed but before
     # the wave advances to the next wave. Re-run any segments reset to pending.
@@ -389,6 +494,18 @@ async def _orchestrate_inner(
     notifier = Notifier(config, state)
     monitor = MonitorServer(state, log_dir, config.monitor_port, running_pids=_running_pids)
 
+    # NEW: Create worktree pool if isolation strategy requires it
+    pool: WorktreePool | None = None
+    if config.isolation_strategy == "worktree":
+        pool_size = min(config.max_parallel, 4)  # Never exceed 4 worktrees
+        pool = WorktreePool(
+            repo_root=Path.cwd(),
+            pool_size=pool_size,
+            target_branch="main",  # TODO: detect current branch
+        )
+        await pool.create()
+        log.info("Created worktree pool with %d worktrees", pool_size)
+
     shutting_down = asyncio.Event()
     worker_stop = asyncio.Event()
 
@@ -449,7 +566,7 @@ async def _orchestrate_inner(
             await _wait_for_network(notifier, config.network_retry_max)
 
             results = await _run_wave(
-                wave_num, pending, config, state, notifier, log_dir, shutting_down
+                wave_num, pending, config, state, notifier, log_dir, shutting_down, pool
             )
 
             # Batched wave completion notification
@@ -490,6 +607,11 @@ async def _orchestrate_inner(
         progress = await state.progress()
         await state.log_event("run_complete", json.dumps(progress))
         await notifier.finished(meta.title, progress)
+
+        # NEW: Cleanup pool
+        if pool:
+            await pool.cleanup()
+            log.info("Cleaned up worktree pool")
 
         await monitor.stop()
         await state.close()
