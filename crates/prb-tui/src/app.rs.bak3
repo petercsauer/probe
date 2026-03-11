@@ -1,5 +1,5 @@
 use std::io;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
@@ -15,14 +15,13 @@ use ratatui::Terminal;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
-use crate::config::Config;
 use crate::event_store::EventStore;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeConfig};
 
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
@@ -85,6 +84,7 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
+    theme: ThemeConfig,
 }
 
 impl App {
@@ -117,17 +117,11 @@ impl App {
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
-            live_source: None,
-            capture_state: CaptureState::Stopped,
-            capture_stats: None,
-            auto_follow: false,
-            new_events_since_scroll: 0,
-            ring_buffer: None,
-
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            theme: ThemeConfig::dark(),
         }
     }
 
@@ -233,6 +227,15 @@ impl App {
                         Some(0)
                     };
                 }
+                return false;
+            }
+            KeyCode::Char('T') => {
+                self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
+                    "Light" => ThemeConfig::catppuccin_mocha(),
+                    "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    _ => ThemeConfig::dark(),
+                };
                 return false;
             }
             _ => {}
@@ -398,7 +401,7 @@ impl App {
             .split(vert_layout[1]);
 
         let focus = self.focus;
-        self.event_list.render(vert_layout[0], buf, &self.state, focus == PaneId::EventList);
+        self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         self.decode_tree.render(horiz_layout[0], buf, &self.state, focus == PaneId::DecodeTree);
         self.hex_dump.render(horiz_layout[1], buf, &self.state, focus == PaneId::HexDump);
         self.timeline.render(main_layout[2], buf, &self.state, focus == PaneId::Timeline);
@@ -411,7 +414,7 @@ impl App {
             &self.filter_error,
             &self.state,
         );
-        if self.live_source.is_some() { self.render_capture_control_bar(main_layout[3], buf); } else { Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus); }
+        Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus);
 
         if self.input_mode == InputMode::Help {
             self.render_help_overlay(area, buf);

@@ -89,15 +89,21 @@ class StateDB:
                     (seg.num, seg.slug, seg.title, seg.wave, "pending"),
                 )
 
+    _SEG_COLS = "num, slug, title, wave, status, attempts, started_at, finished_at, result_json"
+
     def get_segment(self, num: int) -> SegmentRow | None:
-        cur = self._conn.execute("SELECT * FROM segments WHERE num=?", (num,))
+        cur = self._conn.execute(
+            f"SELECT {self._SEG_COLS} FROM segments WHERE num=?", (num,)
+        )
         row = cur.fetchone()
         if not row:
             return None
         return SegmentRow(*row)
 
     def get_all_segments(self) -> list[SegmentRow]:
-        cur = self._conn.execute("SELECT * FROM segments ORDER BY num")
+        cur = self._conn.execute(
+            f"SELECT {self._SEG_COLS} FROM segments ORDER BY num"
+        )
         return [SegmentRow(*r) for r in cur.fetchall()]
 
     def set_status(self, num: int, status: str, **kwargs: Any) -> None:
@@ -166,7 +172,7 @@ class StateDB:
 
     def wave_segments(self, wave: int) -> list[SegmentRow]:
         cur = self._conn.execute(
-            "SELECT * FROM segments WHERE wave=? ORDER BY num", (wave,)
+            f"SELECT {self._SEG_COLS} FROM segments WHERE wave=? ORDER BY num", (wave,)
         )
         return [SegmentRow(*r) for r in cur.fetchall()]
 

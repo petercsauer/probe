@@ -8,7 +8,7 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     let store = if args.demo {
         let events = generate_demo_events();
         tracing::info!("Generated {} demo events", events.len());
-        EventStore::from_events(events)
+        EventStore::new(events)
     } else {
         let input = args.input.as_ref().context("Input file required (or use --demo)")?;
         let path = std::path::PathBuf::from(input.as_str());

@@ -11,7 +11,7 @@ use prb_core::{DebugEvent, Payload};
 use crate::app::AppState;
 use crate::error_intel;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeConfig};
 
 pub struct DecodeTreePane {
     pub state: TreeState<String>,
@@ -69,7 +69,7 @@ impl DecodeTreePane {
         }
     }
 
-    fn render_diff_overlay(&self, area: Rect, buf: &mut Buffer, state: &AppState) {
+    fn render_diff_overlay(&self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig) {
         use ratatui::layout::{Constraint, Direction, Layout};
         use ratatui::widgets::{BorderType, Clear};
 
@@ -97,9 +97,9 @@ impl DecodeTreePane {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Theme::focused_border())
+            .border_style(theme.focused_border())
             .title(" Event Diff (press Esc to close) ")
-            .title_style(Theme::focused_title());
+            .title_style(theme.focused_title());
 
         let inner = block.inner(overlay_area);
         block.render(overlay_area, buf);
@@ -178,13 +178,12 @@ impl PaneComponent for DecodeTreePane {
             }
             KeyCode::Char('e') => {
                 // Expand all
-                if let Some(sel_idx) = state.selected_event {
-                    if let Some(event_idx) = state.filtered_indices.get(sel_idx) {
-                        if let Some(event) = state.store.get(*event_idx) {
-                            let items = build_tree_items(event);
-                            self.expand_all(&items);
-                        }
-                    }
+                if let Some(sel_idx) = state.selected_event
+                    && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                    && let Some(event) = state.store.get(*event_idx)
+                {
+                    let items = build_tree_items(event);
+                    self.expand_all(&items);
                 }
                 Action::None
             }
@@ -194,13 +193,12 @@ impl PaneComponent for DecodeTreePane {
             }
             KeyCode::Char('y') => {
                 // Copy selected value
-                if let Some(sel_idx) = state.selected_event {
-                    if let Some(event_idx) = state.filtered_indices.get(sel_idx) {
-                        if let Some(event) = state.store.get(*event_idx) {
-                            let items = build_tree_items(event);
-                            self.copy_selected_value(&items);
-                        }
-                    }
+                if let Some(sel_idx) = state.selected_event
+                    && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                    && let Some(event) = state.store.get(*event_idx)
+                {
+                    let items = build_tree_items(event);
+                    self.copy_selected_value(&items);
                 }
                 Action::None
             }
@@ -220,7 +218,7 @@ impl PaneComponent for DecodeTreePane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
+    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
         use ratatui::widgets::BorderType;
 
         // Build title with marker indicator
@@ -242,16 +240,16 @@ impl PaneComponent for DecodeTreePane {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .border_style(Theme::focused_border())
+                .border_style(theme.focused_border())
                 .title(title)
-                .title_style(Theme::focused_title())
+                .title_style(theme.focused_title())
         } else {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Plain)
-                .border_style(Theme::unfocused_border())
+                .border_style(theme.unfocused_border())
                 .title(title)
-                .title_style(Theme::unfocused_title())
+                .title_style(theme.unfocused_title())
         };
 
         let inner = block.inner(area);
@@ -263,7 +261,7 @@ impl PaneComponent for DecodeTreePane {
 
         // Show diff overlay if active
         if self.show_diff {
-            self.render_diff_overlay(area, buf, state);
+            self.render_diff_overlay(area, buf, state, theme);
             return;
         }
 
@@ -286,7 +284,7 @@ impl PaneComponent for DecodeTreePane {
 
         let tree = Tree::new(&items)
             .expect("tree items are valid")
-            .highlight_style(Theme::selected_row());
+            .highlight_style(theme.selected_row());
 
         ratatui::widgets::StatefulWidget::render(tree, inner, buf, &mut self.state);
     }

@@ -401,10 +401,10 @@ impl App {
             .split(vert_layout[1]);
 
         let focus = self.focus;
-        self.event_list.render(vert_layout[0], buf, &self.state, focus == PaneId::EventList);
-        self.decode_tree.render(horiz_layout[0], buf, &self.state, focus == PaneId::DecodeTree);
-        self.hex_dump.render(horiz_layout[1], buf, &self.state, focus == PaneId::HexDump);
-        self.timeline.render(main_layout[2], buf, &self.state, focus == PaneId::Timeline);
+        self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+        self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
+        self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
+        self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
 
         Self::render_filter_bar_static(
             main_layout[0],

@@ -21,7 +21,7 @@ use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::{Theme, ThemeConfig};
+use crate::theme::Theme;
 
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
@@ -80,11 +80,24 @@ pub struct App {
     filter_input: Input,
     filter_error: Option<String>,
 
+    // Theme configuration
+    theme: ThemeConfig,
+    theme_names: Vec<String>,
+    theme_notification: Option<(String, Instant)>,
+    config: Config,
+
+    // Live capture mode
+    live_source: Option<LiveDataSource>,
+    capture_state: CaptureState,
+    capture_stats: Option<CaptureStats>,
+    auto_follow: bool,
+    new_events_since_scroll: usize,
+    ring_buffer: Option<RingBuffer<prb_core::DebugEvent>>,
+
     event_list: EventListPane,
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
-    theme: ThemeConfig,
 }
 
 impl App {
@@ -116,12 +129,11 @@ impl App {
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
-            filter_error: None,
+            filter_state: FilterState::new(),
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
-            theme: ThemeConfig::dark(),
         }
     }
 
@@ -229,15 +241,6 @@ impl App {
                 }
                 return false;
             }
-            KeyCode::Char('T') => {
-                self.theme = match self.theme.name.as_str() {
-                    "Dark" => ThemeConfig::light(),
-                    "Light" => ThemeConfig::catppuccin_mocha(),
-                    "Catppuccin Mocha" => ThemeConfig::dracula(),
-                    _ => ThemeConfig::dark(),
-                };
-                return false;
-            }
             _ => {}
         }
 
@@ -296,6 +299,128 @@ impl App {
                 self.filter_error = None;
                 false
             }
+        }
+    }
+
+
+    fn handle_goto_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Enter => {
+                let text = self.goto_input.value().to_string();
+                if let Ok(event_id) = text.trim().parse::<usize>() {
+                    // Find the event with this ID in filtered indices
+                    if let Some(pos) = self.state.filtered_indices.iter().position(|&store_idx| {
+                        self.state.store.get(store_idx).map(|e| e.id) == Some(event_id)
+                    }) {
+                        self.event_list.selected = pos;
+                        self.event_list.ensure_visible(pos, 20); // ensure_visible with some context
+                        self.state.selected_event = Some(pos);
+                        self.goto_error = None;
+                    } else {
+                        self.goto_error = Some(format!("Event {} not found in current view", event_id));
+                        return false;
+                    }
+                } else {
+                    self.goto_error = Some("Invalid event ID".to_string());
+                    return false;
+                }
+                self.input_mode = InputMode::Normal;
+                self.focus = PaneId::EventList;
+                false
+            }
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Normal;
+                self.goto_error = None;
+                false
+            }
+            _ => {
+                self.goto_input.handle_event(&Event::Key(key));
+                self.goto_error = None;
+                false
+            }
+        }
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let (col, row) = (mouse.column, mouse.row);
+
+                // Check which pane was clicked
+                for (pane_id, rect) in &self.pane_rects {
+                    if col >= rect.x && col < rect.x + rect.width
+                        && row >= rect.y && row < rect.y + rect.height
+                    {
+                        self.focus = *pane_id;
+
+                        // If clicked on event list, select the row
+                        if *pane_id == PaneId::EventList {
+                            let row_in_pane = row.saturating_sub(rect.y + 1); // -1 for border
+                            let event_idx = self.event_list.scroll_offset + row_in_pane as usize;
+                            if event_idx < self.state.filtered_indices.len() {
+                                self.event_list.selected = event_idx;
+                                self.process_action(Action::SelectEvent(event_idx));
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_down(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+                            &self.state
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            MouseEventKind::ScrollUp => {
+                // Route scroll to focused pane
+                match self.focus {
+                    PaneId::EventList => {
+                        for _ in 0..3 {
+                            let action = self.event_list.handle_key(
+                                KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                                &self.state
+                            );
+                            self.process_action(action);
+                        }
+                    }
+                    PaneId::HexDump => {
+                        for _ in 0..3 {
+                            self.hex_dump.scroll_up(1);
+                        }
+                    }
+                    PaneId::DecodeTree => {
+                        let action = self.decode_tree.handle_key(
+                            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+                            &self.state
+                        );
+                        self.process_action(action);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
         }
     }
 

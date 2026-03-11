@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Sparkline, Widget};
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::ThemeConfig;
 
 pub struct TimelinePane;
 
@@ -28,11 +28,11 @@ impl PaneComponent for TimelinePane {
         Action::None
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
+    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
         let border_style = if focused {
-            Theme::focused_border()
+            theme.focused_border()
         } else {
-            Theme::unfocused_border()
+            theme.unfocused_border()
         };
         let block = Block::default()
             .borders(Borders::ALL)
@@ -65,7 +65,7 @@ impl PaneComponent for TimelinePane {
 
         let sparkline = Sparkline::default()
             .data(&buckets)
-            .style(Theme::sparkline());
+            .style(theme.sparkline());
 
         sparkline.render(sparkline_area, buf);
 
@@ -76,14 +76,14 @@ impl PaneComponent for TimelinePane {
             let x = inner.x + bucket_idx as u16;
             let y = inner.y + sparkline_height - 1;
             if x < inner.x + inner.width && y < inner.y + inner.height {
-                buf[(x, y)].set_style(Theme::selected_row());
+                buf[(x, y)].set_style(theme.selected_row());
             }
         }
 
         // Time range + protocol legend on the bottom line
         if inner.height >= 2 {
             let y = inner.y + inner.height - 1;
-            let time_line = format_time_legend(state, inner.width);
+            let time_line = format_time_legend(state, inner.width, theme);
             buf.set_line(inner.x, y, &time_line, inner.width);
         }
     }
@@ -114,7 +114,7 @@ fn calculate_selected_bucket(state: &AppState, selected_idx: usize, bucket_count
     Some(bucket_idx)
 }
 
-fn format_time_legend(state: &AppState, _width: u16) -> Line<'static> {
+fn format_time_legend(state: &AppState, _width: u16, theme: &ThemeConfig) -> Line<'static> {
     let mut spans = Vec::new();
 
     if let Some((start, end)) = state.store.time_range() {
@@ -122,13 +122,13 @@ fn format_time_legend(state: &AppState, _width: u16) -> Line<'static> {
         let end_str = format_timestamp_short(end.as_nanos());
         spans.push(Span::styled(
             format!(" {} --- {} ", start_str, end_str),
-            Theme::hex_offset(),
+            theme.hex_offset(),
         ));
     }
 
     let counts = state.store.protocol_counts(&state.filtered_indices);
     for (kind, count) in counts.iter().take(4) {
-        let color = Theme::transport_color(*kind);
+        let color = theme.transport_color(*kind);
         spans.push(Span::styled(
             format!(" {}: {} ", kind, count),
             ratatui::style::Style::default().fg(color),
@@ -163,7 +163,8 @@ pub fn test_calculate_selected_bucket(state: &AppState, selected_idx: usize, buc
 
 #[doc(hidden)]
 pub fn test_format_time_legend(state: &AppState, width: u16) -> Line<'static> {
-    format_time_legend(state, width)
+    let theme = ThemeConfig::dark();
+    format_time_legend(state, width, &theme)
 }
 
 #[doc(hidden)]

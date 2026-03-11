@@ -10,7 +10,7 @@ use prb_core::{
 /// Generate a synthetic dataset with ~50 events covering all transports.
 pub fn generate_demo_events() -> Vec<DebugEvent> {
     let mut events = Vec::new();
-    let base_time = 1700000000_000_000_000u64; // Base timestamp in nanos
+    let base_time = 1_700_000_000_000_000_000u64; // Base timestamp in nanos
 
     // 3 gRPC request/response pairs (one with error status)
     events.push(
@@ -268,7 +268,7 @@ pub fn generate_demo_events() -> Vec<DebugEvent> {
                     raw: Bytes::from(format!("\x00\x00\x00\x08payload_{}", i)),
                 })
                 .metadata(METADATA_KEY_GRPC_METHOD, "/test.TestService/Echo")
-                .metadata(METADATA_KEY_H2_STREAM_ID, &format!("{}", 7 + i * 2))
+                .metadata(METADATA_KEY_H2_STREAM_ID, (7 + i * 2).to_string())
                 .correlation_key(CorrelationKey::StreamId { id: 7 + i as u32 * 2 })
                 .sequence(12 + i)
                 .build(),

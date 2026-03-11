@@ -10,12 +10,14 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Widget};
-use unicode_width::UnicodeWidthStr;
 use ratatui::Terminal;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
 use crate::event_store::EventStore;
+use crate::live::{AppEvent, CaptureState, LiveDataSource};
+use crate::ring_buffer::RingBuffer;
+
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -23,11 +25,8 @@ use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::{Theme, ThemeConfig};
 
+use prb_capture::CaptureStats;
 use prb_query::Filter;
-use prb_schema::SchemaRegistry;
-use prb_core::{Payload, METADATA_KEY_GRPC_METHOD};
-use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
-use serde_json::{json, Value as JsonValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneId {
@@ -38,7 +37,7 @@ pub enum PaneId {
 }
 
 impl PaneId {
-    pub fn next(self) -> Self {
+    fn next(self) -> Self {
         match self {
             PaneId::EventList => PaneId::DecodeTree,
             PaneId::DecodeTree => PaneId::HexDump,
@@ -47,7 +46,7 @@ impl PaneId {
         }
     }
 
-    pub fn prev(self) -> Self {
+    fn prev(self) -> Self {
         match self {
             PaneId::EventList => PaneId::Timeline,
             PaneId::DecodeTree => PaneId::EventList,
@@ -58,7 +57,7 @@ impl PaneId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InputMode {
+enum InputMode {
     Normal,
     Filter,
     Help,
@@ -78,7 +77,16 @@ pub struct App {
     focus: PaneId,
     input_mode: InputMode,
     filter_input: Input,
+    filter_state: FilterState,
     filter_error: Option<String>,
+
+    // Live capture mode
+    live_source: Option<LiveDataSource>,
+    capture_state: CaptureState,
+    capture_stats: Option<CaptureStats>,
+    auto_follow: bool,
+    new_events_since_scroll: usize,
+    ring_buffer: Option<RingBuffer<prb_core::DebugEvent>>,
 
     event_list: EventListPane,
     decode_tree: DecodeTreePane,
@@ -88,27 +96,26 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
+    pub fn new(store: EventStore, initial_filter: Option<String>) -> Self {
         let mut state = AppState {
             filtered_indices: store.all_indices(),
             selected_event: if store.is_empty() { None } else { Some(0) },
             filter: None,
             filter_text: String::new(),
-            schema_registry,
             store,
         };
 
-        if let Some(ref filter_str) = initial_filter
-            && let Ok(filter) = Filter::parse(filter_str)
-        {
-            state.filtered_indices = state.store.filter_indices(&filter);
-            state.filter_text = filter_str.clone();
-            state.filter = Some(filter);
-            state.selected_event = if state.filtered_indices.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
+        if let Some(ref filter_str) = initial_filter {
+            if let Ok(filter) = Filter::parse(filter_str) {
+                state.filtered_indices = state.store.filter_indices(&filter);
+                state.filter_text = filter_str.clone();
+                state.filter = Some(filter);
+                state.selected_event = if state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
         }
 
         App {
@@ -117,6 +124,12 @@ impl App {
             input_mode: InputMode::Normal,
             filter_input: Input::default(),
             filter_error: None,
+            live_source: None,
+            capture_state: CaptureState::Stopped,
+            capture_stats: None,
+            auto_follow: false,
+            new_events_since_scroll: 0,
+            ring_buffer: None,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
@@ -145,6 +158,149 @@ impl App {
         result
     }
 
+    /// Create a new App in live capture mode with an active LiveDataSource.
+    pub fn new_live(live_source: LiveDataSource, schema_registry: Option<SchemaRegistry>) -> Self {
+        let store = EventStore::empty();
+        let state = AppState {
+            filtered_indices: Vec::new(),
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+            schema_registry,
+            store,
+        };
+
+        let ring_buffer = Some(RingBuffer::new(100_000)); // 100K event cap
+
+        App {
+            state,
+            focus: PaneId::EventList,
+            input_mode: InputMode::Normal,
+            filter_input: Input::default(),
+            filter_error: None,
+            live_source: Some(live_source),
+            capture_state: CaptureState::Capturing,
+            capture_stats: None,
+            auto_follow: true, // Start with auto-follow enabled
+            new_events_since_scroll: 0,
+            ring_buffer,
+            event_list: EventListPane::new(),
+            decode_tree: DecodeTreePane::new(),
+            hex_dump: HexDumpPane::new(),
+            timeline: TimelinePane::new(),
+        }
+    }
+
+    /// Run the TUI event loop in live capture mode.
+    pub fn run_live(&mut self) -> anyhow::Result<()> {
+        terminal::enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
+
+        let result = self.live_event_loop(&mut terminal);
+
+        terminal::disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
+        terminal.show_cursor()?;
+
+        result
+    }
+
+    fn live_event_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> anyhow::Result<()> {
+        // Take ownership of the receiver from live_source
+        let mut rx = self.live_source.as_mut()
+            .and_then(|ls| ls.take_receiver())
+            .ok_or_else(|| anyhow::anyhow!("No live data source receiver available"))?;
+
+        loop {
+            self.draw(terminal)?;
+
+            // Drain capture events in batches for performance
+            let mut batch_count = 0;
+            while let Ok(app_event) = rx.try_recv() {
+                match app_event {
+                    AppEvent::CapturedEvent(debug_event) => {
+                        let event = *debug_event;
+                        // Push to store for immediate access
+                        self.state.store.push(event.clone());
+                        // Also keep in ring buffer for eviction tracking
+                        if let Some(ref mut ring_buf) = self.ring_buffer {
+                            ring_buf.push(event);
+                        }
+                        batch_count += 1;
+                        if batch_count >= 100 {
+                            break; // Cap per frame to keep UI responsive
+                        }
+                    }
+                    AppEvent::CaptureStats(stats) => {
+                        self.capture_stats = Some(stats);
+                    }
+                    AppEvent::CaptureStopped => {
+                        self.capture_state = CaptureState::Stopped;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Recompute filtered indices if new events arrived
+            if batch_count > 0 {
+                self.recompute_filter();
+                if self.auto_follow {
+                    self.scroll_to_bottom();
+                } else {
+                    self.new_events_since_scroll += batch_count;
+                }
+            }
+
+            // Poll keyboard events
+            if event::poll(Duration::from_millis(33))? {
+                if let Event::Key(key) = event::read()? {
+                    if self.handle_key(key) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+
+    fn recompute_filter(&mut self) {
+        self.state.filtered_indices = if let Some(ref filter) = self.state.filter {
+            self.state.store.filter_indices(filter)
+        } else {
+            self.state.store.all_indices()
+        };
+
+        // Update selected event if needed
+        if self.state.selected_event.is_some()
+            && self.state.filtered_indices.is_empty()
+        {
+            self.state.selected_event = None;
+        } else if self.state.selected_event.is_none()
+            && !self.state.filtered_indices.is_empty()
+        {
+            self.state.selected_event = Some(0);
+        }
+    }
+
+    fn scroll_to_bottom(&mut self) {
+        if !self.state.filtered_indices.is_empty() {
+            let last_idx = self.state.filtered_indices.len() - 1;
+            self.event_list.selected = last_idx;
+            self.event_list.scroll_offset = last_idx.saturating_sub(10); // Keep some context
+            self.state.selected_event = Some(last_idx);
+            self.new_events_since_scroll = 0;
+        }
+    }
+
     fn event_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -152,11 +308,12 @@ impl App {
         loop {
             self.draw(terminal)?;
 
-            if event::poll(Duration::from_millis(16))?
-                && let Event::Key(key) = event::read()?
-                && self.handle_key(key)
-            {
-                return Ok(());
+            if event::poll(Duration::from_millis(16))? {
+                if let Event::Key(key) = event::read()? {
+                    if self.handle_key(key) {
+                        return Ok(());
+                    }
+                }
             }
         }
     }
@@ -307,11 +464,6 @@ impl App {
                 self.hex_dump.scroll_offset = 0;
                 self.hex_dump.clear_highlight();
                 self.decode_tree.state = tui_tree_widget::TreeState::default();
-
-                // Try to decode the event on-demand
-                if let Some(store_idx) = self.state.filtered_indices.get(idx) {
-                    self.try_decode_event(*store_idx);
-                }
             }
             Action::HighlightBytes { offset, len } => {
                 self.hex_dump.set_highlight(offset, len);
@@ -320,61 +472,6 @@ impl App {
                 self.hex_dump.clear_highlight();
             }
             Action::Quit => {}
-        }
-    }
-
-    /// Attempt on-demand decode of an event when selected.
-    fn try_decode_event(&mut self, store_idx: usize) {
-        let registry = match &self.state.schema_registry {
-            Some(r) => r,
-            None => return,
-        };
-
-        let event = match self.state.store.get_mut(store_idx) {
-            Some(e) => e,
-            None => return,
-        };
-
-        // Only decode if still in Raw format
-        if let Payload::Raw { ref raw } = event.payload {
-            let bytes = raw.clone();
-
-            // Try schema-backed decode first (for gRPC)
-            if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
-                && let Some(msg_desc) = registry.get_message(method)
-            {
-                match decode_with_schema(&bytes, &msg_desc) {
-                    Ok(decoded) => {
-                        event.payload = Payload::Decoded {
-                            raw: bytes,
-                            fields: decoded.to_json(),
-                            schema_name: Some(method.to_string()),
-                        };
-                        tracing::debug!("Decoded event {} with schema {}", event.id, method);
-                        return;
-                    }
-                    Err(e) => {
-                        tracing::debug!("Schema decode failed for {}: {}", method, e);
-                    }
-                }
-            }
-
-            // Fallback: wire-format decode (field numbers only)
-            match decode_wire_format(&bytes) {
-                Ok(wire_msg) => {
-                    // Convert wire message to JSON representation
-                    let fields = wire_message_to_json(&wire_msg);
-                    event.payload = Payload::Decoded {
-                        raw: bytes,
-                        fields,
-                        schema_name: None,
-                    };
-                    tracing::debug!("Wire-format decoded event {}", event.id);
-                }
-                Err(e) => {
-                    tracing::debug!("Wire-format decode failed: {}", e);
-                }
-            }
         }
     }
 
@@ -414,7 +511,7 @@ impl App {
             &self.filter_error,
             &self.state,
         );
-        Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus);
+        Self::render_status_bar_static(main_layout[3], buf, &self.state);
 
         if self.input_mode == InputMode::Help {
             self.render_help_overlay(area, buf);
@@ -470,7 +567,7 @@ impl App {
         buf.set_line(area.x, area.y, &line, area.width);
     }
 
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -497,27 +594,10 @@ impl App {
             ));
         }
 
-        // Show schema count if schemas are loaded
-        if let Some(ref registry) = state.schema_registry {
-            let schema_count = registry.list_messages().len();
-            if schema_count > 0 {
-                spans.push(Span::styled(" │ ", Theme::status_bar()));
-                spans.push(Span::styled(
-                    format!("schemas: {} types ", schema_count),
-                    Theme::status_bar(),
-                ));
-            }
-        }
-
-        // Right-aligned keybind hints - context-aware based on focused pane
-        let hint = match focus {
-            PaneId::EventList => " Tab:pane  j/k:nav  s:sort  /:filter  ?:help  q:quit ",
-            PaneId::DecodeTree => " Tab:pane  j/k:nav  Enter:expand  Space:toggle  ?:help  q:quit ",
-            PaneId::HexDump => " Tab:pane  j/k:scroll  g:top  ?:help  q:quit ",
-            PaneId::Timeline => " Tab:pane  ?:help  q:quit ",
-        };
-        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
-        let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
+        // Right-aligned keybind hints
+        let hint = " Tab:pane  /:filter  ?:help  q:quit ";
+        let used: usize = spans.iter().map(|s| s.content.len()).sum();
+        let padding = (area.width as usize).saturating_sub(used + hint.len());
         spans.push(Span::styled(
             " ".repeat(padding),
             Theme::status_bar(),
@@ -591,99 +671,4 @@ impl App {
             buf.set_line(inner.x, inner.y + i as u16, &line, inner.width);
         }
     }
-
-    // Test helpers - expose private methods for testing
-    // These are public to support integration tests in tests/
-    #[doc(hidden)]
-    pub fn test_handle_key(&mut self, key: KeyEvent) -> bool {
-        self.handle_key(key)
-    }
-
-    #[doc(hidden)]
-    pub fn test_render_to_buffer(&mut self, area: Rect, buf: &mut Buffer) {
-        self.render_all(area, buf);
-    }
-
-    #[doc(hidden)]
-    pub fn test_process_action(&mut self, action: Action) {
-        self.process_action(action);
-    }
-
-    #[doc(hidden)]
-    pub fn get_focus(&self) -> PaneId {
-        self.focus
-    }
-
-    #[doc(hidden)]
-    pub fn get_input_mode(&self) -> InputMode {
-        self.input_mode
-    }
-
-    #[doc(hidden)]
-    pub fn get_state(&self) -> &AppState {
-        &self.state
-    }
-
-    #[doc(hidden)]
-    pub fn get_filter_error(&self) -> &Option<String> {
-        &self.filter_error
-    }
-}
-
-/// Convert a wire-format decoded message to JSON.
-fn wire_message_to_json(wire_msg: &WireMessage) -> JsonValue {
-    let mut fields = serde_json::Map::new();
-
-    for field in &wire_msg.fields {
-        let key = format!("field_{}", field.field_number);
-        let value = match &field.value {
-            WireValue::Varint(v) => {
-                json!({
-                    "wire_type": "varint",
-                    "unsigned": v.unsigned,
-                    "signed_zigzag": v.signed_zigzag,
-                    "as_bool": v.as_bool,
-                })
-            }
-            WireValue::Fixed64(v) => {
-                json!({
-                    "wire_type": "fixed64",
-                    "as_u64": v.as_u64,
-                    "as_i64": v.as_i64,
-                    "as_f64": v.as_f64,
-                })
-            }
-            WireValue::Fixed32(v) => {
-                json!({
-                    "wire_type": "fixed32",
-                    "as_u32": v.as_u32,
-                    "as_i32": v.as_i32,
-                    "as_f32": v.as_f32,
-                })
-            }
-            WireValue::LengthDelimited(len_val) => match len_val {
-                LenValue::SubMessage(sub_msg) => {
-                    json!({
-                        "wire_type": "length_delimited",
-                        "sub_message": wire_message_to_json(sub_msg),
-                    })
-                }
-                LenValue::String(s) => {
-                    json!({
-                        "wire_type": "length_delimited",
-                        "string": s,
-                    })
-                }
-                LenValue::Bytes(b) => {
-                    json!({
-                        "wire_type": "length_delimited",
-                        "bytes": format!("{} bytes", b.len()),
-                    })
-                }
-            },
-        };
-        fields.insert(key, value);
-    }
-
-    JsonValue::Object(fields)
 }

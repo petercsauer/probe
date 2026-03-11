@@ -124,26 +124,28 @@ library = "libtest.so"
 fn test_tui_command_struct() {
     // Test that TuiArgs can be constructed correctly
     let args = TuiArgs {
-        input: Utf8PathBuf::from("test.ndjson"),
+        input: Some(Utf8PathBuf::from("test.ndjson")),
         where_clause: Some("transport == \"gRPC\"".to_string()),
         proto: vec![],
         descriptor_set: vec![],
+        demo: false,
     };
 
-    assert_eq!(args.input.as_str(), "test.ndjson");
+    assert_eq!(args.input.as_ref().unwrap().as_str(), "test.ndjson");
     assert!(args.where_clause.is_some());
 }
 
 #[test]
 fn test_tui_args_no_filter() {
     let args = TuiArgs {
-        input: Utf8PathBuf::from("events.json"),
+        input: Some(Utf8PathBuf::from("events.json")),
         where_clause: None,
         proto: vec![],
         descriptor_set: vec![],
+        demo: false,
     };
 
-    assert_eq!(args.input.as_str(), "events.json");
+    assert_eq!(args.input.as_ref().unwrap().as_str(), "events.json");
     assert!(args.where_clause.is_none());
 }
 
@@ -665,10 +667,11 @@ fn test_tui_with_filter_syntax() {
 
     for filter in test_cases {
         let args = TuiArgs {
-            input: Utf8PathBuf::from("test.json"),
+            input: Some(Utf8PathBuf::from("test.json")),
             where_clause: Some(filter.to_string()),
             proto: vec![],
             descriptor_set: vec![],
+            demo: false,
         };
         assert_eq!(args.where_clause.as_ref().unwrap(), filter);
     }
@@ -1414,13 +1417,14 @@ fn test_export_invalid_where_clause() {
 #[test]
 fn test_tui_with_long_path() {
     let args = TuiArgs {
-        input: Utf8PathBuf::from("/very/long/path/to/some/events.ndjson"),
+        input: Some(Utf8PathBuf::from("/very/long/path/to/some/events.ndjson")),
         where_clause: Some(r#"transport == "gRPC" && direction == "inbound""#.to_string()),
         proto: vec![],
         descriptor_set: vec![],
+        demo: false,
     };
 
-    assert!(args.input.as_str().contains("events.ndjson"));
+    assert!(args.input.as_ref().unwrap().as_str().contains("events.ndjson"));
     assert!(args.where_clause.is_some());
 }
 

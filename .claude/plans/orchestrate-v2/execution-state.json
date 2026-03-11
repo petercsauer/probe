@@ -1,55 +1,42 @@
 {
   "plan": ".claude/plans/orchestrate-v2",
   "started": "2026-03-10T18:00:00Z",
-  "current_wave": 1,
+  "current_wave": 4,
   "fail_fast": false,
   "segments": {
     "S1": {
-      "status": "running",
+      "status": "pass",
       "title": "aiosqlite migration + full schema",
       "wave": 1,
-      "risk": "7/10",
-      "complexity": "High",
-      "cycle_budget": 20,
-      "depends_on": [],
-      "segment_file": "segments/01-aiosqlite-full-schema.md",
-      "commit_message": "refactor(orchestrate_v2): migrate StateDB to aiosqlite, add full schema"
+      "cycles_used": 3,
+      "commit": "efb42c3",
+      "completed": "2026-03-10T18:30:00Z"
     },
     "S2": {
-      "status": "pending",
+      "status": "pass",
       "title": "ntfy outbox + batching + verbosity",
       "wave": 2,
-      "risk": "4/10",
-      "complexity": "Medium",
-      "cycle_budget": 15,
-      "depends_on": ["S1"],
-      "segment_file": "segments/02-ntfy-outbox-batching.md",
-      "commit_message": "feat(orchestrate_v2): replace osascript with ntfy outbox, add batching and verbosity"
+      "cycles_used": 1,
+      "completed": "2026-03-10T18:45:00Z"
     },
     "S3": {
-      "status": "pending",
+      "status": "pass",
       "title": "Heartbeats + network detection + per-segment timeout",
       "wave": 2,
-      "risk": "4/10",
-      "complexity": "Medium",
-      "cycle_budget": 15,
-      "depends_on": ["S1"],
-      "segment_file": "segments/03-heartbeats-network-timeout.md",
-      "commit_message": "feat(orchestrate_v2): add heartbeats, stall detection, network check, per-segment timeout"
+      "cycles_used": 1,
+      "commit": "ff16c7c",
+      "completed": "2026-03-10T18:45:00Z"
     },
     "S4": {
-      "status": "pending",
+      "status": "pass",
       "title": "Mobile-first dashboard + UX features",
       "wave": 3,
-      "risk": "3/10",
-      "complexity": "Medium",
-      "cycle_budget": 15,
-      "depends_on": ["S2"],
-      "segment_file": "segments/04-mobile-dashboard-ux.md",
-      "commit_message": "feat(orchestrate_v2): mobile-first dashboard with search, keyboard nav, ETA, and notifications log"
+      "cycles_used": 1,
+      "commit": "af87456",
+      "completed": "2026-03-10T18:55:00Z"
     },
     "S5": {
-      "status": "pending",
+      "status": "running",
       "title": "Operator control API + dashboard buttons + CLI flags",
       "wave": 4,
       "risk": "5/10",

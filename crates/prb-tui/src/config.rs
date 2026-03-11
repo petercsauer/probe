@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default)]
     pub tui: TuiConfig,
@@ -119,14 +119,6 @@ pub struct ProfileConfig {
     pub theme: Option<String>,
     pub default_filter: Option<String>,
     pub columns: Option<Vec<String>>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            tui: TuiConfig::default(),
-        }
-    }
 }
 
 impl Config {

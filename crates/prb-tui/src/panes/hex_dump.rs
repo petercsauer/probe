@@ -9,7 +9,7 @@ use prb_core::Payload;
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteGrouping {
@@ -169,16 +169,15 @@ impl PaneComponent for HexDumpPane {
                     KeyCode::Enter => {
                         if self.input_mode == InputMode::Search {
                             // Perform search
-                            if let Some(sel_idx) = state.selected_event {
-                                if let Some(event_idx) = state.filtered_indices.get(sel_idx) {
-                                    if let Some(event) = state.store.get(*event_idx) {
-                                        let payload_bytes = match &event.payload {
-                                            Payload::Raw { raw } => raw.as_ref(),
-                                            Payload::Decoded { raw, .. } => raw.as_ref(),
-                                        };
-                                        self.perform_search(payload_bytes);
-                                    }
-                                }
+                            if let Some(sel_idx) = state.selected_event
+                                && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                                && let Some(event) = state.store.get(*event_idx)
+                            {
+                                let payload_bytes = match &event.payload {
+                                    Payload::Raw { raw } => raw.as_ref(),
+                                    Payload::Decoded { raw, .. } => raw.as_ref(),
+                                };
+                                self.perform_search(payload_bytes);
                             }
                         } else {
                             // Jump to offset
@@ -262,7 +261,7 @@ impl PaneComponent for HexDumpPane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
+    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
         use ratatui::widgets::BorderType;
 
         // Build title with search status
@@ -282,16 +281,16 @@ impl PaneComponent for HexDumpPane {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .border_style(Theme::focused_border())
+                .border_style(theme.focused_border())
                 .title(title)
-                .title_style(Theme::focused_title())
+                .title_style(theme.focused_title())
         } else {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Plain)
-                .border_style(Theme::unfocused_border())
+                .border_style(theme.unfocused_border())
                 .title(title)
-                .title_style(Theme::unfocused_title())
+                .title_style(theme.unfocused_title())
         };
 
         let inner = block.inner(area);
@@ -357,6 +356,7 @@ impl PaneComponent for HexDumpPane {
                 self.highlight,
                 self.byte_grouping,
                 &self.search_matches,
+                theme,
             );
             let y = inner.y + i as u16;
             buf.set_line(inner.x, y, &hex_line, inner.width);
@@ -365,7 +365,7 @@ impl PaneComponent for HexDumpPane {
         // Render value inspector (if focused)
         if focused && content_height < inner.height as usize {
             let inspector_y = inner.y + content_height as u16;
-            let inspector_line = render_value_inspector(self.cursor_offset, payload_bytes);
+            let inspector_line = render_value_inspector(self.cursor_offset, payload_bytes, theme);
             buf.set_line(inner.x, inspector_y, &inspector_line, inner.width);
         }
 
@@ -378,7 +378,7 @@ impl PaneComponent for HexDumpPane {
                 InputMode::None => String::new(),
             };
             let prompt_line = Line::from(vec![
-                Span::styled(prompt, Theme::filter_bar()),
+                Span::styled(prompt, theme.filter_bar()),
             ]);
             buf.set_line(inner.x, prompt_y, &prompt_line, inner.width);
         }
@@ -391,13 +391,14 @@ fn render_hex_line(
     highlight: Option<(usize, usize)>,
     byte_grouping: ByteGrouping,
     search_matches: &[usize],
+    theme: &ThemeConfig,
 ) -> Line<'static> {
     let mut spans = Vec::new();
 
     // Offset column
     spans.push(Span::styled(
         format!("{:08x}  ", offset),
-        Theme::hex_offset(),
+        theme.hex_offset(),
     ));
 
     // Hex bytes with grouping
@@ -411,13 +412,13 @@ fn render_hex_line(
                     let byte_pos = offset + i;
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
-                    let is_search_match = search_matches.iter().any(|&m| byte_pos == m);
+                    let is_search_match = search_matches.contains(&byte_pos);
                     let style = if is_search_match {
-                        Theme::hex_search_match()
+                        theme.hex_search_match()
                     } else if is_highlighted {
-                        Theme::hex_highlight()
+                        theme.hex_highlight()
                     } else {
-                        Theme::hex_byte()
+                        theme.hex_byte()
                     };
                     spans.push(Span::styled(format!("{:02x} ", bytes[i]), style));
                 } else {
@@ -434,13 +435,13 @@ fn render_hex_line(
                     let byte_pos = offset + i;
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
-                    let is_search_match = search_matches.iter().any(|&m| byte_pos == m);
+                    let is_search_match = search_matches.contains(&byte_pos);
                     let style = if is_search_match {
-                        Theme::hex_search_match()
+                        theme.hex_search_match()
                     } else if is_highlighted {
-                        Theme::hex_highlight()
+                        theme.hex_highlight()
                     } else {
-                        Theme::hex_byte()
+                        theme.hex_byte()
                     };
                     if i + 1 < bytes.len() {
                         spans.push(Span::styled(
@@ -464,13 +465,13 @@ fn render_hex_line(
                     let byte_pos = offset + i;
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
-                    let is_search_match = search_matches.iter().any(|&m| byte_pos == m);
+                    let is_search_match = search_matches.contains(&byte_pos);
                     let style = if is_search_match {
-                        Theme::hex_search_match()
+                        theme.hex_search_match()
                     } else if is_highlighted {
-                        Theme::hex_highlight()
+                        theme.hex_highlight()
                     } else {
-                        Theme::hex_byte()
+                        theme.hex_byte()
                     };
                     let mut hex = String::new();
                     for j in 0..4 {
@@ -495,17 +496,17 @@ fn render_hex_line(
             let byte_pos = offset + i;
             let is_highlighted = highlight
                 .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
-            let is_search_match = search_matches.iter().any(|&m| byte_pos == m);
+            let is_search_match = search_matches.contains(&byte_pos);
 
             let (c, base_style) = if ch.is_ascii_graphic() || ch == b' ' {
-                (ch as char, Theme::hex_ascii())
+                (ch as char, theme.hex_ascii())
             } else {
-                ('.', Theme::hex_nonprint())
+                ('.', theme.hex_nonprint())
             };
             let style = if is_search_match {
-                Theme::hex_search_match()
+                theme.hex_search_match()
             } else if is_highlighted {
-                Theme::hex_highlight()
+                theme.hex_highlight()
             } else {
                 base_style
             };
@@ -518,23 +519,23 @@ fn render_hex_line(
     Line::from(spans)
 }
 
-fn render_value_inspector(offset: usize, payload: &[u8]) -> Line<'static> {
+fn render_value_inspector(offset: usize, payload: &[u8], theme: &ThemeConfig) -> Line<'static> {
     if offset >= payload.len() {
         return Line::from(vec![Span::styled(
             format!("Offset: 0x{:04x} (beyond end)", offset),
-            Theme::hex_offset(),
+            theme.hex_offset(),
         )]);
     }
 
     let mut parts = vec![
-        Span::styled(format!("Offset: 0x{:04x} | ", offset), Theme::hex_offset()),
+        Span::styled(format!("Offset: 0x{:04x} | ", offset), theme.hex_offset()),
     ];
 
     // u8
     let u8_val = payload[offset];
     parts.push(Span::styled(
         format!("u8: {} | ", u8_val),
-        Theme::hex_byte(),
+        theme.hex_byte(),
     ));
 
     // u16le
@@ -542,7 +543,7 @@ fn render_value_inspector(offset: usize, payload: &[u8]) -> Line<'static> {
         let u16le_val = u16::from_le_bytes([payload[offset], payload[offset + 1]]);
         parts.push(Span::styled(
             format!("u16le: {} | ", u16le_val),
-            Theme::hex_byte(),
+            theme.hex_byte(),
         ));
     }
 
@@ -551,7 +552,7 @@ fn render_value_inspector(offset: usize, payload: &[u8]) -> Line<'static> {
         let u16be_val = u16::from_be_bytes([payload[offset], payload[offset + 1]]);
         parts.push(Span::styled(
             format!("u16be: {} | ", u16be_val),
-            Theme::hex_byte(),
+            theme.hex_byte(),
         ));
     }
 
@@ -563,7 +564,7 @@ fn render_value_inspector(offset: usize, payload: &[u8]) -> Line<'static> {
     };
     parts.push(Span::styled(
         format!("ASCII: '{}'", ascii_char),
-        Theme::hex_ascii(),
+        theme.hex_ascii(),
     ));
 
     Line::from(parts)
@@ -626,11 +627,12 @@ mod tests {
     fn test_hex_line_with_highlight() {
         let bytes = b"ABCDEFGH";
         // Highlight bytes 2-4 (CDE)
-        let line = render_hex_line(0, bytes, Some((2, 3)), ByteGrouping::One, &[]);
+        let theme = ThemeConfig::dark();
+        let line = render_hex_line(0, bytes, Some((2, 3)), ByteGrouping::One, &[], &theme);
 
         // Verify highlighting spans exist
         let highlighted_count = line.spans.iter()
-            .filter(|s| s.style == Theme::hex_highlight())
+            .filter(|s| s.style == theme.hex_highlight())
             .count();
 
         // Should have highlighted hex bytes (3) + ASCII chars (3) = 6 total
@@ -640,7 +642,8 @@ mod tests {
     #[test]
     fn test_hex_line_partial_row() {
         let bytes = b"ABC"; // Less than 16 bytes
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[]);
+        let theme = ThemeConfig::dark();
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &theme);
 
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 
@@ -727,15 +730,16 @@ mod tests {
         let bytes = b"0123456789ABCDEF0123456789ABCDEF";
 
         // Highlight bytes 8-16 (second half of first line + first half of second)
-        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)), ByteGrouping::One, &[]);
-        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)), ByteGrouping::One, &[]);
+        let theme = ThemeConfig::dark();
+        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)), ByteGrouping::One, &[], &theme);
+        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)), ByteGrouping::One, &[], &theme);
 
         // Line 1 should have some highlighted spans (bytes 8-15)
-        let hl1 = line1.spans.iter().filter(|s| s.style == Theme::hex_highlight()).count();
+        let hl1 = line1.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();
         assert!(hl1 > 0, "Line 1 should have highlighted spans");
 
         // Line 2 should have no highlighted spans (highlight ends at byte 16)
-        let hl2 = line2.spans.iter().filter(|s| s.style == Theme::hex_highlight()).count();
+        let hl2 = line2.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();
         assert_eq!(hl2, 0, "Line 2 should have no highlighted spans");
     }
 }

@@ -67,10 +67,18 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
     if args.tui {
         use prb_tui::{App, EventStore, LiveDataSource};
 
+        // Create live data source (adapter already started)
         let live_source = LiveDataSource::start(adapter, interface.clone())
-            .context("failed to create live data source")?;
+            .context("failed to start live capture data source")?;
+
+        // Create empty event store for live mode
         let store = EventStore::empty();
-        let mut app = App::new_live(store, live_source, None);
+
+        // Ring buffer capacity: 100K events (configurable)
+        const RING_BUFFER_CAPACITY: usize = 100_000;
+
+        // Create and run TUI in live mode
+        let mut app = App::new_live(store, live_source, RING_BUFFER_CAPACITY, None);
         return app.run_live();
     }
 

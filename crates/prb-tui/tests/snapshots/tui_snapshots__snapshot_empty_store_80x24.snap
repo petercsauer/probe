@@ -1,6 +1,5 @@
 ---
 source: crates/prb-tui/tests/tui_snapshots.rs
-assertion_line: 80
 expression: backend
 ---
 " / type / to filter                                                             "
@@ -14,7 +13,7 @@ expression: backend
 "│                                                                              │"
 "╰──────────────────────────────────────────────────────────────────────────────╯"
 "┌ Decode ──────────────────────┐┌ Hex Dump ────────────────────────────────────┐"
-"│  No event selected           ││  No event selected                           │"
+"│  Select an event above to see││  Select an event to view raw bytes           │"
 "│                              ││                                              │"
 "│                              ││                                              │"
 "│                              ││                                              │"
@@ -22,7 +21,7 @@ expression: backend
 "│                              ││                                              │"
 "└──────────────────────────────┘└──────────────────────────────────────────────┘"
 "┌ Timeline ────────────────────────────────────────────────────────────────────┐"
-"│                                                                              │"
+"│  Load a capture to see time distribution                                     │"
 "│                                                                              │"
 "│                                                                              │"
 "└──────────────────────────────────────────────────────────────────────────────┘"

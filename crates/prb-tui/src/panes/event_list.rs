@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::ThemeConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortColumn {
@@ -226,23 +226,23 @@ impl PaneComponent for EventListPane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool) {
+    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
         use ratatui::widgets::BorderType;
 
         let block = if focused {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .border_style(Theme::focused_border())
+                .border_style(theme.focused_border())
                 .title(" Events [*] ")
-                .title_style(Theme::focused_title())
+                .title_style(theme.focused_title())
         } else {
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Plain)
-                .border_style(Theme::unfocused_border())
+                .border_style(theme.unfocused_border())
                 .title(" Events ")
-                .title_style(Theme::unfocused_title())
+                .title_style(theme.unfocused_title())
         };
 
         let inner = block.inner(area);
@@ -277,7 +277,7 @@ impl PaneComponent for EventListPane {
         let col_widths = compute_column_widths(&visible_events, inner.width);
 
         // Header row
-        let header = format_header(col_widths, self.sort_column, self.sort_reversed);
+        let header = format_header(col_widths, self.sort_column, self.sort_reversed, theme);
         buf.set_line(inner.x, inner.y, &header, inner.width);
 
         for i in 0..vis_height {
@@ -291,17 +291,17 @@ impl PaneComponent for EventListPane {
                 let is_selected = idx == self.selected;
 
                 let row_style = if is_selected {
-                    Theme::selected_row()
+                    theme.selected_row()
                 } else if !event.warnings.is_empty() {
-                    Theme::warning_row()
+                    theme.warning_row()
                 } else if idx % 2 == 1 {
-                    Theme::zebra_row()
+                    theme.zebra_row()
                 } else {
-                    Theme::normal_row()
+                    theme.normal_row()
                 };
 
-                let transport_color = Theme::transport_color(event.transport);
-                let dir_sym = Theme::direction_symbol(event.direction);
+                let transport_color = theme.transport_color(event.transport);
+                let dir_sym = ThemeConfig::direction_symbol(event.direction);
 
                 let ts_ns = event.timestamp.as_nanos();
                 let secs = ts_ns / 1_000_000_000;
@@ -329,7 +329,7 @@ impl PaneComponent for EventListPane {
                 // Add warning indicator prefix for events with warnings
                 let warning_indicator = if !event.warnings.is_empty() { "!" } else { " " };
                 let warning_style = if !event.warnings.is_empty() && !is_selected {
-                    Theme::warning()
+                    theme.warning()
                 } else {
                     row_style
                 };
@@ -379,8 +379,8 @@ impl PaneComponent for EventListPane {
     }
 }
 
-fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bool) -> Line<'static> {
-    let style = Theme::header();
+fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bool, theme: &ThemeConfig) -> Line<'static> {
+    let style = theme.header();
     let sort_indicator = if reversed { "v" } else { "^" };
 
     let id_text = if sort_column == SortColumn::Id {

@@ -7,6 +7,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
 use crate::app::AppState;
+use crate::theme::ThemeConfig;
 
 pub enum Action {
     None,
@@ -18,5 +19,5 @@ pub enum Action {
 
 pub trait PaneComponent {
     fn handle_key(&mut self, key: crossterm::event::KeyEvent, state: &AppState) -> Action;
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, focused: bool);
+    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool);
 }
