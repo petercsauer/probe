@@ -21,7 +21,7 @@ use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
 use crate::panes::{Action, PaneComponent};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemeConfig};
 
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
@@ -84,6 +84,7 @@ pub struct App {
     decode_tree: DecodeTreePane,
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
+    theme: ThemeConfig,
 }
 
 impl App {
@@ -120,6 +121,7 @@ impl App {
             decode_tree: DecodeTreePane::new(),
             hex_dump: HexDumpPane::new(),
             timeline: TimelinePane::new(),
+            theme: ThemeConfig::dark(),
         }
     }
 
@@ -225,6 +227,15 @@ impl App {
                         Some(0)
                     };
                 }
+                return false;
+            }
+            KeyCode::Char('T') => {
+                self.theme = match self.theme.name.as_str() {
+                    "Dark" => ThemeConfig::light(),
+                    "Light" => ThemeConfig::catppuccin_mocha(),
+                    "Catppuccin Mocha" => ThemeConfig::dracula(),
+                    _ => ThemeConfig::dark(),
+                };
                 return false;
             }
             _ => {}
