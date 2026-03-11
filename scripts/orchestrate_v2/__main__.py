@@ -387,7 +387,7 @@ async def _validate_upstream_dependencies(
     for dep_num in seg.depends_on:
         dep_status_data = await state.get_segment(dep_num)
         if dep_status_data:
-            dep_status = dep_status_data.get("status", "unknown")
+            dep_status = dep_status_data.status
         else:
             dep_status = "unknown"
 
@@ -427,7 +427,7 @@ async def _mark_dependents_skipped(
     for dep_num in seg.dependents:
         dep_status_data = await state.get_segment(dep_num)
         if dep_status_data:
-            dep_status = dep_status_data.get("status", "unknown")
+            dep_status = dep_status_data.status
         else:
             dep_status = "pending"
 
@@ -725,9 +725,13 @@ async def _run_wave(
                 # Get summary for context
                 seg_data = await state.get_segment(seg_num)
                 summary = ""
-                if seg_data and seg_data.get("attempts_history"):
-                    last_attempt = seg_data["attempts_history"][-1]
-                    summary = last_attempt.get("summary", "")[:200]
+                if seg_data and seg_data.result_json:
+                    import json
+                    try:
+                        result = json.loads(seg_data.result_json)
+                        summary = result.get("summary", "")[:200]
+                    except (json.JSONDecodeError, KeyError):
+                        pass
 
                 # Mark all transitive dependents as skipped
                 skipped = await _mark_dependents_skipped(
