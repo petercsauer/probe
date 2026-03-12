@@ -1,7 +1,4 @@
-"""Orchestrator v3 CLI: run, status, dry-run.
-
-Refactored version with improved code quality, 70% test coverage, and modular architecture.
-"""
+"""Orchestrator v3 CLI: run, status, dry-run."""
 
 from __future__ import annotations
 

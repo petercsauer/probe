@@ -8,21 +8,20 @@ Refactored version of orchestrate_v2 with improved code quality, 70% test covera
 python -m scripts.orchestrate_v3 <plan_dir>
 ```
 
-## Changes from v2
+## Features
 
-- Improved code organization and modularity
-- Enhanced test coverage (target: 70%)
-- Refactored for better maintainability
+- Wave-based parallel dispatch
+- State persistence and recovery
+- Real-time monitoring dashboard
+- Configurable gates and circuit breakers
+- Worktree pool management
 
-## Development
+## Commands
 
-Run tests:
 ```bash
-python scripts/orchestrate_v3/test_recovery.py
-python scripts/orchestrate_v3/test_worktree_pool.py
-```
+# Run orchestrator
+python -m scripts.orchestrate_v3 <plan_dir>
 
-Verify installation:
-```bash
+# Show help
 python -m scripts.orchestrate_v3 --help
 ```
