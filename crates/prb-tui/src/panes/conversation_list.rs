@@ -144,11 +144,11 @@ impl ConversationListPane {
 
     fn get_status_str(conv: &Conversation) -> &str {
         match conv.state {
-            prb_core::conversation::ConversationState::Complete => "OK",
-            prb_core::conversation::ConversationState::Error => "ERROR",
-            prb_core::conversation::ConversationState::Timeout => "TIMEOUT",
-            prb_core::conversation::ConversationState::Active => "ACTIVE",
-            prb_core::conversation::ConversationState::Incomplete => "INCOMPL",
+            prb_core::conversation::ConversationState::Complete => "✓ OK",
+            prb_core::conversation::ConversationState::Error => "✗ ERROR",
+            prb_core::conversation::ConversationState::Timeout => "⏱ TIMEOUT",
+            prb_core::conversation::ConversationState::Active => "→ ACTIVE",
+            prb_core::conversation::ConversationState::Incomplete => "⚠ INCOMPL",
         }
     }
 
@@ -171,8 +171,8 @@ impl ConversationListPane {
     }
 
     fn compute_column_widths(total_width: u16) -> ColumnWidths {
-        // Fixed widths: #(6) Protocol(10) Src(18) Dst(18) Reqs(5) Duration(10) Status(8)
-        let fixed = 6 + 10 + 18 + 18 + 5 + 10 + 8;
+        // Fixed widths: #(6) Protocol(10) Src(18) Dst(18) Reqs(5) Duration(10) Status(11)
+        let fixed = 6 + 10 + 18 + 18 + 5 + 10 + 11;
         let method = (total_width as usize).saturating_sub(fixed) as u16;
         ColumnWidths {
             id: 6,
@@ -181,7 +181,7 @@ impl ConversationListPane {
             dst: 18,
             reqs: 5,
             duration: 10,
-            status: 8,
+            status: 11,
             method,
         }
     }
