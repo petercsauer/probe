@@ -1,0 +1,17 @@
+# Orchestrate v3 Quality Plan - Override project defaults
+# This plan refactors the Python orchestrator, not the main Rust project
+
+[gate]
+# Check orchestrate_v3 tests if they exist, pass if no tests yet
+# This allows early segments (S1-S2) to pass gates before test infrastructure exists
+command = "if find scripts/orchestrate_v3 -name 'test_*.py' 2>/dev/null | grep -q .; then pytest scripts/orchestrate_v3/ -v; else echo '✓ No tests yet - gate passes'; fi"
+
+[execution]
+# Use fewer parallel for safer refactoring
+max_parallel = 3
+segment_timeout = 2400  # 40 minutes (some test writing can be slow)
+
+[monitor]
+# Enable dashboard for this plan on different port (8080 used by project default)
+enabled = true
+port = 8081

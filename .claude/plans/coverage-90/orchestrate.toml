@@ -1,0 +1,140 @@
+# Orchestrate v2 Configuration for Coverage 90
+# Systematic test coverage expansion to reach 90% workspace coverage
+
+[plan]
+name = "coverage-90"
+description = "Reach 90% workspace test coverage through systematic gap filling across all 19 crates"
+workspace_root = "/Users/psauer/probe"
+plan_root = "/Users/psauer/probe/.claude/plans/coverage-90"
+preamble = [
+    "/Users/psauer/probe/scripts/orchestrate_v2/prompts/iterative-builder.md",
+    "/Users/psauer/probe/scripts/orchestrate_v2/prompts/devcontainer-exec.md"
+]
+
+[execution]
+max_concurrent = 4  # Run 4 crates in parallel
+cycle_timeout_minutes = 60  # Coverage analysis + test writing takes time
+max_retries = 2
+persist_state = true
+state_file = "state.db"
+
+[isolation]
+# REQUIRED: Isolate segments in separate git worktrees
+strategy = "worktree"
+
+[monitor]
+enabled = true
+port = 8082  # Different port from other plans
+
+[build]
+# Use separate build directory to avoid conflicts
+target_dir = "/tmp/orchestrate-coverage-90"
+pre_build_clean = false
+
+[commands]
+# Standard Rust/Cargo commands
+build = "cargo build --workspace"
+test = "cargo test --workspace"
+clippy = "cargo clippy --workspace --all-targets -- -D warnings"
+fmt_check = "cargo fmt --all -- --check"
+fmt = "cargo fmt --all"
+
+# Coverage commands (primary focus)
+coverage = "cargo llvm-cov --workspace --summary-only"
+coverage_html = "cargo llvm-cov --workspace --html"
+coverage_lcov = "cargo llvm-cov --workspace --lcov --output-path lcov.info"
+
+# Per-crate coverage (for segment verification)
+crate_coverage = "cargo llvm-cov -p {crate} --summary-only"
+crate_coverage_html = "cargo llvm-cov -p {crate} --html"
+
+[validation]
+# Gates that must pass for each segment
+required_gates = ["build", "test", "clippy", "fmt_check"]
+optional_gates = ["coverage"]
+
+# Regression tests (run on main after merge)
+regression_test_command = "cargo test --workspace"
+regression_coverage_command = "cargo llvm-cov --workspace --summary-only"
+
+[git]
+main_branch = "main"
+segment_branch_prefix = "orchestrate/coverage-90/S"
+commit_message_template = "test: Segment {number} {title} - cycle {cycle}"
+auto_commit = true
+auto_push = false
+
+[waves]
+# Wave definitions from manifest
+wave_1 = [1, 2, 3, 4]     # Quick Wins: grpc, pcap, ai, decode
+wave_2 = [5, 6, 7]        # Plugin Infrastructure: native, wasm, api
+wave_3 = [8, 9]           # CLI Layer: cli, capture
+wave_4 = [10, 11, 12]     # TUI Foundation: core, panes, overlays
+wave_5 = [13, 14]         # Final Push: errors, targeted gaps
+
+[discovery]
+# Auto-discover segments from segments/ directory
+segment_pattern = "segments/{number:02d}-*.md"
+handoff_pattern = "handoff/S{number:02d}-*.md"
+
+[notifications]
+# Notification preferences
+notify_on_complete = true
+notify_on_error = true
+notify_on_wave_complete = true
+notify_on_coverage_milestone = true  # Custom for this plan
+
+[logging]
+level = "info"
+log_file = "orchestrate.log"
+color = true
+
+[hooks]
+# Pre/post hooks for segments
+pre_segment = []
+post_segment = ["cargo llvm-cov -p {crate} --summary-only"]  # Measure progress
+pre_wave = []
+post_wave = ["cargo llvm-cov --workspace --summary-only"]  # Workspace-level progress
+
+[features]
+# Feature flags for orchestrator behavior
+parallel_execution = true
+worktree_isolation = true
+auto_merge = false  # Require manual review for test coverage
+interactive_mode = false
+dry_run = false
+
+[thresholds]
+# Coverage thresholds for validation
+workspace_target = 90.0
+crate_minimum = 85.0
+critical_crate_minimum = 95.0  # For core, pcap, protocol decoders
+
+# List of critical crates requiring higher coverage
+critical_crates = ["prb-core", "prb-pcap", "prb-grpc", "prb-zmq", "prb-dds"]
+
+# Special case: TUI acceptable at lower coverage
+tui_acceptable = 70.0
+
+[custom]
+# Custom settings for this plan
+coverage_tool = "cargo-llvm-cov"
+coverage_format = "html"
+
+# Coverage milestones for tracking
+milestones = [
+    { coverage = 70.0, wave = 1 },
+    { coverage = 77.0, wave = 2 },
+    { coverage = 80.0, wave = 3 },
+    { coverage = 88.0, wave = 4 },
+    { coverage = 90.0, wave = 5 }
+]
+
+# Test strategy guidelines
+test_priorities = [
+    "error_paths",
+    "edge_cases",
+    "boundary_conditions",
+    "protocol_variants",
+    "validation_logic"
+]
