@@ -52,7 +52,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 base64 = "0.22"
 indexmap = { version = "2", features = ["serde"] }
-dirs = "5"
+dirs = "6"
 
 # Network parsing
 pcap-parser = "0.17.0"
