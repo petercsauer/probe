@@ -50,15 +50,18 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE TABLE IF NOT EXISTS segment_attempts (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    seg_num     INTEGER NOT NULL,
-    attempt     INTEGER NOT NULL,
-    started_at  REAL,
-    finished_at REAL,
-    status      TEXT,
-    summary     TEXT,
-    tokens_in   INTEGER DEFAULT 0,
-    tokens_out  INTEGER DEFAULT 0
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    seg_num               INTEGER NOT NULL,
+    attempt               INTEGER NOT NULL,
+    started_at            REAL,
+    finished_at           REAL,
+    status                TEXT,
+    summary               TEXT,
+    tokens_in             INTEGER DEFAULT 0,
+    tokens_out            INTEGER DEFAULT 0,
+    cache_read_tokens     INTEGER DEFAULT 0,
+    cache_creation_tokens INTEGER DEFAULT 0,
+    cost_usd              REAL DEFAULT 0.0
 );
 
 CREATE TABLE IF NOT EXISTS segment_interjections (
@@ -233,19 +236,25 @@ class StateDB:
         summary: str,
         tokens_in: int = 0,
         tokens_out: int = 0,
+        cache_read_tokens: int = 0,
+        cache_creation_tokens: int = 0,
+        cost_usd: float = 0.0,
     ) -> None:
         await self._conn.execute(
             """INSERT INTO segment_attempts
-               (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out),
+               (seg_num, attempt, started_at, finished_at, status, summary,
+                tokens_in, tokens_out, cache_read_tokens, cache_creation_tokens, cost_usd)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (seg_num, attempt, started_at, finished_at, status, summary,
+             tokens_in, tokens_out, cache_read_tokens, cache_creation_tokens, cost_usd),
         )
         await self._conn.commit()
 
     async def get_attempts(self, seg_num: int) -> list[dict]:
         cur = await self._conn.execute(
             "SELECT id, seg_num, attempt, started_at, finished_at, status, summary,"
-            " tokens_in, tokens_out FROM segment_attempts WHERE seg_num=? ORDER BY attempt",
+            " tokens_in, tokens_out, cache_read_tokens, cache_creation_tokens, cost_usd"
+            " FROM segment_attempts WHERE seg_num=? ORDER BY attempt",
             (seg_num,),
         )
         rows = await cur.fetchall()

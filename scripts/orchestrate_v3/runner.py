@@ -334,10 +334,11 @@ async def _segment_heartbeat_task(
         last_size = current_size
 
 
-def _extract_token_usage(raw_path: Path) -> tuple[int, int]:
-    """Parse token counts from the stream-json result event.
+def _extract_token_usage(raw_path: Path) -> tuple[int, int, int, int, float]:
+    """Parse token counts and cost from the stream-json result event.
 
-    Returns (input_tokens, output_tokens), or (0, 0) on any failure.
+    Returns (input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd),
+    or (0, 0, 0, 0, 0.0) on any failure.
     """
     try:
         with open(raw_path, encoding="utf-8", errors="replace") as f:
@@ -351,10 +352,16 @@ def _extract_token_usage(raw_path: Path) -> tuple[int, int]:
                     continue
                 if obj.get("type") == "result":
                     u = obj.get("usage", {})
-                    return u.get("input_tokens", 0), u.get("output_tokens", 0)
+                    return (
+                        u.get("input_tokens", 0),
+                        u.get("output_tokens", 0),
+                        u.get("cache_read_input_tokens", 0),
+                        u.get("cache_creation_input_tokens", 0),
+                        obj.get("total_cost_usd", 0.0),
+                    )
     except Exception:
         pass
-    return 0, 0
+    return 0, 0, 0, 0, 0.0
 
 
 async def run_segment(
@@ -461,11 +468,11 @@ async def run_segment(
             await state.log_event(
                 "segment_timeout", f"S{seg.num:02d} killed after {segment_timeout}s"
             )
-            tokens_in, tokens_out = _extract_token_usage(raw_log)
+            tokens_in, tokens_out, cache_read, cache_creation, cost = _extract_token_usage(raw_log)
             await state.record_attempt(
                 seg.num, attempt_num, started_at, finished_at,
                 "timeout", f"Killed after {segment_timeout}s",
-                tokens_in, tokens_out,
+                tokens_in, tokens_out, cache_read, cache_creation, cost,
             )
             return "timeout", f"Killed after {segment_timeout}s"
 
@@ -478,7 +485,7 @@ async def run_segment(
         await state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
         await state.record_attempt(
             seg.num, attempt_num, started_at, finished_at,
-            "failed", str(exc), 0, 0,
+            "failed", str(exc), 0, 0, 0, 0, 0.0,
         )
         return "failed", str(exc)
 
@@ -514,10 +521,10 @@ async def run_segment(
         f"S{seg.num:02d} {status.upper()}: {summary[:200]}",
     )
 
-    tokens_in, tokens_out = _extract_token_usage(raw_log)
+    tokens_in, tokens_out, cache_read, cache_creation, cost = _extract_token_usage(raw_log)
     await state.record_attempt(
         seg.num, attempt_num, started_at, finished_at,
-        status, summary, tokens_in, tokens_out,
+        status, summary, tokens_in, tokens_out, cache_read, cache_creation, cost,
     )
 
     log.info("S%02d finished: %s", seg.num, status.upper())
