@@ -213,14 +213,14 @@ fn run_info(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<()>
             println!("Name:         {}", meta.name);
             println!("Protocol ID:  {}", meta.protocol_id);
             println!("Version:      {}", meta.version);
-            println!("Source:       {} plugin", source);
+            println!("Source:       {source} plugin");
             println!("API Version:  {}", meta.api_version);
             println!("Description:  {}", meta.description);
             return Ok(());
         }
     }
 
-    anyhow::bail!("Decoder '{}' not found", name);
+    anyhow::bail!("Decoder '{name}' not found");
 }
 
 fn run_install(
@@ -230,10 +230,10 @@ fn run_install(
 ) -> Result<()> {
     let path_std = path.as_std_path();
     if !path_std.exists() {
-        anyhow::bail!("Plugin file not found: {}", path);
+        anyhow::bail!("Plugin file not found: {path}");
     }
 
-    println!("Installing plugin from {}...", path);
+    println!("Installing plugin from {path}...");
 
     // Determine type from extension
     let ext = path_std
@@ -267,8 +267,7 @@ fn run_install(
         }
         _ => {
             anyhow::bail!(
-                "Unknown plugin file type: .{}. Expected .so, .dylib, .dll, or .wasm",
-                ext
+                "Unknown plugin file type: .{ext}. Expected .so, .dylib, .dll, or .wasm"
             );
         }
     };

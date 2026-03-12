@@ -38,8 +38,7 @@ fn test_real_data_enterprise_smb2_negotiation() {
 
     assert!(
         pcap_path.exists(),
-        "SMB2 pcap file should exist: {:?}",
-        pcap_path
+        "SMB2 pcap file should exist: {pcap_path:?}"
     );
 
     // Process SMB2 capture
@@ -73,8 +72,7 @@ fn test_real_data_enterprise_smb3_file_access() {
 
     assert!(
         pcap_path.exists(),
-        "SMB3 Windows 10 pcapng file should exist: {:?}",
-        pcap_path
+        "SMB3 Windows 10 pcapng file should exist: {pcap_path:?}"
     );
 
     // Process SMB3 capture
@@ -214,8 +212,7 @@ fn test_real_data_enterprise_ldap() {
 
     assert!(
         pcap_path.exists(),
-        "LDAP pcap file should exist: {:?}",
-        pcap_path
+        "LDAP pcap file should exist: {pcap_path:?}"
     );
 
     // Process LDAP capture
@@ -249,8 +246,7 @@ fn test_real_data_enterprise_snmp() {
 
     assert!(
         pcap_path.exists(),
-        "SNMP pcap file should exist: {:?}",
-        pcap_path
+        "SNMP pcap file should exist: {pcap_path:?}"
     );
 
     // Process SNMP capture - note this has NULL/no link-layer encapsulation

@@ -2,12 +2,12 @@
 //!
 //! This crate provides LLM-powered plain-English explanations of decoded network events,
 //! grounded in structured protocol data to minimize hallucination. Supports privacy-first
-//! local models via Ollama and optional cloud providers (OpenAI, custom endpoints).
+//! local models via Ollama and optional cloud providers (`OpenAI`, custom endpoints).
 //!
 //! # Architecture
 //!
-//! - `config`: AI provider configuration (Ollama, OpenAI, custom)
-//! - `context`: Converts DebugEvents into structured summaries for LLM consumption
+//! - `config`: AI provider configuration (Ollama, `OpenAI`, custom)
+//! - `context`: Converts `DebugEvents` into structured summaries for LLM consumption
 //! - `prompt`: Protocol-specific system prompts with RFC grounding
 //! - `explain`: Main engine that orchestrates prompt building and LLM calls
 //! - `error`: Error types for AI operations

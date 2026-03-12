@@ -25,7 +25,7 @@ pub struct Tls13Keys {
 
 /// TLS 1.2 PRF (Pseudo-Random Function) using HMAC-SHA256.
 ///
-/// PRF(secret, label, seed) = P_SHA256(secret, label + seed)
+/// PRF(secret, label, seed) = `P_SHA256(secret`, label + seed)
 ///
 /// Reference: RFC 5246 Section 5
 fn prf_sha256(secret: &[u8], label: &[u8], seed: &[u8], output_len: usize) -> Vec<u8> {
@@ -59,7 +59,7 @@ fn prf_sha256(secret: &[u8], label: &[u8], seed: &[u8], output_len: usize) -> Ve
 
 /// Derives TLS 1.2 encryption keys from master secret.
 ///
-/// Key block = PRF(master_secret, "key expansion", server_random + client_random)
+/// Key block = `PRF(master_secret`, "key expansion", `server_random` + `client_random`)
 ///
 /// Reference: RFC 5246 Section 6.3
 pub fn derive_tls12_keys(
@@ -107,14 +107,14 @@ pub fn derive_tls12_keys(
 /// TLS 1.3 HKDF-Expand-Label.
 ///
 /// HKDF-Expand-Label(Secret, Label, Context, Length) =
-///     HKDF-Expand(Secret, HkdfLabel, Length)
+///     HKDF-Expand(Secret, `HkdfLabel`, Length)
 ///
-/// Where HkdfLabel is:
+/// Where `HkdfLabel` is:
 /// struct {
 ///     uint16 length = Length;
 ///     opaque label<7..255> = "tls13 " + Label;
 ///     opaque context<0..255> = Context;
-/// } HkdfLabel;
+/// } `HkdfLabel`;
 ///
 /// Reference: RFC 8446 Section 7.1
 fn hkdf_expand_label(
@@ -174,7 +174,7 @@ fn hkdf_expand_label(
 
 /// Derives TLS 1.3 encryption keys from traffic secret.
 ///
-/// Key = HKDF-Expand-Label(traffic_secret, "key", "", key_len)
+/// Key = HKDF-Expand-Label(traffic_secret, "key", "", `key_len`)
 /// IV = HKDF-Expand-Label(traffic_secret, "iv", "", 12)
 ///
 /// Reference: RFC 8446 Section 7.3

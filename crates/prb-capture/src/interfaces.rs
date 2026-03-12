@@ -46,12 +46,11 @@ impl InterfaceInfo {
             || device
                 .desc
                 .as_ref()
-                .map(|d| {
+                .is_some_and(|d| {
                     d.to_lowercase().contains("wireless")
                         || d.to_lowercase().contains("wi-fi")
                         || d.to_lowercase().contains("802.11")
-                })
-                .unwrap_or(false);
+                });
 
         Self {
             name: device.name,
@@ -65,7 +64,8 @@ impl InterfaceInfo {
     }
 
     /// Get a status string for display.
-    pub fn status(&self) -> &str {
+    #[must_use] 
+    pub const fn status(&self) -> &str {
         if self.is_up && self.is_running {
             "UP"
         } else if self.is_up {
@@ -76,13 +76,14 @@ impl InterfaceInfo {
     }
 
     /// Get a formatted address list for display.
+    #[must_use] 
     pub fn addresses_display(&self) -> String {
         if self.addresses.is_empty() {
             "(no address)".to_string()
         } else {
             self.addresses
                 .iter()
-                .map(|a| a.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(", ")
         }

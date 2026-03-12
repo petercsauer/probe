@@ -10,14 +10,15 @@ use prb_detect::{
 use prb_plugin_api::{DebugEventDto, DecodeCtx};
 use std::sync::Arc;
 
-/// Adapts a loaded native plugin to the DecoderFactory trait.
+/// Adapts a loaded native plugin to the `DecoderFactory` trait.
 pub struct NativeDecoderFactory {
     plugin: Arc<LoadedPlugin>,
 }
 
 impl NativeDecoderFactory {
     /// Create a new factory from a loaded plugin.
-    pub fn new(plugin: Arc<LoadedPlugin>) -> Self {
+    #[must_use] 
+    pub const fn new(plugin: Arc<LoadedPlugin>) -> Self {
         Self { plugin }
     }
 }
@@ -32,7 +33,7 @@ impl DecoderFactory for NativeDecoderFactory {
     }
 }
 
-/// Wraps a native plugin decoder handle as a ProtocolDecoder.
+/// Wraps a native plugin decoder handle as a `ProtocolDecoder`.
 struct NativeDecoderInstance {
     plugin: Arc<LoadedPlugin>,
     handle: *mut std::ffi::c_void,
@@ -78,7 +79,7 @@ impl ProtocolDecoder for NativeDecoderInstance {
 
         // Serialize context to JSON
         let ctx_json = serde_json::to_vec(&plugin_ctx).map_err(|e| {
-            CoreError::PayloadDecode(format!("Failed to serialize decode context: {}", e))
+            CoreError::PayloadDecode(format!("Failed to serialize decode context: {e}"))
         })?;
 
         // Call plugin's decode function
@@ -99,7 +100,7 @@ impl ProtocolDecoder for NativeDecoderInstance {
 
         // Deserialize Vec<DebugEventDto>
         let event_dtos: Vec<DebugEventDto> = serde_json::from_slice(&result_json).map_err(|e| {
-            CoreError::PayloadDecode(format!("Failed to deserialize plugin events: {}", e))
+            CoreError::PayloadDecode(format!("Failed to deserialize plugin events: {e}"))
         })?;
 
         // Convert DTOs to DebugEvents
@@ -122,7 +123,7 @@ impl Drop for NativeDecoderInstance {
 
 unsafe impl Send for NativeDecoderInstance {}
 
-/// Adapts a loaded native plugin to the ProtocolDetector trait.
+/// Adapts a loaded native plugin to the `ProtocolDetector` trait.
 pub struct NativeProtocolDetector {
     plugin: Arc<LoadedPlugin>,
     transport: TransportLayer,
@@ -133,7 +134,8 @@ impl NativeProtocolDetector {
     ///
     /// The `transport` parameter specifies which transport layer this detector
     /// applies to.
-    pub fn new(plugin: Arc<LoadedPlugin>, transport: TransportLayer) -> Self {
+    #[must_use] 
+    pub const fn new(plugin: Arc<LoadedPlugin>, transport: TransportLayer) -> Self {
         Self { plugin, transport }
     }
 }
@@ -172,7 +174,7 @@ impl ProtocolDetector for NativeProtocolDetector {
     }
 }
 
-/// Convert a DebugEventDto to a DebugEvent.
+/// Convert a `DebugEventDto` to a `DebugEvent`.
 fn dto_to_debug_event(dto: DebugEventDto) -> Result<DebugEvent, CoreError> {
     use prb_core::{CorrelationKey, Direction, EventSource, Payload, Timestamp};
 
@@ -326,8 +328,7 @@ mod tests {
             let event = dto_to_debug_event(dto).expect("conversion should succeed");
             assert_eq!(
                 event.transport, expected_kind,
-                "failed for transport: {}",
-                transport_str
+                "failed for transport: {transport_str}"
             );
         }
     }
@@ -350,8 +351,7 @@ mod tests {
             let event = dto_to_debug_event(dto).expect("conversion should succeed");
             assert_eq!(
                 event.direction, expected_dir,
-                "failed for direction: {}",
-                direction_str
+                "failed for direction: {direction_str}"
             );
         }
     }

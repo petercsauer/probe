@@ -23,7 +23,7 @@ fn test_load_events_empty_json() {
 #[test]
 fn test_load_events_malformed_json() {
     let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
-    writeln!(temp_file, r#"{{ invalid json"#).unwrap();
+    writeln!(temp_file, r"{{ invalid json").unwrap();
     temp_file.flush().unwrap();
 
     let result = load_events(temp_file.path(), None);
@@ -52,7 +52,7 @@ fn test_load_events_json_with_single_event() {
         ]
     }"#;
 
-    writeln!(temp_file, "{}", json_content).unwrap();
+    writeln!(temp_file, "{json_content}").unwrap();
     temp_file.flush().unwrap();
 
     let result = load_events(temp_file.path(), None);

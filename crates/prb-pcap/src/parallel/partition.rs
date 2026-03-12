@@ -18,6 +18,7 @@ impl FlowPartitioner {
     /// # Panics
     ///
     /// Panics if `num_shards` is 0.
+    #[must_use] 
     pub fn new(num_shards: usize) -> Self {
         assert!(num_shards > 0, "need at least 1 shard");
         Self { num_shards }
@@ -37,6 +38,7 @@ impl FlowPartitioner {
     ///
     /// A vector of packet vectors, one per shard. Some shards may be empty
     /// if no packets map to them.
+    #[must_use] 
     pub fn partition(
         &self,
         packets: Vec<OwnedNormalizedPacket>,
@@ -46,8 +48,7 @@ impl FlowPartitioner {
 
         for packet in packets {
             let shard_idx = FlowKey::from_packet(&packet)
-                .map(|k| k.shard_index(self.num_shards))
-                .unwrap_or(0);
+                .map_or(0, |k| k.shard_index(self.num_shards));
             shards[shard_idx].push(packet);
         }
 
@@ -149,7 +150,7 @@ mod tests {
         assert!(!non_empty.is_empty() && non_empty.len() <= 2);
 
         // Total packets should be preserved
-        let total: usize = shards.iter().map(|s| s.len()).sum();
+        let total: usize = shards.iter().map(std::vec::Vec::len).sum();
         assert_eq!(total, 3);
     }
 
@@ -201,7 +202,7 @@ mod tests {
         let partitioner = FlowPartitioner::new(4);
         let shards = partitioner.partition(vec![]);
         assert_eq!(shards.len(), 4);
-        assert!(shards.iter().all(|s| s.is_empty()));
+        assert!(shards.iter().all(std::vec::Vec::is_empty));
     }
 
     #[test]
@@ -223,7 +224,7 @@ mod tests {
 
         // Other transport goes to shard 0
         assert_eq!(shards[0].len(), 1);
-        assert!(shards[1..].iter().all(|s| s.is_empty()));
+        assert!(shards[1..].iter().all(std::vec::Vec::is_empty));
     }
 
     #[test]
@@ -241,7 +242,7 @@ mod tests {
         let shards = partitioner.partition(packets);
 
         // TCP and UDP with different 5-tuples should be separate flows
-        let total: usize = shards.iter().map(|s| s.len()).sum();
+        let total: usize = shards.iter().map(std::vec::Vec::len).sum();
         assert_eq!(total, 3);
     }
 

@@ -1,6 +1,6 @@
-//! Export DebugEvents to various formats (CSV, HAR, OTLP, HTML, Parquet).
+//! Export `DebugEvents` to various formats (CSV, HAR, OTLP, HTML, Parquet).
 //!
-//! This crate provides exporters for converting DebugEvents into various
+//! This crate provides exporters for converting `DebugEvents` into various
 //! industry-standard and analysis-friendly formats.
 
 #![warn(missing_docs)]
@@ -48,6 +48,7 @@ pub fn create_exporter(format: &str) -> Result<Box<dyn Exporter>, ExportError> {
     }
 }
 
+#[must_use] 
 pub fn supported_formats() -> Vec<&'static str> {
     #[allow(unused_mut)]
     let mut formats = vec!["csv", "har", "otlp", "html"];

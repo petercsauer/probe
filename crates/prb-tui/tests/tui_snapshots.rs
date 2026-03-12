@@ -61,7 +61,7 @@ fn make_zmq_event(id: u64) -> DebugEvent {
     }
 }
 
-/// Render the app to a TestBackend at the given size.
+/// Render the app to a `TestBackend` at the given size.
 fn render_app(app: &mut App, width: u16, height: u16) -> TestBackend {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();

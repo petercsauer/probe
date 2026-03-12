@@ -38,7 +38,7 @@ struct ConnectionKey {
 }
 
 impl ConnectionKey {
-    fn new(src_ip: IpAddr, src_port: u16, dst_ip: IpAddr, dst_port: u16) -> Self {
+    const fn new(src_ip: IpAddr, src_port: u16, dst_ip: IpAddr, dst_port: u16) -> Self {
         Self {
             src_ip,
             src_port,
@@ -48,7 +48,7 @@ impl ConnectionKey {
     }
 
     /// Returns the reverse key (swap src/dst).
-    fn reverse(&self) -> Self {
+    const fn reverse(&self) -> Self {
         Self {
             src_ip: self.dst_ip,
             src_port: self.dst_port,
@@ -87,7 +87,7 @@ impl DirectionState {
     }
 
     /// Returns the relative sequence number (offset from ISN).
-    fn relative_seq(&self, seq: u32) -> usize {
+    const fn relative_seq(&self, seq: u32) -> usize {
         match self.initial_seq {
             Some(isn) => seq.wrapping_sub(isn) as usize,
             None => 0,
@@ -163,11 +163,13 @@ pub struct TcpReassembler {
 
 impl TcpReassembler {
     /// Creates a new TCP reassembler with default timeout (30 seconds).
+    #[must_use] 
     pub fn new() -> Self {
         Self::with_timeout(DEFAULT_TIMEOUT_US)
     }
 
     /// Creates a new TCP reassembler with a custom timeout in microseconds.
+    #[must_use] 
     pub fn with_timeout(timeout_us: u64) -> Self {
         Self {
             connections: HashMap::new(),
@@ -511,6 +513,7 @@ impl TcpReassembler {
     }
 
     /// Returns the number of active connections.
+    #[must_use] 
     pub fn active_connections(&self) -> usize {
         self.connections.len()
     }

@@ -1,4 +1,4 @@
-//! Integration tests for EventStore and file loaders (S7.1 & S7.2).
+//! Integration tests for `EventStore` and file loaders (S7.1 & S7.2).
 
 use prb_tui::EventStore;
 use prb_tui::loader::load_events;

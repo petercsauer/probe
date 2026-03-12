@@ -30,37 +30,40 @@ pub enum KeyMaterial {
 
 impl KeyMaterial {
     /// Returns the raw key bytes.
+    #[must_use] 
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            KeyMaterial::MasterSecret(bytes) => bytes,
-            KeyMaterial::ClientTrafficSecret0(bytes) => bytes,
-            KeyMaterial::ServerTrafficSecret0(bytes) => bytes,
-            KeyMaterial::ClientHandshakeTrafficSecret(bytes) => bytes,
-            KeyMaterial::ServerHandshakeTrafficSecret(bytes) => bytes,
+            Self::MasterSecret(bytes) => bytes,
+            Self::ClientTrafficSecret0(bytes) => bytes,
+            Self::ServerTrafficSecret0(bytes) => bytes,
+            Self::ClientHandshakeTrafficSecret(bytes) => bytes,
+            Self::ServerHandshakeTrafficSecret(bytes) => bytes,
         }
     }
 
     /// Returns true if this is a TLS 1.2 master secret.
-    pub fn is_tls12(&self) -> bool {
-        matches!(self, KeyMaterial::MasterSecret(_))
+    #[must_use] 
+    pub const fn is_tls12(&self) -> bool {
+        matches!(self, Self::MasterSecret(_))
     }
 
     /// Returns true if this is a TLS 1.3 traffic secret.
-    pub fn is_tls13(&self) -> bool {
+    #[must_use] 
+    pub const fn is_tls13(&self) -> bool {
         matches!(
             self,
-            KeyMaterial::ClientTrafficSecret0(_)
-                | KeyMaterial::ServerTrafficSecret0(_)
-                | KeyMaterial::ClientHandshakeTrafficSecret(_)
-                | KeyMaterial::ServerHandshakeTrafficSecret(_)
+            Self::ClientTrafficSecret0(_)
+                | Self::ServerTrafficSecret0(_)
+                | Self::ClientHandshakeTrafficSecret(_)
+                | Self::ServerHandshakeTrafficSecret(_)
         )
     }
 }
 
 /// TLS key log storage.
 ///
-/// Maps client_random (32 bytes) to a collection of key material.
-/// For TLS 1.3, multiple secrets (client, server, handshake) may exist per client_random.
+/// Maps `client_random` (32 bytes) to a collection of key material.
+/// For TLS 1.3, multiple secrets (client, server, handshake) may exist per `client_random`.
 #[derive(Debug, Clone, Default)]
 pub struct TlsKeyLog {
     keys: HashMap<Vec<u8>, Vec<KeyMaterial>>,
@@ -68,6 +71,7 @@ pub struct TlsKeyLog {
 
 impl TlsKeyLog {
     /// Creates an empty key log.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -115,10 +119,10 @@ impl TlsKeyLog {
 
         let label = parts[0];
         let client_random = hex::decode(parts[1])
-            .map_err(|e| PcapError::TlsKey(format!("invalid hex in client_random: {}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("invalid hex in client_random: {e}")))?;
         let key_material_hex = parts[2];
         let key_material_bytes = hex::decode(key_material_hex)
-            .map_err(|e| PcapError::TlsKey(format!("invalid hex in key material: {}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("invalid hex in key material: {e}")))?;
 
         // Validate client_random length (must be 32 bytes)
         if client_random.len() != 32 {
@@ -192,8 +196,8 @@ impl TlsKeyLog {
         Ok(())
     }
 
-    /// Inserts key material for a client_random.
-    /// Multiple keys can exist for the same client_random (e.g., TLS 1.3 client + server secrets).
+    /// Inserts key material for a `client_random`.
+    /// Multiple keys can exist for the same `client_random` (e.g., TLS 1.3 client + server secrets).
     pub fn insert(&mut self, client_random: Vec<u8>, key_material: KeyMaterial) {
         self.keys
             .entry(client_random)
@@ -201,15 +205,17 @@ impl TlsKeyLog {
             .push(key_material);
     }
 
-    /// Looks up all key material by client_random.
+    /// Looks up all key material by `client_random`.
+    #[must_use] 
     pub fn lookup(&self, client_random: &[u8]) -> Option<&[KeyMaterial]> {
-        self.keys.get(client_random).map(|v| v.as_slice())
+        self.keys.get(client_random).map(std::vec::Vec::as_slice)
     }
 
-    /// Looks up a specific key type by client_random and direction.
+    /// Looks up a specific key type by `client_random` and direction.
     ///
     /// For TLS 1.2, returns the master secret regardless of direction.
     /// For TLS 1.3, returns client or server traffic secret based on direction.
+    #[must_use] 
     pub fn lookup_for_direction(
         &self,
         client_random: &[u8],
@@ -238,7 +244,7 @@ impl TlsKeyLog {
     /// DSB keys are in SSLKEYLOGFILE format and can be merged by parsing line-by-line.
     pub fn merge_dsb_keys(&mut self, dsb_data: &[u8]) -> Result<(), PcapError> {
         let dsb_str = std::str::from_utf8(dsb_data)
-            .map_err(|e| PcapError::TlsKey(format!("invalid UTF-8 in DSB: {}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("invalid UTF-8 in DSB: {e}")))?;
 
         for line in dsb_str.lines() {
             self.parse_line(line)?;
@@ -248,11 +254,13 @@ impl TlsKeyLog {
     }
 
     /// Returns the number of stored keys.
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.keys.len()
     }
 
     /// Returns true if no keys are stored.
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }

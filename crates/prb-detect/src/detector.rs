@@ -17,6 +17,7 @@ impl PortMappingDetector {
     ///
     /// Default TCP mappings: 50051 (gRPC), 80/8080/443/8443 (HTTP/2), 5555/5556 (ZMTP)
     /// Default UDP mappings: 7400-7500 (RTPS)
+    #[must_use] 
     pub fn with_defaults() -> Self {
         let mut tcp_mappings = HashMap::new();
         tcp_mappings.insert(50051, ProtocolId::new(ProtocolId::GRPC));
@@ -51,7 +52,7 @@ impl PortMappingDetector {
 }
 
 impl ProtocolDetector for PortMappingDetector {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "port-mapping"
     }
 
@@ -85,7 +86,7 @@ impl ProtocolDetector for PortMappingDetector {
 pub struct GrpcDetector;
 
 impl ProtocolDetector for GrpcDetector {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "grpc-magic-bytes"
     }
 
@@ -136,7 +137,7 @@ impl ProtocolDetector for GrpcDetector {
 pub struct ZmtpDetector;
 
 impl ProtocolDetector for ZmtpDetector {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "zmtp-magic-bytes"
     }
 
@@ -175,7 +176,7 @@ impl ProtocolDetector for ZmtpDetector {
 pub struct RtpsDetector;
 
 impl ProtocolDetector for RtpsDetector {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "rtps-magic-bytes"
     }
 
@@ -217,6 +218,7 @@ pub struct GuessCrateDetector {
 
 impl GuessCrateDetector {
     /// Create a new guess-crate detector with default protocol set.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             tcp_detector: guess::ProtocolDetector::builder()
@@ -237,7 +239,7 @@ impl Default for GuessCrateDetector {
 }
 
 impl ProtocolDetector for GuessCrateDetector {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "guess-crate"
     }
 

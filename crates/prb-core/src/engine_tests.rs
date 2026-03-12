@@ -24,7 +24,7 @@ impl CorrelationStrategy for MockGrpcStrategy {
 
         let mut flows = Vec::new();
         for (stream_id, events) in flows_map {
-            let mut flow = Flow::new(format!("grpc:stream:{}", stream_id));
+            let mut flow = Flow::new(format!("grpc:stream:{stream_id}"));
             for event in &events {
                 flow = flow.add_event(event);
             }
@@ -64,7 +64,7 @@ impl CorrelationStrategy for MockZmqStrategy {
 
         let mut flows = Vec::new();
         for (topic, events) in flows_map {
-            let mut flow = Flow::new(format!("zmq:topic:{}", topic));
+            let mut flow = Flow::new(format!("zmq:topic:{topic}"));
             for event in &events {
                 flow = flow.add_event(event);
             }
@@ -76,7 +76,7 @@ impl CorrelationStrategy for MockZmqStrategy {
     }
 }
 
-/// Helper to create a test DebugEvent.
+/// Helper to create a test `DebugEvent`.
 fn create_test_event(
     transport: TransportKind,
     direction: Direction,
@@ -759,9 +759,7 @@ fn test_summary_generation_grpc_error_statuses() {
         let summary = &set.conversations[0].summary;
         assert!(
             summary.contains(name),
-            "Expected {} in summary for code {}",
-            name,
-            code
+            "Expected {name} in summary for code {code}"
         );
     }
 }

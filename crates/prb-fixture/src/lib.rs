@@ -1,6 +1,6 @@
 //! JSON fixture file adapter for PRB.
 //!
-//! This crate provides a CaptureAdapter implementation that reads debug events
+//! This crate provides a `CaptureAdapter` implementation that reads debug events
 //! from JSON fixture files for testing and offline analysis.
 
 #![warn(missing_docs)]

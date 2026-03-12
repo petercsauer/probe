@@ -1,4 +1,4 @@
-//! Unit tests for CaptureConfig.
+//! Unit tests for `CaptureConfig`.
 
 use prb_capture::CaptureConfig;
 

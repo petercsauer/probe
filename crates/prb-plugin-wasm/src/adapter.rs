@@ -15,7 +15,7 @@ use tracing::warn;
 
 /// Factory for creating WASM decoder instances.
 ///
-/// Each call to create_decoder() instantiates a new WASM plugin instance,
+/// Each call to `create_decoder()` instantiates a new WASM plugin instance,
 /// as WASM instances are not thread-safe or reentrant.
 pub struct WasmDecoderFactory {
     plugin_path: PathBuf,
@@ -24,7 +24,8 @@ pub struct WasmDecoderFactory {
 }
 
 impl WasmDecoderFactory {
-    pub fn new(plugin_path: PathBuf, info: PluginMetadata, limits: WasmLimits) -> Self {
+    #[must_use] 
+    pub const fn new(plugin_path: PathBuf, info: PluginMetadata, limits: WasmLimits) -> Self {
         Self {
             plugin_path,
             info,
@@ -76,17 +77,17 @@ impl ProtocolDecoder for WasmDecoderInstance {
         };
 
         let request_json = serde_json::to_string(&request)
-            .map_err(|e| CoreError::PayloadDecode(format!("serialize request: {}", e)))?;
+            .map_err(|e| CoreError::PayloadDecode(format!("serialize request: {e}")))?;
 
         // Call WASM decode function
         let result_json = self
             .instance
             .call::<&str, String>("prb_plugin_decode", &request_json)
-            .map_err(|e| CoreError::PayloadDecode(format!("WASM decode call: {}", e)))?;
+            .map_err(|e| CoreError::PayloadDecode(format!("WASM decode call: {e}")))?;
 
         // Parse result
         let dtos: Vec<prb_plugin_api::DebugEventDto> = serde_json::from_str(&result_json)
-            .map_err(|e| CoreError::PayloadDecode(format!("deserialize response: {}", e)))?;
+            .map_err(|e| CoreError::PayloadDecode(format!("deserialize response: {e}")))?;
 
         // Convert DTOs to DebugEvents
         dtos.into_iter().map(convert_dto_to_event).collect()
@@ -101,7 +102,8 @@ pub struct WasmProtocolDetector {
 }
 
 impl WasmProtocolDetector {
-    pub fn new(plugin_path: PathBuf, info: PluginMetadata) -> Self {
+    #[must_use] 
+    pub const fn new(plugin_path: PathBuf, info: PluginMetadata) -> Self {
         Self {
             plugin_path,
             info,
@@ -180,12 +182,12 @@ impl ProtocolDetector for WasmProtocolDetector {
     }
 }
 
-/// Convert prb-core DecodeContext to plugin API DecodeCtx.
+/// Convert prb-core `DecodeContext` to plugin API `DecodeCtx`.
 fn convert_decode_context(ctx: &DecodeContext) -> DecodeCtx {
     DecodeCtx {
         src_addr: ctx.src_addr.clone(),
         dst_addr: ctx.dst_addr.clone(),
-        timestamp_nanos: ctx.timestamp.as_ref().map(|ts| ts.as_nanos()),
+        timestamp_nanos: ctx.timestamp.as_ref().map(prb_core::Timestamp::as_nanos),
         metadata: ctx
             .metadata
             .iter()
@@ -194,7 +196,7 @@ fn convert_decode_context(ctx: &DecodeContext) -> DecodeCtx {
     }
 }
 
-/// Convert DebugEventDto to DebugEvent.
+/// Convert `DebugEventDto` to `DebugEvent`.
 fn convert_dto_to_event(dto: prb_plugin_api::DebugEventDto) -> Result<DebugEvent, CoreError> {
     use prb_core::{Direction, EventSource, NetworkAddr, Payload, Timestamp};
 
@@ -355,8 +357,7 @@ mod tests {
             let event = convert_dto_to_event(dto).expect("conversion should succeed");
             assert_eq!(
                 event.transport, expected_kind,
-                "failed for transport: {}",
-                transport_str
+                "failed for transport: {transport_str}"
             );
         }
     }
@@ -379,8 +380,7 @@ mod tests {
             let event = convert_dto_to_event(dto).expect("conversion should succeed");
             assert_eq!(
                 event.direction, expected_dir,
-                "failed for direction: {}",
-                direction_str
+                "failed for direction: {direction_str}"
             );
         }
     }

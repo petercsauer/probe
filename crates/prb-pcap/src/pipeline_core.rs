@@ -19,7 +19,7 @@ use std::path::Path;
 /// Result from processing a single packet through the pipeline.
 #[derive(Debug, Default)]
 pub struct ProcessedEvents {
-    /// Zero or more DebugEvents produced from this packet.
+    /// Zero or more `DebugEvents` produced from this packet.
     pub events: Vec<DebugEvent>,
     /// Non-fatal warnings encountered during processing.
     pub warnings: Vec<String>,
@@ -28,15 +28,15 @@ pub struct ProcessedEvents {
 /// Stateful pipeline core for packet processing.
 ///
 /// This struct maintains the state required to process packets incrementally:
-/// - PacketNormalizer: handles link-layer encapsulation and IP defragmentation
-/// - TcpReassembler: reconstructs TCP streams from segments
-/// - TlsStreamProcessor: decrypts TLS streams using keylog
-/// - DecoderRegistry: detects protocols and decodes messages
-/// - PipelineStats: tracks processing metrics
+/// - `PacketNormalizer`: handles link-layer encapsulation and IP defragmentation
+/// - `TcpReassembler`: reconstructs TCP streams from segments
+/// - `TlsStreamProcessor`: decrypts TLS streams using keylog
+/// - `DecoderRegistry`: detects protocols and decodes messages
+/// - `PipelineStats`: tracks processing metrics
 ///
 /// The pipeline can be used in two modes:
 /// - Batch: process all packets from a file, then flush remaining streams
-/// - Streaming: process packets one-at-a-time as they arrive, with periodic flush_idle() calls
+/// - Streaming: process packets one-at-a-time as they arrive, with periodic `flush_idle()` calls
 pub struct PipelineCore {
     normalizer: PacketNormalizer,
     tcp_reassembler: TcpReassembler,
@@ -47,6 +47,7 @@ pub struct PipelineCore {
 
 impl PipelineCore {
     /// Creates a new pipeline with the given TLS processor and decoder registry.
+    #[must_use] 
     pub fn new(tls_processor: TlsStreamProcessor, decoder_registry: DecoderRegistry) -> Self {
         Self {
             normalizer: PacketNormalizer::new(),
@@ -63,7 +64,7 @@ impl PipelineCore {
         decoder_registry: DecoderRegistry,
     ) -> Result<Self, PcapError> {
         let keylog = TlsKeyLog::from_file(keylog_path)
-            .map_err(|e| PcapError::TlsKey(format!("failed to load TLS keylog: {}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("failed to load TLS keylog: {e}")))?;
         Ok(Self::new(
             TlsStreamProcessor::with_keylog(keylog),
             decoder_registry,
@@ -71,7 +72,7 @@ impl PipelineCore {
     }
 
     /// Get a mutable reference to the decoder registry for configuration.
-    pub fn decoder_registry_mut(&mut self) -> &mut DecoderRegistry {
+    pub const fn decoder_registry_mut(&mut self) -> &mut DecoderRegistry {
         &mut self.decoder_registry
     }
 
@@ -81,7 +82,7 @@ impl PipelineCore {
     /// 1. Normalization (link-layer parsing, IP defragmentation)
     /// 2. Transport dispatch (TCP reassembly or direct UDP processing)
     /// 3. TLS decryption (for TCP streams)
-    /// 4. DebugEvent creation
+    /// 4. `DebugEvent` creation
     ///
     /// # Arguments
     /// * `linktype` - PCAP link-layer type (e.g., 1 for Ethernet)
@@ -90,7 +91,7 @@ impl PipelineCore {
     /// * `origin` - Human-readable origin string (e.g., file path or "live:eth0")
     ///
     /// # Returns
-    /// A ProcessedEvents struct containing zero or more DebugEvents and any warnings.
+    /// A `ProcessedEvents` struct containing zero or more `DebugEvents` and any warnings.
     pub fn process_packet(
         &mut self,
         linktype: u32,
@@ -116,7 +117,7 @@ impl PipelineCore {
             Err(e) => {
                 // Parse error - log warning and continue
                 self.stats.packets_failed += 1;
-                result.warnings.push(format!("normalize failed: {}", e));
+                result.warnings.push(format!("normalize failed: {e}"));
                 return result;
             }
         };
@@ -158,7 +159,7 @@ impl PipelineCore {
         let stream_events = match self.tcp_reassembler.process_segment(&borrowed) {
             Ok(events) => events,
             Err(e) => {
-                result.warnings.push(format!("TCP reassembly error: {}", e));
+                result.warnings.push(format!("TCP reassembly error: {e}"));
                 return;
             }
         };
@@ -175,7 +176,7 @@ impl PipelineCore {
                 StreamEvent::GapSkipped { gap_size, .. } => {
                     result
                         .warnings
-                        .push(format!("TCP gap skipped: {} bytes", gap_size));
+                        .push(format!("TCP gap skipped: {gap_size} bytes"));
                 }
                 StreamEvent::Timeout { .. } => {
                     tracing::debug!("TCP connection timeout");
@@ -292,7 +293,7 @@ impl PipelineCore {
     /// * `current_time_us` - Current time in microseconds since epoch
     ///
     /// # Returns
-    /// Vector of DebugEvents from flushed connections.
+    /// Vector of `DebugEvents` from flushed connections.
     pub fn flush_idle(&mut self, current_time_us: u64) -> Vec<DebugEvent> {
         let timeout_events = self
             .tcp_reassembler
@@ -311,12 +312,13 @@ impl PipelineCore {
     }
 
     /// Returns a reference to the processing statistics.
-    pub fn stats(&self) -> &PipelineStats {
+    #[must_use] 
+    pub const fn stats(&self) -> &PipelineStats {
         &self.stats
     }
 }
 
-/// Creates a DebugEvent from a UDP datagram.
+/// Creates a `DebugEvent` from a UDP datagram.
 fn create_udp_event(
     normalized: &crate::OwnedNormalizedPacket,
     src_port: u16,
@@ -341,7 +343,7 @@ fn create_udp_event(
         .build()
 }
 
-/// Creates a DebugEvent from a TCP stream (potentially decrypted).
+/// Creates a `DebugEvent` from a TCP stream (potentially decrypted).
 fn create_tcp_event(stream: &DecryptedStream, origin: &str) -> DebugEvent {
     let transport = TransportKind::RawTcp;
     let tls_decrypted = !stream.encrypted;

@@ -173,7 +173,7 @@ fn test_decode_simple_message() {
     assert_eq!(json["name"], "test");
 
     // Verify Display output contains expected content
-    let display = format!("{}", decoded);
+    let display = format!("{decoded}");
     assert!(display.contains("SimpleMessage"));
     assert!(display.contains("id"));
     assert!(display.contains("42"));
@@ -745,7 +745,7 @@ fn test_decoded_message_display() {
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
 
     // Test Display trait
-    let display_output = format!("{}", decoded);
+    let display_output = format!("{decoded}");
     assert!(display_output.contains("SimpleMessage"));
     assert!(display_output.contains("id"));
     assert!(display_output.contains("42"));
@@ -791,7 +791,7 @@ fn test_nested_message_display() {
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
 
     // Test that nested messages are formatted correctly
-    let display_output = format!("{}", decoded);
+    let display_output = format!("{decoded}");
     assert!(display_output.contains("inner"));
     assert!(display_output.contains("value"));
 }
@@ -805,7 +805,7 @@ fn test_repeated_fields_display() {
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
 
     // Test that repeated fields are formatted as arrays
-    let display_output = format!("{}", decoded);
+    let display_output = format!("{decoded}");
     assert!(display_output.contains("items"));
 }
 

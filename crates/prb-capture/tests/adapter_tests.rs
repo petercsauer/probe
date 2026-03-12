@@ -1,4 +1,4 @@
-//! Integration tests for LiveCaptureAdapter.
+//! Integration tests for `LiveCaptureAdapter`.
 
 use prb_capture::{CaptureConfig, LiveCaptureAdapter};
 use prb_core::CaptureAdapter;
@@ -35,8 +35,7 @@ fn test_adapter_not_started_error() {
     let err_msg = event.unwrap_err().to_string();
     assert!(
         err_msg.contains("not started"),
-        "Expected 'not started' error, got: {}",
-        err_msg
+        "Expected 'not started' error, got: {err_msg}"
     );
 }
 
@@ -86,7 +85,7 @@ fn test_live_capture_loopback() {
 
     // Start capture
     match adapter.start() {
-        Ok(_) => {
+        Ok(()) => {
             println!("Capture started on lo0");
 
             // Generate some loopback traffic in background
@@ -106,11 +105,11 @@ fn test_live_capture_loopback() {
             for event in adapter.ingest() {
                 match event {
                     Ok(evt) => {
-                        println!("Captured event: {:?}", evt);
+                        println!("Captured event: {evt:?}");
                         count += 1;
                     }
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("Error: {e}");
                         break;
                     }
                 }
@@ -121,17 +120,17 @@ fn test_live_capture_loopback() {
                 }
             }
 
-            println!("Captured {} events", count);
+            println!("Captured {count} events");
 
             // Stop capture
             let stats = adapter.stop().unwrap();
-            println!("Capture stats: {:?}", stats);
+            println!("Capture stats: {stats:?}");
 
             // We expect to have captured at least some packets
             assert!(count > 0, "Should have captured at least one packet");
         }
         Err(e) => {
-            eprintln!("Failed to start capture: {}", e);
+            eprintln!("Failed to start capture: {e}");
             eprintln!("This test requires root privileges and a working loopback interface");
             panic!("Cannot run test without proper privileges");
         }

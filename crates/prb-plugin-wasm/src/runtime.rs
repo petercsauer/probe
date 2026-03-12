@@ -22,7 +22,8 @@ impl Default for WasmLimits {
 
 impl WasmLimits {
     /// Create limits suitable for protocol detection (fast, minimal memory).
-    pub fn for_detection() -> Self {
+    #[must_use] 
+    pub const fn for_detection() -> Self {
         Self {
             memory_max_pages: 16, // 1MB
             timeout: Duration::from_millis(100),
@@ -30,6 +31,7 @@ impl WasmLimits {
     }
 
     /// Create limits suitable for decoding (more memory, longer timeout).
+    #[must_use] 
     pub fn for_decoding() -> Self {
         Self::default()
     }

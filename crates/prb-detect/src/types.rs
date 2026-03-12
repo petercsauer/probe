@@ -10,7 +10,7 @@ pub struct ProtocolId(pub String);
 impl ProtocolId {
     /// Protocol ID for gRPC.
     pub const GRPC: &str = "grpc";
-    /// Protocol ID for ZeroMQ (ZMTP).
+    /// Protocol ID for `ZeroMQ` (ZMTP).
     pub const ZMTP: &str = "zmtp";
     /// Protocol ID for DDS RTPS.
     pub const RTPS: &str = "rtps";
@@ -24,6 +24,7 @@ impl ProtocolId {
     pub const UNKNOWN: &str = "unknown";
 
     /// Create a new protocol ID from a string.
+    #[must_use] 
     pub fn new(id: &str) -> Self {
         Self(id.to_string())
     }

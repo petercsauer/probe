@@ -40,8 +40,7 @@ fn test_real_data_tcp_fixtures() {
             let metadata = file.metadata().expect("Should read metadata");
             assert!(
                 metadata.len() > 100,
-                "Fixture {} should have content",
-                fixture
+                "Fixture {fixture} should have content"
             );
         }
     }
@@ -58,8 +57,7 @@ fn test_real_data_tls_fixtures() {
             let metadata = file.metadata().expect("Should read metadata");
             assert!(
                 metadata.len() > 1000,
-                "TLS fixture {} should have content",
-                fixture
+                "TLS fixture {fixture} should have content"
             );
         }
     }

@@ -23,7 +23,7 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
         .as_ref()
         .map(|s| {
             TransportKind::from_str(s)
-                .map_err(|e| anyhow::anyhow!("Invalid transport filter: {}", e))
+                .map_err(|e| anyhow::anyhow!("Invalid transport filter: {e}"))
         })
         .transpose()?;
 
@@ -31,7 +31,7 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
     let query_filter = args
         .where_clause
         .as_ref()
-        .map(|s| Filter::parse(s).map_err(|e| anyhow::anyhow!("Invalid filter expression: {}", e)))
+        .map(|s| Filter::parse(s).map_err(|e| anyhow::anyhow!("Invalid filter expression: {e}")))
         .transpose()?;
 
     // Determine input format and read events
@@ -73,10 +73,10 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
             if let Payload::Raw { raw } = &event.payload {
                 match decode_wire_format(raw) {
                     Ok(msg) => {
-                        println!("{}", msg);
+                        println!("{msg}");
                     }
                     Err(e) => {
-                        println!("Wire-format decode error: {}", e);
+                        println!("Wire-format decode error: {e}");
                     }
                 }
             } else {
@@ -139,8 +139,7 @@ fn format_grouped_by_trace(events: &[DebugEvent]) {
             let span_id = event
                 .metadata
                 .get(METADATA_KEY_OTEL_SPAN_ID)
-                .map(|s| s.as_str())
-                .unwrap_or("unknown");
+                .map_or("unknown", std::string::String::as_str);
 
             let direction_symbol = match event.direction.to_string().as_str() {
                 "Outbound" => "→",
@@ -153,13 +152,12 @@ fn format_grouped_by_trace(events: &[DebugEvent]) {
                 .get("grpc.method")
                 .or_else(|| event.metadata.get("dds.topic_name"))
                 .or_else(|| event.metadata.get("zmq.topic"))
-                .map(|s| s.as_str())
-                .unwrap_or("(no method)");
+                .map_or("(no method)", std::string::String::as_str);
 
             let status = event
                 .metadata
                 .get("grpc.status")
-                .map(|s| format!(" status={}", s))
+                .map(|s| format!(" status={s}"))
                 .unwrap_or_default();
 
             let payload_size = match &event.payload {

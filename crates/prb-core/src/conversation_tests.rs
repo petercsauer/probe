@@ -271,7 +271,7 @@ fn test_conversation_set_metrics() {
         ..Default::default()
     };
 
-    conv.set_metrics(metrics.clone());
+    conv.set_metrics(metrics);
     assert_eq!(conv.metrics.duration_ns, 45000000);
     assert_eq!(conv.metrics.request_count, 1);
     assert_eq!(conv.metrics.response_count, 1);

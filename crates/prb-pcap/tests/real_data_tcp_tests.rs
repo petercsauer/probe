@@ -83,7 +83,7 @@ fn test_tcp_anon_session() {
     let mut reassembler = TcpReassembler::new();
     let mut stream_data_events = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
@@ -125,7 +125,7 @@ fn test_dns_remoteshell_tcp_reassembly() {
     let mut total_tcp_payload = 0usize;
     let mut tcp_segments = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // Skip packets that can't be normalized (e.g., ARP)
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
@@ -163,7 +163,7 @@ fn test_vlan_tagged_frames() {
     let mut vlan_packets = 0;
     let mut normalized_count = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // Skip packets that can't be normalized
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
@@ -208,7 +208,7 @@ fn test_ipv6_packet_normalization() {
     let mut ipv6_count = 0;
     let mut normalized_count = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
@@ -251,18 +251,15 @@ fn test_teardrop_fragment_attack() {
     let mut processed_count = 0;
 
     // Main goal: ensure we don't panic on malicious fragments
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // Normalization should handle fragments gracefully (may skip or reassemble)
         let result = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data);
 
-        match result {
-            Ok(_) => {
-                processed_count += 1;
-            }
-            Err(_) => {
-                // Malformed fragments may be rejected, which is acceptable
-                // Just verify we don't panic
-            }
+        if let Ok(_) = result {
+            processed_count += 1;
+        } else {
+            // Malformed fragments may be rejected, which is acceptable
+            // Just verify we don't panic
         }
     }
 
@@ -288,21 +285,19 @@ fn test_real_captures_no_panic() {
     for (subdir, filename) in captures {
         let path = fixture_path(subdir, filename);
         let mut reader = PcapFileReader::open(&path)
-            .unwrap_or_else(|e| panic!("Failed to open {}/{}: {}", subdir, filename, e));
+            .unwrap_or_else(|e| panic!("Failed to open {subdir}/{filename}: {e}"));
 
         let packets = reader
             .read_all_packets()
-            .unwrap_or_else(|e| panic!("Failed to read {}/{}: {}", subdir, filename, e));
+            .unwrap_or_else(|e| panic!("Failed to read {subdir}/{filename}: {e}"));
 
         assert!(
             !packets.is_empty(),
-            "{}/{} should contain packets",
-            subdir,
-            filename
+            "{subdir}/{filename} should contain packets"
         );
 
         let mut normalizer = PacketNormalizer::new();
-        for pkt in packets.iter() {
+        for pkt in &packets {
             // Should not panic
             let _ = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data);
         }

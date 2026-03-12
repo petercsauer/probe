@@ -35,6 +35,6 @@ pub enum SchemaError {
 
 impl From<SchemaError> for prb_core::CoreError {
     fn from(e: SchemaError) -> Self {
-        prb_core::CoreError::Schema(e.to_string())
+        Self::Schema(e.to_string())
     }
 }

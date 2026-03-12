@@ -67,7 +67,7 @@ pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, Co
 }
 
 /// Get payload size in bytes.
-fn payload_size(payload: &Payload) -> u64 {
+const fn payload_size(payload: &Payload) -> u64 {
     match payload {
         Payload::Raw { raw } => raw.len() as u64,
         Payload::Decoded { raw, .. } => raw.len() as u64,
@@ -85,7 +85,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
                 .metadata
                 .get("grpc.message")
                 .cloned()
-                .unwrap_or_else(|| format!("gRPC error status {}", status));
+                .unwrap_or_else(|| format!("gRPC error status {status}"));
 
             return Some(ConversationError::new("grpc-status", message).with_code(status.clone()));
         }
@@ -102,7 +102,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
     {
         return Some(ConversationError::new(
             "sequence-gap",
-            format!("{} missing sequence numbers", gap_count),
+            format!("{gap_count} missing sequence numbers"),
         ));
     }
 
@@ -137,6 +137,7 @@ fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
 }
 
 /// Compute aggregate metrics for multiple conversations.
+#[must_use] 
 pub fn compute_aggregate_metrics(
     conversations: &[&crate::conversation::Conversation],
 ) -> AggregateMetrics {

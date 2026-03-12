@@ -472,7 +472,7 @@ fn test_display_formatting() {
     ];
 
     let msg = decode_wire_format(&bytes).unwrap();
-    let display = format!("{}", msg);
+    let display = format!("{msg}");
 
     // Verify display output contains expected elements
     assert!(display.contains("WIRE FORMAT DECODE"));
@@ -490,7 +490,7 @@ fn test_display_nested_message() {
     bytes.extend_from_slice(&inner);
 
     let msg = decode_wire_format(&bytes).unwrap();
-    let display = format!("{}", msg);
+    let display = format!("{msg}");
 
     assert!(display.contains("submessage"));
     assert!(display.contains("field"));
@@ -504,7 +504,7 @@ fn test_display_bytes_short() {
     bytes.extend_from_slice(&data);
 
     let msg = decode_wire_format(&bytes).unwrap();
-    let display = format!("{}", msg);
+    let display = format!("{msg}");
 
     assert!(display.contains("0x01020304"));
 }
@@ -517,7 +517,7 @@ fn test_display_bytes_long() {
     bytes.extend_from_slice(&data);
 
     let msg = decode_wire_format(&bytes).unwrap();
-    let display = format!("{}", msg);
+    let display = format!("{msg}");
 
     assert!(display.contains("..."));
     assert!(display.contains("20 bytes"));

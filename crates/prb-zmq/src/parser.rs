@@ -10,7 +10,7 @@ const MAX_FRAME_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_MULTIPART_FRAMES: usize = 1000;
 
 /// ZMTP greeting structure (64 bytes).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZmtpGreeting {
     pub major_version: u8,
     pub minor_version: u8,
@@ -19,26 +19,26 @@ pub struct ZmtpGreeting {
 }
 
 /// ZMTP command event.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZmtpCommand {
     pub name: String,
     pub data: Vec<u8>,
 }
 
 /// ZMTP READY command metadata.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZmtpReady {
     pub properties: HashMap<String, Vec<u8>>,
 }
 
 /// ZMTP message (single or multipart).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZmtpMessage {
     pub frames: Vec<Vec<u8>>,
 }
 
 /// Events produced by ZMTP parser.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZmtpEvent {
     Greeting(ZmtpGreeting),
     Ready(ZmtpReady),
@@ -71,7 +71,7 @@ pub struct ZmtpParser {
 
 impl ZmtpParser {
     /// Create a new ZMTP parser.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             state: State::AwaitingGreeting,
             buffer: Vec::new(),
@@ -104,7 +104,7 @@ impl ZmtpParser {
     }
 
     /// Check if parser is in degraded mode (mid-stream capture).
-    pub fn is_degraded(&self) -> bool {
+    pub const fn is_degraded(&self) -> bool {
         self.degraded
     }
 
@@ -258,7 +258,7 @@ impl ZmtpParser {
                     },
                 ));
             }
-            (self.buffer[1] as u64, 2)
+            (u64::from(self.buffer[1]), 2)
         };
 
         if size_bytes > MAX_FRAME_SIZE {
@@ -293,7 +293,7 @@ impl ZmtpParser {
             return Err(ZmqError::InvalidCommandNameLength(body[0]));
         }
 
-        let name = String::from_utf8(body[1..1 + name_len].to_vec())?;
+        let name = String::from_utf8(body[1..=name_len].to_vec())?;
         let data = body[1 + name_len..].to_vec();
 
         Ok((total_size, ZmtpCommand { name, data }))
@@ -328,7 +328,7 @@ impl ZmtpParser {
             if self.buffer.len() < 2 {
                 return Ok(0);
             }
-            (self.buffer[1] as u64, 2)
+            (u64::from(self.buffer[1]), 2)
         };
 
         if size_bytes > MAX_FRAME_SIZE {
@@ -469,7 +469,7 @@ mod tests {
         mech_bytes.resize(20, 0);
         greeting.extend_from_slice(&mech_bytes);
         // as-server flag
-        greeting.push(if as_server { 1 } else { 0 });
+        greeting.push(u8::from(as_server));
         // Padding to 64 bytes
         greeting.resize(64, 0);
         greeting
@@ -483,7 +483,7 @@ mod tests {
 
         // Feed 63 bytes - should not produce event
         for i in 0..63 {
-            let events = parser.feed(&greeting[i..i + 1]).unwrap();
+            let events = parser.feed(&greeting[i..=i]).unwrap();
             assert_eq!(events.len(), 0, "Should not emit event before byte 64");
         }
 
@@ -562,7 +562,7 @@ mod tests {
             let result = parser.feed(&frame);
 
             if i < 1000 {
-                assert!(result.is_ok(), "Should accept frame {}", i);
+                assert!(result.is_ok(), "Should accept frame {i}");
             } else {
                 // Frame 1001 should trigger error
                 assert!(result.is_err(), "Should reject frame 1001");
@@ -627,7 +627,7 @@ mod tests {
             0x00,             // flags: no more frames
             body.len() as u8, // size
         ];
-        let mut frame_data = frame.clone();
+        let mut frame_data = frame;
         frame_data.extend_from_slice(body);
 
         let events = parser.feed(&frame_data).unwrap();

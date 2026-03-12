@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 /// Unique conversation identifier.
 ///
-/// Format: "{protocol}:{grouping_key}" e.g. "grpc:10.0.0.1:50051->10.0.0.2:8080/s3"
+/// Format: "{`protocol}:{grouping_key`}" e.g. "grpc:10.0.0.1:50051->10.0.0.2:8080/s3"
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ConversationId(pub String);
@@ -21,6 +21,7 @@ impl ConversationId {
     }
 
     /// Get the string value.
+    #[must_use] 
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -83,7 +84,7 @@ pub enum ConversationState {
     Active,
     /// Completed successfully (response received, status OK).
     Complete,
-    /// Completed with error (gRPC error status, RST_STREAM, etc.).
+    /// Completed with error (gRPC error status, `RST_STREAM`, etc.).
     Error,
     /// No response within expected time / RST without response.
     Timeout,
@@ -175,6 +176,7 @@ pub struct Conversation {
 
 impl Conversation {
     /// Create a new conversation.
+    #[must_use] 
     pub fn new(
         id: ConversationId,
         kind: ConversationKind,

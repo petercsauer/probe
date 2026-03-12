@@ -71,8 +71,7 @@ fn test_ai_panel_toggle_open_with_a_key() {
     let status = row_text(&buffer, area.height - 1);
     assert!(
         status.contains("AI EXPLAIN") || status.contains("AI"),
-        "Status bar should show AI EXPLAIN mode, got: {}",
-        status
+        "Status bar should show AI EXPLAIN mode, got: {status}"
     );
 }
 
@@ -107,8 +106,7 @@ fn test_ai_panel_toggle_close_with_a_key() {
     // Should show normal status, not AI EXPLAIN
     assert!(
         !status.contains("AI EXPLAIN"),
-        "Status bar should not show AI EXPLAIN when panel closed, got: {}",
-        status
+        "Status bar should not show AI EXPLAIN when panel closed, got: {status}"
     );
 }
 
@@ -141,8 +139,7 @@ fn test_ai_panel_close_with_escape() {
     let status = row_text(&buffer, area.height - 1);
     assert!(
         !status.contains("AI EXPLAIN"),
-        "Status bar should not show AI EXPLAIN after Esc, got: {}",
-        status
+        "Status bar should not show AI EXPLAIN after Esc, got: {status}"
     );
 }
 
@@ -281,12 +278,10 @@ fn test_ai_panel_escape_priority_over_other_overlays() {
 #[test]
 fn test_ai_panel_with_different_event_types() {
     // Test AI panel with different protocol types
-    let transports = vec![
-        TransportKind::Grpc,
+    let transports = [TransportKind::Grpc,
         TransportKind::Zmq,
         TransportKind::DdsRtps,
-        TransportKind::RawTcp,
-    ];
+        TransportKind::RawTcp];
 
     for (i, transport) in transports.iter().enumerate() {
         let events = vec![make_test_event(

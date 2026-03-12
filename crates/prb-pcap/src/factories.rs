@@ -2,7 +2,7 @@
 //!
 //! This module provides factory implementations that create decoder instances
 //! for gRPC, ZMTP, and DDS/RTPS protocols. Factories are registered with the
-//! DecoderRegistry to enable protocol detection and decoding.
+//! `DecoderRegistry` to enable protocol detection and decoding.
 
 #[cfg(feature = "builtin-decoders")]
 use prb_core::ProtocolDecoder;
@@ -66,8 +66,9 @@ pub fn create_registry_with_builtins() -> prb_detect::DecoderRegistry {
     registry
 }
 
-/// Creates an empty DecoderRegistry when builtin-decoders feature is disabled.
+/// Creates an empty `DecoderRegistry` when builtin-decoders feature is disabled.
 #[cfg(not(feature = "builtin-decoders"))]
+#[must_use] 
 pub fn create_registry_with_builtins() -> prb_detect::DecoderRegistry {
     prb_detect::DecoderRegistry::new()
 }

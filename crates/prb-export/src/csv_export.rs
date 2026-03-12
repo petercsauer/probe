@@ -33,9 +33,7 @@ fn timestamp_to_iso(ts: Timestamp) -> String {
     let nanos = ts.as_nanos();
     let secs = (nanos / 1_000_000_000) as i64;
     let subsec_nanos = (nanos % 1_000_000_000) as u32;
-    chrono::DateTime::from_timestamp(secs, subsec_nanos)
-        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-        .unwrap_or_else(|| format!("{}ns", nanos))
+    chrono::DateTime::from_timestamp(secs, subsec_nanos).map_or_else(|| format!("{nanos}ns"), |dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
 }
 
 impl EventRow {

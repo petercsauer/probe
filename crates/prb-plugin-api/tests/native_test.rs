@@ -119,7 +119,7 @@ mod test_decoder {
         }
 
         fn new() -> Self {
-            TestDecoder
+            Self
         }
 
         fn decode(&mut self, _data: &[u8], _ctx: &DecodeCtx) -> Result<Vec<DebugEventDto>, String> {

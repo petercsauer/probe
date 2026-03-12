@@ -42,8 +42,7 @@ fn run_load(args: SchemaLoadArgs) -> Result<()> {
         }
         _ => {
             anyhow::bail!(
-                "Unsupported file extension: {}. Expected .proto or .desc",
-                extension
+                "Unsupported file extension: {extension}. Expected .proto or .desc"
             );
         }
     }
@@ -55,13 +54,13 @@ fn run_load(args: SchemaLoadArgs) -> Result<()> {
     println!("Successfully loaded schema from {}", args.path);
     println!("\nMessages ({}):", messages.len());
     for msg in messages {
-        println!("  {}", msg);
+        println!("  {msg}");
     }
 
     if !services.is_empty() {
         println!("\nServices ({}):", services.len());
         for svc in services {
-            println!("  {}", svc);
+            println!("  {svc}");
         }
     }
 
@@ -91,14 +90,14 @@ fn run_list(args: SchemaListArgs) -> Result<()> {
     if !messages.is_empty() {
         println!("\nMessages ({}):", messages.len());
         for msg in messages {
-            println!("  {}", msg);
+            println!("  {msg}");
         }
     }
 
     if !services.is_empty() {
         println!("\nServices ({}):", services.len());
         for svc in services {
-            println!("  {}", svc);
+            println!("  {svc}");
         }
     }
 

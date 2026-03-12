@@ -2,9 +2,9 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    And(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
-    Not(Box<Expr>),
+    And(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
+    Not(Box<Self>),
     Compare {
         field: FieldPath,
         op: CmpOp,
@@ -23,6 +23,7 @@ pub enum Expr {
 pub struct FieldPath(pub Vec<String>);
 
 impl FieldPath {
+    #[must_use] 
     pub fn dotted(&self) -> String {
         self.0.join(".")
     }
@@ -47,12 +48,12 @@ pub enum CmpOp {
 impl fmt::Display for CmpOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CmpOp::Eq => write!(f, "=="),
-            CmpOp::Ne => write!(f, "!="),
-            CmpOp::Gt => write!(f, ">"),
-            CmpOp::Ge => write!(f, ">="),
-            CmpOp::Lt => write!(f, "<"),
-            CmpOp::Le => write!(f, "<="),
+            Self::Eq => write!(f, "=="),
+            Self::Ne => write!(f, "!="),
+            Self::Gt => write!(f, ">"),
+            Self::Ge => write!(f, ">="),
+            Self::Lt => write!(f, "<"),
+            Self::Le => write!(f, "<="),
         }
     }
 }
@@ -67,9 +68,9 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::String(s) => write!(f, "\"{}\"", s),
-            Value::Number(n) => write!(f, "{}", n),
-            Value::Bool(b) => write!(f, "{}", b),
+            Self::String(s) => write!(f, "\"{s}\""),
+            Self::Number(n) => write!(f, "{n}"),
+            Self::Bool(b) => write!(f, "{b}"),
         }
     }
 }
@@ -132,7 +133,7 @@ mod tests {
         let and = Expr::And(Box::new(compare.clone()), Box::new(exists.clone()));
         assert!(matches!(and, Expr::And(_, _)));
 
-        let or = Expr::Or(Box::new(compare.clone()), Box::new(exists));
+        let or = Expr::Or(Box::new(compare), Box::new(exists));
         assert!(matches!(or, Expr::Or(_, _)));
     }
 }

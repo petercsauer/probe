@@ -12,7 +12,7 @@ pub const METADATA_KEY_GRPC_METHOD: &str = "grpc.method";
 /// Well-known metadata key for HTTP/2 stream ID.
 pub const METADATA_KEY_H2_STREAM_ID: &str = "h2.stream_id";
 
-/// Well-known metadata key for ZeroMQ topic.
+/// Well-known metadata key for `ZeroMQ` topic.
 pub const METADATA_KEY_ZMQ_TOPIC: &str = "zmq.topic";
 
 /// Well-known metadata key for DDS domain ID.
@@ -50,12 +50,14 @@ impl EventId {
     }
 
     /// Create an event ID from a raw u64 (for testing/deserialization).
-    pub fn from_raw(id: u64) -> Self {
+    #[must_use] 
+    pub const fn from_raw(id: u64) -> Self {
         Self(id)
     }
 
     /// Get the raw u64 value.
-    pub fn as_u64(&self) -> u64 {
+    #[must_use] 
+    pub const fn as_u64(&self) -> u64 {
         self.0
     }
 }
@@ -73,16 +75,19 @@ pub struct Timestamp(u64);
 
 impl Timestamp {
     /// Create a timestamp from nanoseconds since Unix epoch.
-    pub fn from_nanos(nanos: u64) -> Self {
+    #[must_use] 
+    pub const fn from_nanos(nanos: u64) -> Self {
         Self(nanos)
     }
 
     /// Get the timestamp as nanoseconds since Unix epoch.
-    pub fn as_nanos(&self) -> u64 {
+    #[must_use] 
+    pub const fn as_nanos(&self) -> u64 {
         self.0
     }
 
     /// Get the current system time as a Timestamp.
+    #[must_use] 
     pub fn now() -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -134,7 +139,7 @@ impl fmt::Display for EventSource {
 pub enum TransportKind {
     /// gRPC over HTTP/2.
     Grpc,
-    /// ZeroMQ (ZMTP protocol).
+    /// `ZeroMQ` (ZMTP protocol).
     Zmq,
     /// DDS RTPS protocol.
     DdsRtps,
@@ -170,7 +175,7 @@ impl std::str::FromStr for TransportKind {
             "raw-tcp" | "rawtcp" | "tcp" => Ok(Self::RawTcp),
             "raw-udp" | "rawudp" | "udp" => Ok(Self::RawUdp),
             "json-fixture" | "jsonfixture" => Ok(Self::JsonFixture),
-            _ => Err(format!("Unknown transport kind: {}", s)),
+            _ => Err(format!("Unknown transport kind: {s}")),
         }
     }
 }
@@ -198,7 +203,7 @@ impl fmt::Display for Direction {
 }
 
 /// Message payload, either raw bytes or decoded with schema.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Payload {
     /// Raw bytes, not decoded.
@@ -283,7 +288,7 @@ pub enum CorrelationKey {
 }
 
 /// Main debug event structure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DebugEvent {
     /// Unique event identifier.
     pub id: EventId,
@@ -313,12 +318,13 @@ pub struct DebugEvent {
 
 impl DebugEvent {
     /// Create a new debug event builder.
+    #[must_use] 
     pub fn builder() -> DebugEventBuilder {
         DebugEventBuilder::default()
     }
 }
 
-/// Builder for DebugEvent.
+/// Builder for `DebugEvent`.
 #[derive(Default)]
 pub struct DebugEventBuilder {
     id: Option<EventId>,
@@ -335,13 +341,13 @@ pub struct DebugEventBuilder {
 
 impl DebugEventBuilder {
     /// Set the event ID (defaults to auto-generated).
-    pub fn id(mut self, id: EventId) -> Self {
+    pub const fn id(mut self, id: EventId) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the timestamp (defaults to current time).
-    pub fn timestamp(mut self, timestamp: Timestamp) -> Self {
+    pub const fn timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self
     }
@@ -353,13 +359,13 @@ impl DebugEventBuilder {
     }
 
     /// Set the transport kind.
-    pub fn transport(mut self, transport: TransportKind) -> Self {
+    pub const fn transport(mut self, transport: TransportKind) -> Self {
         self.transport = Some(transport);
         self
     }
 
     /// Set the direction.
-    pub fn direction(mut self, direction: Direction) -> Self {
+    pub const fn direction(mut self, direction: Direction) -> Self {
         self.direction = Some(direction);
         self
     }
@@ -383,7 +389,7 @@ impl DebugEventBuilder {
     }
 
     /// Set the sequence number.
-    pub fn sequence(mut self, seq: u64) -> Self {
+    pub const fn sequence(mut self, seq: u64) -> Self {
         self.sequence = Some(seq);
         self
     }
@@ -394,7 +400,7 @@ impl DebugEventBuilder {
         self
     }
 
-    /// Build the DebugEvent.
+    /// Build the `DebugEvent`.
     pub fn build(self) -> DebugEvent {
         DebugEvent {
             id: self.id.unwrap_or_else(EventId::next),

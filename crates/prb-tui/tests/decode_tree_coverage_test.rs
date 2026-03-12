@@ -1,4 +1,4 @@
-//! Additional tests for decode_tree.rs to improve coverage
+//! Additional tests for `decode_tree.rs` to improve coverage
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -432,7 +432,7 @@ fn test_decode_tree_handle_key_backspace() {
 fn test_decode_tree_with_many_metadata_keys() {
     let mut metadata = BTreeMap::new();
     for i in 0..50 {
-        metadata.insert(format!("key{}", i), format!("value{}", i));
+        metadata.insert(format!("key{i}"), format!("value{i}"));
     }
 
     let events = vec![make_event_with_metadata(1, TransportKind::Grpc, metadata)];

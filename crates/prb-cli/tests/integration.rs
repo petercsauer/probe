@@ -211,7 +211,7 @@ fn test_cli_inspect_filter_transport() {
         .arg("inspect")
         .arg("--filter")
         .arg("grpc")
-        .write_stdin(ingest_output.stdout.clone())
+        .write_stdin(ingest_output.stdout)
         .output()
         .unwrap();
 

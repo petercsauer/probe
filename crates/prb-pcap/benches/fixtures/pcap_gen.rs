@@ -10,7 +10,7 @@ pub struct SyntheticPcapBuilder {
 }
 
 impl SyntheticPcapBuilder {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             packets: Vec::new(),
             linktype: 1, // Ethernet

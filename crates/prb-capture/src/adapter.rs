@@ -1,7 +1,7 @@
-//! Live capture adapter implementing the CaptureAdapter trait.
+//! Live capture adapter implementing the `CaptureAdapter` trait.
 //!
-//! This module wraps the CaptureEngine and PipelineCore to provide a streaming
-//! CaptureAdapter implementation for live network capture.
+//! This module wraps the `CaptureEngine` and `PipelineCore` to provide a streaming
+//! `CaptureAdapter` implementation for live network capture.
 
 use crate::{CaptureConfig, CaptureEngine, CaptureError};
 use prb_core::{CaptureAdapter, CoreError, DebugEvent};
@@ -9,16 +9,16 @@ use prb_pcap::{PipelineCore, TlsStreamProcessor, create_registry_with_builtins};
 use std::collections::VecDeque;
 use std::time::Duration;
 
-/// Live capture adapter that implements CaptureAdapter for streaming packet sources.
+/// Live capture adapter that implements `CaptureAdapter` for streaming packet sources.
 ///
-/// This adapter combines a CaptureEngine (which reads packets from a network interface)
-/// with a PipelineCore (which normalizes, reassembles, and decrypts packets into DebugEvents).
+/// This adapter combines a `CaptureEngine` (which reads packets from a network interface)
+/// with a `PipelineCore` (which normalizes, reassembles, and decrypts packets into `DebugEvents`).
 ///
 /// # Architecture
 ///
-/// The CaptureEngine runs in a dedicated OS thread, continuously reading packets from
+/// The `CaptureEngine` runs in a dedicated OS thread, continuously reading packets from
 /// libpcap and delivering them over a bounded channel. The adapter pulls from this channel
-/// and feeds packets through the PipelineCore incrementally.
+/// and feeds packets through the `PipelineCore` incrementally.
 ///
 /// # Example
 ///
@@ -63,7 +63,7 @@ impl LiveCaptureAdapter {
         // Build TLS processor from optional keylog path
         let tls = if let Some(ref keylog_path) = config.tls_keylog_path {
             PipelineCore::with_keylog(keylog_path, registry)
-                .map_err(|e| CaptureError::Other(format!("failed to load TLS keylog: {}", e)))?
+                .map_err(|e| CaptureError::Other(format!("failed to load TLS keylog: {e}")))?
         } else {
             PipelineCore::new(TlsStreamProcessor::new(), registry)
         };
@@ -85,7 +85,7 @@ impl LiveCaptureAdapter {
     ///
     /// # Errors
     /// Returns an error if:
-    /// - Insufficient privileges (not root or missing CAP_NET_RAW)
+    /// - Insufficient privileges (not root or missing `CAP_NET_RAW`)
     /// - Interface doesn't exist
     /// - BPF filter compilation fails
     pub fn start(&mut self) -> Result<(), CaptureError> {
@@ -109,7 +109,8 @@ impl LiveCaptureAdapter {
     }
 
     /// Returns a reference to the current pipeline statistics.
-    pub fn pipeline_stats(&self) -> &prb_pcap::PipelineStats {
+    #[must_use] 
+    pub const fn pipeline_stats(&self) -> &prb_pcap::PipelineStats {
         self.core.stats()
     }
 
@@ -130,7 +131,7 @@ impl LiveCaptureAdapter {
 }
 
 impl CaptureAdapter for LiveCaptureAdapter {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "live-capture"
     }
 
@@ -153,7 +154,7 @@ struct LiveIngestIterator<'a> {
     adapter: &'a mut LiveCaptureAdapter,
 }
 
-impl<'a> Iterator for LiveIngestIterator<'a> {
+impl Iterator for LiveIngestIterator<'_> {
     type Item = Result<DebugEvent, CoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {

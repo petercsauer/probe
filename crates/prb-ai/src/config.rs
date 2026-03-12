@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum AiProvider {
     /// Local Ollama instance (default, privacy-first).
     Ollama,
-    /// OpenAI API.
+    /// `OpenAI` API.
     OpenAi,
     /// Any OpenAI-compatible endpoint.
     Custom,
@@ -67,6 +67,7 @@ impl Default for AiConfig {
 }
 
 impl AiConfig {
+    #[must_use] 
     pub fn for_provider(provider: AiProvider) -> Self {
         match provider {
             AiProvider::Ollama => Self::default(),
@@ -100,22 +101,26 @@ impl AiConfig {
         self
     }
 
-    pub fn with_temperature(mut self, temp: f32) -> Self {
+    #[must_use] 
+    pub const fn with_temperature(mut self, temp: f32) -> Self {
         self.temperature = temp;
         self
     }
 
-    pub fn with_max_tokens(mut self, tokens: u32) -> Self {
+    #[must_use] 
+    pub const fn with_max_tokens(mut self, tokens: u32) -> Self {
         self.max_tokens = tokens;
         self
     }
 
-    pub fn with_stream(mut self, stream: bool) -> Self {
+    #[must_use] 
+    pub const fn with_stream(mut self, stream: bool) -> Self {
         self.stream = stream;
         self
     }
 
-    pub fn with_context_window(mut self, n: usize) -> Self {
+    #[must_use] 
+    pub const fn with_context_window(mut self, n: usize) -> Self {
         self.context_window = n;
         self
     }

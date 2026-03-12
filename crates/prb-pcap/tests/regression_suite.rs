@@ -49,9 +49,9 @@ fn fixture_dir() -> PathBuf {
 fn load_manifest() -> FixtureManifest {
     let manifest_path = fixture_dir().join("manifest.json");
     let content = fs::read_to_string(&manifest_path)
-        .unwrap_or_else(|_| panic!("Failed to read manifest at {:?}", manifest_path));
+        .unwrap_or_else(|_| panic!("Failed to read manifest at {manifest_path:?}"));
     serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("Failed to parse manifest.json: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
 }
 
 /// Get full path to a fixture file.
@@ -71,7 +71,7 @@ fn keylog_path(fixture: &Fixture) -> Option<PathBuf> {
 /// Run pipeline on a capture file.
 fn run_pipeline(path: &Path, keylog: Option<PathBuf>) -> Vec<prb_core::DebugEvent> {
     let mut adapter = PcapCaptureAdapter::new(path.to_path_buf(), keylog);
-    adapter.ingest().filter_map(|e| e.ok()).collect()
+    adapter.ingest().filter_map(std::result::Result::ok).collect()
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn test_all_fixtures_parse_without_panic() {
         skipped.len()
     );
     if !skipped.is_empty() {
-        eprintln!("Skipped (not present): {:?}", skipped);
+        eprintln!("Skipped (not present): {skipped:?}");
     }
 
     // At least some fixtures should be present
@@ -143,12 +143,10 @@ fn test_all_fixtures_produce_minimum_events() {
         }
     }
 
-    if !failures.is_empty() {
-        panic!(
-            "Fixtures failed minimum event count:\n{}",
-            failures.join("\n")
-        );
-    }
+    assert!(failures.is_empty(), 
+        "Fixtures failed minimum event count:\n{}",
+        failures.join("\n")
+    )
 }
 
 #[test]
@@ -268,8 +266,7 @@ fn test_performance_baseline_all_fixtures() {
     eprintln!("{}", "-".repeat(80));
     for (path, events, duration, eps) in results {
         eprintln!(
-            "{:<40} {:>10} {:>12?} {:>15.0}",
-            path, events, duration, eps
+            "{path:<40} {events:>10} {duration:>12?} {eps:>15.0}"
         );
     }
 }
@@ -321,23 +318,22 @@ fn test_fixture_file_count() {
     let captures_dir = fixture_dir();
 
     if !captures_dir.exists() {
-        eprintln!("Fixtures directory does not exist: {:?}", captures_dir);
+        eprintln!("Fixtures directory does not exist: {captures_dir:?}");
         return;
     }
 
     let count = walkdir::WalkDir::new(&captures_dir)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|e| {
             e.path()
                 .extension()
                 .and_then(|s| s.to_str())
-                .map(|s| s == "pcap" || s == "pcapng")
-                .unwrap_or(false)
+                .is_some_and(|s| s == "pcap" || s == "pcapng")
         })
         .count();
 
-    eprintln!("Found {} pcap/pcapng files in fixtures directory", count);
+    eprintln!("Found {count} pcap/pcapng files in fixtures directory");
 
     assert!(
         count > 0,
@@ -348,15 +344,13 @@ fn test_fixture_file_count() {
     let manifest = load_manifest();
     let manifest_count = manifest.fixtures.len();
 
-    eprintln!("Manifest contains {} fixtures", manifest_count);
+    eprintln!("Manifest contains {manifest_count} fixtures");
 
     assert!(manifest_count > 0, "Manifest contains no fixtures");
 
     // Allow some discrepancy (manifest may exclude some files)
     assert!(
         count >= manifest_count / 2,
-        "Significant mismatch between fixture files ({}) and manifest ({})",
-        count,
-        manifest_count
+        "Significant mismatch between fixture files ({count}) and manifest ({manifest_count})"
     );
 }

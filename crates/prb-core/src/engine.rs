@@ -16,6 +16,7 @@ pub struct ConversationEngine {
 
 impl ConversationEngine {
     /// Create a new conversation engine.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             strategies: Vec::new(),
@@ -91,6 +92,7 @@ impl ConversationEngine {
     }
 
     /// Look up which conversation an event belongs to.
+    #[must_use] 
     pub fn conversation_for_event<'a>(
         &self,
         set: &'a ConversationSet,
@@ -116,6 +118,7 @@ pub struct ConversationSet {
 
 impl ConversationSet {
     /// Get conversation containing the given event.
+    #[must_use] 
     pub fn for_event(&self, event_id: EventId) -> Option<&Conversation> {
         self.event_index
             .get(&event_id)
@@ -123,6 +126,7 @@ impl ConversationSet {
     }
 
     /// Get all conversations, sorted by start time.
+    #[must_use] 
     pub fn sorted_by_time(&self) -> Vec<&Conversation> {
         let mut sorted: Vec<_> = self.conversations.iter().collect();
         sorted.sort_by_key(|c| c.metrics.start_time);
@@ -130,6 +134,7 @@ impl ConversationSet {
     }
 
     /// Filter conversations by protocol.
+    #[must_use] 
     pub fn by_protocol(&self, protocol: TransportKind) -> Vec<&Conversation> {
         self.conversations
             .iter()
@@ -138,6 +143,7 @@ impl ConversationSet {
     }
 
     /// Summary statistics.
+    #[must_use] 
     pub fn stats(&self) -> ConversationStats {
         let mut by_protocol = HashMap::new();
         let mut by_state = HashMap::new();
@@ -218,8 +224,7 @@ fn classify_conversation(
     // Check for errors in metadata
     let has_error = metadata
         .get("grpc.status")
-        .map(|s| s != "0")
-        .unwrap_or(false);
+        .is_some_and(|s| s != "0");
 
     let state = if has_error {
         ConversationState::Error
@@ -245,7 +250,7 @@ fn classify_conversation(
 }
 
 /// Classify gRPC conversation kind.
-fn classify_grpc_kind(outbound: usize, inbound: usize) -> ConversationKind {
+const fn classify_grpc_kind(outbound: usize, inbound: usize) -> ConversationKind {
     match (outbound, inbound) {
         (1, 1) => ConversationKind::UnaryRpc,
         (1, n) if n > 1 => ConversationKind::ServerStreaming,
@@ -283,7 +288,7 @@ fn generate_summary(
             .and_then(|s| grpc_status_name(s))
             .unwrap_or_else(|| state.to_string());
         let duration_ms = metrics.duration_ns / 1_000_000;
-        return format!("{} → {} ({}ms)", method, status, duration_ms);
+        return format!("{method} → {status} ({duration_ms}ms)");
     }
 
     // For ZMQ PUB/SUB: "PUB topic=market.data — 142 messages (5.2s)"
@@ -291,8 +296,7 @@ fn generate_summary(
         let count = metrics.request_count + metrics.response_count;
         let duration_s = metrics.duration_ns as f64 / 1_000_000_000.0;
         return format!(
-            "PUB topic={} — {} messages ({:.1}s)",
-            topic, count, duration_s
+            "PUB topic={topic} — {count} messages ({duration_s:.1}s)"
         );
     }
 
@@ -300,14 +304,13 @@ fn generate_summary(
     if let Some(topic) = metadata.get("dds.topic_name") {
         let domain = metadata
             .get("dds.domain_id")
-            .map(|d| d.as_str())
-            .unwrap_or("?");
+            .map_or("?", std::string::String::as_str);
         let count = metrics.request_count + metrics.response_count;
-        return format!("Topic={} domain={} — {} samples", topic, domain, count);
+        return format!("Topic={topic} domain={domain} — {count} samples");
     }
 
     // Fallback
-    format!("{} conversation — {} state", kind, state)
+    format!("{kind} conversation — {state} state")
 }
 
 /// Map gRPC status code to name.
@@ -365,7 +368,7 @@ fn group_fallback_events(events: &[&DebugEvent]) -> Result<Vec<Conversation>, Co
 
         conversation.event_ids = event_ids;
         conversation.metrics = metrics;
-        conversation.summary = format!("Fallback {} conversation", protocol);
+        conversation.summary = format!("Fallback {protocol} conversation");
 
         conversations.push(conversation);
     }

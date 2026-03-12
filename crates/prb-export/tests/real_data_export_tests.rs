@@ -18,7 +18,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn collect_ok_events(adapter: &mut PcapCaptureAdapter) -> Vec<DebugEvent> {
-    adapter.ingest().filter_map(|r| r.ok()).collect()
+    adapter.ingest().filter_map(std::result::Result::ok).collect()
 }
 
 #[test]
@@ -27,8 +27,7 @@ fn test_csv_export_from_http_capture() {
     let capture_path = fixtures_dir().join("http/http-chunked-gzip.pcap");
     assert!(
         capture_path.exists(),
-        "HTTP capture required: {:?}",
-        capture_path
+        "HTTP capture required: {capture_path:?}"
     );
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
@@ -80,8 +79,7 @@ fn test_csv_export_from_http_capture() {
     let record_count = reader.records().count();
     assert!(
         record_count > 0,
-        "Should have at least one record (got {})",
-        record_count
+        "Should have at least one record (got {record_count})"
     );
 }
 
@@ -111,7 +109,7 @@ fn test_csv_export_field_escaping() {
     // Should parse without errors
     let records: Vec<_> = reader.records().collect();
     assert!(
-        records.iter().all(|r| r.is_ok()),
+        records.iter().all(std::result::Result::is_ok),
         "All records should parse"
     );
 }
@@ -374,9 +372,7 @@ fn test_otlp_span_timing() {
 
         assert!(
             start <= end,
-            "Span start time should be <= end time (start: {}, end: {})",
-            start,
-            end
+            "Span start time should be <= end time (start: {start}, end: {end})"
         );
     }
 }
@@ -388,7 +384,7 @@ fn test_csv_and_har_event_count_consistency() {
     let capture_path = fixtures_dir().join("dns/dns.pcap");
     assert!(capture_path.exists());
 
-    let mut adapter = PcapCaptureAdapter::new(capture_path.clone(), None);
+    let mut adapter = PcapCaptureAdapter::new(capture_path, None);
     let events = collect_ok_events(&mut adapter);
     assert!(!events.is_empty());
 

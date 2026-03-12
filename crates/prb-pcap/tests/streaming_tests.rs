@@ -234,8 +234,7 @@ fn test_streaming_varying_shard_counts() {
         assert_eq!(
             events.len(),
             100,
-            "Shard count {} should produce 100 events",
-            num_shards
+            "Shard count {num_shards} should produce 100 events"
         );
         assert_eq!(handle.num_shards(), num_shards);
     }
@@ -303,7 +302,7 @@ fn test_streaming_interleaved_flows() {
         for flow in 0..5 {
             let pkt = create_synthetic_packet(
                 1000 + round * 5 + flow,
-                format!("flow{}", flow).as_bytes(),
+                format!("flow{flow}").as_bytes(),
             );
             tx.send(pkt).unwrap();
         }

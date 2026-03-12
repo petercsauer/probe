@@ -1,14 +1,14 @@
 use prb_core::{DebugEvent, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID};
 use std::collections::BTreeMap;
 
-/// Merged event with optional OTel span enrichment.
+/// Merged event with optional `OTel` span enrichment.
 #[derive(Debug, Clone)]
 pub struct MergedEvent {
     pub event: DebugEvent,
     pub otel_span: Option<SpanSummary>,
 }
 
-/// Summary of OTel span information for enrichment.
+/// Summary of `OTel` span information for enrichment.
 #[derive(Debug, Clone)]
 pub struct SpanSummary {
     pub service_name: String,
@@ -19,7 +19,7 @@ pub struct SpanSummary {
 
 /// Merge OTLP trace events with packet-level events.
 ///
-/// Events are matched by trace_id + span_id. Packet events get enriched with
+/// Events are matched by `trace_id` + `span_id`. Packet events get enriched with
 /// span metadata. Trace events without matching packets are included as-is.
 /// The result is sorted by timestamp.
 pub fn merge_traces_with_packets(
@@ -99,15 +99,13 @@ fn extract_span_summary(event: &DebugEvent) -> SpanSummary {
 
     let status = event
         .metadata
-        .get("grpc.status")
-        .map(|s| {
+        .get("grpc.status").map_or_else(|| "UNKNOWN".to_string(), |s| {
             if s == "0" {
                 "OK".to_string()
             } else {
-                format!("ERROR ({})", s)
+                format!("ERROR ({s})")
             }
-        })
-        .unwrap_or_else(|| "UNKNOWN".to_string());
+        });
 
     SpanSummary {
         service_name,

@@ -3,7 +3,7 @@
 use super::*;
 use bytes::Bytes;
 
-/// Helper to create a test DebugEvent.
+/// Helper to create a test `DebugEvent`.
 fn create_test_event(timestamp_ns: u64, direction: Direction, payload_size: usize) -> DebugEvent {
     DebugEvent::builder()
         .id(EventId::next())
@@ -331,7 +331,7 @@ fn test_compute_aggregate_metrics_percentiles() {
     // Create 10 conversations with durations from 10ms to 100ms
     for i in 1..=10 {
         let mut conv = Conversation::new(
-            ConversationId::new(format!("test{}", i)),
+            ConversationId::new(format!("test{i}")),
             ConversationKind::UnaryRpc,
             TransportKind::Grpc,
             ConversationState::Complete,
@@ -356,7 +356,7 @@ fn test_compute_aggregate_metrics_conversations_per_second() {
     // 10 conversations over 5 seconds (1B ns to 6B ns)
     for i in 0..10 {
         let mut conv = Conversation::new(
-            ConversationId::new(format!("test{}", i)),
+            ConversationId::new(format!("test{i}")),
             ConversationKind::UnaryRpc,
             TransportKind::Grpc,
             ConversationState::Complete,
@@ -383,7 +383,7 @@ fn test_compute_aggregate_metrics_total_bytes() {
 
     for i in 1..=5 {
         let mut conv = Conversation::new(
-            ConversationId::new(format!("test{}", i)),
+            ConversationId::new(format!("test{i}")),
             ConversationKind::UnaryRpc,
             TransportKind::Grpc,
             ConversationState::Complete,

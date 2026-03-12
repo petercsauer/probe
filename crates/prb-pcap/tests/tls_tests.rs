@@ -27,21 +27,19 @@ fn test_keylog_parse() {
     let secret = "bb".repeat(32);
     keylog2
         .parse_line(&format!(
-            "CLIENT_HANDSHAKE_TRAFFIC_SECRET {} {}",
-            cr, secret
+            "CLIENT_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"
         ))
         .unwrap();
     keylog2
         .parse_line(&format!(
-            "SERVER_HANDSHAKE_TRAFFIC_SECRET {} {}",
-            cr, secret
+            "SERVER_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"
         ))
         .unwrap();
     keylog2
-        .parse_line(&format!("CLIENT_TRAFFIC_SECRET_0 {} {}", cr, secret))
+        .parse_line(&format!("CLIENT_TRAFFIC_SECRET_0 {cr} {secret}"))
         .unwrap();
     keylog2
-        .parse_line(&format!("SERVER_TRAFFIC_SECRET_0 {} {}", cr, secret))
+        .parse_line(&format!("SERVER_TRAFFIC_SECRET_0 {cr} {secret}"))
         .unwrap();
     assert_eq!(keylog2.len(), 1);
     let materials = keylog2.lookup(&hex::decode(&cr).unwrap()).unwrap();

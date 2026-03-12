@@ -22,7 +22,7 @@ fn create_test_event(id: u64) -> DebugEvent {
             }),
         },
         transport: TransportKind::Grpc,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound
@@ -67,7 +67,7 @@ fn bench_storage_write_read(c: &mut Criterion) {
                 writer.write_event(event).unwrap();
             }
             writer.finish().unwrap();
-        })
+        });
     });
 
     group.throughput(Throughput::Elements(1000));
@@ -83,7 +83,7 @@ fn bench_storage_write_read(c: &mut Criterion) {
                 writer.write_event(event).unwrap();
             }
             writer.finish().unwrap();
-        })
+        });
     });
 
     // Pre-create file for read benchmark

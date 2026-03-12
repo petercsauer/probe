@@ -26,7 +26,7 @@ pub struct PacketLocation {
 /// Memory-mapped PCAP/pcapng reader with zero-copy access.
 ///
 /// Uses a two-phase approach:
-/// 1. Phase 1: Scan file and build index of PacketLocation entries
+/// 1. Phase 1: Scan file and build index of `PacketLocation` entries
 /// 2. Phase 2: Access packet data via memory-mapped file without copying
 ///
 /// Memory usage: ~50MB working set regardless of file size.
@@ -70,8 +70,7 @@ impl MmapPcapReader {
             0xa1b2c3d4 | 0xd4c3b2a1 => CaptureFormat::LegacyPcap,
             _ => {
                 return Err(PcapError::UnsupportedFormat(format!(
-                    "unknown magic bytes: {:08x}",
-                    magic
+                    "unknown magic bytes: {magic:08x}"
                 )));
             }
         };
@@ -90,12 +89,14 @@ impl MmapPcapReader {
     }
 
     /// Returns the number of indexed packets.
-    pub fn packet_count(&self) -> usize {
+    #[must_use] 
+    pub const fn packet_count(&self) -> usize {
         self.index.len()
     }
 
     /// Returns the capture file format.
-    pub fn format(&self) -> &str {
+    #[must_use] 
+    pub const fn format(&self) -> &str {
         match self.format {
             CaptureFormat::LegacyPcap => "pcap",
             CaptureFormat::Pcapng => "pcapng",
@@ -103,6 +104,7 @@ impl MmapPcapReader {
     }
 
     /// Returns a slice of all packet locations.
+    #[must_use] 
     pub fn packet_locations(&self) -> &[PacketLocation] {
         &self.index
     }
@@ -114,7 +116,7 @@ impl MmapPcapReader {
         let location = self
             .index
             .get(index)
-            .ok_or_else(|| PcapError::Parse(format!("packet index {} out of bounds", index)))?;
+            .ok_or_else(|| PcapError::Parse(format!("packet index {index} out of bounds")))?;
 
         let start = location.offset as usize;
         let end = start + location.length as usize;
@@ -171,7 +173,7 @@ impl MmapPcapReader {
                 break;
             }
 
-            let timestamp_us = ts_sec as u64 * 1_000_000 + ts_usec as u64;
+            let timestamp_us = u64::from(ts_sec) * 1_000_000 + u64::from(ts_usec);
 
             index.push(PacketLocation {
                 offset: packet_data_offset as u64,
@@ -202,8 +204,7 @@ impl MmapPcapReader {
 
             if block_len < 12 {
                 return Err(PcapError::Parse(format!(
-                    "invalid block length {} at offset {}",
-                    block_len, pos
+                    "invalid block length {block_len} at offset {pos}"
                 )));
             }
 
@@ -220,7 +221,7 @@ impl MmapPcapReader {
                 0x00000001 => {
                     // Interface Description Block (IDB)
                     if pos + 16 <= data.len() {
-                        let linktype = u16::from_le_bytes([data[pos + 8], data[pos + 9]]) as u32;
+                        let linktype = u32::from(u16::from_le_bytes([data[pos + 8], data[pos + 9]]));
                         interfaces.push(linktype);
                         if interfaces.len() == 1 {
                             default_linktype = linktype;
@@ -262,7 +263,7 @@ impl MmapPcapReader {
                         ]);
 
                         let packet_data_offset = pos + 28;
-                        let timestamp_us = ((ts_high as u64) << 32) | (ts_low as u64);
+                        let timestamp_us = (u64::from(ts_high) << 32) | u64::from(ts_low);
                         let linktype = interfaces
                             .get(if_id as usize)
                             .copied()
@@ -309,7 +310,7 @@ impl MmapPcapReader {
 
     /// Iterates over all packets with zero-copy data access.
     ///
-    /// Returns (PacketLocation, packet_data) tuples.
+    /// Returns (`PacketLocation`, `packet_data`) tuples.
     pub fn iter_packets(&self) -> impl Iterator<Item = (PacketLocation, &[u8])> + '_ {
         self.index
             .iter()
@@ -483,20 +484,17 @@ mod tests {
             let mmap_data = mmap_reader.get_packet_data(i).unwrap();
             assert_eq!(
                 mmap_data, streaming_packet.data,
-                "packet {} data should match between streaming and mmap readers",
-                i
+                "packet {i} data should match between streaming and mmap readers"
             );
 
             let location = &mmap_reader.packet_locations()[i];
             assert_eq!(
                 location.timestamp_us, streaming_packet.timestamp_us,
-                "packet {} timestamp should match",
-                i
+                "packet {i} timestamp should match"
             );
             assert_eq!(
                 location.linktype, streaming_packet.linktype,
-                "packet {} linktype should match",
-                i
+                "packet {i} linktype should match"
             );
         }
     }

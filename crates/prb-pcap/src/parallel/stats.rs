@@ -23,7 +23,8 @@ pub struct AtomicPipelineStats {
 
 impl AtomicPipelineStats {
     /// Creates a new stats structure with all counters initialized to zero.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             packets_received: AtomicU64::new(0),
             packets_normalized: AtomicU64::new(0),

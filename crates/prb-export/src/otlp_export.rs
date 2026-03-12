@@ -123,16 +123,16 @@ fn deterministic_trace_id(event: &DebugEvent) -> String {
     for key in &event.correlation_keys {
         if let CorrelationKey::ConnectionId { id } = key {
             let hash = simple_hash(id.as_bytes());
-            return format!("{:032x}", hash);
+            return format!("{hash:032x}");
         }
     }
     if let Some(ref net) = event.source.network {
         let key = format!("{}->{}", net.src, net.dst);
         let hash = simple_hash(key.as_bytes());
-        return format!("{:032x}", hash);
+        return format!("{hash:032x}");
     }
     let hash = simple_hash(event.source.origin.as_bytes());
-    format!("{:032x}", hash)
+    format!("{hash:032x}")
 }
 
 fn deterministic_span_id(event: &DebugEvent) -> String {
@@ -144,7 +144,7 @@ fn simple_hash(data: &[u8]) -> u128 {
     // FNV-1a 128-bit
     let mut hash: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
     for &byte in data {
-        hash ^= byte as u128;
+        hash ^= u128::from(byte);
         hash = hash.wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013B);
     }
     hash
@@ -179,7 +179,7 @@ fn event_to_span(event: &DebugEvent) -> Span {
     for (key, value) in &event.metadata {
         // Skip otel.* keys as they're already in trace_id/span_id/parent_span_id
         if !key.starts_with("otel.") {
-            attributes.push(string_attr(&format!("probe.metadata.{}", key), value));
+            attributes.push(string_attr(&format!("probe.metadata.{key}"), value));
         }
     }
 
@@ -191,14 +191,14 @@ fn event_to_span(event: &DebugEvent) -> Span {
         attributes.push(string_attr("probe.warning", warning));
     }
 
-    let status = match event.metadata.get("grpc.status").map(|s| s.as_str()) {
+    let status = match event.metadata.get("grpc.status").map(std::string::String::as_str) {
         Some("0") => SpanStatus {
             code: STATUS_CODE_OK,
             message: None,
         },
         Some(code) => SpanStatus {
             code: STATUS_CODE_ERROR,
-            message: Some(format!("gRPC status {}", code)),
+            message: Some(format!("gRPC status {code}")),
         },
         None if !event.warnings.is_empty() => SpanStatus {
             code: STATUS_CODE_ERROR,

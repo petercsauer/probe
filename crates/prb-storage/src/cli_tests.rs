@@ -7,7 +7,7 @@ mod tests {
     use std::fs::File;
     use tempfile::TempDir;
 
-    /// Helper to create a test DebugEvent.
+    /// Helper to create a test `DebugEvent`.
     fn create_test_event(adapter: &str, origin: &str, timestamp: u64) -> DebugEvent {
         DebugEvent::builder()
             .source(EventSource {

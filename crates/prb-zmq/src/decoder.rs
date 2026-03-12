@@ -1,4 +1,4 @@
-//! ZMQ protocol decoder implementing the ProtocolDecoder trait.
+//! ZMQ protocol decoder implementing the `ProtocolDecoder` trait.
 
 use crate::parser::{ZmtpEvent, ZmtpParser};
 use bytes::Bytes;
@@ -40,6 +40,7 @@ pub struct ZmqDecoder {
 
 impl ZmqDecoder {
     /// Create a new ZMQ decoder.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             parser: ZmtpParser::new(),
@@ -50,7 +51,7 @@ impl ZmqDecoder {
         }
     }
 
-    /// Process ZMTP events and generate DebugEvents.
+    /// Process ZMTP events and generate `DebugEvents`.
     fn process_zmtp_events(
         &mut self,
         events: Vec<ZmtpEvent>,
@@ -103,7 +104,7 @@ impl ZmqDecoder {
         Ok(debug_events)
     }
 
-    /// Create a DebugEvent for a ZMQ message.
+    /// Create a `DebugEvent` for a ZMQ message.
     fn create_message_event(
         &mut self,
         frames: Vec<Vec<u8>>,
@@ -165,8 +166,7 @@ impl ZmqDecoder {
                 adapter: "pcap".to_string(),
                 origin: ctx
                     .metadata
-                    .get("origin")
-                    .map(|s| s.to_string())
+                    .get("origin").cloned()
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
                     src: ctx
@@ -196,7 +196,7 @@ impl ZmqDecoder {
             event_builder = event_builder
                 .metadata(METADATA_KEY_ZMQ_TOPIC, &topic_str)
                 .correlation_key(CorrelationKey::Topic {
-                    name: topic_str.clone(),
+                    name: topic_str,
                 });
         } else if !identity.is_empty() {
             event_builder = event_builder.correlation_key(CorrelationKey::Custom {
@@ -261,7 +261,7 @@ mod tests {
         let mut mech_bytes = mechanism.as_bytes().to_vec();
         mech_bytes.resize(20, 0);
         greeting.extend_from_slice(&mech_bytes);
-        greeting.push(if as_server { 1 } else { 0 });
+        greeting.push(u8::from(as_server));
         greeting.resize(64, 0);
         greeting
     }
@@ -290,7 +290,7 @@ mod tests {
     }
 
     fn create_message_frame(body: &[u8], has_more: bool) -> Vec<u8> {
-        let mut frame = vec![if has_more { 0x01 } else { 0x00 }];
+        let mut frame = vec![u8::from(has_more)];
         if body.len() <= 255 {
             frame.push(body.len() as u8);
         } else {

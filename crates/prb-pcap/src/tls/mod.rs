@@ -11,7 +11,7 @@
 //!
 //! Architecture follows `pcapsql-core` reference implementation:
 //! - keylog: parse SSLKEYLOGFILE + DSB keys
-//! - session: parse TLS handshake, extract client_random/server_random/cipher
+//! - session: parse TLS handshake, extract `client_random/server_random/cipher`
 //! - kdf: TLS 1.2 PRF and TLS 1.3 HKDF-Expand-Label
 //! - decrypt: AEAD decryption with per-record nonce construction
 
@@ -56,6 +56,7 @@ pub struct TlsStreamProcessor {
 
 impl TlsStreamProcessor {
     /// Creates a new TLS stream processor with an empty key log.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             keylog: Arc::new(TlsKeyLog::new()),
@@ -63,6 +64,7 @@ impl TlsStreamProcessor {
     }
 
     /// Creates a new TLS stream processor with an existing key log.
+    #[must_use] 
     pub fn with_keylog(keylog: TlsKeyLog) -> Self {
         Self {
             keylog: Arc::new(keylog),
@@ -73,7 +75,8 @@ impl TlsStreamProcessor {
     ///
     /// This is useful for parallel processing where multiple shards need to
     /// share the same keylog.
-    pub fn with_keylog_ref(keylog: Arc<TlsKeyLog>) -> Self {
+    #[must_use] 
+    pub const fn with_keylog_ref(keylog: Arc<TlsKeyLog>) -> Self {
         Self { keylog }
     }
 

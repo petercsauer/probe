@@ -30,7 +30,8 @@ pub struct TcpFlags {
 
 impl TcpFlags {
     /// Parse TCP flags from the flags byte (lower 6 bits).
-    pub fn from_byte(flags: u8) -> Self {
+    #[must_use] 
+    pub const fn from_byte(flags: u8) -> Self {
         Self {
             fin: flags & 0x01 != 0,
             syn: flags & 0x02 != 0,
@@ -93,6 +94,7 @@ impl OwnedNormalizedPacket {
     /// Creates an owned packet from a borrowed packet.
     ///
     /// This copies the payload bytes to create an owned variant.
+    #[must_use] 
     pub fn from_borrowed(packet: &NormalizedPacket<'_>) -> Self {
         Self {
             timestamp_us: packet.timestamp_us,
@@ -104,14 +106,16 @@ impl OwnedNormalizedPacket {
         }
     }
 
-    /// Alias for from_borrowed for convenience.
+    /// Alias for `from_borrowed` for convenience.
+    #[must_use] 
     pub fn from_normalized(packet: &NormalizedPacket<'_>) -> Self {
         Self::from_borrowed(packet)
     }
 
-    /// Creates a borrowed NormalizedPacket from this owned packet.
+    /// Creates a borrowed `NormalizedPacket` from this owned packet.
     ///
     /// The returned packet borrows the payload from `self`.
+    #[must_use] 
     pub fn as_normalized(&self) -> NormalizedPacket<'_> {
         NormalizedPacket {
             timestamp_us: self.timestamp_us,
@@ -139,6 +143,7 @@ pub struct PacketNormalizer {
 
 impl PacketNormalizer {
     /// Creates a new packet normalizer.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             defrag_pool: etherparse::defrag::IpDefragPool::new(),
@@ -175,19 +180,19 @@ impl PacketNormalizer {
             1 => {
                 // Ethernet
                 SlicedPacket::from_ethernet(data).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse Ethernet packet: {:?}", e))
+                    PcapError::Parse(format!("failed to parse Ethernet packet: {e:?}"))
                 })?
             }
             101 => {
                 // Raw IP (no link layer)
                 SlicedPacket::from_ip(data).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse Raw IP packet: {:?}", e))
+                    PcapError::Parse(format!("failed to parse Raw IP packet: {e:?}"))
                 })?
             }
             113 => {
                 // Linux SLL (cooked capture)
                 SlicedPacket::from_linux_sll(data)
-                    .map_err(|e| PcapError::Parse(format!("failed to parse SLL packet: {:?}", e)))?
+                    .map_err(|e| PcapError::Parse(format!("failed to parse SLL packet: {e:?}")))?
             }
             276 => {
                 // Linux SLL2 (not supported by etherparse, use custom parser)
@@ -195,8 +200,7 @@ impl PacketNormalizer {
             }
             _ => {
                 return Err(PcapError::InvalidLinktype(format!(
-                    "unsupported linktype: {}",
-                    linktype
+                    "unsupported linktype: {linktype}"
                 )));
             }
         };
@@ -259,7 +263,7 @@ impl PacketNormalizer {
                     return Ok(None);
                 }
                 Err(e) => {
-                    return Err(PcapError::Parse(format!("IP defrag error: {:?}", e)));
+                    return Err(PcapError::Parse(format!("IP defrag error: {e:?}")));
                 }
             }
         }
@@ -413,8 +417,8 @@ impl PacketNormalizer {
     ///
     /// Format: 4-byte AF family header + IP packet.
     /// AF values differ by OS:
-    /// - AF_INET (IPv4): 2 (all platforms)
-    /// - AF_INET6 (IPv6): 30 (macOS/BSD), 10 (Linux)
+    /// - `AF_INET` (IPv4): 2 (all platforms)
+    /// - `AF_INET6` (IPv6): 30 (macOS/BSD), 10 (Linux)
     fn parse_loopback<'a>(&self, data: &'a [u8]) -> Result<SlicedPacket<'a>, PcapError> {
         if data.len() < 4 {
             return Err(PcapError::Parse(
@@ -430,18 +434,17 @@ impl PacketNormalizer {
             2 => {
                 // AF_INET (IPv4)
                 SlicedPacket::from_ip(&data[4..]).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse IPv4 in loopback packet: {:?}", e))
+                    PcapError::Parse(format!("failed to parse IPv4 in loopback packet: {e:?}"))
                 })
             }
             10 | 30 => {
                 // AF_INET6 (IPv6): 10 on Linux, 30 on macOS/BSD
                 SlicedPacket::from_ip(&data[4..]).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse IPv6 in loopback packet: {:?}", e))
+                    PcapError::Parse(format!("failed to parse IPv6 in loopback packet: {e:?}"))
                 })
             }
             _ => Err(PcapError::Parse(format!(
-                "unsupported AF family in loopback packet: {}",
-                af_family
+                "unsupported AF family in loopback packet: {af_family}"
             ))),
         }
     }
@@ -450,15 +453,15 @@ impl PacketNormalizer {
     ///
     /// etherparse does not support SLL2, so we parse the header manually.
     /// SLL2 header format (20 bytes):
-    /// - protocol_type: u16 (BE) at offset 0
+    /// - `protocol_type`: u16 (BE) at offset 0
     /// - reserved: u16 at offset 2
-    /// - interface_index: u32 (BE) at offset 4
-    /// - arphrd_type: u16 (BE) at offset 8
-    /// - packet_type: u8 at offset 10
-    /// - link_layer_addr_len: u8 at offset 11
-    /// - link_layer_addr: [u8; 8] at offset 12
+    /// - `interface_index`: u32 (BE) at offset 4
+    /// - `arphrd_type`: u16 (BE) at offset 8
+    /// - `packet_type`: u8 at offset 10
+    /// - `link_layer_addr_len`: u8 at offset 11
+    /// - `link_layer_addr`: [u8; 8] at offset 12
     ///
-    /// Protocol type is EtherType (e.g., 0x0800 for IPv4, 0x86dd for IPv6).
+    /// Protocol type is `EtherType` (e.g., 0x0800 for IPv4, 0x86dd for IPv6).
     fn parse_sll2<'a>(&self, data: &'a [u8]) -> Result<SlicedPacket<'a>, PcapError> {
         if data.len() < 20 {
             return Err(PcapError::Parse(
@@ -475,12 +478,11 @@ impl PacketNormalizer {
             0x0800 | 0x86dd => {
                 // IPv4 or IPv6
                 SlicedPacket::from_ip(payload).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {:?}", e))
+                    PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {e:?}"))
                 })
             }
             _ => Err(PcapError::Parse(format!(
-                "unsupported protocol type in SLL2 frame: 0x{:04x}",
-                protocol_type
+                "unsupported protocol type in SLL2 frame: 0x{protocol_type:04x}"
             ))),
         }
     }
@@ -536,16 +538,15 @@ pub fn normalize_stateless(
     let sliced = match linktype {
         0 => parse_loopback_static(data)?,
         1 => SlicedPacket::from_ethernet(data)
-            .map_err(|e| PcapError::Parse(format!("Ethernet parse: {:?}", e)))?,
+            .map_err(|e| PcapError::Parse(format!("Ethernet parse: {e:?}")))?,
         101 => SlicedPacket::from_ip(data)
-            .map_err(|e| PcapError::Parse(format!("Raw IP parse: {:?}", e)))?,
+            .map_err(|e| PcapError::Parse(format!("Raw IP parse: {e:?}")))?,
         113 => SlicedPacket::from_linux_sll(data)
-            .map_err(|e| PcapError::Parse(format!("SLL parse: {:?}", e)))?,
+            .map_err(|e| PcapError::Parse(format!("SLL parse: {e:?}")))?,
         276 => parse_sll2_static(data)?,
         _ => {
             return Err(PcapError::InvalidLinktype(format!(
-                "unsupported: {}",
-                linktype
+                "unsupported: {linktype}"
             )));
         }
     };
@@ -663,14 +664,13 @@ fn parse_loopback_static(data: &[u8]) -> Result<SlicedPacket<'_>, PcapError> {
 
     match af_family {
         2 => SlicedPacket::from_ip(&data[4..]).map_err(|e| {
-            PcapError::Parse(format!("failed to parse IPv4 in loopback packet: {:?}", e))
+            PcapError::Parse(format!("failed to parse IPv4 in loopback packet: {e:?}"))
         }),
         10 | 30 => SlicedPacket::from_ip(&data[4..]).map_err(|e| {
-            PcapError::Parse(format!("failed to parse IPv6 in loopback packet: {:?}", e))
+            PcapError::Parse(format!("failed to parse IPv6 in loopback packet: {e:?}"))
         }),
         _ => Err(PcapError::Parse(format!(
-            "unsupported AF family in loopback packet: {}",
-            af_family
+            "unsupported AF family in loopback packet: {af_family}"
         ))),
     }
 }
@@ -688,11 +688,10 @@ fn parse_sll2_static(data: &[u8]) -> Result<SlicedPacket<'_>, PcapError> {
     let payload = &data[20..];
     match protocol_type {
         0x0800 | 0x86dd => SlicedPacket::from_ip(payload).map_err(|e| {
-            PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {:?}", e))
+            PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {e:?}"))
         }),
         _ => Err(PcapError::Parse(format!(
-            "unsupported protocol type in SLL2 frame: 0x{:04x}",
-            protocol_type
+            "unsupported protocol type in SLL2 frame: 0x{protocol_type:04x}"
         ))),
     }
 }

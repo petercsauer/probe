@@ -21,7 +21,7 @@ fn create_test_event(id: u64, transport: TransportKind, method: &str) -> DebugEv
             }),
         },
         transport,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound

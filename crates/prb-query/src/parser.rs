@@ -24,11 +24,11 @@ where
     }
 }
 
-fn is_ident_start(c: char) -> bool {
+const fn is_ident_start(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_'
 }
 
-fn is_ident_cont(c: char) -> bool {
+const fn is_ident_cont(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
 
@@ -481,13 +481,13 @@ mod tests {
 
     #[test]
     fn parse_nested_parentheses() {
-        let expr = parse_expr(r#"((a == 1))"#).unwrap();
+        let expr = parse_expr(r"((a == 1))").unwrap();
         assert!(matches!(expr, Expr::Compare { .. }));
 
-        let expr = parse_expr(r#"((a == 1 && b == 2) || (c == 3))"#).unwrap();
+        let expr = parse_expr(r"((a == 1 && b == 2) || (c == 3))").unwrap();
         assert!(matches!(expr, Expr::Or(_, _)));
 
-        let expr = parse_expr(r#"!(!(x == 1))"#).unwrap();
+        let expr = parse_expr(r"!(!(x == 1))").unwrap();
         if let Expr::Not(inner) = expr {
             assert!(matches!(*inner, Expr::Not(_)));
         } else {
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn parse_operator_precedence() {
         // AND binds tighter than OR
-        let expr = parse_expr(r#"a == 1 || b == 2 && c == 3"#).unwrap();
+        let expr = parse_expr(r"a == 1 || b == 2 && c == 3").unwrap();
         if let Expr::Or(left, right) = expr {
             assert!(matches!(*left, Expr::Compare { .. }));
             assert!(matches!(*right, Expr::And(_, _)));
@@ -506,7 +506,7 @@ mod tests {
             panic!("Expected OR at top level with AND on right");
         }
 
-        let expr = parse_expr(r#"a == 1 && b == 2 || c == 3"#).unwrap();
+        let expr = parse_expr(r"a == 1 && b == 2 || c == 3").unwrap();
         if let Expr::Or(left, _) = expr {
             assert!(matches!(*left, Expr::And(_, _)));
         } else {
@@ -518,7 +518,7 @@ mod tests {
     fn parse_error_messages() {
         let result = parse_expr("");
         assert!(result.is_err());
-        if let Err(QueryError::EmptyExpression) = result {
+        if matches!(result, Err(QueryError::EmptyExpression)) {
             // Expected
         } else {
             panic!("Expected EmptyExpression error");

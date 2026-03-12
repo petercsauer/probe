@@ -84,8 +84,7 @@ fn test_fixture_unsupported_version() {
     let err_msg = err.to_string();
     assert!(
         err_msg.contains("version") || err_msg.contains("99"),
-        "Error should mention version: {}",
-        err_msg
+        "Error should mention version: {err_msg}"
     );
 }
 
@@ -234,7 +233,7 @@ mod proptest_tests {
     use proptest::prelude::*;
     use std::collections::BTreeMap;
 
-    /// Generate arbitrary FixtureEvent for property testing
+    /// Generate arbitrary `FixtureEvent` for property testing
     fn arb_fixture_event() -> impl Strategy<Value = FixtureEvent> {
         (
             any::<u64>(),
@@ -280,7 +279,7 @@ mod proptest_tests {
                 "events": [event]
             });
 
-            write!(file, "{}", fixture_json).unwrap();
+            write!(file, "{fixture_json}").unwrap();
             drop(file);
 
             let utf8_path = Utf8PathBuf::from_path_buf(path).unwrap();

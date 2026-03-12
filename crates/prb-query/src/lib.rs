@@ -1,6 +1,6 @@
-//! Query and filter language for DebugEvents.
+//! Query and filter language for `DebugEvents`.
 //!
-//! This crate provides a simple expression language for filtering DebugEvents
+//! This crate provides a simple expression language for filtering `DebugEvents`
 //! based on transport type, metadata fields, and other event properties.
 
 #![warn(missing_docs)]
@@ -31,7 +31,7 @@ impl Filter {
         } else {
             Some(parser::parse_expr(trimmed)?)
         };
-        Ok(Filter {
+        Ok(Self {
             expr,
             source: input.to_string(),
         })
@@ -44,6 +44,7 @@ impl Filter {
         }
     }
 
+    #[must_use] 
     pub fn source(&self) -> &str {
         &self.source
     }

@@ -4,7 +4,7 @@ use prb_core::{
     TransportKind,
 };
 
-/// Structured context for AI explanation, built from DebugEvents.
+/// Structured context for AI explanation, built from `DebugEvents`.
 #[derive(Debug, Clone)]
 pub struct ExplainContext {
     pub target_summary: String,
@@ -38,7 +38,7 @@ impl ExplainContext {
 
         let has_warnings = !target.warnings.is_empty();
 
-        ExplainContext {
+        Self {
             target_summary,
             surrounding_summaries,
             transport: target.transport,

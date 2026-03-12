@@ -1,6 +1,6 @@
 //! Schema-backed protobuf decoder using prost-reflect.
 //!
-//! Provides decoding of protobuf messages using loaded schemas (MessageDescriptor)
+//! Provides decoding of protobuf messages using loaded schemas (`MessageDescriptor`)
 //! for accurate field names, types, and nested message structures.
 
 #![allow(missing_docs)]
@@ -26,7 +26,7 @@ pub enum DecodeError {
 
 /// A decoded protobuf message with schema information.
 ///
-/// Wraps a prost-reflect DynamicMessage and provides formatted display
+/// Wraps a prost-reflect `DynamicMessage` and provides formatted display
 /// and JSON serialization.
 #[derive(Debug, Clone)]
 pub struct DecodedMessage {
@@ -36,7 +36,8 @@ pub struct DecodedMessage {
 
 impl DecodedMessage {
     /// Create a new decoded message.
-    pub fn new(message: DynamicMessage, descriptor: MessageDescriptor) -> Self {
+    #[must_use] 
+    pub const fn new(message: DynamicMessage, descriptor: MessageDescriptor) -> Self {
         Self {
             message,
             descriptor,
@@ -44,21 +45,25 @@ impl DecodedMessage {
     }
 
     /// Get the message type name.
+    #[must_use] 
     pub fn type_name(&self) -> &str {
         self.descriptor.full_name()
     }
 
-    /// Get the underlying DynamicMessage.
-    pub fn message(&self) -> &DynamicMessage {
+    /// Get the underlying `DynamicMessage`.
+    #[must_use] 
+    pub const fn message(&self) -> &DynamicMessage {
         &self.message
     }
 
     /// Get the message descriptor.
-    pub fn descriptor(&self) -> &MessageDescriptor {
+    #[must_use] 
+    pub const fn descriptor(&self) -> &MessageDescriptor {
         &self.descriptor
     }
 
     /// Convert to JSON value.
+    #[must_use] 
     pub fn to_json(&self) -> serde_json::Value {
         message_to_json(&self.message)
     }
@@ -119,8 +124,7 @@ pub fn decode_with_schema(
     if buf.has_remaining() {
         let remaining = buf.remaining();
         return Err(DecodeError::SchemaMismatch(format!(
-            "Decoded successfully but {} bytes remain (possible schema mismatch)",
-            remaining
+            "Decoded successfully but {remaining} bytes remain (possible schema mismatch)"
         )));
     }
 
@@ -151,36 +155,36 @@ fn format_message_fields(
 /// Format a map key.
 fn format_map_key(f: &mut fmt::Formatter<'_>, key: &MapKey) -> fmt::Result {
     match key {
-        MapKey::Bool(b) => write!(f, "{}", b),
-        MapKey::I32(i) => write!(f, "{}", i),
-        MapKey::I64(i) => write!(f, "{}", i),
-        MapKey::U32(u) => write!(f, "{}", u),
-        MapKey::U64(u) => write!(f, "{}", u),
-        MapKey::String(s) => write!(f, "\"{}\"", s),
+        MapKey::Bool(b) => write!(f, "{b}"),
+        MapKey::I32(i) => write!(f, "{i}"),
+        MapKey::I64(i) => write!(f, "{i}"),
+        MapKey::U32(u) => write!(f, "{u}"),
+        MapKey::U64(u) => write!(f, "{u}"),
+        MapKey::String(s) => write!(f, "\"{s}\""),
     }
 }
 
 /// Format a protobuf value.
 fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt::Result {
     match value {
-        Value::Bool(b) => write!(f, "{}", b),
-        Value::I32(i) => write!(f, "{}", i),
-        Value::I64(i) => write!(f, "{}", i),
-        Value::U32(u) => write!(f, "{}", u),
-        Value::U64(u) => write!(f, "{}", u),
-        Value::F32(fl) => write!(f, "{}", fl),
-        Value::F64(fl) => write!(f, "{}", fl),
-        Value::String(s) => write!(f, "\"{}\"", s),
+        Value::Bool(b) => write!(f, "{b}"),
+        Value::I32(i) => write!(f, "{i}"),
+        Value::I64(i) => write!(f, "{i}"),
+        Value::U32(u) => write!(f, "{u}"),
+        Value::U64(u) => write!(f, "{u}"),
+        Value::F32(fl) => write!(f, "{fl}"),
+        Value::F64(fl) => write!(f, "{fl}"),
+        Value::String(s) => write!(f, "\"{s}\""),
         Value::Bytes(b) => {
             write!(f, "0x")?;
-            for byte in b.iter() {
-                write!(f, "{:02x}", byte)?;
+            for byte in b {
+                write!(f, "{byte:02x}")?;
             }
             Ok(())
         }
         Value::EnumNumber(num) => {
             // Try to get the enum descriptor and find the name
-            write!(f, "{}", num)
+            write!(f, "{num}")
         }
         Value::Message(msg) => {
             writeln!(f, "{{")?;
@@ -200,8 +204,8 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt
         Value::Map(entries) => {
             writeln!(f, "{{")?;
             let indent_str = "  ".repeat(indent + 1);
-            for (key, val) in entries.iter() {
-                write!(f, "{}", indent_str)?;
+            for (key, val) in entries {
+                write!(f, "{indent_str}")?;
                 format_map_key(f, key)?;
                 write!(f, ": ")?;
                 format_value(f, val, indent + 1)?;
@@ -212,7 +216,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt
     }
 }
 
-/// Convert a DynamicMessage to a JSON value.
+/// Convert a `DynamicMessage` to a JSON value.
 fn message_to_json(message: &DynamicMessage) -> serde_json::Value {
     let mut map = serde_json::Map::new();
 
@@ -225,7 +229,7 @@ fn message_to_json(message: &DynamicMessage) -> serde_json::Value {
     serde_json::Value::Object(map)
 }
 
-/// Convert a MapKey to a string for JSON object keys.
+/// Convert a `MapKey` to a string for JSON object keys.
 fn map_key_to_string(key: &MapKey) -> String {
     match key {
         MapKey::Bool(b) => b.to_string(),
@@ -245,12 +249,10 @@ fn value_to_json(value: &Value) -> serde_json::Value {
         Value::I64(i) => serde_json::Value::Number((*i).into()),
         Value::U32(u) => serde_json::Value::Number((*u).into()),
         Value::U64(u) => serde_json::Value::Number((*u).into()),
-        Value::F32(f) => serde_json::Number::from_f64(*f as f64)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+        Value::F32(f) => serde_json::Number::from_f64(f64::from(*f))
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::F64(f) => serde_json::Number::from_f64(*f)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(s) => serde_json::Value::String(s.clone()),
         Value::Bytes(b) => {
             // Encode bytes as base64
@@ -264,7 +266,7 @@ fn value_to_json(value: &Value) -> serde_json::Value {
         }
         Value::Map(entries) => {
             let mut map = serde_json::Map::new();
-            for (key, val) in entries.iter() {
+            for (key, val) in entries {
                 // Convert key to string for JSON object key
                 let key_str = map_key_to_string(key);
                 map.insert(key_str, value_to_json(val));

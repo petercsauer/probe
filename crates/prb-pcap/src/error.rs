@@ -29,6 +29,6 @@ pub enum PcapError {
 
 impl From<PcapError> for CoreError {
     fn from(err: PcapError) -> Self {
-        CoreError::PayloadDecode(err.to_string())
+        Self::PayloadDecode(err.to_string())
     }
 }

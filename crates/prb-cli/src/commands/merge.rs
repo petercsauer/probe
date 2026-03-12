@@ -27,7 +27,7 @@ pub fn run_merge(args: MergeArgs) -> Result<()> {
     let mut writer: Box<dyn Write> = if let Some(ref output_path) = args.output {
         tracing::info!("Writing merged output to: {}", output_path);
         let file = File::create(output_path)
-            .with_context(|| format!("Failed to create output file {}", output_path))?;
+            .with_context(|| format!("Failed to create output file {output_path}"))?;
         Box::new(file)
     } else {
         Box::new(io::stdout())
@@ -89,10 +89,10 @@ fn load_packet_events_from_ndjson(path: &camino::Utf8Path) -> Result<Vec<DebugEv
 
 fn load_otlp_trace_events(path: &camino::Utf8Path) -> Result<Vec<DebugEvent>> {
     let data =
-        std::fs::read(path).with_context(|| format!("Failed to read OTLP trace file: {}", path))?;
+        std::fs::read(path).with_context(|| format!("Failed to read OTLP trace file: {path}"))?;
 
     let request = parse_otlp_json(&data)
-        .with_context(|| format!("Failed to parse OTLP JSON from {}", path))?;
+        .with_context(|| format!("Failed to parse OTLP JSON from {path}"))?;
 
     let events = otlp_to_events(&request);
     Ok(events)
@@ -124,7 +124,7 @@ mod tests {
 
         let line1 = serde_json::to_string(&event).unwrap();
         let line2 = serde_json::to_string(&event).unwrap();
-        let ndjson = format!("{}\n{}\n", line1, line2);
+        let ndjson = format!("{line1}\n{line2}\n");
 
         let tmp = NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), ndjson).unwrap();

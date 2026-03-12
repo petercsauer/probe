@@ -35,11 +35,13 @@ pub struct LoadedPlugin {
 
 impl LoadedPlugin {
     /// Get plugin metadata.
-    pub fn metadata(&self) -> &PluginMetadata {
+    #[must_use] 
+    pub const fn metadata(&self) -> &PluginMetadata {
         &self.metadata
     }
 
     /// Call the plugin's detect function.
+    #[must_use] 
     pub fn detect(
         &self,
         data: &[u8],
@@ -52,6 +54,7 @@ impl LoadedPlugin {
     }
 
     /// Create a new decoder instance.
+    #[must_use] 
     pub fn create_decoder(&self) -> DecoderHandle {
         (self.create_fn)()
     }
@@ -65,15 +68,16 @@ impl LoadedPlugin {
 
     /// Free a buffer returned by decode.
     pub fn free_buffer(&self, buffer: OwnedBuffer) {
-        (self.free_fn)(buffer)
+        (self.free_fn)(buffer);
     }
 
     /// Destroy a decoder instance.
     pub fn destroy_decoder(&self, handle: DecoderHandle) {
-        (self.destroy_fn)(handle)
+        (self.destroy_fn)(handle);
     }
 
     /// Get the shared library handle (for keeping the library alive).
+    #[must_use] 
     pub fn library(&self) -> Arc<Library> {
         Arc::clone(&self.library)
     }
@@ -86,7 +90,8 @@ pub struct NativePluginLoader {
 
 impl NativePluginLoader {
     /// Create a new plugin loader.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             loaded_plugins: Vec::new(),
         }
@@ -180,7 +185,7 @@ impl NativePluginLoader {
         validate_api_version(&api_version).map_err(PluginError::IncompatibleVersion)?;
 
         let metadata = PluginMetadata {
-            name: name.clone(),
+            name,
             version,
             description,
             protocol_id,
@@ -263,6 +268,7 @@ impl NativePluginLoader {
     }
 
     /// Get all loaded plugins.
+    #[must_use] 
     pub fn plugins(&self) -> &[Arc<LoadedPlugin>] {
         &self.loaded_plugins
     }

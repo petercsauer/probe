@@ -28,18 +28,15 @@ fn test_invalid_file_format_rejected() {
     let result = PcapFileReader::open(&path);
 
     // Should either reject during open or read
-    match result {
-        Ok(mut reader) => {
-            // If open succeeds, read should fail
-            let packets_result = reader.read_all_packets();
-            assert!(
-                packets_result.is_err(),
-                "Invalid file format should be rejected"
-            );
-        }
-        Err(_) => {
-            // Expected: invalid format rejected during open
-        }
+    if let Ok(mut reader) = result {
+        // If open succeeds, read should fail
+        let packets_result = reader.read_all_packets();
+        assert!(
+            packets_result.is_err(),
+            "Invalid file format should be rejected"
+        );
+    } else {
+        // Expected: invalid format rejected during open
     }
 
     // Main assertion: we reached here without panic - test passes by not crashing
@@ -58,7 +55,7 @@ fn test_empty_pcap_no_panic() {
 
     // Processing empty packet list should not panic
     let mut normalizer = PacketNormalizer::new();
-    for pkt in packets.iter() {
+    for pkt in &packets {
         let _ = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data);
     }
 }
@@ -81,7 +78,7 @@ fn test_dns_tunneling_exfiltration_no_panic() {
     let mut normalized_count = 0;
 
     // Process through full pipeline - should not panic
-    for pkt in packets.iter() {
+    for pkt in &packets {
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
@@ -114,7 +111,7 @@ fn test_teardrop_overlapping_fragments_no_panic() {
     let mut processed = 0;
     let mut rejected = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // Parser may reject overlapping fragments or process them
         // Either behavior is acceptable as long as we don't panic
         match normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
@@ -136,30 +133,24 @@ fn test_nanosecond_timestamp_edge_case() {
     let path = fixture_path("adversarial", "dhcp-nanosecond.pcap");
     let result = PcapFileReader::open(&path);
 
-    match result {
-        Ok(mut reader) => {
-            // If open succeeds, try reading
-            let packets_result = reader.read_all_packets();
-            match packets_result {
-                Ok(packets) => {
-                    // If it works, verify timestamps are reasonable
-                    let mut normalizer = PacketNormalizer::new();
-                    for pkt in packets.iter() {
-                        if let Ok(Some(normalized)) =
-                            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
-                        {
-                            assert!(normalized.timestamp_us > 0, "Timestamp should be positive");
-                        }
-                    }
-                }
-                Err(_) => {
-                    // Acceptable: unsupported nanosecond format rejected
+    if let Ok(mut reader) = result {
+        // If open succeeds, try reading
+        let packets_result = reader.read_all_packets();
+        if let Ok(packets) = packets_result {
+            // If it works, verify timestamps are reasonable
+            let mut normalizer = PacketNormalizer::new();
+            for pkt in &packets {
+                if let Ok(Some(normalized)) =
+                    normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+                {
+                    assert!(normalized.timestamp_us > 0, "Timestamp should be positive");
                 }
             }
+        } else {
+            // Acceptable: unsupported nanosecond format rejected
         }
-        Err(_) => {
-            // Expected: nanosecond format not supported, rejected gracefully
-        }
+    } else {
+        // Expected: nanosecond format not supported, rejected gracefully
     }
 
     // Main assertion: we reached here without panic - test passes by not crashing
@@ -178,7 +169,7 @@ fn test_vlan_tagged_adversarial() {
     let mut normalizer = PacketNormalizer::new();
     let mut processed = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // VLAN processing should not panic
         if let Ok(Some(_)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
             processed += 1;
@@ -201,7 +192,7 @@ fn test_ipv6_adversarial_patterns() {
     let mut normalizer = PacketNormalizer::new();
     let mut ipv6_count = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         // IPv6 processing should not panic
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
@@ -231,7 +222,7 @@ fn test_tcp_edge_cases_no_panic() {
     let mut reassembler = TcpReassembler::new();
     let mut tcp_packets = 0;
 
-    for pkt in packets.iter() {
+    for pkt in &packets {
         if let Ok(Some(normalized)) =
             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
@@ -273,7 +264,7 @@ fn test_mixed_adversarial_captures_no_panic() {
                         let mut normalizer = PacketNormalizer::new();
                         let mut reassembler = TcpReassembler::new();
 
-                        for pkt in packets.iter() {
+                        for pkt in &packets {
                             match normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
                                 Ok(Some(normalized)) => {
                                     total_processed += 1;
@@ -328,7 +319,7 @@ fn test_performance_bounded_adversarial() {
             let mut normalizer = PacketNormalizer::new();
             let mut reassembler = TcpReassembler::new();
 
-            for pkt in packets.iter() {
+            for pkt in &packets {
                 if let Ok(Some(normalized)) =
                     normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
                     && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
@@ -342,10 +333,7 @@ fn test_performance_bounded_adversarial() {
         // Each small adversarial capture should process in under 5 seconds
         assert!(
             elapsed.as_secs() < 5,
-            "{}/{} took too long: {:?}",
-            subdir,
-            filename,
-            elapsed
+            "{subdir}/{filename} took too long: {elapsed:?}"
         );
     }
 }
@@ -363,7 +351,7 @@ fn test_memory_bounded_adversarial() {
 
     // Process packets twice to simulate repeated malicious connections
     for _ in 0..2 {
-        for pkt in packets.iter() {
+        for pkt in &packets {
             if let Ok(Some(normalized)) =
                 normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
                 && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
@@ -377,7 +365,6 @@ fn test_memory_bounded_adversarial() {
     let active = reassembler.active_connections();
     assert!(
         active < 10000,
-        "Reassembler should not accumulate unbounded connections: {}",
-        active
+        "Reassembler should not accumulate unbounded connections: {active}"
     );
 }

@@ -99,8 +99,7 @@ fn benchmark_filter_100k() {
     );
     assert!(
         duration < Duration::from_millis(100),
-        "Filter should complete in <100ms, took {:?}",
-        duration
+        "Filter should complete in <100ms, took {duration:?}"
     );
 }
 
@@ -130,13 +129,11 @@ fn benchmark_sort_100k() {
     let duration = start.elapsed();
 
     println!(
-        "  Initial sort time: {:?} ({} events)",
-        duration, sorted_len
+        "  Initial sort time: {duration:?} ({sorted_len} events)"
     );
     assert!(
         duration < Duration::from_millis(500),
-        "Sort should complete in <500ms, took {:?}",
-        duration
+        "Sort should complete in <500ms, took {duration:?}"
     );
 
     // Second call should use cache
@@ -144,11 +141,10 @@ fn benchmark_sort_100k() {
     let sorted2_len = pane.sorted_indices(&state).len();
     let cached_duration = start.elapsed();
 
-    println!("  Cached sort time: {:?}", cached_duration);
+    println!("  Cached sort time: {cached_duration:?}");
     assert!(
         cached_duration < Duration::from_millis(1),
-        "Cached sort should complete in <1ms, took {:?}",
-        cached_duration
+        "Cached sort should complete in <1ms, took {cached_duration:?}"
     );
     assert_eq!(sorted_len, sorted2_len);
 }
@@ -184,11 +180,10 @@ fn benchmark_render_100k() {
         let sorted = pane.sorted_indices(&state);
         let duration = start.elapsed();
 
-        println!("  Render at position {}: {:?}", pos, duration);
+        println!("  Render at position {pos}: {duration:?}");
         assert!(
             duration < Duration::from_millis(16),
-            "Frame render should complete in <16ms (60fps), took {:?}",
-            duration
+            "Frame render should complete in <16ms (60fps), took {duration:?}"
         );
         assert!(!sorted.is_empty());
     }
@@ -223,12 +218,11 @@ fn benchmark_protocol_counts() {
     let counts = state.store.protocol_counts(&indices);
     let duration = start.elapsed();
 
-    println!("  Protocol counts time: {:?}", duration);
-    println!("  Protocol distribution: {:?}", counts);
+    println!("  Protocol counts time: {duration:?}");
+    println!("  Protocol distribution: {counts:?}");
     assert!(
         duration < Duration::from_millis(50),
-        "Protocol counts should complete in <50ms, took {:?}",
-        duration
+        "Protocol counts should complete in <50ms, took {duration:?}"
     );
     assert_eq!(counts.len(), 3); // 3 protocols
 }
@@ -283,7 +277,7 @@ fn benchmark_incremental_filter_streaming() {
                 filtered.len(),
                 duration
             );
-            println!("  Total filter time across all batches: {:?}", total_time);
+            println!("  Total filter time across all batches: {total_time:?}");
             println!(
                 "  Average time per batch: {:?}",
                 total_time / (total_events / batch_size) as u32
@@ -295,8 +289,7 @@ fn benchmark_incremental_filter_streaming() {
             // Each incremental batch should be very fast
             assert!(
                 duration < Duration::from_millis(5),
-                "Incremental filter took {:?}",
-                duration
+                "Incremental filter took {duration:?}"
             );
         }
     }
@@ -343,8 +336,7 @@ fn benchmark_large_dataset_500k() {
     );
     assert!(
         filter_duration < Duration::from_millis(500),
-        "Filter should complete in <500ms, took {:?}",
-        filter_duration
+        "Filter should complete in <500ms, took {filter_duration:?}"
     );
 
     // Test sorting
@@ -354,11 +346,10 @@ fn benchmark_large_dataset_500k() {
     let sorted_len = pane.sorted_indices(&state).len();
     let sort_duration = start.elapsed();
 
-    println!("  Sort time: {:?} ({} events)", sort_duration, sorted_len);
+    println!("  Sort time: {sort_duration:?} ({sorted_len} events)");
     assert!(
         sort_duration < Duration::from_secs(2),
-        "Sort should complete in <2s, took {:?}",
-        sort_duration
+        "Sort should complete in <2s, took {sort_duration:?}"
     );
 }
 
@@ -386,11 +377,10 @@ fn benchmark_memory_efficiency() {
     let start = Instant::now();
     let _ = pane.sorted_indices(&state);
     let first_duration = start.elapsed();
-    println!("  Initial view build: {:?}", first_duration);
+    println!("  Initial view build: {first_duration:?}");
     assert!(
         first_duration < Duration::from_millis(10),
-        "First build took {:?}",
-        first_duration
+        "First build took {first_duration:?}"
     );
 
     // Virtual scrolling should only process visible rows
@@ -408,9 +398,7 @@ fn benchmark_memory_efficiency() {
         // All scroll positions should be fast (using cache)
         assert!(
             duration < Duration::from_millis(1),
-            "Scroll to position {} took {:?}",
-            pos,
-            duration
+            "Scroll to position {pos} took {duration:?}"
         );
     }
 
@@ -445,11 +433,10 @@ fn benchmark_index_building() {
     store.build_index();
     let duration = start.elapsed();
 
-    println!("  Index build time: {:?}", duration);
+    println!("  Index build time: {duration:?}");
     assert!(
         duration < Duration::from_millis(200),
-        "Index build should complete in <200ms, took {:?}",
-        duration
+        "Index build should complete in <200ms, took {duration:?}"
     );
 
     // Verify index was built

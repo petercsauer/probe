@@ -2,7 +2,7 @@
 
 use crate::event::Timestamp;
 
-/// Decoding context for ProtocolDecoder.
+/// Decoding context for `ProtocolDecoder`.
 #[derive(Debug, Clone)]
 pub struct DecodeContext {
     /// Source address information (e.g., "192.168.1.1:8080").
@@ -17,7 +17,8 @@ pub struct DecodeContext {
 
 impl DecodeContext {
     /// Create a new empty context.
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             src_addr: None,
             dst_addr: None,
@@ -45,7 +46,8 @@ impl DecodeContext {
     }
 
     /// Set timestamp.
-    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
+    #[must_use] 
+    pub const fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self
     }

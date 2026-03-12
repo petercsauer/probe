@@ -19,8 +19,9 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Check if the trace is sampled (trace_flags bit 0 set).
-    pub fn is_sampled(&self) -> bool {
+    /// Check if the trace is sampled (`trace_flags` bit 0 set).
+    #[must_use] 
+    pub const fn is_sampled(&self) -> bool {
         self.trace_flags & 0x01 != 0
     }
 }
@@ -31,6 +32,7 @@ impl TraceContext {
 /// Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
 ///
 /// Spec: <https://www.w3.org/TR/trace-context/>
+#[must_use] 
 pub fn parse_w3c_traceparent(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split('-').collect();
     if parts.len() != 4 {
@@ -90,6 +92,7 @@ pub fn parse_w3c_traceparent(header: &str) -> Option<TraceContext> {
 /// Example: `4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1`
 ///
 /// Spec: <https://github.com/openzipkin/b3-propagation>
+#[must_use] 
 pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split('-').collect();
     if parts.len() < 2 || parts.len() > 4 {
@@ -108,7 +111,7 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
     }
     // Pad 64-bit trace IDs to 128-bit
     let trace_id_normalized = if trace_id.len() == 16 {
-        format!("{:0>32}", trace_id)
+        format!("{trace_id:0>32}")
     } else {
         trace_id.to_string()
     };
@@ -137,6 +140,7 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
 /// Headers: `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`
 ///
 /// Spec: <https://github.com/openzipkin/b3-propagation>
+#[must_use] 
 pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext> {
     let trace_id = headers
         .get("x-b3-traceid")
@@ -152,9 +156,9 @@ pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext>
         return None;
     }
     let trace_id_normalized = if trace_id.len() == 16 {
-        format!("{:0>32}", trace_id)
+        format!("{trace_id:0>32}")
     } else {
-        trace_id.to_string()
+        trace_id.clone()
     };
 
     if span_id.len() != 16 || !span_id.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -164,7 +168,7 @@ pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext>
     let sampled = headers
         .get("x-b3-sampled")
         .or_else(|| headers.get("X-B3-Sampled"));
-    let trace_flags = match sampled.map(|s| s.as_str()) {
+    let trace_flags = match sampled.map(std::string::String::as_str) {
         Some("1" | "d") => 0x01,
         _ => 0x00,
     };
@@ -183,6 +187,7 @@ pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext>
 /// Example: `4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b7:0:1`
 ///
 /// Spec: <https://www.jaegertracing.io/docs/1.21/client-libraries/#propagation-format>
+#[must_use] 
 pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split(':').collect();
     if parts.len() != 4 {
@@ -200,7 +205,7 @@ pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
         return None;
     }
     let trace_id_normalized = if trace_id.len() == 16 {
-        format!("{:0>32}", trace_id)
+        format!("{trace_id:0>32}")
     } else {
         trace_id.to_string()
     };
@@ -212,7 +217,7 @@ pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
 
     // flags: integer, bit 0 = sampled
     let flags: u8 = flags_str.parse().ok()?;
-    let trace_flags = if flags & 0x01 != 0 { 0x01 } else { 0x00 };
+    let trace_flags = u8::from(flags & 0x01 != 0);
 
     Some(TraceContext {
         trace_id: trace_id_normalized.to_lowercase(),
@@ -225,6 +230,7 @@ pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
 /// Extract trace context from headers, trying all known formats.
 ///
 /// Priority order: W3C traceparent > B3 single > B3 multi > uber-trace-id
+#[must_use] 
 pub fn extract_trace_context(headers: &HashMap<String, String>) -> Option<TraceContext> {
     // Try W3C traceparent first (standard)
     if let Some(traceparent) = headers.get("traceparent")

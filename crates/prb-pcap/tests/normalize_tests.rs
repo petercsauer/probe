@@ -65,7 +65,7 @@ fn create_ethernet_vlan_ipv4_tcp(vlan_id: u16) -> Vec<u8> {
     packet
 }
 
-/// Helper to create an Ethernet + IPv4 + TCP packet with double VLAN tags (QinQ).
+/// Helper to create an Ethernet + IPv4 + TCP packet with double VLAN tags (`QinQ`).
 fn create_ethernet_double_vlan_ipv4_tcp(outer_vlan: u16, inner_vlan: u16) -> Vec<u8> {
     use etherparse::PacketBuilder;
 

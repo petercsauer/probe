@@ -13,9 +13,9 @@ use std::collections::BTreeMap;
 ///
 /// Grouping strategy depends on socket type:
 /// - PUB/SUB: group by topic
-/// - REQ/REP: group by connection_id + temporal pairing
-/// - PUSH/PULL: group by connection_id
-/// - DEALER/ROUTER: group by identity or connection_id
+/// - REQ/REP: group by `connection_id` + temporal pairing
+/// - PUSH/PULL: group by `connection_id`
+/// - DEALER/ROUTER: group by identity or `connection_id`
 pub struct ZmqCorrelationStrategy;
 
 impl CorrelationStrategy for ZmqCorrelationStrategy {
@@ -31,12 +31,12 @@ impl CorrelationStrategy for ZmqCorrelationStrategy {
         let mut other_events = Vec::new();
 
         for event in events {
-            match event.metadata.get("zmq.socket_type").map(|s| s.as_str()) {
-                Some("PUB") | Some("SUB") => pub_sub_events.push(event),
-                Some("REQ") | Some("REP") | Some("DEALER") | Some("ROUTER") => {
-                    req_rep_events.push(event)
+            match event.metadata.get("zmq.socket_type").map(std::string::String::as_str) {
+                Some("PUB" | "SUB") => pub_sub_events.push(event),
+                Some("REQ" | "REP" | "DEALER" | "ROUTER") => {
+                    req_rep_events.push(event);
                 }
-                Some("PUSH") | Some("PULL") => push_pull_events.push(event),
+                Some("PUSH" | "PULL") => push_pull_events.push(event),
                 _ => other_events.push(event),
             }
         }
@@ -75,10 +75,9 @@ fn correlate_pub_sub<'a>(events: &[&'a DebugEvent]) -> Result<Vec<Flow<'a>>, Cor
         let topic = event
             .metadata
             .get(METADATA_KEY_ZMQ_TOPIC)
-            .map(|s| s.as_str())
-            .unwrap_or("(no-topic)");
+            .map_or("(no-topic)", std::string::String::as_str);
 
-        let key = format!("zmq:pubsub:{}", topic);
+        let key = format!("zmq:pubsub:{topic}");
         groups.entry(key).or_default().push(event);
     }
 
@@ -136,7 +135,7 @@ fn correlate_req_rep<'a>(events: &[&'a DebugEvent]) -> Result<Vec<Flow<'a>>, Cor
             if event.direction == Direction::Outbound {
                 // Start a new pair
                 let mut pair = vec![event];
-                let pair_key = format!("{}:rr{}", conn_key, pair_idx);
+                let pair_key = format!("{conn_key}:rr{pair_idx}");
                 pair_idx += 1;
 
                 // Look for matching inbound

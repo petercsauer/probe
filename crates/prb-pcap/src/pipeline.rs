@@ -1,4 +1,4 @@
-//! Pipeline integration: wires PCAP reader → normalizer → TCP reassembly → TLS decryption → DebugEvents.
+//! Pipeline integration: wires PCAP reader → normalizer → TCP reassembly → TLS decryption → `DebugEvents`.
 //!
 //! This module implements the `CaptureAdapter` trait for PCAP/pcapng files,
 //! orchestrating the complete data flow from raw packet capture to structured debug events.
@@ -66,6 +66,7 @@ impl PcapCaptureAdapter {
     /// # Arguments
     /// * `capture_path` - Path to the PCAP/pcapng file
     /// * `tls_keylog_path` - Optional path to TLS keylog file for decryption
+    #[must_use] 
     pub fn new(capture_path: PathBuf, tls_keylog_path: Option<PathBuf>) -> Self {
         Self::with_registry(
             capture_path,
@@ -80,6 +81,7 @@ impl PcapCaptureAdapter {
     /// * `capture_path` - Path to the PCAP/pcapng file
     /// * `tls_keylog_path` - Optional path to TLS keylog file for decryption
     /// * `decoder_registry` - Custom decoder registry for protocol detection
+    #[must_use] 
     pub fn with_registry(
         capture_path: PathBuf,
         tls_keylog_path: Option<PathBuf>,
@@ -100,14 +102,15 @@ impl PcapCaptureAdapter {
     ///
     /// This bypasses automatic protocol detection. Valid protocol names are:
     /// - "grpc" or "http2" for gRPC/HTTP/2
-    /// - "zmtp" or "zmq" for ZeroMQ
+    /// - "zmtp" or "zmq" for `ZeroMQ`
     /// - "rtps" or "dds" for DDS/RTPS
     pub fn set_protocol_override(&mut self, protocol: &str) {
         self.protocol_override = Some(protocol.to_string());
     }
 
     /// Returns a reference to the processing statistics.
-    pub fn stats(&self) -> &PipelineStats {
+    #[must_use] 
+    pub const fn stats(&self) -> &PipelineStats {
         &self.stats
     }
 
@@ -119,13 +122,15 @@ impl PcapCaptureAdapter {
         if let Some(ref keylog_path) = self.tls_keylog_path {
             // Load keylog file
             let keylog = TlsKeyLog::from_file(keylog_path)
-                .map_err(|e| CoreError::Adapter(format!("failed to load TLS keylog: {}", e)))?;
+                .map_err(|e| CoreError::Adapter(format!("failed to load TLS keylog: {e}")))?;
             tracing::info!("Loaded {} TLS keys from keylog", keylog.len());
             Ok(TlsStreamProcessor::with_keylog(keylog))
         } else {
             // Check for embedded TLS keys in pcapng DSB blocks
             let embedded_keys = reader.tls_keys();
-            if !embedded_keys.is_empty() {
+            if embedded_keys.is_empty() {
+                Ok(TlsStreamProcessor::new())
+            } else {
                 tracing::info!(
                     "Found {} embedded TLS keys in pcapng DSB blocks",
                     embedded_keys.len()
@@ -139,8 +144,6 @@ impl PcapCaptureAdapter {
                     );
                 }
                 Ok(TlsStreamProcessor::with_keylog(keylog))
-            } else {
-                Ok(TlsStreamProcessor::new())
             }
         }
     }
@@ -149,12 +152,12 @@ impl PcapCaptureAdapter {
     fn process_all_packets(&mut self) -> Result<(), CoreError> {
         // Open the PCAP file
         let mut reader = PcapFileReader::open(&self.capture_path)
-            .map_err(|e| CoreError::Adapter(format!("failed to open PCAP file: {}", e)))?;
+            .map_err(|e| CoreError::Adapter(format!("failed to open PCAP file: {e}")))?;
 
         // Read all packets
         let packets = reader
             .read_all_packets()
-            .map_err(|e| CoreError::Adapter(format!("failed to read packets: {}", e)))?;
+            .map_err(|e| CoreError::Adapter(format!("failed to read packets: {e}")))?;
 
         tracing::info!(
             "Read {} packets from {}",
@@ -201,7 +204,7 @@ impl PcapCaptureAdapter {
         }
 
         // Flush any remaining TCP connections
-        let final_time = packets.last().map(|p| p.timestamp_us).unwrap_or(0);
+        let final_time = packets.last().map_or(0, |p| p.timestamp_us);
         for event in core.flush_idle(final_time + 1_000_000) {
             self.event_queue.push_back(Ok(event));
         }
@@ -226,7 +229,7 @@ impl PcapCaptureAdapter {
 }
 
 impl CaptureAdapter for PcapCaptureAdapter {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "pcap"
     }
 

@@ -154,7 +154,7 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
     })?;
 
     // Create live data source (adapter.start() will be called inside)
-    let live_source = LiveDataSource::start(adapter, interface.clone())
+    let live_source = LiveDataSource::start(adapter, interface)
         .context("failed to start live capture data source")?;
 
     // Create empty event store for live mode
@@ -197,7 +197,7 @@ fn load_with_streaming(
 
                 // Show progress every 100ms
                 if last_progress.elapsed() > std::time::Duration::from_millis(100) {
-                    eprint!("\rLoading events... {} loaded", total_loaded);
+                    eprint!("\rLoading events... {total_loaded} loaded");
                     last_progress = std::time::Instant::now();
                 }
             }
@@ -210,19 +210,19 @@ fn load_with_streaming(
                         (loaded as f64 / t as f64) * 100.0
                     );
                 } else {
-                    eprint!("\rLoading events... {} loaded", loaded);
+                    eprint!("\rLoading events... {loaded} loaded");
                 }
             }
             Ok(LoadEvent::TlsStats(stats)) => {
                 tls_stats = Some(stats);
             }
             Ok(LoadEvent::Done) => {
-                eprintln!("\rLoaded {} events successfully", total_loaded);
+                eprintln!("\rLoaded {total_loaded} events successfully");
                 break;
             }
             Ok(LoadEvent::Error(e)) => {
-                eprintln!("\rError loading events: {}", e);
-                return Err(anyhow::anyhow!("Failed to load events: {}", e));
+                eprintln!("\rError loading events: {e}");
+                return Err(anyhow::anyhow!("Failed to load events: {e}"));
             }
             Err(_) => {
                 return Err(anyhow::anyhow!("Channel error during streaming load"));

@@ -25,7 +25,7 @@ fn create_test_event(
             }),
         },
         transport,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound
@@ -60,7 +60,7 @@ fn create_test_events(count: usize) -> Vec<DebugEvent> {
             },
             2 => CorrelationKey::TraceContext {
                 trace_id: format!("trace-{}", i / 30),
-                span_id: format!("span-{}", i),
+                span_id: format!("span-{i}"),
             },
             _ => CorrelationKey::Custom {
                 key: "connection".to_string(),

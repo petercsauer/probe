@@ -12,7 +12,7 @@ pub struct CorrelationKeyDto {
     pub value: String,
 }
 
-/// Serializable event DTO (mirrors prb-core DebugEvent).
+/// Serializable event DTO (mirrors prb-core `DebugEvent`).
 ///
 /// Used for transferring events across FFI/WASM boundaries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +48,7 @@ pub struct DebugEventDto {
 
 impl DebugEventDto {
     /// Create a minimal DTO for testing.
+    #[must_use] 
     pub fn minimal(transport: &str, direction: &str) -> Self {
         Self {
             timestamp_nanos: 0,

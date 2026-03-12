@@ -53,13 +53,11 @@ fn test_real_data_tcp_robustness() {
         let stats = adapter.stats();
         assert!(
             stats.packets_read > 0,
-            "Capture {} should have packets",
-            capture
+            "Capture {capture} should have packets"
         );
         assert!(
             !events.is_empty(),
-            "Capture {} should produce events",
-            capture
+            "Capture {capture} should produce events"
         );
     }
 }
@@ -95,8 +93,7 @@ fn test_real_data_tls_without_keys() {
         let stats = adapter.stats();
         assert!(
             stats.packets_read > 0,
-            "Capture {} should have packets",
-            capture
+            "Capture {capture} should have packets"
         );
         assert!(
             !events.is_empty(),
@@ -132,8 +129,7 @@ fn test_real_data_no_panic_comprehensive() {
 
     assert!(
         tested >= 5,
-        "Should test at least 5 real captures, tested {}",
-        tested
+        "Should test at least 5 real captures, tested {tested}"
     );
 }
 

@@ -1,4 +1,4 @@
-//! Unit tests for CaptureStats.
+//! Unit tests for `CaptureStats`.
 
 use prb_capture::CaptureStats;
 use std::time::Duration;
@@ -33,15 +33,13 @@ fn test_drop_rate_with_drops() {
     let drop_rate = stats.drop_rate();
     assert!(
         (drop_rate - 0.02).abs() < 0.001,
-        "expected ~0.02, got {}",
-        drop_rate
+        "expected ~0.02, got {drop_rate}"
     );
 
     let drop_pct = stats.drop_percentage();
     assert!(
         (drop_pct - 2.0).abs() < 0.1,
-        "expected ~2.0%, got {}",
-        drop_pct
+        "expected ~2.0%, got {drop_pct}"
     );
 }
 

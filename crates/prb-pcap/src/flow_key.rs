@@ -46,6 +46,7 @@ impl FlowKey {
     /// Reverse: 192.168.1.1:50051 → 10.0.0.1:8080 (TCP)
     /// FlowKey: lo=(10.0.0.1, 8080), hi=(192.168.1.1, 50051)  <-- same!
     /// ```
+    #[must_use] 
     pub fn from_packet(packet: &OwnedNormalizedPacket) -> Option<Self> {
         let (src_port, dst_port, protocol) = match &packet.transport {
             TransportInfo::Tcp(tcp) => (tcp.src_port, tcp.dst_port, FlowProtocol::Tcp),
@@ -72,7 +73,8 @@ impl FlowKey {
     /// Computes a shard index for this flow.
     ///
     /// Returns a value in `[0, num_shards)` using deterministic hashing.
-    /// Packets with the same FlowKey always map to the same shard.
+    /// Packets with the same `FlowKey` always map to the same shard.
+    #[must_use] 
     pub fn shard_index(&self, num_shards: usize) -> usize {
         use std::collections::hash_map::DefaultHasher;
         let mut hasher = DefaultHasher::new();

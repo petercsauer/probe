@@ -1,4 +1,4 @@
-//! Unit tests for CaptureError display messages.
+//! Unit tests for `CaptureError` display messages.
 
 use prb_capture::CaptureError;
 
