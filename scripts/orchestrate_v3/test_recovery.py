@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from recovery import RecoveryAgent, RecoveryConfig
-from state import SegmentRow
+from .recovery import RecoveryAgent, RecoveryConfig
+from .state import SegmentRow
 
 
 class TestRecoveryConfig:

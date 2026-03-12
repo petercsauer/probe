@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from worktree_pool import WorktreePool
+from .worktree_pool import WorktreePool
 
 
 @pytest.fixture

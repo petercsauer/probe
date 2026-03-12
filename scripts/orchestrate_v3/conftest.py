@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from config import OrchestrateConfig, RetryPolicy
-from state import SegmentRow, StateDB
+from .config import OrchestrateConfig, RetryPolicy
+from .state import SegmentRow, StateDB
 
 
 @pytest.fixture
