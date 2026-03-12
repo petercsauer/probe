@@ -902,3 +902,57 @@ fn test_error_large_message_handling() {
     let stats = adapter.stats();
     assert_eq!(stats.packets_read, 1, "Should read packet");
 }
+
+#[test]
+fn test_protocol_override() {
+    // Test set_protocol_override pathway
+    let temp_dir = TempDir::new().unwrap();
+    let pcap_path = temp_dir.path().join("test_override.pcap");
+
+    // Create a simple TCP stream
+    let packet = create_tcp_segment(
+        [192, 168, 1, 1],
+        [10, 0, 0, 1],
+        12345,
+        80,
+        1000,
+        0,
+        TcpFlags {
+            syn: false,
+            ack: true,
+            fin: true,
+            rst: false,
+            psh: true,
+        },
+        b"test data",
+    );
+
+    write_pcap_file(&pcap_path, &[packet]);
+
+    // Test with grpc protocol override
+    let mut adapter = PcapCaptureAdapter::new(pcap_path.clone(), None);
+    adapter.set_protocol_override("grpc");
+    let _events: Vec<_> = adapter.ingest().collect();
+
+    // Should process without error
+    let stats = adapter.stats();
+    assert_eq!(stats.packets_read, 1, "Should read 1 packet");
+
+    // Test with zmtp protocol override
+    let mut adapter2 = PcapCaptureAdapter::new(pcap_path.clone(), None);
+    adapter2.set_protocol_override("zmtp");
+    let _events2: Vec<_> = adapter2.ingest().collect();
+
+    // Should process without error
+    let stats2 = adapter2.stats();
+    assert_eq!(stats2.packets_read, 1, "Should read 1 packet");
+
+    // Test with rtps protocol override
+    let mut adapter3 = PcapCaptureAdapter::new(pcap_path, None);
+    adapter3.set_protocol_override("rtps");
+    let _events3: Vec<_> = adapter3.ingest().collect();
+
+    // Should process without error
+    let stats3 = adapter3.stats();
+    assert_eq!(stats3.packets_read, 1, "Should read 1 packet");
+}
