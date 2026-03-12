@@ -87,6 +87,7 @@ def _build_prompt(
     seg: "Segment",
     config: OrchestrateConfig,
     interject: str | None = None,
+    partial_context: str | None = None,
 ) -> str:
     """Assemble the prompt for a segment's claude session."""
     parts: list[str] = []
@@ -109,6 +110,18 @@ def _build_prompt(
         except (KeyError, IndexError):
             rules = config.extra_rules
         parts.append(rules.strip() + "\n")
+
+    if partial_context:
+        parts.append("\n" + "="*60)
+        parts.append("🔄 PARTIAL COMPLETION - CONTINUE FROM WHERE YOU LEFT OFF")
+        parts.append("="*60)
+        parts.append("\nThe previous attempt reached PARTIAL status (made progress but didn't complete).")
+        parts.append("The code from that attempt is still in the worktree - DO NOT start from scratch.")
+        parts.append("\nPrevious attempt summary:")
+        parts.append(partial_context)
+        parts.append("\nContinue from where the previous attempt left off. Review what was accomplished,")
+        parts.append("identify remaining work, and complete the segment to reach PASS status.")
+        parts.append("="*60 + "\n")
 
     if interject:
         parts.append("\n" + "="*60)
@@ -243,6 +256,15 @@ def _extract_status(log_text: str) -> str:
         (r"\*\*Segment Status:\*\*\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"Segment Status:\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"COMPLETE\s*-\s*No further work required", "pass"),
+        # Recognize various iterative-builder completion formats
+        (r"##\s+Segment\s+\d+\s+Complete:", "pass"),  # "## Segment 2 Complete:" (most common)
+        (r"##\s+✅\s+Segment\s+\d+\s+Complete:", "pass"),  # "## ✅ Segment 4 Complete:"
+        (r"Segment\s+\d+\s+Complete:", "pass"),  # "Segment 2 Complete:"
+        (r"##\s+Segment\s+\d+\s+Complete[:\s]+.*?✓", "pass"),  # With checkmark at end
+        (r"Segment\s+\d+\s+Complete[:\s]+.*?✓", "pass"),
+        (r"Segment\s+\d+\s+completed successfully", "pass"),  # "Segment 1 completed successfully"
+        (r"##.*Segment\s+\d+.*-\s*(COMPLETE|SUCCESS)", "pass"),  # "## ✅ Segment 1: ... - COMPLETE"
+        (r"##.*Segment\s+\d+.*Report.*SUCCESS", "pass"),  # "## 🎯 Segment 1 Build Report - SUCCESS"
         (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
         (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
     ]
@@ -260,13 +282,27 @@ def _extract_status(log_text: str) -> str:
 
 
 def _extract_summary(log_text: str, max_len: int = 300) -> str:
-    """Extract a brief summary from the builder report."""
+    """Extract the full builder report or a brief summary.
+
+    Looks for the builder report starting with ## Builder Report or similar,
+    and captures everything from that point forward (full report for dashboard).
+    Falls back to brief summary if no builder report found.
+    """
+    # Look for builder report markers (capture full report)
+    for marker in ("## Builder Report", "## Segment Report", "**Status:**"):
+        idx = log_text.find(marker)
+        if idx >= 0:
+            # Return everything from the builder report onwards (full report)
+            return log_text[idx:].strip()
+
+    # Fallback: brief summary for segments without builder report format
     for header in ("### What was built", "## What was built"):
         idx = log_text.find(header)
         if idx >= 0:
             chunk = log_text[idx + len(header):idx + len(header) + max_len]
             return chunk.strip().split("\n\n")[0].strip()
-    # Fallback: last 200 chars
+
+    # Final fallback: last 200 chars
     return log_text[-200:].strip() if log_text else "(no output)"
 
 
@@ -341,6 +377,33 @@ def _extract_token_usage(raw_path: Path) -> tuple[int, int]:
     return 0, 0
 
 
+def _extract_cycles_used(raw_path: Path) -> int:
+    """Parse cycle count from agent output.
+
+    Looks for patterns like "Cycle 5/10" or "Cycle 3 of 8" in the log.
+    Returns the highest cycle number seen, or 0 if none found.
+    """
+    max_cycle = 0
+    try:
+        with open(raw_path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Extract text from stream JSON
+                text = _extract_text_from_stream_line(line)
+                if not text:
+                    continue
+                # Match patterns like "Cycle 5/10" or "Cycle 3 of 8"
+                match = re.search(r"Cycle\s+(\d+)(?:/|\s+of\s+)\d+", text, re.IGNORECASE)
+                if match:
+                    cycle_num = int(match.group(1))
+                    max_cycle = max(max_cycle, cycle_num)
+    except Exception:
+        pass
+    return max_cycle
+
+
 async def run_segment(
     seg: "Segment",
     config: "OrchestrateConfig",
@@ -351,12 +414,14 @@ async def run_segment(
     register_pid=None,
     unregister_pid=None,
     cwd: Path | None = None,
+    partial_context: str | None = None,
 ) -> tuple[str, str]:
     """Execute a single segment via claude CLI.
 
     Args:
         cwd: Optional working directory for the subprocess. When isolation_strategy="worktree",
              the orchestrator will pass the worktree path here.
+        partial_context: Summary from previous partial attempt to help agent continue.
 
     Returns (status, summary).
     """
@@ -365,8 +430,25 @@ async def run_segment(
     interject_msg = pending_interject["message"] if pending_interject else None
     interject_id = pending_interject["id"] if pending_interject else None
 
-    prompt = _build_prompt(seg, config, interject=interject_msg)
+    prompt = _build_prompt(seg, config, interject=interject_msg, partial_context=partial_context)
     env = _build_env(seg.num, config)
+
+    # Archive previous attempt's logs before starting new attempt
+    if attempt_num > 1:
+        prev_attempt = attempt_num - 1
+        old_raw = log_dir / f"S{seg.num:02d}.stream.jsonl"
+        old_human = log_dir / f"S{seg.num:02d}.log"
+
+        # Rename (atomic operation) to archive
+        if old_raw.exists():
+            archive_raw = log_dir / f"S{seg.num:02d}-attempt{prev_attempt}.stream.jsonl"
+            old_raw.rename(archive_raw)
+
+        if old_human.exists():
+            archive_human = log_dir / f"S{seg.num:02d}-attempt{prev_attempt}.log"
+            old_human.rename(archive_human)
+
+    # Continue with standard naming (unchanged)
     raw_log = log_dir / f"S{seg.num:02d}.stream.jsonl"
     human_log = log_dir / f"S{seg.num:02d}.log"
     prompt_file = log_dir / f"S{seg.num:02d}.prompt.txt"
@@ -446,10 +528,11 @@ async def run_segment(
                 "segment_timeout", f"S{seg.num:02d} killed after {segment_timeout}s"
             )
             tokens_in, tokens_out = _extract_token_usage(raw_log)
+            cycles_used = _extract_cycles_used(raw_log)
             await state.record_attempt(
                 seg.num, attempt_num, started_at, finished_at,
                 "timeout", f"Killed after {segment_timeout}s",
-                tokens_in, tokens_out,
+                tokens_in, tokens_out, cycles_used,
             )
             return "timeout", f"Killed after {segment_timeout}s"
 
@@ -462,7 +545,7 @@ async def run_segment(
         await state.log_event("segment_error", f"S{seg.num:02d}: {exc}")
         await state.record_attempt(
             seg.num, attempt_num, started_at, finished_at,
-            "failed", str(exc), 0, 0,
+            "failed", str(exc), 0, 0, 0,
         )
         return "failed", str(exc)
 
@@ -499,9 +582,10 @@ async def run_segment(
     )
 
     tokens_in, tokens_out = _extract_token_usage(raw_log)
+    cycles_used = _extract_cycles_used(raw_log)
     await state.record_attempt(
         seg.num, attempt_num, started_at, finished_at,
-        status, summary, tokens_in, tokens_out,
+        status, summary, tokens_in, tokens_out, cycles_used,
     )
 
     log.info("S%02d finished: %s", seg.num, status.upper())
