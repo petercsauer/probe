@@ -731,15 +731,12 @@ impl App {
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<()> {
         // Poll AI panel stream if active
-        if self.ai_panel_visible && self.ai_panel.is_streaming() {
-            if let Some(selected_idx) = self.state.selected_event {
-                if let Some(&event_idx) = self.state.filtered_indices.get(selected_idx) {
-                    if let Some(event) = self.state.store.get(event_idx) {
-                        self.ai_panel.poll_stream(event.id);
-                    }
-                }
+        if self.ai_panel_visible && self.ai_panel.is_streaming()
+            && let Some(selected_idx) = self.state.selected_event
+            && let Some(&event_idx) = self.state.filtered_indices.get(selected_idx)
+            && let Some(event) = self.state.store.get(event_idx) {
+                self.ai_panel.poll_stream(event.id);
             }
-        }
 
         terminal.draw(|frame| {
             let area = frame.area();

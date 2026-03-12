@@ -70,28 +70,36 @@ impl AiPanel {
         let events_clone = all_events.to_vec();
         let config_clone = config.clone();
 
-        // Spawn async task to stream explanation
-        tokio::spawn(async move {
-            let result = prb_ai::explain_event_stream(
-                &events_clone,
-                target_idx,
-                &config_clone,
-                |chunk: &str| {
-                    let _ = tx.send(chunk.to_string());
-                },
-            )
-            .await;
+        // Spawn async task to stream explanation (only if runtime is available)
+        match tokio::runtime::Handle::try_current() {
+            Ok(_) => {
+                tokio::spawn(async move {
+                    let result = prb_ai::explain_event_stream(
+                        &events_clone,
+                        target_idx,
+                        &config_clone,
+                        |chunk: &str| {
+                            let _ = tx.send(chunk.to_string());
+                        },
+                    )
+                    .await;
 
-            // Send completion marker
-            match result {
-                Ok(_) => {
-                    let _ = tx.send("\n[END]".to_string());
-                }
-                Err(e) => {
-                    let _ = tx.send(format!("\n[ERROR: {}]", e));
-                }
+                    // Send completion marker
+                    match result {
+                        Ok(_) => {
+                            let _ = tx.send("\n[END]".to_string());
+                        }
+                        Err(e) => {
+                            let _ = tx.send(format!("\n[ERROR: {}]", e));
+                        }
+                    }
+                });
             }
-        });
+            Err(_) => {
+                // No runtime available (likely in tests), send error immediately
+                let _ = tx.send("\n[ERROR: No async runtime available]".to_string());
+            }
+        }
     }
 
     /// Poll the stream receiver and update content. Should be called each frame.
