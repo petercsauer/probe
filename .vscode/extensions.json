@@ -1,0 +1,29 @@
+{
+  "recommendations": [
+    // Core Rust
+    "rust-lang.rust-analyzer",
+
+    // TOML
+    "tamasfe.even-better-toml",
+
+    // Testing
+    "hbenl.vscode-test-explorer",
+    "swellaby.vscode-rust-test-adapter",
+
+    // Git
+    "eamodio.gitlens",
+
+    // Markdown
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+
+    // YAML (for CI workflows)
+    "redhat.vscode-yaml",
+
+    // Code quality
+    "usernamehw.errorlens",
+
+    // Coverage
+    "ryanluker.vscode-coverage-gutters"
+  ]
+}
