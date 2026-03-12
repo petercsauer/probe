@@ -478,7 +478,7 @@ mod tests {
 
         assert!(!panel.streaming);
         assert!(panel.stream_rx.is_none());
-        assert_eq!(panel.error, Some(" Connection failed".to_string()));
+        assert_eq!(panel.error, Some("Connection failed".to_string()));
     }
 
     #[test]
