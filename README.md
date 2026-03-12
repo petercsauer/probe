@@ -109,6 +109,47 @@ The central abstraction is `DebugEvent` -- every decoder, adapter, and exporter 
 
 See [docs/architecture.md](docs/architecture.md) for the full design document.
 
+## Development
+
+This project uses [`just`](https://github.com/casey/just) for task automation.
+
+### Setup
+
+```bash
+# Install just
+cargo install just
+
+# Install development dependencies
+just setup
+
+# Install pre-commit hooks (optional but recommended)
+just install-hooks
+```
+
+### Common Commands
+
+```bash
+# See all available commands
+just
+
+# Run all checks before committing
+just check
+
+# Run full CI locally
+just ci
+
+# Generate coverage report
+just coverage
+
+# Run tests
+just test
+
+# Build release binary
+just build
+```
+
+See `justfile` for all available commands.
+
 ## Documentation
 
 | Document                                              | Description                                  |
