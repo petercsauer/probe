@@ -4,6 +4,9 @@
 //! for gRPC/HTTP2, ZMTP, and DDS/RTPS protocols, plus a central registry
 //! for coordinating detection and decoding.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod detector;
 pub mod engine;
 pub mod registry;

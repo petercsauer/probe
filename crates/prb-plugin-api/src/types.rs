@@ -27,7 +27,9 @@ fn default_api_version() -> String {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TransportLayer {
+    /// TCP transport.
     Tcp,
+    /// UDP transport.
     Udp,
 }
 

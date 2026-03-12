@@ -5,6 +5,9 @@
 //! SEDP discovery tracking for topic name resolution, and GUID-based
 //! correlation metadata.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 mod correlation;
 mod decoder;
 mod discovery;

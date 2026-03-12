@@ -44,6 +44,10 @@
 //! println!("{}", stats);
 //! ```
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![allow(missing_docs)] // TODO: Complete documentation in future segment
+
 pub mod adapter;
 pub mod capture;
 pub mod config;

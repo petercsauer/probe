@@ -8,14 +8,22 @@
 pub struct ProtocolId(pub String);
 
 impl ProtocolId {
+    /// Protocol ID for gRPC.
     pub const GRPC: &str = "grpc";
+    /// Protocol ID for ZeroMQ (ZMTP).
     pub const ZMTP: &str = "zmtp";
+    /// Protocol ID for DDS RTPS.
     pub const RTPS: &str = "rtps";
+    /// Protocol ID for HTTP/2.
     pub const HTTP2: &str = "http2";
+    /// Protocol ID for HTTP/1.x.
     pub const HTTP1: &str = "http1";
+    /// Protocol ID for TLS.
     pub const TLS: &str = "tls";
+    /// Protocol ID for unknown/unidentified protocols.
     pub const UNKNOWN: &str = "unknown";
 
+    /// Create a new protocol ID from a string.
     pub fn new(id: &str) -> Self {
         Self(id.to_string())
     }
@@ -46,6 +54,7 @@ pub struct DetectionResult {
     pub version: Option<String>,
 }
 
+/// Method used to detect a protocol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectionMethod {
     /// User explicitly specified the protocol.
@@ -74,9 +83,12 @@ pub struct DetectionContext<'a> {
     pub tls_decrypted: bool,
 }
 
+/// Transport layer (TCP or UDP).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TransportLayer {
+    /// TCP transport.
     Tcp,
+    /// UDP transport.
     Udp,
 }
 

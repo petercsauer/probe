@@ -3,6 +3,8 @@
 //! Provides decoding of protobuf messages using loaded schemas (MessageDescriptor)
 //! for accurate field names, types, and nested message structures.
 
+#![allow(missing_docs)]
+
 use base64::Engine;
 use bytes::Buf;
 use prost_reflect::{DynamicMessage, MapKey, MessageDescriptor, ReflectMessage, Value};

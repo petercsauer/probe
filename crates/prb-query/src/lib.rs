@@ -1,3 +1,12 @@
+//! Query and filter language for DebugEvents.
+//!
+//! This crate provides a simple expression language for filtering DebugEvents
+//! based on transport type, metadata fields, and other event properties.
+
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![allow(missing_docs)] // TODO: Complete documentation in future segment
+
 pub mod ast;
 pub mod error;
 pub mod eval;

@@ -8,10 +8,14 @@ use std::collections::HashMap;
 /// W3C Trace Context extracted from protocol headers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TraceContext {
-    pub trace_id: String,           // 32 lowercase hex chars
-    pub span_id: String,            // 16 lowercase hex chars
-    pub trace_flags: u8,            // 0x01 = sampled
-    pub tracestate: Option<String>, // vendor-specific key=value pairs
+    /// Trace ID (32 lowercase hex characters).
+    pub trace_id: String,
+    /// Span ID (16 lowercase hex characters).
+    pub span_id: String,
+    /// Trace flags (0x01 = sampled).
+    pub trace_flags: u8,
+    /// Vendor-specific tracestate key=value pairs.
+    pub tracestate: Option<String>,
 }
 
 impl TraceContext {

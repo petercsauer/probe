@@ -3,6 +3,9 @@
 //! This crate provides persistent storage for DebugEvents using the MCAP format,
 //! enabling session-based analysis of captured protocol traffic.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod error;
 pub mod metadata;
 pub mod reader;

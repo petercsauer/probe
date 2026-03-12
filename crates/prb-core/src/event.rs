@@ -203,6 +203,7 @@ impl fmt::Display for Direction {
 pub enum Payload {
     /// Raw bytes, not decoded.
     Raw {
+        /// The raw payload bytes.
         #[serde(with = "serde_bytes_base64")]
         raw: Bytes,
     },
@@ -251,15 +252,34 @@ mod serde_bytes_base64 {
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum CorrelationKey {
     /// Stream ID (e.g., HTTP/2 stream).
-    StreamId { id: u32 },
+    StreamId {
+        /// The stream identifier.
+        id: u32
+    },
     /// Topic name (e.g., ZMQ, DDS).
-    Topic { name: String },
+    Topic {
+        /// The topic name.
+        name: String
+    },
     /// Connection identifier.
-    ConnectionId { id: String },
+    ConnectionId {
+        /// The connection identifier string.
+        id: String
+    },
     /// OpenTelemetry trace context.
-    TraceContext { trace_id: String, span_id: String },
+    TraceContext {
+        /// The trace ID (32 hex characters).
+        trace_id: String,
+        /// The span ID (16 hex characters).
+        span_id: String
+    },
     /// Custom key-value pair.
-    Custom { key: String, value: String },
+    Custom {
+        /// The custom key.
+        key: String,
+        /// The custom value.
+        value: String
+    },
 }
 
 /// Main debug event structure.

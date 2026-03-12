@@ -1,5 +1,7 @@
 //! Wire-format protobuf decoder with heuristic disambiguation.
 
+#![allow(missing_docs)]
+
 use std::fmt;
 use thiserror::Error;
 

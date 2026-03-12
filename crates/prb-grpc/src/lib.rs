@@ -5,6 +5,9 @@
 //! extraction with compression support, trailer/status parsing, and graceful
 //! degradation for mid-stream captures.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 mod correlation;
 mod decoder;
 mod error;

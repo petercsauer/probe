@@ -6,7 +6,9 @@ use std::collections::HashMap;
 /// Serializable correlation key DTO.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorrelationKeyDto {
+    /// The kind of correlation key (e.g., "stream-id", "topic").
     pub kind: String,
+    /// The correlation value.
     pub value: String,
 }
 

@@ -4,6 +4,10 @@
 //! capture formats, with support for extracting embedded TLS keys from pcapng
 //! Decryption Secrets Blocks (DSB).
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![allow(missing_docs)] // TODO: Complete documentation in future segment
+
 mod error;
 pub mod factories;
 pub mod flow_key;

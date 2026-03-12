@@ -27,7 +27,7 @@ use std::thread;
 /// - Bounded channels for backpressure (prevents OOM on slow consumers)
 /// - Micro-batching in normalizer (collect batch, rayon parallel normalize, route)
 /// - Per-shard TCP reassembly (independent state, true parallelism)
-/// - Thread-safe TLS decryption using Arc<TlsKeyLog>
+/// - Thread-safe TLS decryption using `Arc<TlsKeyLog>`
 pub struct StreamingPipeline {
     batch_size: usize,
     num_shards: usize,
