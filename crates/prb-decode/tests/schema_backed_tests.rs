@@ -938,13 +938,15 @@ fn test_display_numeric_types() {
     // uint64_field = 999 (field 4)
     payload.extend_from_slice(&[0x20, 0xe7, 0x07]);
 
-    // float_field = 3.25 (field 6, fixed32)
+    // float_field = 3.14 (field 6, fixed32)
     payload.push(0x35); // tag (6 << 3) | 5
-    payload.extend_from_slice(&3.25f32.to_le_bytes());
+    #[allow(clippy::approx_constant)]
+    payload.extend_from_slice(&3.14f32.to_le_bytes());
 
-    // double_field = 2.5 (field 7, fixed64)
+    // double_field = 2.718 (field 7, fixed64)
     payload.push(0x39); // tag (7 << 3) | 1
-    payload.extend_from_slice(&2.5f64.to_le_bytes());
+    #[allow(clippy::approx_constant)]
+    payload.extend_from_slice(&2.718f64.to_le_bytes());
 
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
     let display = format!("{decoded}");
