@@ -258,38 +258,39 @@
   .cc-text.highlight { background: rgba(224,175,104,0.2); border-radius: 2px; padding: 1px 2px; }
 
   /* Markdown styles for rendered content */
-  .cc-text h1 { color: var(--cc-orange); font-size: 16px; font-weight: 700; margin: 12px 0 6px; }
-  .cc-text h2 { color: var(--cc-blue); font-size: 15px; font-weight: 600; margin: 10px 0 5px; }
-  .cc-text h3 { color: var(--cc-cyan); font-size: 13.5px; font-weight: 600; margin: 8px 0 4px; }
+  .cc-text.markdown { white-space: normal; margin: 0; padding: 12px 20px; }
+  .cc-text h1 { color: var(--cc-orange); font-size: 16px; font-weight: 700; margin: 8px 0 4px; }
+  .cc-text h2 { color: var(--cc-blue); font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+  .cc-text h3 { color: var(--cc-cyan); font-size: 13.5px; font-weight: 600; margin: 6px 0 3px; }
   .cc-text h4 { color: var(--cc-cyan); font-size: 12.5px; font-weight: 600; margin: 6px 0 3px; }
-  .cc-text h5, .cc-text h6 { color: var(--cc-text-dim); font-size: 12px; font-weight: 600; margin: 6px 0 3px; }
-  .cc-text p { margin: 6px 0; }
+  .cc-text h5, .cc-text h6 { color: var(--cc-text-dim); font-size: 12px; font-weight: 600; margin: 4px 0 2px; }
+  .cc-text p { margin: 4px 0; }
   .cc-text pre {
-    background: rgba(0,0,0,0.4); padding: 10px 12px; border-radius: 5px; overflow-x: auto;
-    margin: 10px 0; border: 1px solid var(--cc-border); font-size: 12px; line-height: 1.5;
+    background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 4px; overflow-x: auto;
+    margin: 6px 0; border: 1px solid var(--cc-border); font-size: 12px; line-height: 1.5;
     white-space: pre; word-break: normal;
   }
   .cc-text code {
-    background: rgba(122,162,247,0.15); padding: 2px 6px; border-radius: 3px;
+    background: rgba(122,162,247,0.15); padding: 2px 5px; border-radius: 3px;
     color: var(--cc-cyan); font-size: 12px; border: 1px solid rgba(122,162,247,0.25);
     font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   }
   .cc-text pre code {
     background: none; padding: 0; border: none; color: var(--cc-text);
   }
-  .cc-text ul, .cc-text ol { margin: 6px 0 6px 20px; padding-left: 20px; }
-  .cc-text li { margin: 2px 0; }
+  .cc-text ul, .cc-text ol { margin: 4px 0 4px 0; padding-left: 24px; }
+  .cc-text li { margin: 1px 0; }
   .cc-text a { color: var(--cc-blue); text-decoration: underline; text-decoration-color: rgba(122,162,247,0.4); }
   .cc-text a:hover { text-decoration-color: var(--cc-blue); }
   .cc-text blockquote {
-    border-left: 3px solid var(--cc-text-dim); padding-left: 12px; margin: 10px 0;
+    border-left: 3px solid var(--cc-text-dim); padding-left: 12px; margin: 6px 0;
     color: var(--cc-text-dim); font-style: italic;
   }
-  .cc-text hr { border: none; border-top: 1px solid var(--cc-border); margin: 12px 0; }
+  .cc-text hr { border: none; border-top: 1px solid var(--cc-border); margin: 8px 0; }
   .cc-text strong { font-weight: 700; color: var(--text); }
   .cc-text em { font-style: italic; color: var(--cc-blue); }
-  .cc-text table { border-collapse: collapse; margin: 10px 0; }
-  .cc-text th, .cc-text td { border: 1px solid var(--cc-border); padding: 6px 10px; }
+  .cc-text table { border-collapse: collapse; margin: 6px 0; }
+  .cc-text th, .cc-text td { border: 1px solid var(--cc-border); padding: 4px 8px; }
   .cc-text th { background: rgba(0,0,0,0.3); font-weight: 600; }
 
   /* Thinking block — left border, collapsible */
@@ -659,11 +660,15 @@
     _thinkEl = null;
   }
 
-  function _appendTextNode(logEl, text) {
+  function _appendTextNode(logEl, text, isMarkdown = false) {
     if (!text.trim()) return;
     const div = document.createElement('div');
-    div.className = 'cc-text';
-    div.innerHTML = _renderMarkdown(text);
+    div.className = isMarkdown ? 'cc-text markdown' : 'cc-text';
+    if (isMarkdown) {
+      div.innerHTML = _renderMarkdown(text);
+    } else {
+      div.textContent = text;
+    }
     logEl.appendChild(div);
   }
 
@@ -1273,8 +1278,8 @@
           logContent.appendChild(pillsDiv);
         }
 
-        // Render entire content as a single text node (like logs do)
-        _appendTextNode(logContent, content);
+        // Render entire content as markdown
+        _appendTextNode(logContent, content, true);
       } catch (e) {
         logContent.innerHTML = `<div style="color: var(--cc-red); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
       }
