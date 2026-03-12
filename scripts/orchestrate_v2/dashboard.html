@@ -54,7 +54,7 @@
     .tab-bar { display: flex; }
   }
 
-  /* ── Tab bar ── */
+  /* ── Mobile tab bar ── */
   .tab-bar {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
@@ -62,11 +62,17 @@
     z-index: 100;
   }
   .tab-btn {
-    flex: 1; background: none; border: none; color: var(--text-dim);
-    font-size: 11px; font-weight: 600; cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    flex: 1; background: none; border: none; color: var(--text-muted);
+    font-size: 11px; font-weight: 500; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    transition: color 0.15s;
   }
-  .tab-btn.active { color: var(--running); }
+  .tab-btn:hover { color: var(--text-dim); }
+  .tab-btn.active {
+    color: var(--running);
+    font-weight: 600;
+  }
+  .tab-btn i { font-size: 16px; }
 
   /* ── Wave Timeline (left panel) ── */
   .timeline { overflow-y: auto; border-right: 1px solid var(--border); padding: 0 0 16px 0; background: #0d1117; }
@@ -101,6 +107,7 @@
   }
   .seg-status:hover { opacity: 0.8; }
   .seg-status.pass    { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); }
+  .seg-status.merged  { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); font-weight: 700; }
   .seg-status.running { background: var(--running-bg); color: var(--running); border: 1px solid var(--running); animation: pulse 2s infinite; }
   .seg-status.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
   .seg-status.failed  { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail); }
@@ -138,6 +145,7 @@
   .act-kill  { background: rgba(209,77,65,0.15); color: var(--fail); border: 1px solid var(--fail); }
   .act-retry { background: rgba(56,189,248,0.15); color: var(--running); border: 1px solid var(--running); }
   .act-skip  { background: rgba(100,100,100,0.1); color: var(--text-muted); border: 1px solid var(--border); }
+  .act-gate-retry { background: rgba(209,77,65,0.2); color: var(--fail); border: 1px solid var(--fail); }
 
   /* Gate bar between waves */
   .gate-bar {
@@ -450,6 +458,99 @@
     background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
     padding: 1px 5px; font-size: 10px; font-family: 'SF Mono', monospace;
   }
+
+  /* ── Log Tabs — GitHub-style underline tabs ── */
+  .log-tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    flex-shrink: 0;
+    padding: 0 16px;
+    gap: 0;
+    min-height: 44px;
+    align-items: stretch;
+  }
+
+  .log-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+    border-bottom: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .log-tab:hover {
+    color: var(--text);
+    border-bottom-color: var(--border);
+  }
+
+  .log-tab.active {
+    color: var(--text);
+    background: none;
+    border-bottom: 2px solid var(--running);
+    font-weight: 600;
+  }
+
+  .log-tab.failed {
+    color: var(--fail);
+  }
+  .log-tab.failed.active { border-bottom-color: var(--fail); }
+
+  .log-tab.running {
+    color: var(--running);
+  }
+  .log-tab.running .tab-icon { animation: pulse 2s infinite; }
+
+  .log-tab.pass {
+    color: var(--pass);
+  }
+  .log-tab.pass.active { border-bottom-color: var(--pass); }
+
+  .log-tab .tab-icon {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+
+  .log-tab .tab-badge {
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-dim);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .log-tab.active .tab-badge {
+    background: rgba(122,162,247,0.15);
+    color: var(--running);
+  }
+
+  .log-tab.failed .tab-badge {
+    background: rgba(218,54,51,0.15);
+    color: var(--fail);
+  }
+
+  .log-tab.pass .tab-badge {
+    background: rgba(35,134,54,0.15);
+    color: var(--pass);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
 </style>
 </head>
 <body>
@@ -478,6 +579,10 @@
       <span>LOG: <span id="log-seg-label">select a segment</span></span>
       <span class="live-badge" id="live-badge"></span>
     </div>
+
+    <!-- Dynamic tabs -->
+    <div class="log-tabs" id="log-tabs" style="display: none;"></div>
+
     <div class="log-content" id="log-content"></div>
     <div class="log-bottom-toolbar">
       <input
@@ -492,8 +597,6 @@
       <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
         <i class="fa-solid fa-message"></i> Send
       </button>
-      <div class="toolbar-divider"></div>
-      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
     </div>
   </div>
 
@@ -528,10 +631,7 @@
   let startedAt = null;
   let lastSegments = null;
   let activeSegList = [];
-
-  // Prompt view state
-  let showingPrompt = false;
-  let currentPromptText = null;
+  let initialLoadDone = false;
 
   // Restore from localStorage
   const savedSeg = parseInt(localStorage.getItem('orchestrate_activeSeg'));
@@ -556,11 +656,27 @@
   }
 
   function gateStatus(events, waveNum, currentWave, waveIsDone) {
+    let lastResult = null;
+    let wasCleared = false;
+
     for (const ev of events) {
       if (ev.kind === 'gate_result' && ev.detail.includes(`Wave ${waveNum}`)) {
-        return ev.detail.includes('PASS') ? 'pass' : 'fail';
+        lastResult = ev.detail.includes('PASS') ? 'pass' : 'fail';
+      }
+      // Check if gate was cleared after failure
+      if (ev.kind === 'gate_cleared' && ev.detail.includes(`Wave ${waveNum}`)) {
+        wasCleared = true;
       }
     }
+
+    // If gate was cleared, show as pending/running
+    if (wasCleared) {
+      if (waveIsDone && parseInt(currentWave) === waveNum) return 'running';
+      return 'pending';
+    }
+
+    if (lastResult) return lastResult;
+
     // Only show running if this wave is done AND we're still on this wave (not moved to next)
     if (waveIsDone && parseInt(currentWave) === waveNum) return 'running';
     return 'pending';
@@ -877,7 +993,7 @@
         document.getElementById('wave-info').textContent = `Wave ${data.current_wave}/${data.max_wave}`;
 
         const total = data.segments.length;
-        const doneCount = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
+        const doneCount = data.segments.filter(s => ['pass','merged','partial','blocked','failed','timeout'].includes(s.status)).length;
         const runningCount = data.segments.filter(s => s.status === 'running').length;
         document.getElementById('progress-text').textContent = `${doneCount}/${total} done` + (runningCount ? ` · ${runningCount} running` : '');
         document.getElementById('progress-fill').style.width = total ? `${(doneCount/total*100).toFixed(1)}%` : '0%';
@@ -907,10 +1023,26 @@
           }
         }
 
-        // Auto-select first running segment only if nothing selected yet
-        if (activeSeg == null) {
-          const running = data.segments.find(s => s.status === 'running');
-          if (running) window._selectSeg(running.num, running.title, 'running');
+        // Auto-select segment on first load (either from localStorage or first running)
+        if (!initialLoadDone) {
+          initialLoadDone = true;
+
+          if (activeSeg != null) {
+            // activeSeg was restored from localStorage - now actually load its content
+            const seg = data.segments.find(s => s.num === activeSeg);
+            if (seg) {
+              window._selectSeg(seg.num, seg.title, seg.status);
+            } else {
+              // Saved segment doesn't exist, clear it and select running
+              activeSeg = null;
+              const running = data.segments.find(s => s.status === 'running');
+              if (running) window._selectSeg(running.num, running.title, 'running');
+            }
+          } else {
+            // No saved segment, select first running
+            const running = data.segments.find(s => s.status === 'running');
+            if (running) window._selectSeg(running.num, running.title, 'running');
+          }
         }
 
         renderNotifications(data.notifications);
@@ -936,25 +1068,28 @@
   function actionButtons(seg) {
     const btns = [];
     if (seg.status === 'running') {
-      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i> Kill</button>`);
+      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i></button>`);
     }
     if (['failed','blocked','partial','timeout'].includes(seg.status)) {
-      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry"><i class="fa-solid fa-rotate-right"></i> Retry</button>`);
-      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
+      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry"><i class="fa-solid fa-rotate-right"></i></button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i></button>`);
     }
     if (seg.status === 'pending') {
-      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i></button>`);
     }
     return btns.length ? `<span class="act-btns">${btns.join('')}</span>` : '';
   }
 
   window.controlSeg = async function(num, action) {
-    const messages = {
-      kill:  `Kill S${String(num).padStart(2,'0')}? This terminates the running process.`,
-      retry: `Reset S${String(num).padStart(2,'0')} for retry? (Restart orchestrator to run it.)`,
-      skip:  `Skip S${String(num).padStart(2,'0')}? The wave will proceed without it.`,
-    };
-    if (!confirm(messages[action] || `${action} S${String(num).padStart(2,'0')}?`)) return;
+    // Skip confirmation for retry - just do it
+    if (action !== 'retry') {
+      const messages = {
+        kill:  `Kill S${String(num).padStart(2,'0')}? This terminates the running process.`,
+        skip:  `Skip S${String(num).padStart(2,'0')}? The wave will proceed without it.`,
+      };
+      if (!confirm(messages[action] || `${action} S${String(num).padStart(2,'0')}?`)) return;
+    }
+
     try {
       const r = await fetch('/api/control', {
         method: 'POST',
@@ -1091,7 +1226,7 @@
     // Close any open dropdowns
     document.querySelectorAll('.status-dropdown').forEach(d => d.remove());
 
-    const statuses = ['pending', 'running', 'pass', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
+    const statuses = ['pending', 'running', 'pass', 'merged', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
     const dropdown = document.createElement('div');
     dropdown.className = 'status-dropdown show';
 
@@ -1099,7 +1234,7 @@
       const item = document.createElement('div');
       item.className = 'status-dropdown-item';
       item.textContent = status;
-      item.style.color = getComputedStyle(document.documentElement).getPropertyValue(`--${status === 'pass' ? 'pass' : status === 'running' ? 'running' : status === 'pending' ? 'pending' : status.includes('fail') || status === 'blocked' ? 'fail' : status === 'partial' || status === 'timeout' ? 'partial' : 'text-muted'}`);
+      item.style.color = getComputedStyle(document.documentElement).getPropertyValue(`--${status === 'pass' || status === 'merged' ? 'pass' : status === 'running' ? 'running' : status === 'pending' ? 'pending' : status.includes('fail') || status === 'blocked' ? 'fail' : status === 'partial' || status === 'timeout' ? 'partial' : 'text-muted'}`);
       if (status === currentStatus) {
         item.style.background = 'rgba(255,255,255,0.15)';
       }
@@ -1156,22 +1291,25 @@
         html += `</div>`;
       });
 
-      // Gate bar after each wave (except last)
-      if (w < maxWave) {
+      // Gate bar after each wave (including final wave)
+      if (w <= maxWave) {
         const wDone = ws === 'done';
         const gs = gateStatus(events, w, currentWave, wDone);
         let inner = '';
+        let retryBtn = '';
+
         if (gs === 'pass') {
           inner = `<span class="gate-icon"><i class="fa-solid fa-check-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
         } else if (gs === 'fail') {
           inner = `<span class="gate-icon"><i class="fa-solid fa-times-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
+          retryBtn = `<button class="act-btn act-gate-retry" onclick="event.stopPropagation();window.retryGate(${w})" title="Retry gate and reset segments" style="margin-left: 8px;"><i class="fa-solid fa-rotate-right"></i></button>`;
         } else if (gs === 'running') {
           inner = `<span class="gate-icon"><i class="fa-solid fa-spinner fa-spin"></i></span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
         } else {
           inner = `<span class="gate-icon"><i class="fa-regular fa-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
         }
         const clickable = (gs === 'running' || gs === 'pass' || gs === 'fail') ? ` onclick="window._selectGate(${w},'${gs}')" style="cursor:pointer"` : '';
-        html += `<div class="gate-bar gate-${gs}"${clickable}>${inner}</div>`;
+        html += `<div class="gate-bar gate-${gs}"${clickable}>${inner}${retryBtn}</div>`;
       }
 
       html += `</div>`;
@@ -1201,90 +1339,431 @@
     };
   }
 
-  window._selectGate = function(wave, status) {
+  window._selectGate = async function(wave, status) {
     activeSeg = null;
     localStorage.removeItem('orchestrate_activeSeg');
     document.getElementById('log-seg-label').textContent = `Gate — Wave ${wave}`;
-    document.getElementById('log-content').innerHTML = '';
+    const logContent = document.getElementById('log-content');
+    logContent.innerHTML = '';
     document.querySelectorAll('.seg-row').forEach(r => r.classList.remove('active'));
 
-    // Reset prompt view state
-    showingPrompt = false;
-    currentPromptText = null;
-
-    // Disable and reset prompt button for gates
-    const promptBtn = document.getElementById('prompt-btn');
-    if (promptBtn) {
-      promptBtn.disabled = true;
-      promptBtn.textContent = 'Prompt';
-      promptBtn.classList.remove('active');
+    // Hide tabs for gates
+    const tabsContainer = document.getElementById('log-tabs');
+    if (tabsContainer) {
+      tabsContainer.style.display = 'none';
     }
 
-    _openLogStream(`/api/logs/gate-W${wave}`, document.getElementById('log-content'), status === 'running');
+    // Load gate log and render as markdown
+    try {
+      const response = await fetch(`/api/logs/gate-W${wave}-content`);
+      if (response.ok) {
+        const text = await response.text();
+        if (text) {
+          logContent.innerHTML = `<div class="cc-text markdown" style="padding: 20px; font-size: 13px;">${_renderMarkdown(text)}</div>`;
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load gate log content:', e);
+    }
+
+    // Fallback to streaming if content not available
+    _openLogStream(`/api/logs/gate-W${wave}`, logContent, status === 'running');
   };
 
-  window.showPrompt = async function() {
-    if (activeSeg == null) return;
+  window.retryGate = async function(wave) {
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'retry_gate', wave: wave}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed to retry gate: ${data.error || 'unknown error'}`);
+      } else {
+        // Show success message with count
+        const msg = data.reset_count > 0
+          ? `Gate retry requested. ${data.reset_count} segment(s) reset to pending.`
+          : 'Gate retry requested.';
+        console.log(msg);
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
 
-    const promptBtn = document.getElementById('prompt-btn');
+  // ── Tab Management ──
+  let currentLogTab = 'live'; // 'live', 'attempt-1', 'attempt-2', 'summary', 'prompt', 'todos'
+  let segmentAttempts = [];
+
+  async function loadSegmentAttempts(segNum) {
+    try {
+      const response = await fetch(`/api/segment/S${pad(segNum)}/attempts`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      segmentAttempts = data.attempts || [];
+      renderLogTabs(segNum);
+    } catch (e) {
+      console.error('Failed to load attempts:', e);
+      segmentAttempts = [];
+    }
+  }
+
+  function renderLogTabs(segNum) {
+    const tabsContainer = document.getElementById('log-tabs');
+    const seg = lastSegments && lastSegments.find(s => s.num === segNum);
+
+    if (!seg) {
+      tabsContainer.style.display = 'none';
+      return;
+    }
+
+    // Show tabs container
+    tabsContainer.style.display = 'flex';
+
+    let html = '';
+
+    // Live log tab (current attempt or completed log)
+    const isRunning = seg.status === 'running';
+    const liveLabel = isRunning ? 'Live' : 'Log';
+    const liveIcon = isRunning ? '<i class="fa-solid fa-bolt"></i>' : '<i class="fa-solid fa-file-lines"></i>';
+    html += `<button class="log-tab ${currentLogTab === 'live' ? 'active' : ''} ${isRunning ? 'running' : ''}" onclick="switchLogTab('live', ${segNum})">
+      <span class="tab-icon">${liveIcon}</span>${liveLabel}
+    </button>`;
+
+    // Historical attempt tabs (oldest first)
+    segmentAttempts.forEach(attempt => {
+      if (!attempt.has_log && attempt.attempt === seg.attempts) {
+        // Skip current attempt if no archived log exists (it's the live one)
+        return;
+      }
+
+      const attemptLabel = `Attempt ${attempt.attempt}`;
+      const attemptStatus = attempt.status || 'unknown';
+      const statusIcon = getStatusIcon(attemptStatus);
+      const tabClass = currentLogTab === `attempt-${attempt.attempt}` ? 'active' : '';
+
+      html += `<button class="log-tab ${tabClass} ${attemptStatus}" onclick="switchLogTab('attempt-${attempt.attempt}', ${segNum})">
+        <span class="tab-icon">${statusIcon}</span>${attemptLabel}
+        <span class="tab-badge">${attemptStatus}</span>
+      </button>`;
+    });
+
+    // Summary tab (show when segment is complete)
+    if (['pass', 'partial', 'blocked', 'failed', 'timeout'].includes(seg.status)) {
+      html += `<button class="log-tab ${currentLogTab === 'summary' ? 'active' : ''}" onclick="switchLogTab('summary', ${segNum})">
+        <span class="tab-icon"><i class="fa-solid fa-chart-bar"></i></span>Summary
+      </button>`;
+    }
+
+    // Prompt tab
+    html += `<button class="log-tab ${currentLogTab === 'prompt' ? 'active' : ''}" onclick="switchLogTab('prompt', ${segNum})">
+      <span class="tab-icon"><i class="fa-solid fa-file-code"></i></span>Prompt
+    </button>`;
+
+    // Status tab - show segment metadata
+    html += `<button class="log-tab ${currentLogTab === 'status' ? 'active' : ''}" onclick="switchLogTab('status', ${segNum})">
+      <span class="tab-icon"><i class="fa-solid fa-list-check"></i></span>Status
+    </button>`;
+
+    tabsContainer.innerHTML = html;
+
+    // Auto-load the active tab content
+    window.switchLogTab(currentLogTab, segNum);
+  }
+
+  function getStatusIcon(status) {
+    const icons = {
+      'pass': '<i class="fa-solid fa-circle-check"></i>',
+      'failed': '<i class="fa-solid fa-circle-xmark"></i>',
+      'timeout': '<i class="fa-solid fa-clock"></i>',
+      'blocked': '<i class="fa-solid fa-ban"></i>',
+      'unknown': '<i class="fa-solid fa-circle-question"></i>',
+      'running': '<i class="fa-solid fa-spinner fa-spin"></i>'
+    };
+    return icons[status] || '<i class="fa-solid fa-circle"></i>';
+  }
+
+  window.switchLogTab = async function(tabId, segNum) {
+    currentLogTab = tabId;
+
+    // Update tab active states without re-rendering (avoid infinite recursion)
+    document.querySelectorAll('.log-tab').forEach(tab => {
+      const isActive = tab.classList.contains('active');
+      const shouldBeActive = tab.onclick && tab.onclick.toString().includes(`'${tabId}'`);
+      if (shouldBeActive && !isActive) tab.classList.add('active');
+      if (!shouldBeActive && isActive) tab.classList.remove('active');
+    });
+
     const logContent = document.getElementById('log-content');
     const badge = document.getElementById('live-badge');
 
-    if (showingPrompt) {
-      // Switch back to log view
-      showingPrompt = false;
-      promptBtn.textContent = 'Prompt';
-      promptBtn.classList.remove('active');
-
-      // Resume log stream
-      const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
-      if (seg) {
-        const status = seg.status;
-        _openLogStream(`/api/logs/S${pad(activeSeg)}`, logContent, status === 'running');
-      }
-    } else {
-      // Switch to prompt view
-      showingPrompt = true;
-      promptBtn.textContent = 'Log';
-      promptBtn.classList.add('active');
-
-      // Stop log stream
-      if (logSource) {
-        logSource.close();
-        logSource = null;
-      }
-      badge.textContent = '';
-
-      // Show loading state
-      logContent.innerHTML = '<div style="color: var(--cc-text-dim); padding: 20px;">Loading prompt...</div>';
-
-      // Fetch and display prompt
-      try {
-        const response = await fetch(`/api/prompt/S${pad(activeSeg)}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const text = await response.text();
-        currentPromptText = text;
-
-        // Parse frontmatter and render pills + content using same approach as logs
-        const { metadata, content } = _parseYamlFrontmatter(text);
-        logContent.innerHTML = '';
-
-        // Add pills if metadata exists
-        if (Object.keys(metadata).length > 0) {
-          const pillsDiv = document.createElement('div');
-          pillsDiv.innerHTML = _renderMetadataPills(metadata);
-          pillsDiv.style.padding = '12px 20px 0';
-          logContent.appendChild(pillsDiv);
-        }
-
-        // Render entire content as markdown
-        _appendTextNode(logContent, content, true);
-      } catch (e) {
-        logContent.innerHTML = `<div style="color: var(--cc-red); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
-      }
+    // Stop any active log stream
+    if (logSource) {
+      logSource.close();
+      logSource = null;
     }
-  };
+
+    badge.textContent = '';
+    logContent.innerHTML = '<div style="color: var(--text-dim); padding: 20px;">Loading...</div>';
+
+    if (tabId === 'live') {
+      // Load live/current log
+      const seg = lastSegments && lastSegments.find(s => s.num === segNum);
+      if (seg) {
+        _openLogStream(`/api/logs/S${pad(segNum)}`, logContent, seg.status === 'running');
+      }
+
+    } else if (tabId.startsWith('attempt-')) {
+      // Load archived attempt log
+      const attemptNum = parseInt(tabId.split('-')[1]);
+      _openLogStream(`/api/logs/S${pad(segNum)}/attempt/${attemptNum}`, logContent, false);
+
+    } else if (tabId === 'summary') {
+      // Load and render summary
+      try {
+        const response = await fetch(`/api/segment/S${pad(segNum)}/summary`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        renderSummaryView(logContent, data);
+      } catch (e) {
+        logContent.innerHTML = `<div style="color: var(--fail); padding: 20px;">Failed to load summary: ${_esc(e.message)}</div>`;
+      }
+
+    } else if (tabId === 'prompt') {
+      // Load prompt (existing functionality)
+      showPromptInTab(segNum, logContent);
+
+    } else if (tabId === 'status') {
+      // Show segment metadata
+      const seg = lastSegments && lastSegments.find(s => s.num === segNum);
+      if (!seg) {
+        logContent.innerHTML = '<div style="color: var(--text-dim); padding: 20px;">No segment data available</div>';
+        return;
+      }
+
+      let html = '<div style="padding: 20px; font-family: -apple-system, sans-serif;">';
+      html += `<h2 style="color: var(--text); font-size: 18px; margin-bottom: 16px; font-weight: 600;">
+        <i class="fa-solid fa-info-circle" style="color: var(--running); margin-right: 8px;"></i>
+        Segment Status & Metadata
+      </h2>`;
+
+      // Overview section
+      html += '<div style="margin-bottom: 24px;">';
+      html += '<h3 style="color: var(--text-dim); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Overview</h3>';
+      html += '<table style="width: 100%; border-collapse: collapse;">';
+
+      const addRow = (label, value, color = 'var(--text)') => {
+        return `<tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 10px 16px 10px 0; color: var(--text-dim); font-weight: 500;">${label}</td>
+          <td style="padding: 10px 0; color: ${color}; font-family: 'SF Mono', monospace; font-size: 13px;">${value}</td>
+        </tr>`;
+      };
+
+      html += addRow('Segment', `S${pad(segNum)} — ${_esc(seg.title)}`);
+      html += addRow('Status', `<span style="text-transform: uppercase; font-weight: 700; padding: 3px 8px; background: rgba(122,162,247,0.15); border-radius: 4px;">${seg.status}</span>`);
+      html += addRow('Wave', `Wave ${seg.wave}`);
+
+      // Show "Current Cycle" when running, "Total Attempts" otherwise
+      const attemptLabel = seg.status === 'running' ? 'Current Attempt' : 'Total Attempts';
+      const attemptValue = seg.attempts || 0;
+      const attemptColor = seg.status === 'running' ? 'var(--running)' : 'var(--text)';
+      html += addRow(attemptLabel, attemptValue, attemptColor);
+
+      // Calculate total agent cycles from attempt history
+      if (segmentAttempts && segmentAttempts.length > 0) {
+        const totalCycles = segmentAttempts.reduce((sum, att) => sum + (att.cycles_used || 0), 0);
+        if (totalCycles > 0) {
+          html += addRow('Agent Cycles', totalCycles, 'var(--text)');
+        }
+      }
+
+      if (seg.started_at) {
+        const startTime = new Date(seg.started_at * 1000).toLocaleString();
+        const elapsed = seg.finished_at
+          ? formatElapsed(seg.finished_at - seg.started_at)
+          : formatElapsed(Date.now()/1000 - seg.started_at);
+        html += addRow('Started', startTime);
+        html += addRow('Elapsed', elapsed, seg.status === 'running' ? 'var(--running)' : 'var(--text)');
+      }
+
+      if (seg.finished_at) {
+        const finishTime = new Date(seg.finished_at * 1000).toLocaleString();
+        html += addRow('Finished', finishTime);
+      }
+
+      if (seg.per_segment_timeout) {
+        html += addRow('Timeout', `${seg.per_segment_timeout} minutes`);
+      }
+
+      html += '</table></div>';
+
+      // Latest summary (from most recent attempt)
+      if (segmentAttempts && segmentAttempts.length > 0) {
+        const latestAttempt = segmentAttempts[segmentAttempts.length - 1];
+        if (latestAttempt.summary) {
+          html += '<div style="margin-bottom: 24px;">';
+          html += `<div class="cc-text markdown" style="font-size: 13px;">${_renderMarkdown(latestAttempt.summary)}</div>`;
+          html += '</div>';
+        }
+      }
+
+      // Attempt history
+      if (segmentAttempts && segmentAttempts.length > 0) {
+        html += '<div style="margin-bottom: 24px;">';
+        html += '<h3 style="color: var(--text-dim); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Attempt History</h3>';
+
+        segmentAttempts.forEach(att => {
+          const statusColor = {
+            'pass': 'var(--pass)',
+            'failed': 'var(--fail)',
+            'partial': 'var(--partial)',
+            'timeout': 'var(--timeout)',
+            'blocked': 'var(--fail)'
+          }[att.status] || 'var(--text-dim)';
+
+          html += `<div style="padding: 12px; background: rgba(255,255,255,0.03); border-left: 3px solid ${statusColor}; margin-bottom: 8px; border-radius: 4px;">`;
+          html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">`;
+          html += `<span style="font-weight: 600; color: var(--text);">Attempt ${att.attempt}</span>`;
+          html += `<span style="color: ${statusColor}; text-transform: uppercase; font-size: 11px; font-weight: 700; padding: 2px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">${att.status || 'unknown'}</span>`;
+          html += '</div>';
+
+          if (att.started_at) {
+            const duration = att.finished_at
+              ? formatElapsed(att.finished_at - att.started_at)
+              : 'ongoing';
+            html += `<div style="font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Duration: ${duration}</div>`;
+          }
+
+          if (att.cycles_used) {
+            html += `<div style="font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">
+              <i class="fa-solid fa-rotate" style="color: var(--running);"></i> Agent cycles: ${att.cycles_used}
+            </div>`;
+          }
+
+          if (att.tokens_in || att.tokens_out) {
+            html += `<div style="font-size: 12px; color: var(--text-dim); display: flex; gap: 16px;">`;
+            if (att.tokens_in) html += `<span><i class="fa-solid fa-arrow-down" style="color: var(--pass);"></i> ${att.tokens_in.toLocaleString()} in</span>`;
+            if (att.tokens_out) html += `<span><i class="fa-solid fa-arrow-up" style="color: var(--running);"></i> ${att.tokens_out.toLocaleString()} out</span>`;
+            html += '</div>';
+          }
+
+          html += '</div>';
+        });
+
+        html += '</div>';
+      }
+
+      // Last activity
+      if (seg.last_activity) {
+        html += '<div style="margin-bottom: 24px;">';
+        html += '<h3 style="color: var(--text-dim); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Last Activity</h3>';
+        html += `<div style="padding: 12px; background: rgba(0,0,0,0.3); border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 12px; color: var(--text-dim); white-space: pre-wrap; word-break: break-word;">${_esc(seg.last_activity.slice(0, 500))}</div>`;
+        html += '</div>';
+      }
+
+      html += '</div>';
+      logContent.innerHTML = html;
+    }
+  }
+
+  async function showPromptInTab(segNum, logContent) {
+    try {
+      const response = await fetch(`/api/prompt/S${pad(segNum)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const text = await response.text();
+      const { metadata, content } = _parseYamlFrontmatter(text);
+      logContent.innerHTML = '';
+
+      if (Object.keys(metadata).length > 0) {
+        const pillsDiv = document.createElement('div');
+        pillsDiv.innerHTML = _renderMetadataPills(metadata);
+        pillsDiv.style.padding = '12px 20px 0';
+        logContent.appendChild(pillsDiv);
+      }
+
+      _appendTextNode(logContent, content, true);
+    } catch (e) {
+      logContent.innerHTML = `<div style="color: var(--fail); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
+    }
+  }
+
+  function renderSummaryView(logContent, data) {
+    const totalTokens = data.total_tokens_in + data.total_tokens_out;
+    const estimatedCost = (data.total_tokens_in * 0.003 + data.total_tokens_out * 0.015) / 1000;
+    const durationStr = data.duration_seconds ? formatElapsed(data.duration_seconds) : 'N/A';
+
+    let html = `
+      <div style="padding: 20px; color: var(--text);">
+        <h2 style="color: var(--partial); margin-bottom: 16px; font-size: 18px;">
+          <i class="fa-solid fa-chart-bar"></i> Segment Summary
+        </h2>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div>
+              <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Status</div>
+              <div style="font-size: 16px; font-weight: 600; color: var(--${data.status === 'pass' ? 'pass' : data.status.includes('fail') ? 'fail' : 'partial'});">
+                ${data.status.toUpperCase()}
+              </div>
+            </div>
+            <div>
+              <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Attempts</div>
+              <div style="font-size: 16px; font-weight: 600;">${data.total_attempts}</div>
+            </div>
+            <div>
+              <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Duration</div>
+              <div style="font-size: 16px; font-weight: 600;">${durationStr}</div>
+            </div>
+            <div>
+              <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Total Tokens</div>
+              <div style="font-size: 16px; font-weight: 600;">${totalTokens.toLocaleString()}</div>
+              <div style="color: var(--text-dim); font-size: 10px;">~$${estimatedCost.toFixed(3)}</div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="color: var(--running); margin: 24px 0 12px; font-size: 15px;">Attempt History</h3>
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+    `;
+
+    data.attempts.forEach((attempt, idx) => {
+      const attemptDuration = (attempt.finished_at - attempt.started_at) || 0;
+      const statusColor = attempt.status === 'pass' ? 'var(--pass)' : attempt.status.includes('fail') ? 'var(--fail)' : 'var(--partial)';
+
+      html += `
+        <div style="padding: 16px; ${idx > 0 ? 'border-top: 1px solid var(--border);' : ''}">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <span style="font-weight: 600; color: var(--running);">Attempt ${attempt.attempt}</span>
+            <span style="color: ${statusColor}; font-weight: 600; font-size: 11px; text-transform: uppercase;">${attempt.status}</span>
+          </div>
+          <div style="display: flex; gap: 16px; font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">
+            <span><i class="fa-solid fa-clock"></i> ${formatElapsed(attemptDuration)}</span>
+            <span><i class="fa-solid fa-arrow-down"></i> ${attempt.tokens_in.toLocaleString()} in</span>
+            <span><i class="fa-solid fa-arrow-up"></i> ${attempt.tokens_out.toLocaleString()} out</span>
+            ${attempt.cycles_used ? `<span><i class="fa-solid fa-rotate"></i> ${attempt.cycles_used} cycles</span>` : ''}
+          </div>
+          ${attempt.summary ? `
+            <div style="margin-top: 12px;">
+              <div class="cc-text markdown" style="font-size: 13px;">
+                ${_renderMarkdown(attempt.summary)}
+              </div>
+            </div>
+          ` : '<div style="color: var(--text-dim); font-size: 12px; font-style: italic;">(no summary)</div>'}
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    logContent.innerHTML = html;
+  }
 
   window._selectSeg = function(num, title, status) {
     activeSeg = num;
@@ -1293,17 +1772,11 @@
     document.getElementById('log-content').innerHTML = '';
     document.querySelectorAll('.seg-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.num) === num));
 
-    // Reset prompt view state
-    showingPrompt = false;
-    currentPromptText = null;
+    // Reset to live tab
+    currentLogTab = 'live';
 
-    // Enable and reset prompt button
-    const promptBtn = document.getElementById('prompt-btn');
-    if (promptBtn) {
-      promptBtn.disabled = false;
-      promptBtn.textContent = 'Prompt';
-      promptBtn.classList.remove('active');
-    }
+    // Load attempts and render tabs
+    loadSegmentAttempts(num);
 
     // Enable/disable interject UI based on segment status
     // Allow interject on running segments and failed states (they'll auto-restart)

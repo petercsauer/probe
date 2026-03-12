@@ -90,6 +90,7 @@ _MIGRATIONS = [
     "ALTER TABLE segments ADD COLUMN last_activity TEXT",
     "ALTER TABLE segments ADD COLUMN per_segment_timeout INTEGER",
     "ALTER TABLE events ADD COLUMN severity TEXT DEFAULT 'info'",
+    "ALTER TABLE segment_attempts ADD COLUMN cycles_used INTEGER DEFAULT 0",
 ]
 
 
@@ -207,6 +208,11 @@ class StateDB:
         row = await self.get_segment(num)
         return row.attempts if row else 0
 
+    async def mark_merged(self, num: int) -> None:
+        """Mark a segment as merged to main."""
+        await self.set_status(num, "merged", finished_at=time.time())
+        await self.log_event("segment_merged", f"S{num:02d} merged to main")
+
     async def update_heartbeat(
         self, num: int, last_seen_at: float, last_activity: str
     ) -> None:
@@ -228,19 +234,20 @@ class StateDB:
         summary: str,
         tokens_in: int = 0,
         tokens_out: int = 0,
+        cycles_used: int = 0,
     ) -> None:
         await self._conn.execute(
             """INSERT INTO segment_attempts
-               (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out),
+               (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out, cycles_used)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (seg_num, attempt, started_at, finished_at, status, summary, tokens_in, tokens_out, cycles_used),
         )
         await self._conn.commit()
 
     async def get_attempts(self, seg_num: int) -> list[dict]:
         cur = await self._conn.execute(
             "SELECT id, seg_num, attempt, started_at, finished_at, status, summary,"
-            " tokens_in, tokens_out FROM segment_attempts WHERE seg_num=? ORDER BY attempt",
+            " tokens_in, tokens_out, cycles_used FROM segment_attempts WHERE seg_num=? ORDER BY attempt",
             (seg_num,),
         )
         rows = await cur.fetchall()

@@ -573,8 +573,29 @@ async def _run_wave(
                     while True:  # outer loop: re-enters when operator hits Retry mid-wave
                         attempts = 0
                         circuit = CircuitBreaker()  # Create circuit breaker for this segment
+                        previous_summary = None  # Track summary for partial auto-retry
+                        previous_status = None  # Track status for partial detection
                         while attempts <= config.max_retries:
                             attempts = await state.increment_attempts(seg.num)
+
+                            # Determine partial context from two sources:
+                            # 1. Auto-retry: previous attempt in this run was partial
+                            # 2. Manual retry: operator clicked retry on partial segment
+                            partial_context = None
+                            if previous_status == "partial":
+                                # Auto-retry case: use summary from previous iteration
+                                partial_context = previous_summary
+                            else:
+                                # Check for manual retry flag
+                                partial_continue = await state.get_meta(f"partial_continue_{seg.num}")
+                                if partial_continue:
+                                    # Get the previous summary from database
+                                    prev_attempts = await state.get_attempts(seg.num)
+                                    if prev_attempts:
+                                        partial_context = prev_attempts[-1].get("summary", "")
+                                    # Clear the flag
+                                    await state.set_meta(f"partial_continue_{seg.num}", "")
+
                             status, summary = await run_segment(
                                 seg, config, state, log_dir,
                                 notifier=notifier,
@@ -582,7 +603,13 @@ async def _run_wave(
                                 register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
                                 unregister_pid=lambda n: _running_pids.pop(n, None),
                                 cwd=cwd,  # NEW: pass worktree path
+                                partial_context=partial_context,
                             )
+
+                            # Store for next iteration
+                            previous_status = status
+                            previous_summary = summary
+
                             if status in ("pass", "timeout"):
                                 break
 
@@ -605,20 +632,34 @@ async def _run_wave(
                             if attempts > config.max_retries:
                                 break
 
-                            # Exponential backoff before retry
-                            delay = config.retry_policy.get_delay(attempts - 1)
-                            log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
-                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
-                            await asyncio.sleep(delay)
+                            # For PARTIAL and UNKNOWN status, retry immediately without delay
+                            # PARTIAL = work in progress, UNKNOWN = couldn't parse status (likely completed but format issue)
+                            # For other retryable statuses (failed, timeout), use exponential backoff
+                            if status in ("partial", "unknown"):
+                                log.info("S%02d %s status - continuing immediately (attempt %d/%d)", seg.num, status.upper(), attempts + 1, config.max_retries)
+                                await state.log_event("segment_continue", f"S{seg.num:02d} continuing from {status} (attempt {attempts + 1})")
+                            else:
+                                delay = config.retry_policy.get_delay(attempts - 1)
+                                log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                                await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                                await asyncio.sleep(delay)
 
                         # Check if operator reset us to pending while we were running or
                         # immediately after — if so, re-run without requiring an orchestrator restart.
-                        refreshed = await state.get_segment(seg.num)
-                        if refreshed and refreshed["status"] == "pending":
-                            log.info("S%02d operator retry detected, re-running in-wave", seg.num)
-                            await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
-                            continue
-                        break
+                        # For non-pass statuses, keep checking periodically for operator retry
+                        refreshed = None
+                        while status not in ("pass",):
+                            refreshed = await state.get_segment(seg.num)
+                            if refreshed and refreshed.status == "pending":
+                                log.info("S%02d operator retry detected, re-running in-wave", seg.num)
+                                await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
+                                break  # Break to continue outer loop
+                            # Check every 5 seconds for operator action
+                            await asyncio.sleep(5)
+
+                        if refreshed and refreshed.status == "pending":
+                            continue  # Restart the segment
+                        break  # Exit if passed or no retry requested
 
                     # NEW: Auto-merge on success
                     if status == "pass" and config.isolation_strategy == "worktree":
@@ -626,6 +667,9 @@ async def _run_wave(
                         if not merge_ok:
                             log.warning("S%02d passed but merge failed - manual intervention needed", seg.num)
                             return seg.num, "pass-merge-conflict"
+                        # Mark as merged in database
+                        await state.mark_merged(seg.num)
+                        return seg.num, "merged"
 
                     return seg.num, status
             else:
@@ -633,15 +677,42 @@ async def _run_wave(
                 while True:  # outer loop: re-enters when operator hits Retry mid-wave
                     attempts = 0
                     circuit = CircuitBreaker()  # Create circuit breaker for this segment
+                    previous_summary = None  # Track summary for partial auto-retry
+                    previous_status = None  # Track status for partial detection
                     while attempts <= config.max_retries:
                         attempts = await state.increment_attempts(seg.num)
+
+                        # Determine partial context from two sources:
+                        # 1. Auto-retry: previous attempt in this run was partial
+                        # 2. Manual retry: operator clicked retry on partial segment
+                        partial_context = None
+                        if previous_status == "partial":
+                            # Auto-retry case: use summary from previous iteration
+                            partial_context = previous_summary
+                        else:
+                            # Check for manual retry flag
+                            partial_continue = await state.get_meta(f"partial_continue_{seg.num}")
+                            if partial_continue:
+                                # Get the previous summary from database
+                                prev_attempts = await state.get_attempts(seg.num)
+                                if prev_attempts:
+                                    partial_context = prev_attempts[-1].get("summary", "")
+                                # Clear the flag
+                                await state.set_meta(f"partial_continue_{seg.num}", "")
+
                         status, summary = await run_segment(
                             seg, config, state, log_dir,
                             notifier=notifier,
                             attempt_num=attempts,
                             register_pid=lambda n, pid: _running_pids.__setitem__(n, pid),
                             unregister_pid=lambda n: _running_pids.pop(n, None),
+                            partial_context=partial_context,
                         )
+
+                        # Store for next iteration
+                        previous_status = status
+                        previous_summary = summary
+
                         if status in ("pass", "timeout"):
                             break
 
@@ -664,20 +735,33 @@ async def _run_wave(
                         if attempts > config.max_retries:
                             break
 
-                        # Exponential backoff before retry
-                        delay = config.retry_policy.get_delay(attempts - 1)
-                        log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
-                        await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
-                        await asyncio.sleep(delay)
+                        # For PARTIAL status, retry immediately without delay (work in progress)
+                        # For other retryable statuses, use exponential backoff
+                        if status in ("partial", "unknown"):
+                            log.info("S%02d PARTIAL status - continuing immediately (attempt %d/%d)", seg.num, attempts + 1, config.max_retries)
+                            await state.log_event("segment_partial_continue", f"S{seg.num:02d} continuing from partial (attempt {attempts + 1})")
+                        else:
+                            delay = config.retry_policy.get_delay(attempts - 1)
+                            log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                            await asyncio.sleep(delay)
 
                     # Check if operator reset us to pending while we were running or
                     # immediately after — if so, re-run without requiring an orchestrator restart.
-                    refreshed = await state.get_segment(seg.num)
-                    if refreshed and refreshed["status"] == "pending":
-                        log.info("S%02d operator retry detected, re-running in-wave", seg.num)
-                        await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
-                        continue
-                    break
+                    # For non-pass statuses, keep checking periodically for operator retry
+                    refreshed = None
+                    while status not in ("pass",):
+                        refreshed = await state.get_segment(seg.num)
+                        if refreshed and refreshed.status == "pending":
+                            log.info("S%02d operator retry detected, re-running in-wave", seg.num)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} operator retry (in-wave)")
+                            break  # Break to continue outer loop
+                        # Check every 5 seconds for operator action
+                        await asyncio.sleep(5)
+
+                    if refreshed and refreshed.status == "pending":
+                        continue  # Restart the segment
+                    break  # Exit if passed or no retry requested
 
                 return seg.num, status
 
@@ -904,13 +988,19 @@ async def _orchestrate_inner(
     pool: WorktreePool | None = None
     if config.isolation_strategy == "worktree":
         pool_size = min(config.max_parallel, 4)  # Never exceed 4 worktrees
+
+        # Generate plan-specific ID to avoid conflicts between concurrent orchestrators
+        import hashlib
+        plan_hash = hashlib.sha256(str(plan_dir.resolve()).encode()).hexdigest()[:8]
+
         pool = WorktreePool(
             repo_root=Path.cwd(),
             pool_size=pool_size,
             target_branch="main",  # TODO: detect current branch
+            plan_id=plan_hash
         )
         await pool.create()
-        log.info("Created worktree pool with %d worktrees", pool_size)
+        log.info("Created worktree pool with %d worktrees for plan %s", pool_size, plan_hash)
 
     shutting_down = asyncio.Event()
     worker_stop = asyncio.Event()
@@ -953,7 +1043,7 @@ async def _orchestrate_inner(
             pending = []
             for s in wave_segs:
                 seg = await state.get_segment(s.num)
-                if seg and seg.status not in ("pass", "skipped"):
+                if seg and seg.status not in ("pass", "merged", "skipped"):
                     pending.append(s)
 
             if not pending:
@@ -1127,13 +1217,57 @@ async def _orchestrate_inner(
             await pool.cleanup()
             log.info("Cleaned up worktree pool")
 
-        await monitor.stop()
-        await state.close()
-
         print(f"\n{'='*60}")
         print(f"  ORCHESTRATION COMPLETE")
         print(f"  Results: {progress}")
         print(f"{'='*60}\n")
+        print(f"Dashboard still running at http://localhost:{config.monitor_port}")
+        print(f"Press Ctrl+C to shutdown or click Retry on failed gates\n")
+
+        # Keep running and check for gate retry requests
+        try:
+            while not shutting_down.is_set():
+                # Check for gate retry requests every 5 seconds
+                for wave_num in range(1, max_wave + 1):
+                    retry_flag = await state.get_meta(f"retry_gate_wave_{wave_num}")
+                    if retry_flag == "true":
+                        # Clear flag
+                        await state.set_meta(f"retry_gate_wave_{wave_num}", "")
+
+                        log.info("Operator requested gate retry for wave %d", wave_num)
+                        print(f"\n🔄 Retrying gate for Wave {wave_num}...")
+
+                        # Re-run gate
+                        if config.gate_command:
+                            gate_ok, gate_output = await _run_gate(config, log_dir, wave_num)
+                            await state.log_event(
+                                "gate_retry_result",
+                                f"Wave {wave_num} gate retry: {'PASS' if gate_ok else 'FAIL'}",
+                            )
+                            await notifier.gate_result(wave_num, gate_ok, gate_output)
+
+                            if gate_ok:
+                                print(f"✅ Wave {wave_num} gate passed!")
+                                # If gate passed, check if there are pending segments to run
+                                pending_segs = [s for s in segments if s.wave >= wave_num and
+                                               (await state.get_segment(s.num)).status == "pending"]
+                                if pending_segs:
+                                    print(f"🚀 Running {len(pending_segs)} pending segments from wave {wave_num} onwards...")
+                                    # TODO: Could re-run pending segments here if needed
+                                    await state.log_event(
+                                        "gate_retry_resume",
+                                        f"Wave {wave_num} gate passed, {len(pending_segs)} segments ready to run",
+                                    )
+                            else:
+                                print(f"❌ Wave {wave_num} gate failed")
+
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+
+        # Now cleanup
+        await monitor.stop()
+        await state.close()
 
 
 def _handle_shutdown(shutting_down: asyncio.Event, worker_stop: asyncio.Event) -> None:
