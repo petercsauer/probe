@@ -1025,4 +1025,137 @@ mod tests {
             assert!(state.store.get(*idx).is_some());
         }
     }
+
+    fn make_event_no_network(
+        id: u64,
+        ts_ns: u64,
+        transport: TransportKind,
+        direction: Direction,
+        origin: &str,
+    ) -> DebugEvent {
+        DebugEvent {
+            id: EventId::from_raw(id),
+            timestamp: Timestamp::from_nanos(ts_ns),
+            source: EventSource {
+                adapter: "test".into(),
+                origin: origin.to_string(),
+                network: None,
+            },
+            transport,
+            direction,
+            payload: Payload::Raw {
+                raw: Bytes::new(),
+            },
+            metadata: BTreeMap::new(),
+            correlation_keys: vec![],
+            sequence: None,
+            warnings: vec![],
+        }
+    }
+
+    #[test]
+    fn test_fallback_to_origin_when_no_network() {
+        // Test that events without network info show origin instead of "-"
+        let events = vec![
+            make_event_no_network(1, 1000, TransportKind::Grpc, Direction::Inbound, "file-reader"),
+            make_event_no_network(2, 2000, TransportKind::Zmq, Direction::Outbound, "kafka-consumer"),
+            make_event_no_network(3, 3000, TransportKind::DdsRtps, Direction::Unknown, "log-parser"),
+        ];
+
+        let state = make_app_state(events);
+        let mut pane = EventListPane::new();
+
+        let sorted = pane.sorted_indices(&state);
+        assert_eq!(sorted.len(), 3);
+
+        // Test format_source fallback
+        let event1 = state.store.get(sorted[0]).unwrap();
+        let src1 = format_source(event1);
+        assert_eq!(src1, "file-reader");
+
+        let event2 = state.store.get(sorted[1]).unwrap();
+        let src2 = format_source(event2);
+        assert_eq!(src2, "kafka-consumer");
+
+        // Test format_dest fallback (should be "-" when no network)
+        let dst1 = format_dest(event1);
+        assert_eq!(dst1, "-");
+    }
+
+    #[test]
+    fn test_column_width_adaptation_no_network() {
+        // Test that column widths adapt when no network info is present
+        let events = vec![
+            make_event_no_network(1, 1000, TransportKind::Grpc, Direction::Inbound, "adapter1"),
+            make_event_no_network(2, 2000, TransportKind::Zmq, Direction::Outbound, "adapter2"),
+        ];
+
+        let state = make_app_state(events);
+        let indices = state.store.all_indices();
+        let event_refs: Vec<_> = indices.iter().filter_map(|&i| state.store.get(i)).collect();
+
+        // Test narrow terminal (dst should be 0)
+        let narrow_widths = compute_column_widths(&event_refs, 80);
+        assert_eq!(narrow_widths.dst, 0, "dst column should collapse in narrow mode without network");
+        assert!(narrow_widths.src > 0, "src column should show origin");
+        assert!(narrow_widths.summary > 0, "summary should get remaining space");
+
+        // Test wide terminal (dst should still be 0 because no network)
+        let wide_widths = compute_column_widths(&event_refs, 180);
+        assert_eq!(wide_widths.dst, 0, "dst column should collapse even in wide mode without network");
+        assert!(wide_widths.src > narrow_widths.src, "src column should be wider in wide terminal");
+    }
+
+    #[test]
+    fn test_column_width_adaptation_with_network() {
+        // Test that column widths adapt properly when network info IS present
+        let events = vec![
+            make_event(1, 1000, TransportKind::Grpc, Direction::Inbound, "10.0.0.1:8080", "10.0.0.2:9090"),
+            make_event(2, 2000, TransportKind::Zmq, Direction::Outbound, "10.0.0.3:8080", "10.0.0.4:9090"),
+        ];
+
+        let state = make_app_state(events);
+        let indices = state.store.all_indices();
+        let event_refs: Vec<_> = indices.iter().filter_map(|&i| state.store.get(i)).collect();
+
+        // Test narrow terminal
+        let narrow_widths = compute_column_widths(&event_refs, 80);
+        assert!(narrow_widths.dst > 0, "dst column should be visible with network info");
+        assert_eq!(narrow_widths.src, 18, "src width should be minimal in narrow terminal");
+        assert_eq!(narrow_widths.dst, 18, "dst width should be minimal in narrow terminal");
+
+        // Test medium terminal
+        let medium_widths = compute_column_widths(&event_refs, 110);
+        assert_eq!(medium_widths.src, 28, "src width should be balanced in medium terminal");
+        assert_eq!(medium_widths.dst, 28, "dst width should be balanced in medium terminal");
+
+        // Test wide terminal
+        let wide_widths = compute_column_widths(&event_refs, 180);
+        assert_eq!(wide_widths.src, 45, "src width should be generous in wide terminal");
+        assert_eq!(wide_widths.dst, 45, "dst width should be generous in wide terminal");
+    }
+
+    #[test]
+    fn test_mixed_network_and_no_network_events() {
+        // Test handling of mixed events (some with network, some without)
+        let events = vec![
+            make_event(1, 1000, TransportKind::Grpc, Direction::Inbound, "10.0.0.1:8080", "10.0.0.2:9090"),
+            make_event_no_network(2, 2000, TransportKind::Zmq, Direction::Outbound, "file-reader"),
+            make_event(3, 3000, TransportKind::DdsRtps, Direction::Unknown, "10.0.0.3:8080", "10.0.0.4:9090"),
+        ];
+
+        let state = make_app_state(events);
+        let indices = state.store.all_indices();
+        let event_refs: Vec<_> = indices.iter().filter_map(|&i| state.store.get(i)).collect();
+
+        // When ANY event has network info, show full layout
+        let widths = compute_column_widths(&event_refs, 110);
+        assert!(widths.dst > 0, "dst column should be visible when any event has network info");
+
+        // Verify fallback works for event without network
+        let sorted = state.store.all_indices();
+        let event2 = state.store.get(sorted[1]).unwrap();
+        assert_eq!(format_source(event2), "file-reader");
+        assert_eq!(format_dest(event2), "-");
+    }
 }

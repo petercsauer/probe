@@ -6,7 +6,10 @@ use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Widget};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use prb_core::{DebugEvent, Payload};
+use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
+use prb_decode::decode_with_schema;
+use prb_schema::SchemaRegistry;
+use prost_reflect::Value as ProtoValue;
 
 use crate::app::AppState;
 use crate::error_intel;
