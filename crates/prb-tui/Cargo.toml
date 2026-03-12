@@ -53,9 +53,9 @@ prost-reflect = "0.16"
 pcap = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.13"
+tempfile = { workspace = true }
 etherparse = { workspace = true }
-insta = "1"
+insta = { workspace = true }
 
 [[bench]]
 name = "large_file_perf"

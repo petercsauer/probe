@@ -7,7 +7,7 @@ repository.workspace = true
 
 [dependencies]
 prb-core = { path = "../prb-core" }
-nom = "8"
+nom = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

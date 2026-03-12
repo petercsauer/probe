@@ -12,7 +12,7 @@ serde_json = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 camino = { workspace = true }
-base64 = "0.22"
+base64 = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
