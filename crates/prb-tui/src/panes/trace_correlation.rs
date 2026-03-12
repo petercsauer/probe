@@ -390,4 +390,211 @@ mod tests {
         assert_eq!(pane.trees.len(), 1);
         assert_eq!(pane.trees[0].spans.len(), 1);
     }
+
+    #[test]
+    fn test_format_timestamp_short() {
+        // 0 nanoseconds
+        assert_eq!(format_timestamp_short(0), "00:00:00.000");
+
+        // 1 second
+        assert_eq!(format_timestamp_short(1_000_000_000), "00:00:01.000");
+
+        // 1 minute 30 seconds 500ms
+        assert_eq!(format_timestamp_short(90_500_000_000), "00:01:30.500");
+
+        // 2 hours 15 minutes 45 seconds 123ms
+        let ns = (2 * 3600 + 15 * 60 + 45) * 1_000_000_000 + 123_000_000;
+        assert_eq!(format_timestamp_short(ns), "02:15:45.123");
+
+        // Over 24 hours (wraps at 24h)
+        let ns = (25 * 3600) * 1_000_000_000;
+        assert_eq!(format_timestamp_short(ns), "01:00:00.000");
+    }
+
+    #[test]
+    fn test_ensure_visible_already_visible() {
+        let mut pane = TraceCorrelationPane::new();
+        pane.selected = 5;
+        pane.scroll_offset = 3;
+
+        pane.ensure_visible(10); // visible_height = 10, so items 3-12 are visible
+
+        assert_eq!(pane.scroll_offset, 3); // No change needed
+    }
+
+    #[test]
+    fn test_ensure_visible_scroll_down() {
+        let mut pane = TraceCorrelationPane::new();
+        pane.selected = 15;
+        pane.scroll_offset = 0;
+
+        pane.ensure_visible(10); // visible_height = 10, selected is at 15
+
+        // Should scroll so selected is at bottom of view
+        assert_eq!(pane.scroll_offset, 6); // 15 - 10 + 1
+    }
+
+    #[test]
+    fn test_ensure_visible_scroll_up() {
+        let mut pane = TraceCorrelationPane::new();
+        pane.selected = 2;
+        pane.scroll_offset = 5;
+
+        pane.ensure_visible(10);
+
+        // Should scroll so selected is at top
+        assert_eq!(pane.scroll_offset, 2);
+    }
+
+    #[test]
+    fn test_flatten_trees_empty() {
+        let mut pane = TraceCorrelationPane::new();
+        pane.trees = vec![];
+
+        pane.flatten_trees();
+
+        assert!(pane.flat_nodes.is_empty());
+        assert_eq!(pane.selected, 0);
+    }
+
+    #[test]
+    fn test_flatten_trees_with_hierarchy() {
+        use crate::trace_extraction::TraceTree;
+        use std::collections::HashMap;
+
+        let mut pane = TraceCorrelationPane::new();
+
+        // Create a tree with parent and child spans
+        let mut spans = HashMap::new();
+        spans.insert(
+            "span1".to_string(),
+            TraceSpan {
+                trace_id: "trace1".to_string(),
+                span_id: "span1".to_string(),
+                parent_span_id: None,
+                name: "root".to_string(),
+                event_idx: 0,
+                timestamp_ns: 1000,
+            },
+        );
+        spans.insert(
+            "span2".to_string(),
+            TraceSpan {
+                trace_id: "trace1".to_string(),
+                span_id: "span2".to_string(),
+                parent_span_id: Some("span1".to_string()),
+                name: "child".to_string(),
+                event_idx: 1,
+                timestamp_ns: 2000,
+            },
+        );
+
+        let tree = TraceTree {
+            trace_id: "trace1".to_string(),
+            root_span_ids: vec!["span1".to_string()],
+            spans,
+        };
+
+        pane.trees = vec![tree];
+        pane.flatten_trees();
+
+        // Should have root at level 0, child at level 1
+        assert_eq!(pane.flat_nodes.len(), 2);
+        assert_eq!(pane.flat_nodes[0].name, "root");
+        assert_eq!(pane.flat_nodes[0].level, 0);
+        assert_eq!(pane.flat_nodes[1].name, "child");
+        assert_eq!(pane.flat_nodes[1].level, 1);
+    }
+
+    #[test]
+    fn test_flatten_trees_multiple_traces() {
+        use crate::trace_extraction::TraceTree;
+        use std::collections::HashMap;
+
+        let mut pane = TraceCorrelationPane::new();
+
+        // Tree 1
+        let mut spans1 = HashMap::new();
+        spans1.insert(
+            "span1".to_string(),
+            TraceSpan {
+                trace_id: "trace1".to_string(),
+                span_id: "span1".to_string(),
+                parent_span_id: None,
+                name: "trace1_root".to_string(),
+                event_idx: 0,
+                timestamp_ns: 1000,
+            },
+        );
+
+        let tree1 = TraceTree {
+            trace_id: "trace1".to_string(),
+            root_span_ids: vec!["span1".to_string()],
+            spans: spans1,
+        };
+
+        // Tree 2
+        let mut spans2 = HashMap::new();
+        spans2.insert(
+            "span2".to_string(),
+            TraceSpan {
+                trace_id: "trace2".to_string(),
+                span_id: "span2".to_string(),
+                parent_span_id: None,
+                name: "trace2_root".to_string(),
+                event_idx: 1,
+                timestamp_ns: 2000,
+            },
+        );
+
+        let tree2 = TraceTree {
+            trace_id: "trace2".to_string(),
+            root_span_ids: vec!["span2".to_string()],
+            spans: spans2,
+        };
+
+        pane.trees = vec![tree1, tree2];
+        pane.flatten_trees();
+
+        // Should have separator between trees: span1, separator, span2
+        assert_eq!(pane.flat_nodes.len(), 3);
+        assert_eq!(pane.flat_nodes[0].name, "trace1_root");
+        assert_eq!(pane.flat_nodes[1].name, "---"); // Separator
+        assert!(pane.flat_nodes[1].span_id.is_empty());
+        assert_eq!(pane.flat_nodes[2].name, "trace2_root");
+    }
+
+    #[test]
+    fn test_flatten_trees_clamps_selection() {
+        use crate::trace_extraction::TraceTree;
+        use std::collections::HashMap;
+
+        let mut pane = TraceCorrelationPane::new();
+        pane.selected = 100; // Way out of range
+
+        let mut spans = HashMap::new();
+        spans.insert(
+            "span1".to_string(),
+            TraceSpan {
+                trace_id: "trace1".to_string(),
+                span_id: "span1".to_string(),
+                parent_span_id: None,
+                name: "root".to_string(),
+                event_idx: 0,
+                timestamp_ns: 1000,
+            },
+        );
+
+        let tree = TraceTree {
+            trace_id: "trace1".to_string(),
+            root_span_ids: vec!["span1".to_string()],
+            spans,
+        };
+
+        pane.trees = vec![tree];
+        pane.flatten_trees();
+
+        // Selection should be clamped to valid range
+        assert_eq!(pane.selected, 0); // Only one node, so max is 0
+    }
 }
