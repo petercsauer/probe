@@ -111,3 +111,11 @@ logs/
 
 # Python bytecode
 __pycache__/
+
+# Orchestration execution artifacts
+**/*.db-wal
+**/*.db-shm
+**/orchestrator.lock
+.claude/plans/*/logs/*.log
+.claude/plans/*/state.db
+.claude/worktrees/*/
