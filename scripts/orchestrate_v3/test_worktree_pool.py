@@ -1,107 +1,121 @@
-#!/usr/bin/env python3
-"""Standalone test script for WorktreePool."""
+"""Tests for WorktreePool functionality."""
 
 import asyncio
-import sys
+import subprocess
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+import pytest
 
 from worktree_pool import WorktreePool
 
 
-async def main():
-    """Test WorktreePool functionality."""
-    repo_root = Path.cwd()
-    if not (repo_root / ".git").exists():
+@pytest.fixture
+def repo_root() -> Path:
+    """Get repository root directory.
+
+    Returns:
+        Path to repository root containing .git directory
+    """
+    root = Path.cwd()
+    if not (root / ".git").exists():
         # We're in a subdirectory, navigate up
-        repo_root = Path(__file__).parent.parent.parent
+        root = Path(__file__).parent.parent.parent
+    return root
 
-    print(f"Repository root: {repo_root}")
-    print(f"Creating pool of 3 worktrees...")
 
+@pytest.fixture
+async def worktree_pool(repo_root: Path):
+    """Create and cleanup a WorktreePool for testing.
+
+    Args:
+        repo_root: Repository root directory
+
+    Yields:
+        Initialized WorktreePool instance
+    """
     pool = WorktreePool(repo_root=repo_root, pool_size=3, target_branch="main")
+    await pool.create()
+    yield pool
+    await pool.cleanup()
 
-    try:
-        # Create the pool
-        await pool.create()
-        print("[OK] Pool created successfully")
 
-        # Verify worktrees exist
-        import subprocess
+async def test_pool_creation(worktree_pool: WorktreePool, repo_root: Path):
+    """Test that worktree pool is created successfully."""
+    # Verify worktrees exist
+    result = subprocess.run(
+        ["git", "worktree", "list"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    # Should have pool worktrees in the list
+    assert ".claude/worktrees" in result.stdout
+
+
+async def test_acquire_release(worktree_pool: WorktreePool):
+    """Test acquiring and releasing a worktree."""
+    async with worktree_pool.acquire(seg_num=1) as wt:
+        assert wt.pool_id is not None
+        assert wt.path.exists()
+        assert wt.branch is not None
+        assert wt.current_segment == 1
+
+        # Verify the worktree is clean
         result = subprocess.run(
-            ["git", "worktree", "list"],
-            cwd=repo_root,
+            ["git", "status", "--short"],
+            cwd=wt.path,
             capture_output=True,
             text=True
         )
-        print("\nWorktree list:")
-        print(result.stdout)
-
-        # Test acquisition
-        print("Testing acquire/release...")
-        async with pool.acquire(seg_num=1) as wt1:
-            print(f"[OK] Acquired worktree {wt1.pool_id} at {wt1.path}")
-            print(f"  Branch: {wt1.branch}")
-            print(f"  Segment: {wt1.current_segment}")
-
-            # Verify the worktree is clean
-            result = subprocess.run(
-                ["git", "status", "--short"],
-                cwd=wt1.path,
-                capture_output=True,
-                text=True
-            )
-            if result.stdout.strip() == "":
-                print("  [OK] Worktree is clean")
-            else:
-                print(f"  WARNING: Worktree not clean:\n{result.stdout}")
-
-        print("[OK] Worktree released")
-
-        # Test concurrent acquisition
-        print("\nTesting concurrent acquisition...")
-        async def acquire_test(seg_num: int):
-            async with pool.acquire(seg_num=seg_num) as wt:
-                print(f"  Segment {seg_num} acquired worktree {wt.pool_id}")
-                await asyncio.sleep(0.1)
-                return wt.pool_id
-
-        results = await asyncio.gather(
-            acquire_test(1),
-            acquire_test(2),
-            acquire_test(3)
-        )
-        print(f"[OK] Concurrent acquisitions successful: {results}")
-
-        # Cleanup
-        print("\nCleaning up...")
-        await pool.cleanup()
-        print("[OK] Pool cleaned up")
-
-        # Verify worktrees removed
-        result = subprocess.run(
-            ["git", "worktree", "list"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True
-        )
-        if ".claude/worktrees/pool-" not in result.stdout:
-            print("[OK] All pool worktrees removed")
-        else:
-            print("WARNING: Some pool worktrees still exist:")
-            print(result.stdout)
-
-        print("\nPASS All tests passed!")
-        return 0
-
-    except Exception as e:
-        print(f"\nFAIL Test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+        assert result.stdout.strip() == "", "Worktree should be clean"
 
 
-if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+async def test_concurrent_acquisition(worktree_pool: WorktreePool):
+    """Test that multiple segments can acquire worktrees concurrently."""
+    async def acquire_test(seg_num: int) -> int:
+        async with worktree_pool.acquire(seg_num=seg_num) as wt:
+            await asyncio.sleep(0.1)
+            return wt.pool_id
+
+    results = await asyncio.gather(
+        acquire_test(1),
+        acquire_test(2),
+        acquire_test(3)
+    )
+
+    # All three should have acquired different pool IDs
+    assert len(results) == 3
+    assert len(set(results)) == 3, "Each segment should get a different worktree"
+
+
+async def test_cleanup(repo_root: Path):
+    """Test that cleanup removes all pool worktrees."""
+    pool = WorktreePool(repo_root=repo_root, pool_size=2, target_branch="main")
+    await pool.create()
+
+    # Get the specific worktree paths this pool created
+    pool_paths = {str(wt.path) for wt in pool._worktrees}
+
+    # Verify worktrees exist before cleanup
+    result = subprocess.run(
+        ["git", "worktree", "list"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    for path in pool_paths:
+        assert path in result.stdout, f"Expected {path} to exist before cleanup"
+
+    # Cleanup
+    await pool.cleanup()
+
+    # Verify worktrees removed
+    result = subprocess.run(
+        ["git", "worktree", "list"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True
+    )
+    # Check that our specific pool worktrees are gone
+    for path in pool_paths:
+        assert path not in result.stdout, f"Expected {path} to be removed after cleanup"

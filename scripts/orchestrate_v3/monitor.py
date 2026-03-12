@@ -38,6 +38,7 @@ def _create_app(state: "StateDB", log_dir: Path, plan_root: Path | None = None, 
     app.router.add_get("/api/logs/{seg_id}", _handle_log_sse)
     app.router.add_get("/api/prompt/{seg_id}", _handle_prompt)
     app.router.add_post("/api/control", _handle_control)
+    app.router.add_get("/api/static/{filename}", _handle_static)
     return app
 
 
@@ -47,6 +48,23 @@ async def _handle_dashboard(request: web.Request) -> web.Response:
     except FileNotFoundError:
         html = "<html><body><h1>Dashboard not found</h1></body></html>"
     return web.Response(text=html, content_type="text/html")
+
+
+async def _handle_static(request: web.Request) -> web.Response:
+    """Serve static files (CSS only, whitelist for security)."""
+    filename = request.match_info["filename"]
+    if filename != "dashboard.css":
+        return web.Response(status=404)
+    css_path = Path(__file__).parent / "dashboard.css"
+    try:
+        content = css_path.read_text(encoding="utf-8")
+        return web.Response(
+            text=content,
+            content_type="text/css",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    except FileNotFoundError:
+        return web.Response(status=404)
 
 
 async def _handle_state(request: web.Request) -> web.Response:

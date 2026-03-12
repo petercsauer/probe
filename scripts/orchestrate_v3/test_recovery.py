@@ -1,15 +1,12 @@
-#!/usr/bin/env python3
 """Tests for recovery agent: workspace health checks and victim detection."""
 
 import asyncio
 import json
-import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+import pytest
 
 from recovery import RecoveryAgent, RecoveryConfig
 from state import SegmentRow
@@ -28,7 +25,6 @@ class TestRecoveryConfig:
             "my code is correct",
             "blocked by S",
         ]
-        print("[OK] test_default_config")
 
     def test_custom_config(self):
         """Test RecoveryConfig with custom values."""
@@ -40,7 +36,6 @@ class TestRecoveryConfig:
         assert config.enabled is False
         assert config.health_check_timeout == 600
         assert config.victim_markers == ["custom marker"]
-        print("[OK] test_custom_config")
 
 
 class TestWorkspaceHealth:
@@ -66,7 +61,6 @@ class TestWorkspaceHealth:
 
         assert healthy is True, "Expected healthy=True for clean workspace"
         assert errors == [], f"Expected no errors, got {errors}"
-        print("[OK] test_workspace_health_pass")
 
     async def test_workspace_health_fail(self):
         """Test that cargo errors are detected and returned."""
@@ -96,7 +90,6 @@ class TestWorkspaceHealth:
         assert healthy is False, "Expected healthy=False for failing workspace"
         assert len(errors) > 0, "Expected at least one error message"
         assert "E0425" in errors[0], f"Expected error code in message: {errors}"
-        print("[OK] test_workspace_health_fail")
 
     async def test_workspace_health_timeout(self):
         """Test that timeout is handled gracefully."""
@@ -121,7 +114,6 @@ class TestWorkspaceHealth:
         assert healthy is False, "Expected healthy=False on timeout"
         assert len(errors) == 1, f"Expected 1 error, got {len(errors)}"
         assert "timeout" in errors[0].lower(), f"Expected timeout message: {errors}"
-        print("[OK] test_workspace_health_timeout")
 
     async def test_workspace_health_exception(self):
         """Test that subprocess exceptions are handled gracefully."""
@@ -140,7 +132,6 @@ class TestWorkspaceHealth:
         assert healthy is False, "Expected healthy=False on exception"
         assert len(errors) == 1, f"Expected 1 error, got {len(errors)}"
         assert "exception" in errors[0].lower(), f"Expected exception message: {errors}"
-        print("[OK] test_workspace_health_exception")
 
     async def test_workspace_health_stderr_fallback(self):
         """Test that stderr is used when no JSON errors but non-zero exit."""
@@ -163,7 +154,6 @@ class TestWorkspaceHealth:
         assert healthy is False, "Expected healthy=False"
         assert len(errors) > 0, "Expected errors from stderr"
         assert "could not compile" in errors[0], f"Expected stderr content: {errors}"
-        print("[OK] test_workspace_health_stderr_fallback")
 
 
 class TestIdentifyVictims:
@@ -261,7 +251,6 @@ class TestIdentifyVictims:
                 assert 4 not in victims, f"S04 should not be victim (no marker): {victims}"
                 assert len(victims) == 2, f"Expected exactly 2 victims: {victims}"
 
-                print("[OK] test_identify_victims")
 
             finally:
                 import os
@@ -277,7 +266,6 @@ class TestIdentifyVictims:
         victims = await agent.identify_cascade_victims([])
 
         assert victims == [], f"Expected no victims for empty wave: {victims}"
-        print("[OK] test_identify_victims_empty_wave")
 
     async def test_identify_victims_no_logs(self):
         """Test that missing log files are handled gracefully."""
@@ -304,51 +292,8 @@ class TestIdentifyVictims:
 
                 # Should handle gracefully and return no victims
                 assert victims == [], f"Expected no victims when logs missing: {victims}"
-                print("[OK] test_identify_victims_no_logs")
 
             finally:
                 os.chdir(orig_cwd)
 
 
-async def main():
-    """Run all tests."""
-    print("Running recovery agent tests...\n")
-
-    config_tests = TestRecoveryConfig()
-    health_tests = TestWorkspaceHealth()
-    victim_tests = TestIdentifyVictims()
-
-    try:
-        # Test recovery config
-        config_tests.test_default_config()
-        config_tests.test_custom_config()
-
-        # Test workspace health checking
-        await health_tests.test_workspace_health_pass()
-        await health_tests.test_workspace_health_fail()
-        await health_tests.test_workspace_health_timeout()
-        await health_tests.test_workspace_health_exception()
-        await health_tests.test_workspace_health_stderr_fallback()
-
-        # Test victim identification
-        await victim_tests.test_identify_victims()
-        await victim_tests.test_identify_victims_empty_wave()
-        await victim_tests.test_identify_victims_no_logs()
-
-        print("\nPASS All tests passed!")
-        return 0
-
-    except AssertionError as e:
-        print(f"\nFAIL Test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-    except Exception as e:
-        print(f"\nFAIL Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
