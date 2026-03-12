@@ -233,6 +233,8 @@ def _extract_status(log_text: str) -> str:
     markers = [
         ("**Status:** PASS", "pass"),
         ("Status: PASS", "pass"),
+        ("**Status:** ✅ PASS", "pass"),  # With checkmark emoji
+        ("Status: ✅ PASS", "pass"),
         ("**Status:** PARTIAL", "partial"),
         ("Status: PARTIAL", "partial"),
         ("**Status:** BLOCKED", "blocked"),
@@ -251,8 +253,8 @@ def _extract_status(log_text: str) -> str:
     # Lenient patterns for common variations
     # Patterns accept both emoji and text formats
     patterns = [
-        (r"\*\*Status:\*\*\s+(COMPLETE|SUCCESS|DONE)", "pass"),
-        (r"Status:\s+(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"\*\*Status:\*\*\s+(?:✅\s+)?(COMPLETE|SUCCESS|DONE|PASS)", "pass"),  # With optional emoji
+        (r"Status:\s+(?:✅\s+)?(COMPLETE|SUCCESS|DONE|PASS)", "pass"),
         (r"\*\*Segment Status:\*\*\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"Segment Status:\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"COMPLETE\s*-\s*No further work required", "pass"),
@@ -265,6 +267,10 @@ def _extract_status(log_text: str) -> str:
         (r"Segment\s+\d+\s+completed successfully", "pass"),  # "Segment 1 completed successfully"
         (r"##.*Segment\s+\d+.*-\s*(COMPLETE|SUCCESS)", "pass"),  # "## ✅ Segment 1: ... - COMPLETE"
         (r"##.*Segment\s+\d+.*Report.*SUCCESS", "pass"),  # "## 🎯 Segment 1 Build Report - SUCCESS"
+        # Generic completion indicators (when builder doesn't format properly)
+        (r"Ready for commit with message:", "pass"),  # "Ready for commit with message: ..."
+        (r"test suite is ready for use", "pass"),  # "The test suite is ready for use"
+        (r"All.*tests (?:pass|passing)", "pass"),  # "All tests passing"
         (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
         (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
     ]
