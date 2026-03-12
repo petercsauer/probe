@@ -5,6 +5,7 @@ pub mod decode_tree;
 pub mod event_list;
 pub mod hex_dump;
 pub mod timeline;
+pub mod trace_correlation;
 pub mod waterfall;
 
 use ratatui::buffer::Buffer;
