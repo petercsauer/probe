@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestrator Dashboard</title>
+<!-- Font Awesome 6 Free -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<!-- Marked.js for markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #1c2128; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --text-muted: #6e7681;
+    --pass: #238636; --pass-bg: #0d2117; --running: #1f6feb; --running-bg: #0d1d3a;
+    --pending: #484f58; --pending-bg: #1c1f24;
+    --fail: #da3633; --fail-bg: #2d1214; --partial: #d29922; --partial-bg: #2d2208;
+    --blocked: #da3633; --timeout: #b87d2f;
+    --gate-pass: #238636; --gate-fail: #da3633; --gate-pending: #484f58;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .header { padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .header .meta { color: var(--text-dim); font-size: 13px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .progress-bar { margin: 10px 0 0; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pass), #2ea043); border-radius: 3px; transition: width 0.5s ease; }
+
+  /* ── Desktop layout (≥641px) ── */
+  @media (min-width: 641px) {
+    .layout { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 1fr auto; height: calc(100vh - 90px); }
+    .tab-bar { display: none !important; }
+  }
+
+  /* ── Mobile layout (<640px) ── */
+  @media (max-width: 640px) {
+    .layout { display: flex; flex-direction: column; height: calc(100vh - 100px - 52px); }
+    /* Timeline/Events: tabbed at top */
+    .timeline { display: none; flex: 1; overflow-y: auto; }
+    .events { display: none; flex: 1; }
+    .timeline.tab-active { display: block; }
+    .events.tab-active { display: flex; flex-direction: column; }
+    /* Log panel: always visible at bottom (terminal-style) */
+    .log-panel { display: flex !important; height: 50%; min-height: 200px; border-top: 2px solid var(--border); order: 10; }
+    .log-content { font-size: 11px; }
+    .seg-row { min-height: 48px; padding: 10px 16px; }
+    .tab-bar { display: flex; }
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; height: 52px;
+    background: var(--surface); border-top: 1px solid var(--border);
+    z-index: 100;
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none; color: var(--text-dim);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .tab-btn.active { color: var(--running); }
+
+  /* ── Wave Timeline (left panel) ── */
+  .timeline { overflow-y: auto; border-right: 1px solid var(--border); padding: 0 0 16px 0; background: #0d1117; }
+
+
+  .wave-group { margin-bottom: 4px; }
+  .wave-header {
+    display: flex; align-items: center; gap: 8px; padding: 6px 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-muted); position: sticky; top: 0; background: #0d1117; z-index: 10;
+    border-bottom: 1px solid var(--border);
+  }
+  .wave-header .wave-line { flex: 1; height: 1px; background: var(--border); }
+  .wave-header.active { color: var(--running); }
+  .wave-header.done { color: var(--pass); }
+
+  .seg-row {
+    display: flex; align-items: center; padding: 5px 20px; gap: 10px;
+    cursor: pointer; transition: background 0.15s; font-size: 13px;
+    position: relative; z-index: 1;
+  }
+  .seg-row:hover { background: rgba(255,255,255,0.04); }
+  .seg-row.active { background: rgba(88,166,255,0.1); border-left: 3px solid #58a6ff; padding-left: 17px; }
+  .seg-row:has(.status-dropdown.show) { z-index: 2000; }
+  .seg-num { font-weight: 700; font-size: 12px; width: 36px; flex-shrink: 0; font-family: 'SF Mono', monospace; }
+  .seg-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); }
+  .seg-elapsed { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', monospace; flex-shrink: 0; }
+  .seg-status {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0;
+    cursor: pointer; position: relative;
+  }
+  .seg-status:hover { opacity: 0.8; }
+  .seg-status.pass    { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); }
+  .seg-status.running { background: var(--running-bg); color: var(--running); border: 1px solid var(--running); animation: pulse 2s infinite; }
+  .seg-status.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .seg-status.failed  { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail); }
+  .seg-status.partial { background: var(--partial-bg); color: var(--partial); border: 1px solid var(--partial); }
+  .seg-status.blocked { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail); }
+  .seg-status.timeout { background: var(--partial-bg); color: var(--timeout); border: 1px solid var(--timeout); }
+  .seg-status.unknown  { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .seg-status.skipped  { background: var(--pending-bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* Status dropdown menu */
+  .status-dropdown {
+    position: absolute; top: 100%; right: 0; margin-top: 4px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 9999; min-width: 120px;
+    display: none; opacity: 1;
+  }
+  .status-dropdown.show { display: block; }
+  .status-dropdown-item {
+    padding: 6px 12px; font-size: 11px; cursor: pointer;
+    transition: background 0.1s; text-transform: uppercase;
+    font-weight: 600; letter-spacing: 0.3px;
+    background: var(--surface);
+  }
+  .status-dropdown-item:hover { background: rgba(255,255,255,0.08); }
+  .status-dropdown-item:first-child { border-radius: 6px 6px 0 0; }
+  .status-dropdown-item:last-child { border-radius: 0 0 6px 6px; }
+
+  /* ── Operator action buttons ── */
+  .act-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .act-btn {
+    border: none; border-radius: 4px; padding: 2px 6px; font-size: 11px;
+    cursor: pointer; font-weight: 700; opacity: 0.7; transition: opacity 0.1s;
+  }
+  .act-btn:hover { opacity: 1; }
+  .act-kill  { background: rgba(209,77,65,0.15); color: var(--fail); border: 1px solid var(--fail); }
+  .act-retry { background: rgba(56,189,248,0.15); color: var(--running); border: 1px solid var(--running); }
+  .act-skip  { background: rgba(100,100,100,0.1); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* Gate bar between waves */
+  .gate-bar {
+    margin: 6px 12px; padding: 7px 14px; border-radius: 6px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px; font-family: 'SF Mono', monospace; font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .gate-bar .gate-icon { font-size: 15px; flex-shrink: 0; }
+  .gate-bar .gate-label { flex: 1; }
+  .gate-bar .gate-badge {
+    font-size: 9px; padding: 2px 7px; border-radius: 8px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 800;
+  }
+  .gate-bar.gate-pending {
+    background: var(--pending-bg); border: 1px dashed var(--border); color: var(--text-muted);
+  }
+  .gate-bar.gate-pending .gate-badge { background: var(--pending); color: var(--bg); }
+  .gate-bar.gate-running {
+    background: var(--running-bg); border: 1px solid var(--running); color: var(--running);
+    animation: pulse 2s infinite;
+  }
+  .gate-bar .gate-progress {
+    height: 3px; flex: 1; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
+  }
+  .gate-bar .gate-progress-fill {
+    height: 100%; background: var(--running); border-radius: 2px;
+    animation: gate-indeterminate 1.5s ease-in-out infinite;
+  }
+  @keyframes gate-indeterminate {
+    0% { width: 0%; margin-left: 0%; }
+    50% { width: 40%; margin-left: 30%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+  .gate-bar.gate-running .gate-badge { background: var(--running); color: #fff; }
+  .gate-bar.gate-pass {
+    background: var(--pass-bg); border: 1px solid var(--pass); color: var(--pass);
+  }
+  .gate-bar.gate-pass .gate-badge { background: var(--pass); color: #fff; }
+  .gate-bar.gate-fail {
+    background: var(--fail-bg); border: 1px solid var(--fail); color: var(--fail);
+  }
+  .gate-bar.gate-fail .gate-badge { background: var(--fail); color: #fff; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  /* ── Log Panel (right) ── */
+  .log-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .log-header {
+    padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-weight: 600; flex-shrink: 0;
+  }
+  .log-header .live-badge { color: var(--running); font-size: 11px; font-weight: 700; animation: pulse 2s infinite; }
+
+  /* ── Log bottom toolbar ── */
+  .log-bottom-toolbar {
+    padding: 8px 12px; border-top: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .toolbar-interject-input {
+    flex: 1; background: rgba(0,0,0,0.3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px;
+    font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    outline: none; transition: border-color 0.15s;
+  }
+  .toolbar-interject-input:focus { border-color: var(--running); background: rgba(0,0,0,0.4); }
+  .toolbar-interject-input:disabled { opacity: 0.4; cursor: not-allowed; }
+  .toolbar-interject-input::placeholder { color: var(--text-muted); }
+  .toolbar-divider {
+    width: 1px; height: 24px; background: var(--border); flex-shrink: 0;
+  }
+  .prompt-btn {
+    padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: rgba(122,162,247,0.15); color: var(--running); border: 1px solid var(--running);
+    border-radius: 4px; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+  }
+  .prompt-btn:hover { background: rgba(122,162,247,0.25); }
+  .prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .prompt-btn.active { background: var(--running); color: #fff; }
+  .toolbar-interject-btn {
+    padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--running); color: white; border: 1px solid var(--running);
+    border-radius: 4px; white-space: nowrap; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .toolbar-interject-btn:hover { background: #1a5fbf; }
+  .toolbar-interject-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--pending); border-color: var(--pending); }
+
+  /* ── Log content — Claude Code exact style ── */
+  .log-content {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px; line-height: 1.6; word-break: break-word;
+    background: var(--bg); letter-spacing: -0.01em;
+    /* tokyo-night token colors - exact Claude Code palette */
+    --cc-text:      #a9b1d6;
+    --cc-text-dim:  #565f89;
+    --cc-text-br:   #c0caf5;
+    --cc-green:     #9ece6a;
+    --cc-blue:      #7aa2f7;
+    --cc-cyan:      #7dcfff;
+    --cc-orange:    #ff9e64;
+    --cc-red:       #f7768e;
+    --cc-yellow:    #e0af68;
+    --cc-purple:    #bb9af7;
+    --cc-border:    #414868;
+    --cc-tool-bg:   #1a1b26;
+    --cc-think-bg:  #1a1b26;
+    color: var(--cc-text);
+  }
+
+  /* Assistant prose */
+  .cc-text {
+    color: var(--cc-text); white-space: pre-wrap; word-break: break-word;
+    margin: 3px 0; line-height: 1.6; padding: 0;
+  }
+  .cc-text.highlight { background: rgba(224,175,104,0.2); border-radius: 2px; padding: 1px 2px; }
+
+  /* Markdown styles for rendered content */
+  .cc-text.markdown { white-space: normal; margin: 0; padding: 0; }
+  .cc-text h1 { color: var(--cc-orange); font-size: 16px; font-weight: 700; margin: 8px 0 4px; }
+  .cc-text h2 { color: var(--cc-blue); font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+  .cc-text h3 { color: var(--cc-cyan); font-size: 13.5px; font-weight: 600; margin: 6px 0 3px; }
+  .cc-text h4 { color: var(--cc-cyan); font-size: 12.5px; font-weight: 600; margin: 6px 0 3px; }
+  .cc-text h5, .cc-text h6 { color: var(--cc-text-dim); font-size: 12px; font-weight: 600; margin: 4px 0 2px; }
+  .cc-text p { margin: 4px 0; }
+  .cc-text pre {
+    background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 4px; overflow-x: auto;
+    margin: 6px 0; border: 1px solid var(--cc-border); font-size: 12px; line-height: 1.5;
+    white-space: pre; word-break: normal;
+  }
+  .cc-text code {
+    background: rgba(122,162,247,0.15); padding: 2px 5px; border-radius: 3px;
+    color: var(--cc-cyan); font-size: 12px; border: 1px solid rgba(122,162,247,0.25);
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  }
+  .cc-text pre code {
+    background: none; padding: 0; border: none; color: var(--cc-text);
+  }
+  .cc-text ul, .cc-text ol { margin: 4px 0 4px 0; padding-left: 24px; }
+  .cc-text li { margin: 1px 0; }
+  .cc-text a { color: var(--cc-blue); text-decoration: underline; text-decoration-color: rgba(122,162,247,0.4); }
+  .cc-text a:hover { text-decoration-color: var(--cc-blue); }
+  .cc-text blockquote {
+    border-left: 3px solid var(--cc-text-dim); padding-left: 12px; margin: 6px 0;
+    color: var(--cc-text-dim); font-style: italic;
+  }
+  .cc-text hr { border: none; border-top: 1px solid var(--cc-border); margin: 8px 0; }
+  .cc-text strong { font-weight: 700; color: var(--text); }
+  .cc-text em { font-style: italic; color: var(--cc-blue); }
+  .cc-text table { border-collapse: collapse; margin: 6px 0; }
+  .cc-text th, .cc-text td { border: 1px solid var(--cc-border); padding: 4px 8px; }
+  .cc-text th { background: rgba(0,0,0,0.3); font-weight: 600; }
+
+  /* Thinking block — left border, collapsible */
+  .cc-thinking {
+    margin: 8px 0;
+    border-left: 3px solid var(--cc-text-dim);
+    padding-left: 10px;
+  }
+  .cc-thinking-header {
+    font-size: 11px; color: var(--cc-text-dim); cursor: pointer;
+    user-select: none; padding: 3px 0; display: flex; align-items: center; gap: 6px;
+    font-weight: 600; letter-spacing: 0.02em;
+  }
+  .cc-thinking-chevron {
+    font-size: 9px; transition: transform 0.15s ease;
+    display: inline-block; width: 8px;
+  }
+  .cc-thinking.open .cc-thinking-chevron { transform: rotate(90deg); }
+  .cc-thinking-body {
+    display: none; color: var(--cc-text-dim); font-size: 11.5px;
+    white-space: pre-wrap; padding: 6px 0 2px; line-height: 1.6;
+    opacity: 0.85;
+  }
+  .cc-thinking.open .cc-thinking-body { display: block; }
+
+  /* Tool block — exact claude-replay/.cc-code structure */
+  .cc-tool {
+    margin: 8px 0;
+    border: 1px solid var(--cc-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--cc-tool-bg);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .cc-tool-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; cursor: pointer; user-select: none;
+    transition: background 0.12s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .cc-tool-header:hover { background: rgba(122,162,247,0.08); }
+  .cc-tool.open .cc-tool-header { border-bottom-color: var(--cc-border); }
+  .cc-tool-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--cc-blue); flex-shrink: 0;
+    box-shadow: 0 0 3px var(--cc-blue);
+  }
+  .cc-tool-dot.error { background: var(--cc-red); box-shadow: 0 0 3px var(--cc-red); }
+  .cc-tool-name {
+    color: var(--cc-cyan); font-weight: 600; flex-shrink: 0;
+    font-size: 12px; letter-spacing: 0.01em;
+  }
+  .cc-tool-preview {
+    color: var(--cc-text-dim); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; flex: 1; font-size: 11.5px;
+  }
+  .cc-tool-chevron {
+    color: var(--cc-text-dim); font-size: 9px;
+    transition: transform 0.15s ease; flex-shrink: 0;
+    display: inline-block; width: 8px;
+  }
+  .cc-tool.open .cc-tool-chevron { transform: rotate(90deg); }
+  .cc-tool-body { display: none; }
+  .cc-tool.open .cc-tool-body { display: block; }
+  .cc-tool-input, .cc-tool-result {
+    padding: 10px 12px; font-size: 11.5px;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 320px; overflow-y: auto; line-height: 1.6;
+  }
+  .cc-tool-input {
+    color: var(--cc-text-dim); background: rgba(0,0,0,0.15);
+  }
+  .cc-tool-result {
+    background: rgba(0,0,0,0.25); border-top: 1px solid var(--cc-border);
+    color: var(--cc-green);
+  }
+  .cc-tool-result.error { color: var(--cc-red); }
+  .cc-label {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--cc-text-dim); margin-bottom: 6px; font-weight: 700;
+    opacity: 0.7;
+  }
+
+  /* Final result */
+  .cc-result {
+    display: flex; align-items: center; gap: 10px;
+    margin: 10px 0 4px; padding: 8px 12px; border-radius: 6px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .cc-result.success {
+    background: rgba(158,206,106,0.12);
+    color: var(--cc-green);
+    border: 1px solid rgba(158,206,106,0.35);
+    box-shadow: 0 1px 3px rgba(158,206,106,0.1);
+  }
+  .cc-result.error_during_execution,
+  .cc-result.failed,
+  .cc-result.error  {
+    background: rgba(247,118,142,0.12);
+    color: var(--cc-red);
+    border: 1px solid rgba(247,118,142,0.35);
+    box-shadow: 0 1px 3px rgba(247,118,142,0.1);
+  }
+  .cc-result .cc-cost {
+    margin-left: auto; font-weight: 500;
+    color: var(--cc-text-dim); font-size: 10.5px;
+    opacity: 0.8;
+  }
+
+  /* Segment complete divider */
+  .cc-divider {
+    color: var(--cc-text-dim); font-size: 11px; margin: 12px 0 8px;
+    border-top: 1px solid var(--cc-border); padding-top: 8px;
+    text-align: center; font-weight: 600; letter-spacing: 0.05em;
+  }
+
+  /* Custom scrollbar for log content */
+  .log-content::-webkit-scrollbar { width: 10px; }
+  .log-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 5px; }
+  .log-content::-webkit-scrollbar-thumb {
+    background: var(--cc-border); border-radius: 5px;
+    border: 2px solid transparent; background-clip: padding-box;
+  }
+  .log-content::-webkit-scrollbar-thumb:hover { background: #565f89; background-clip: padding-box; }
+
+  .cc-tool-input::-webkit-scrollbar, .cc-tool-result::-webkit-scrollbar { width: 8px; height: 8px; }
+  .cc-tool-input::-webkit-scrollbar-track, .cc-tool-result::-webkit-scrollbar-track { background: transparent; }
+  .cc-tool-input::-webkit-scrollbar-thumb, .cc-tool-result::-webkit-scrollbar-thumb {
+    background: var(--cc-border); border-radius: 4px;
+  }
+
+
+  /* ── Event Feed (bottom full width) ── */
+  .events {
+    grid-column: 1 / -1; background: var(--surface); border-top: 1px solid var(--border);
+    padding: 8px 24px; max-height: 160px; overflow-y: auto;
+  }
+  .events-inner { display: flex; gap: 24px; }
+  .events-col { flex: 1; min-width: 0; }
+  .events h3 { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .event-line { font-size: 12px; color: var(--text-dim); padding: 1px 0; font-family: 'SF Mono', monospace; }
+  .event-line .ts { color: var(--text); margin-right: 8px; }
+  .event-line .kind { color: var(--running); font-weight: 600; }
+
+  /* Event severity colors */
+  .ev-error { color: var(--fail); }
+  .ev-warn  { color: var(--partial); }
+
+  /* Notification feed */
+  .notif-line { font-size: 12px; color: var(--text-dim); padding: 1px 0; font-family: 'SF Mono', monospace; }
+  .notif-line .ts { color: var(--text-muted); margin-right: 6px; }
+  .notif-line .kind { color: var(--partial); font-weight: 600; margin-right: 4px; }
+
+  /* Keyboard shortcut hint */
+  .kbd-hint { font-size: 11px; color: var(--text-muted); padding: 4px 20px 0; }
+  .kbd-hint kbd {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+    padding: 1px 5px; font-size: 10px; font-family: 'SF Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="plan-title">Loading...</h1>
+  <div class="meta">
+    <span id="wave-info">Wave -/-</span>
+    <span id="progress-text">0/0 segments</span>
+    <span id="elapsed">Elapsed: --</span>
+    <span id="eta-text" style="color: var(--partial);"></span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+</div>
+
+<div class="layout">
+  <div class="timeline" id="timeline">
+    <div id="timeline-content"></div>
+    <div class="kbd-hint">
+      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log
+    </div>
+  </div>
+
+  <div class="log-panel">
+    <div class="log-header">
+      <span>LOG: <span id="log-seg-label">select a segment</span></span>
+      <span class="live-badge" id="live-badge"></span>
+    </div>
+    <div class="log-content" id="log-content"></div>
+    <div class="log-bottom-toolbar">
+      <input
+        type="text"
+        id="interject-input"
+        class="toolbar-interject-input"
+        placeholder="Enter interject message (resets segment to pending)..."
+        maxlength="2000"
+        disabled
+        onkeydown="if(event.key==='Enter' && !this.disabled) interjectCurrentSeg()"
+      >
+      <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
+        <i class="fa-solid fa-message"></i> Send
+      </button>
+      <div class="toolbar-divider"></div>
+      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
+    </div>
+  </div>
+
+  <div class="events">
+    <div class="events-inner">
+      <div class="events-col">
+        <h3>Event Feed</h3>
+        <div id="event-feed"></div>
+      </div>
+      <div class="events-col" id="notif-col">
+        <h3>Notifications</h3>
+        <div id="notif-feed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="timeline" onclick="switchTab('timeline')">
+    <i class="fa-solid fa-list"></i><span>Timeline</span>
+  </button>
+  <button class="tab-btn" data-tab="events" onclick="switchTab('events')">
+    <i class="fa-solid fa-bell"></i><span>Events</span>
+  </button>
+</div>
+
+<script>
+(function() {
+  let activeSeg = null;
+  let logSource = null;
+  let eventSource = null;
+  let startedAt = null;
+  let lastSegments = null;
+  let activeSegList = [];
+
+  // Prompt view state
+  let showingPrompt = false;
+  let currentPromptText = null;
+
+  // Restore from localStorage
+  const savedSeg = parseInt(localStorage.getItem('orchestrate_activeSeg'));
+  if (savedSeg) activeSeg = savedSeg;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function formatElapsed(sec) {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+    return h > 0 ? `${h}h ${pad(m)}m` : `${m}m ${pad(s)}s`;
+  }
+
+  function formatTs(epoch) {
+    const d = new Date(epoch * 1000);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function waveStatus(segs) {
+    if (segs.some(s => s.status === 'running')) return 'active';
+    if (segs.every(s => ['pass','partial','blocked','failed','timeout'].includes(s.status))) return 'done';
+    return 'pending';
+  }
+
+  function gateStatus(events, waveNum, currentWave, waveIsDone) {
+    for (const ev of events) {
+      if (ev.kind === 'gate_result' && ev.detail.includes(`Wave ${waveNum}`)) {
+        return ev.detail.includes('PASS') ? 'pass' : 'fail';
+      }
+    }
+    // Only show running if this wave is done AND we're still on this wave (not moved to next)
+    if (waveIsDone && parseInt(currentWave) === waveNum) return 'running';
+    return 'pending';
+  }
+
+  function computeEta(segments, maxParallel) {
+    const done = segments.filter(s => s.finished_at && s.started_at);
+    if (done.length < 2) return '';
+    const avg = done.reduce((s, seg) => s + (seg.finished_at - seg.started_at), 0) / done.length;
+    const pending = segments.filter(s => ['pending','running'].includes(s.status)).length;
+    const etaSec = avg * pending / Math.max(maxParallel || 1, 1);
+    return etaSec > 30 ? `ETA: ~${formatElapsed(etaSec)}` : '';
+  }
+
+  // ── Claude Code-style log renderer ──────────────────────────────────────
+  // Pending tool blocks waiting for their result event (keyed by arrival order).
+  let _pendingTools = [];   // stack of {el, bodyEl, resultEl} for open tool blocks
+  let _textDeltaBuf = '';
+  let _thinkDeltaBuf = '';
+  let _thinkEl = null;      // current open thinking block DOM node
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function _parseYamlFrontmatter(text) {
+    // Extract YAML frontmatter from markdown (---\n...\n---)
+    const match = text.match(/^---\n([\s\S]*?)\n---\n/);
+    if (!match) return { metadata: {}, content: text };
+
+    const yamlBlock = match[1];
+    const content = text.slice(match[0].length);
+    const metadata = {};
+
+    // Simple YAML parser for key: value pairs
+    yamlBlock.split('\n').forEach(line => {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        let value = line.slice(colonIdx + 1).trim();
+
+        // Parse arrays [1,2,3] or [a, b, c]
+        if (value.startsWith('[') && value.endsWith(']')) {
+          value = value.slice(1, -1).split(',').map(v => v.trim()).filter(v => v);
+        }
+
+        metadata[key] = value;
+      }
+    });
+
+    return { metadata, content };
+  }
+
+  function _renderMetadataPills(metadata) {
+    // Render segment metadata as pills at the top of the prompt view
+    const pills = [];
+    const fieldOrder = ['segment', 'title', 'depends_on', 'risk', 'complexity', 'cycle_budget', 'estimated_lines'];
+
+    fieldOrder.forEach(key => {
+      if (metadata[key] !== undefined) {
+        let displayValue = metadata[key];
+
+        // Format arrays as comma-separated
+        if (Array.isArray(displayValue)) {
+          displayValue = `[${displayValue.join(', ')}]`;
+        }
+
+        pills.push(`<span style="display: inline-block; background: rgba(122,162,247,0.15); color: var(--cc-blue); border: 1px solid rgba(122,162,247,0.3); border-radius: 4px; padding: 4px 10px; margin: 0 6px 6px 0; font-size: 11.5px; font-weight: 500;"><span style="color: var(--cc-text-dim);">${_esc(key)}:</span> ${_esc(displayValue)}</span>`);
+      }
+    });
+
+    if (pills.length === 0) return '';
+
+    return `<div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center;">${pills.join('')}</div>`;
+  }
+
+  function _renderMarkdown(text) {
+    // Use marked.js for proper markdown rendering
+    return marked.parse(text, {
+      breaks: false,
+      gfm: true,
+      headerIds: false,
+      mangle: false
+    });
+  }
+
+  function _flushTextDelta(logEl) {
+    if (!_textDeltaBuf) return;
+    _appendTextNode(logEl, _textDeltaBuf);
+    _textDeltaBuf = '';
+  }
+
+  function _flushThinkDelta(logEl) {
+    if (!_thinkDeltaBuf) return;
+    _buildThinkingBlock(logEl, _thinkDeltaBuf);
+    _thinkDeltaBuf = '';
+    _thinkEl = null;
+  }
+
+  function _appendTextNode(logEl, text, isMarkdown = false) {
+    if (!text.trim()) return;
+    const div = document.createElement('div');
+    div.className = isMarkdown ? 'cc-text markdown' : 'cc-text';
+    if (isMarkdown) {
+      div.innerHTML = _renderMarkdown(text);
+    } else {
+      div.textContent = text;
+    }
+    logEl.appendChild(div);
+  }
+
+  function _buildThinkingBlock(logEl, text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cc-thinking';
+    const hdr = document.createElement('div');
+    hdr.className = 'cc-thinking-header';
+    hdr.innerHTML = `<span class="cc-thinking-chevron">&#9654;</span> thinking`;
+    const body = document.createElement('div');
+    body.className = 'cc-thinking-body';
+    body.textContent = text;
+    hdr.onclick = () => wrap.classList.toggle('open');
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    logEl.appendChild(wrap);
+    return wrap;
+  }
+
+  function _buildToolBlock(logEl, name, preview, isError) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cc-tool';
+    const hdr = document.createElement('div');
+    hdr.className = 'cc-tool-header';
+    const dot = document.createElement('span');
+    dot.className = 'cc-tool-dot' + (isError ? ' error' : '');
+    const nameEl = document.createElement('span');
+    nameEl.className = 'cc-tool-name';
+    nameEl.textContent = name;
+    const prev = document.createElement('span');
+    prev.className = 'cc-tool-preview';
+    prev.textContent = preview || '';
+    const chev = document.createElement('span');
+    chev.className = 'cc-tool-chevron';
+    chev.innerHTML = '&#9654;';
+    hdr.appendChild(dot);
+    hdr.appendChild(nameEl);
+    hdr.appendChild(prev);
+    hdr.appendChild(chev);
+    hdr.onclick = () => wrap.classList.toggle('open');
+
+    const body = document.createElement('div');
+    body.className = 'cc-tool-body';
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    logEl.appendChild(wrap);
+    return { wrap, body, dotEl: dot, prevEl: prev };
+  }
+
+  function appendLogEvent(logEl, event) {
+    const t = event.type;
+
+    // ── Streaming deltas ──
+    if (t === 'text_delta') {
+      _flushThinkDelta(logEl);
+      _textDeltaBuf += event.text;
+      logEl.scrollTop = logEl.scrollHeight;
+      return;
+    }
+    if (t === 'thinking_delta') {
+      _flushTextDelta(logEl);
+      _thinkDeltaBuf += event.text;
+      return;
+    }
+
+    // Flush buffered deltas before any block-level event
+    _flushTextDelta(logEl);
+    _flushThinkDelta(logEl);
+
+    if (t === '_switch_to_log') {
+      const d = document.createElement('div');
+      d.className = 'cc-divider';
+      d.textContent = 'segment complete';
+      logEl.appendChild(d);
+
+    } else if (t === 'text') {
+      _appendTextNode(logEl, event.text);
+
+    } else if (t === 'thinking') {
+      _buildThinkingBlock(logEl, event.text);
+
+    } else if (t === 'tool_start') {
+      // Streaming: tool open, no input yet
+      const { wrap, body, dotEl, prevEl } = _buildToolBlock(logEl, event.name, '…');
+      _pendingTools.push({ wrap, body, dotEl, prevEl, name: event.name });
+
+    } else if (t === 'tool_use') {
+      // Batched: full tool call with summary
+      const { wrap, body, dotEl, prevEl } = _buildToolBlock(logEl, event.name, event.summary);
+      // Show input section
+      const inp = document.createElement('div');
+      inp.className = 'cc-tool-input';
+      inp.innerHTML = `<div class="cc-label">Input</div>${_esc(event.summary)}`;
+      body.appendChild(inp);
+      _pendingTools.push({ wrap, body, dotEl, prevEl, name: event.name });
+
+    } else if (t === 'tool_result') {
+      const pending = _pendingTools.pop();
+      if (pending) {
+        const isErr = event.is_error;
+        if (isErr) pending.dotEl.classList.add('error');
+        const res = document.createElement('div');
+        res.className = 'cc-tool-result' + (isErr ? ' error' : '');
+        const lbl = document.createElement('div');
+        lbl.className = 'cc-label';
+        lbl.textContent = isErr ? 'Error' : 'Result';
+        res.appendChild(lbl);
+        res.appendChild(document.createTextNode(event.text || ''));
+        pending.body.appendChild(res);
+        // Update preview to show brief result summary
+        const firstLine = (event.text || '').split('\n')[0].slice(0, 60);
+        pending.prevEl.textContent = firstLine || (isErr ? 'error' : 'done');
+        // Auto-open on error
+        if (isErr) pending.wrap.classList.add('open');
+      } else {
+        // Orphan result — no matching tool_use, render standalone
+        const res = document.createElement('div');
+        res.className = 'cc-tool-result' + (event.is_error ? ' error' : '');
+        res.textContent = event.text || '';
+        logEl.appendChild(res);
+      }
+
+    } else if (t === 'result') {
+      const isOk = event.subtype === 'success';
+      const el = document.createElement('div');
+      el.className = `cc-result ${event.subtype || 'unknown'}`;
+      let inner = `<span>${isOk ? '&#10003;' : '&#10007;'} ${_esc(event.subtype || 'done')}</span>`;
+      if (event.cost != null) {
+        const usage = event.usage || {};
+        const tok = usage.output_tokens ? ` &middot; ${usage.input_tokens||0}in ${usage.output_tokens}out` : '';
+        inner += `<span class="cc-cost">$${Number(event.cost).toFixed(3)}${tok}</span>`;
+      }
+      el.innerHTML = inner;
+      logEl.appendChild(el);
+    }
+
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Legacy plain-text helper (kept for compat)
+  function appendLogLine(logEl, text) {
+    appendLogEvent(logEl, { type: 'text', text });
+  }
+
+  // ── Tab switching ──
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelector('.timeline').classList.toggle('tab-active', tab === 'timeline');
+    document.querySelector('.events').classList.toggle('tab-active', tab === 'events');
+  }
+
+
+  // ── Segment navigation ──
+  function selectNext() {
+    const idx = activeSegList.indexOf(activeSeg);
+    if (activeSegList.length === 0) return;
+    const next = activeSegList[idx < 0 ? 0 : Math.min(idx + 1, activeSegList.length - 1)];
+    const seg = lastSegments && lastSegments.find(s => s.num === next);
+    if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+  }
+
+  function selectPrev() {
+    const idx = activeSegList.indexOf(activeSeg);
+    if (activeSegList.length === 0) return;
+    const prev = activeSegList[idx <= 0 ? 0 : idx - 1];
+    const seg = lastSegments && lastSegments.find(s => s.num === prev);
+    if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+  }
+
+  // ── Keyboard shortcuts ──
+  document.addEventListener('keydown', function(e) {
+    if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+      if (e.key === 'Escape') {
+        e.target.blur();
+      }
+      return;
+    }
+    if (e.key === 'j') { e.preventDefault(); selectNext(); }
+    if (e.key === 'k') { e.preventDefault(); selectPrev(); }
+    if (e.key === 'Enter' && activeSeg != null) {
+      const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
+      if (seg) window._selectSeg(seg.num, seg.title, seg.status);
+    }
+  });
+
+  // ── Notifications ──
+  function renderNotifications(notifs) {
+    const el = document.getElementById('notif-feed');
+    if (!el || !notifs || !notifs.length) return;
+    let html = '';
+    notifs.forEach(n => {
+      const icon = n.sent_at ? '<i class="fa-solid fa-check" style="color: var(--pass)"></i>' : (n.attempts >= 3 ? '<i class="fa-solid fa-xmark" style="color: var(--fail)"></i>' : '<i class="fa-solid fa-clock" style="color: var(--text-dim)"></i>');
+      const ts = n.sent_at ? formatTs(n.sent_at) : `${n.attempts} att.`;
+      const preview = (n.message || '').split('\n')[0].slice(0, 60);
+      html += `<div class="notif-line">${icon} <span class="ts">${ts}</span><span class="kind">${n.kind}</span> ${preview}</div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  // ── State refresh ──
+  function refreshState() {
+    fetch('/api/state')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('plan-title').textContent = data.plan_title || 'Orchestrator';
+        document.getElementById('wave-info').textContent = `Wave ${data.current_wave}/${data.max_wave}`;
+
+        const total = data.segments.length;
+        const doneCount = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
+        const runningCount = data.segments.filter(s => s.status === 'running').length;
+        document.getElementById('progress-text').textContent = `${doneCount}/${total} done` + (runningCount ? ` · ${runningCount} running` : '');
+        document.getElementById('progress-fill').style.width = total ? `${(doneCount/total*100).toFixed(1)}%` : '0%';
+
+        if (data.started_at) startedAt = parseFloat(data.started_at);
+
+        // ETA
+        const eta = computeEta(data.segments, data.max_parallel || 4);
+        document.getElementById('eta-text').textContent = eta;
+
+        renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
+        lastSegments = data.segments;
+
+        // Update interject UI state if active segment status changed
+        if (activeSeg != null) {
+          const activeSgment = data.segments.find(s => s.num === activeSeg);
+          if (activeSgment) {
+            const canInterject = ['running', 'failed', 'partial', 'blocked', 'timeout', 'unknown'].includes(activeSgment.status);
+            const interjectBtn = document.getElementById('interject-btn');
+            const interjectInput = document.getElementById('interject-input');
+            if (interjectBtn) {
+              interjectBtn.disabled = !canInterject;
+            }
+            if (interjectInput) {
+              interjectInput.disabled = !canInterject;
+            }
+          }
+        }
+
+        // Auto-select first running segment only if nothing selected yet
+        if (activeSeg == null) {
+          const running = data.segments.find(s => s.status === 'running');
+          if (running) window._selectSeg(running.num, running.title, 'running');
+        }
+
+        renderNotifications(data.notifications);
+      })
+      .catch(() => {});
+  }
+
+  function statusIcon(status) {
+    const icons = {
+      'pass': '<i class="fa-solid fa-check-circle"></i>',
+      'running': '<i class="fa-solid fa-spinner fa-spin"></i>',
+      'pending': '<i class="fa-regular fa-circle"></i>',
+      'failed': '<i class="fa-solid fa-times-circle"></i>',
+      'partial': '<i class="fa-solid fa-exclamation-triangle"></i>',
+      'blocked': '<i class="fa-solid fa-ban"></i>',
+      'timeout': '<i class="fa-solid fa-clock"></i>',
+      'skipped': '<i class="fa-solid fa-forward"></i>',
+      'unknown': '<i class="fa-solid fa-question-circle"></i>'
+    };
+    return icons[status] || icons['unknown'];
+  }
+
+  function actionButtons(seg) {
+    const btns = [];
+    if (seg.status === 'running') {
+      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i> Kill</button>`);
+    }
+    if (['failed','blocked','partial','timeout'].includes(seg.status)) {
+      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry"><i class="fa-solid fa-rotate-right"></i> Retry</button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
+    }
+    if (seg.status === 'pending') {
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
+    }
+    return btns.length ? `<span class="act-btns">${btns.join('')}</span>` : '';
+  }
+
+  window.controlSeg = async function(num, action) {
+    const messages = {
+      kill:  `Kill S${String(num).padStart(2,'0')}? This terminates the running process.`,
+      retry: `Reset S${String(num).padStart(2,'0')} for retry? (Restart orchestrator to run it.)`,
+      skip:  `Skip S${String(num).padStart(2,'0')}? The wave will proceed without it.`,
+    };
+    if (!confirm(messages[action] || `${action} S${String(num).padStart(2,'0')}?`)) return;
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action, seg_num: num}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed: ${data.error || 'unknown error'}`);
+      } else {
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.interjectSeg = async function(num) {
+    // Prompt for message
+    const message = prompt(
+      `Enter message for S${String(num).padStart(2,'0')}:\n\n` +
+      `This will pause the segment and send your message to the agent.\n` +
+      `Max 2000 characters.`
+    );
+
+    // Validate
+    if (message === null) return; // User cancelled
+
+    const trimmed = message.trim();
+    if (!trimmed) {
+      alert('Message cannot be empty.');
+      return;
+    }
+
+    if (trimmed.length > 2000) {
+      alert(`Message too long: ${trimmed.length} chars (max 2000)`);
+      return;
+    }
+
+    // Confirm with preview
+    const preview = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
+    const confirmed = confirm(
+      `Send interject message to S${String(num).padStart(2,'0')}?\n\n` +
+      `Preview: "${preview}"\n\n` +
+      `This will pause the segment execution.`
+    );
+
+    if (!confirmed) return;
+
+    // Send request
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'interject', seg_num: num, message: trimmed}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed to interject: ${data.error || 'unknown error'}`);
+      } else {
+        alert(`Interject message sent to S${String(num).padStart(2,'0')}`);
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.interjectCurrentSeg = async function() {
+    if (activeSeg == null) {
+      alert('No segment selected');
+      return;
+    }
+
+    const input = document.getElementById('interject-input');
+    const message = (input ? input.value : '').trim();
+
+    if (!message) {
+      alert('Please enter a message');
+      return;
+    }
+
+    if (message.length > 2000) {
+      alert(`Message too long: ${message.length} chars (max 2000)`);
+      return;
+    }
+
+    // Simple confirmation
+    if (!confirm(`Send interject message to S${String(activeSeg).padStart(2,'0')}?\n\nThis will:\n- Kill the segment if running\n- Reset it to pending for immediate retry\n- Include your message in the next execution`)) {
+      return;
+    }
+
+    // Send request
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'interject', seg_num: activeSeg, message: message}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed to interject: ${data.error || 'unknown error'}`);
+      } else {
+        // Clear input on success
+        if (input) input.value = '';
+        alert(`Interject message sent to S${String(activeSeg).padStart(2,'0')}`);
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.changeStatus = async function(num, newStatus) {
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'set_status', seg_num: num, status: newStatus}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed: ${data.error || 'unknown error'}`);
+      } else {
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.toggleStatusDropdown = function(event, num, currentStatus) {
+    event.stopPropagation();
+    // Close any open dropdowns
+    document.querySelectorAll('.status-dropdown').forEach(d => d.remove());
+
+    const statuses = ['pending', 'running', 'pass', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
+    const dropdown = document.createElement('div');
+    dropdown.className = 'status-dropdown show';
+
+    statuses.forEach(status => {
+      const item = document.createElement('div');
+      item.className = 'status-dropdown-item';
+      item.textContent = status;
+      item.style.color = getComputedStyle(document.documentElement).getPropertyValue(`--${status === 'pass' ? 'pass' : status === 'running' ? 'running' : status === 'pending' ? 'pending' : status.includes('fail') || status === 'blocked' ? 'fail' : status === 'partial' || status === 'timeout' ? 'partial' : 'text-muted'}`);
+      if (status === currentStatus) {
+        item.style.background = 'rgba(255,255,255,0.15)';
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        window.changeStatus(num, status);
+        dropdown.remove();
+      };
+      dropdown.appendChild(item);
+    });
+
+    event.target.appendChild(dropdown);
+
+    // Close dropdown when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeDropdown() {
+        dropdown.remove();
+        document.removeEventListener('click', closeDropdown);
+      });
+    }, 10);
+  };
+
+  function renderTimeline(segments, maxWave, events, currentWave) {
+    const el = document.getElementById('timeline-content');
+    const waves = {};
+    segments.forEach(s => { (waves[s.wave] = waves[s.wave] || []).push(s); });
+
+    // Build ordered segment list for j/k navigation
+    activeSegList = segments.map(s => s.num);
+
+    let html = '';
+    for (let w = 1; w <= maxWave; w++) {
+      const segs = waves[w] || [];
+      const ws = waveStatus(segs);
+      const headerClass = ws === 'active' ? 'active' : ws === 'done' ? 'done' : '';
+
+      html += `<div class="wave-group">`;
+      html += `<div class="wave-header ${headerClass}">`;
+      html += `<span>Wave ${w}</span><span class="wave-line"></span>`;
+      html += `<span>${segs.length} segment${segs.length !== 1 ? 's' : ''}</span>`;
+      html += `</div>`;
+
+      segs.forEach(s => {
+        const isActive = activeSeg === s.num ? ' active' : '';
+        const elapsedStr = s.status === 'running' && s.started_at
+          ? `<span class="seg-elapsed">${formatElapsed(Date.now()/1000 - s.started_at)}</span>`
+          : '';
+        html += `<div class="seg-row${isActive}" data-num="${s.num}" data-status="${s.status}" onclick="window._selectSeg(${s.num},'${s.title.replace(/'/g,"\\'")}','${s.status}')">`;
+        html += `<span class="seg-num">S${pad(s.num)}</span>`;
+        html += `<span class="seg-title">${s.title}</span>`;
+        html += elapsedStr;
+        html += `<span class="seg-status ${s.status}" onclick="event.stopPropagation();window.toggleStatusDropdown(event,${s.num},'${s.status}')" title="Click to change status">${s.status}</span>`;
+        html += actionButtons(s);
+        html += `</div>`;
+      });
+
+      // Gate bar after each wave (except last)
+      if (w < maxWave) {
+        const wDone = ws === 'done';
+        const gs = gateStatus(events, w, currentWave, wDone);
+        let inner = '';
+        if (gs === 'pass') {
+          inner = `<span class="gate-icon"><i class="fa-solid fa-check-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
+        } else if (gs === 'fail') {
+          inner = `<span class="gate-icon"><i class="fa-solid fa-times-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
+        } else if (gs === 'running') {
+          inner = `<span class="gate-icon"><i class="fa-solid fa-spinner fa-spin"></i></span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
+        } else {
+          inner = `<span class="gate-icon"><i class="fa-regular fa-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
+        }
+        const clickable = (gs === 'running' || gs === 'pass' || gs === 'fail') ? ` onclick="window._selectGate(${w},'${gs}')" style="cursor:pointer"` : '';
+        html += `<div class="gate-bar gate-${gs}"${clickable}>${inner}</div>`;
+      }
+
+      html += `</div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function _resetLogDeltaBufs() {
+    _textDeltaBuf = '';
+    _thinkDeltaBuf = '';
+    _thinkEl = null;
+    _pendingTools = [];
+  }
+
+  function _openLogStream(url, logEl, isLive) {
+    if (logSource) logSource.close();
+    _resetLogDeltaBufs();
+    logEl.innerHTML = '';
+    const badge = document.getElementById('live-badge');
+    badge.textContent = isLive ? '● LIVE' : '';
+    logSource = new EventSource(url);
+    logSource.onmessage = function(e) {
+      const event = JSON.parse(e.data);
+      appendLogEvent(logEl, event);
+      // Once segment completes the server emits _switch_to_log
+      if (event.type === '_switch_to_log') badge.textContent = '';
+    };
+  }
+
+  window._selectGate = function(wave, status) {
+    activeSeg = null;
+    localStorage.removeItem('orchestrate_activeSeg');
+    document.getElementById('log-seg-label').textContent = `Gate — Wave ${wave}`;
+    document.getElementById('log-content').innerHTML = '';
+    document.querySelectorAll('.seg-row').forEach(r => r.classList.remove('active'));
+
+    // Reset prompt view state
+    showingPrompt = false;
+    currentPromptText = null;
+
+    // Disable and reset prompt button for gates
+    const promptBtn = document.getElementById('prompt-btn');
+    if (promptBtn) {
+      promptBtn.disabled = true;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+    }
+
+    _openLogStream(`/api/logs/gate-W${wave}`, document.getElementById('log-content'), status === 'running');
+  };
+
+  window.showPrompt = async function() {
+    if (activeSeg == null) return;
+
+    const promptBtn = document.getElementById('prompt-btn');
+    const logContent = document.getElementById('log-content');
+    const badge = document.getElementById('live-badge');
+
+    if (showingPrompt) {
+      // Switch back to log view
+      showingPrompt = false;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+
+      // Resume log stream
+      const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
+      if (seg) {
+        const status = seg.status;
+        _openLogStream(`/api/logs/S${pad(activeSeg)}`, logContent, status === 'running');
+      }
+    } else {
+      // Switch to prompt view
+      showingPrompt = true;
+      promptBtn.textContent = 'Log';
+      promptBtn.classList.add('active');
+
+      // Stop log stream
+      if (logSource) {
+        logSource.close();
+        logSource = null;
+      }
+      badge.textContent = '';
+
+      // Show loading state
+      logContent.innerHTML = '<div style="color: var(--cc-text-dim); padding: 20px;">Loading prompt...</div>';
+
+      // Fetch and display prompt
+      try {
+        const response = await fetch(`/api/prompt/S${pad(activeSeg)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const text = await response.text();
+        currentPromptText = text;
+
+        // Parse frontmatter and render pills + content using same approach as logs
+        const { metadata, content } = _parseYamlFrontmatter(text);
+        logContent.innerHTML = '';
+
+        // Add pills if metadata exists
+        if (Object.keys(metadata).length > 0) {
+          const pillsDiv = document.createElement('div');
+          pillsDiv.innerHTML = _renderMetadataPills(metadata);
+          pillsDiv.style.padding = '12px 20px 0';
+          logContent.appendChild(pillsDiv);
+        }
+
+        // Render entire content as markdown
+        _appendTextNode(logContent, content, true);
+      } catch (e) {
+        logContent.innerHTML = `<div style="color: var(--cc-red); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
+      }
+    }
+  };
+
+  window._selectSeg = function(num, title, status) {
+    activeSeg = num;
+    localStorage.setItem('orchestrate_activeSeg', num);
+    document.getElementById('log-seg-label').textContent = `S${pad(num)} — ${title}`;
+    document.getElementById('log-content').innerHTML = '';
+    document.querySelectorAll('.seg-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.num) === num));
+
+    // Reset prompt view state
+    showingPrompt = false;
+    currentPromptText = null;
+
+    // Enable and reset prompt button
+    const promptBtn = document.getElementById('prompt-btn');
+    if (promptBtn) {
+      promptBtn.disabled = false;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+    }
+
+    // Enable/disable interject UI based on segment status
+    // Allow interject on running segments and failed states (they'll auto-restart)
+    const canInterject = ['running', 'failed', 'partial', 'blocked', 'timeout', 'unknown'].includes(status);
+    const interjectBtn = document.getElementById('interject-btn');
+    const interjectInput = document.getElementById('interject-input');
+    if (interjectBtn) {
+      interjectBtn.disabled = !canInterject;
+    }
+    if (interjectInput) {
+      interjectInput.disabled = !canInterject;
+    }
+
+    _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
+  };
+
+  function setupEventStream() {
+    eventSource = new EventSource('/api/events');
+    const feed = document.getElementById('event-feed');
+    eventSource.onmessage = function(e) {
+      const ev = JSON.parse(e.data);
+      const div = document.createElement('div');
+      const svClass = {error:'ev-error', warn:'ev-warn'}[ev.severity] || '';
+      div.className = `event-line ${svClass}`;
+      div.innerHTML = `<span class="ts">${formatTs(ev.ts)}</span> <span class="kind">${ev.kind}</span> ${ev.detail}`;
+      feed.insertBefore(div, feed.firstChild);
+      while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+    };
+  }
+
+  function updateElapsed() {
+    if (startedAt) {
+      document.getElementById('elapsed').textContent = `Elapsed: ${formatElapsed(Date.now()/1000 - startedAt)}`;
+    }
+  }
+
+  switchTab('timeline');
+  refreshState();
+  setInterval(refreshState, 5000);
+  setInterval(updateElapsed, 1000);
+  setupEventStream();
+})();
+</script>
+</body>
+</html>
