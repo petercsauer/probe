@@ -836,4 +836,82 @@ mod tests {
         let hl2 = line2.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();
         assert_eq!(hl2, 0, "Line 2 should have no highlighted spans");
     }
+
+    #[test]
+    fn test_diff_mode_highlighting() {
+        // Test that diff mode correctly highlights byte differences
+        let current_bytes = b"Hello, World!";
+        let marked_bytes = b"Hello, Earth!";
+
+        let theme = ThemeConfig::dark();
+        let diff_style = ratatui::style::Style::default().fg(ratatui::style::Color::Yellow);
+
+        // Render with diff mode enabled
+        let line = render_hex_line(
+            0,
+            current_bytes,
+            None,
+            ByteGrouping::One,
+            &[],
+            Some(marked_bytes),
+            &theme
+        );
+
+        // Count spans with diff styling (yellow foreground)
+        let diff_count = line.spans.iter()
+            .filter(|s| s.style.fg == diff_style.fg)
+            .count();
+
+        // Should have some diff-styled spans for the differing bytes ("W" vs "E", etc.)
+        assert!(diff_count > 0, "Should have diff-highlighted spans for byte differences");
+    }
+
+    #[test]
+    fn test_diff_mode_no_differences() {
+        // Test that diff mode works correctly when bytes are identical
+        let bytes = b"Identical";
+
+        let theme = ThemeConfig::dark();
+        let diff_style = ratatui::style::Style::default().fg(ratatui::style::Color::Yellow);
+
+        // Render with diff mode enabled but identical bytes
+        let line = render_hex_line(
+            0,
+            bytes,
+            None,
+            ByteGrouping::One,
+            &[],
+            Some(bytes),
+            &theme
+        );
+
+        // Should have no diff-styled spans
+        let diff_count = line.spans.iter()
+            .filter(|s| s.style.fg == diff_style.fg)
+            .count();
+
+        assert_eq!(diff_count, 0, "Should have no diff-highlighted spans when bytes are identical");
+    }
+
+    #[test]
+    fn test_parse_hex_pattern() {
+        // Test hex pattern parsing
+        assert_eq!(parse_hex_pattern("48 65 6c 6c 6f"), Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]));
+        assert_eq!(parse_hex_pattern("48656c6c6f"), Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]));
+        assert_eq!(parse_hex_pattern("DEADBEEF"), Some(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+        assert_eq!(parse_hex_pattern(""), None);
+        assert_eq!(parse_hex_pattern("4"), None); // Odd length
+        assert_eq!(parse_hex_pattern("ZZ"), None); // Invalid hex
+    }
+
+    #[test]
+    fn test_parse_hex_offset() {
+        // Test hex offset parsing
+        assert_eq!(parse_hex_offset("0x100"), Ok(256));
+        assert_eq!(parse_hex_offset("100"), Ok(256));
+        assert_eq!(parse_hex_offset("0X100"), Ok(256));
+        assert_eq!(parse_hex_offset("0"), Ok(0));
+        assert_eq!(parse_hex_offset("DEADBEEF"), Ok(0xDEADBEEF));
+        assert!(parse_hex_offset("invalid").is_err());
+    }
 }
