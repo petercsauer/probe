@@ -94,6 +94,19 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
         app.set_tls_stats(stats);
     }
 
+    // Restore session if provided
+    if let Some(ref session_path) = args.session {
+        match prb_tui::Session::load(session_path.as_std_path()) {
+            Ok(session) => {
+                app.restore_session(session);
+                tracing::info!("Restored session from {}", session_path);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load session from {}: {}", session_path, e);
+            }
+        }
+    }
+
     app.run()
 }
 
