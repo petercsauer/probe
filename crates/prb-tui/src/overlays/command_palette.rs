@@ -61,6 +61,11 @@ impl CommandPaletteOverlay {
                 key_hint: "G".to_string(),
             },
             Command {
+                name: "Reload config".to_string(),
+                description: "Reload configuration file".to_string(),
+                key_hint: ":reload".to_string(),
+            },
+            Command {
                 name: "Quit".to_string(),
                 description: "Exit the application".to_string(),
                 key_hint: "q".to_string(),

@@ -299,6 +299,33 @@ impl App {
         }
     }
 
+    /// Reload config from disk and apply theme changes.
+    fn reload_config(&mut self) {
+        let new_config = Config::load();
+        let old_theme_name = self.config.tui.theme.clone();
+        let new_theme_name = new_config.tui.theme.clone();
+
+        self.config = new_config;
+
+        // Reload theme if it changed
+        if old_theme_name != new_theme_name {
+            let mut theme = ThemeConfig::from_name(&self.config.tui.theme);
+            if let Some(ref overrides) = self.config.tui.colors {
+                overrides.apply_to_theme(&mut theme);
+            }
+            self.theme = theme;
+            self.set_status_message(&format!("Config reloaded, switched to {} theme", self.config.tui.theme));
+        } else {
+            // Even if theme name didn't change, color overrides might have
+            let mut theme = ThemeConfig::from_name(&self.config.tui.theme);
+            if let Some(ref overrides) = self.config.tui.colors {
+                overrides.apply_to_theme(&mut theme);
+            }
+            self.theme = theme;
+            self.set_status_message("Config reloaded");
+        }
+    }
+
     /// Set the input file path and size for session info display.
     pub fn set_input_file(&mut self, path: PathBuf, size: u64) {
         self.input_file_path = Some(path);
@@ -1799,6 +1826,11 @@ impl App {
                     self.theme_editor = Some(ThemeEditorOverlay::new(self.theme.clone()));
                     self.input_mode = InputMode::ThemeEditor;
                     return false;
+                } else if input == "reload" || input == "reload-config" {
+                    // Reload config file
+                    self.reload_config();
+                    self.input_mode = InputMode::Normal;
+                    return false;
                 } else if let Some(query) = input.strip_prefix("/ai ").or_else(|| input.strip_prefix("ai ")) {
                     // AI natural language filter generation
                     let query = query.trim().to_string();
@@ -1850,6 +1882,10 @@ impl App {
                                 self.event_list.selected = last;
                                 self.process_action(Action::SelectEvent(last));
                             }
+                            self.input_mode = InputMode::Normal;
+                        }
+                        "Reload config" => {
+                            self.reload_config();
                             self.input_mode = InputMode::Normal;
                         }
                         "Quit" => {
