@@ -4,8 +4,8 @@
 //! from debug events.
 
 use crate::{
-    conversation::{Conversation, ConversationKind, ConversationState},
     CoreError, CorrelationStrategy, DebugEvent, EventId, TransportKind,
+    conversation::{Conversation, ConversationKind, ConversationState},
 };
 use std::collections::HashMap;
 
@@ -32,10 +32,7 @@ impl ConversationEngine {
     /// Each strategy handles events matching its transport. Events not claimed
     /// by any strategy are grouped into fallback TCP/UDP conversations by
     /// network address.
-    pub fn build_conversations(
-        &self,
-        events: &[DebugEvent],
-    ) -> Result<ConversationSet, CoreError> {
+    pub fn build_conversations(&self, events: &[DebugEvent]) -> Result<ConversationSet, CoreError> {
         let mut all_conversations = Vec::new();
         let mut claimed_events = std::collections::HashSet::new();
 
@@ -191,12 +188,7 @@ pub(crate) fn flow_to_conversation(
     // Generate summary
     let summary = generate_summary(&flow.metadata, kind, state, &metrics);
 
-    let mut conversation = Conversation::new(
-        ConversationId::new(flow.id),
-        kind,
-        protocol,
-        state,
-    );
+    let mut conversation = Conversation::new(ConversationId::new(flow.id), kind, protocol, state);
 
     conversation.event_ids = event_ids;
     conversation.metrics = metrics;
@@ -214,11 +206,18 @@ fn classify_conversation(
 ) -> (ConversationKind, ConversationState) {
     use crate::Direction;
 
-    let outbound_count = events.iter().filter(|e| e.direction == Direction::Outbound).count();
-    let inbound_count = events.iter().filter(|e| e.direction == Direction::Inbound).count();
+    let outbound_count = events
+        .iter()
+        .filter(|e| e.direction == Direction::Outbound)
+        .count();
+    let inbound_count = events
+        .iter()
+        .filter(|e| e.direction == Direction::Inbound)
+        .count();
 
     // Check for errors in metadata
-    let has_error = metadata.get("grpc.status")
+    let has_error = metadata
+        .get("grpc.status")
         .map(|s| s != "0")
         .unwrap_or(false);
 
@@ -279,7 +278,8 @@ fn generate_summary(
 ) -> String {
     // For gRPC: "POST /api.v1.Users/Get → OK (12ms)"
     if let Some(method) = metadata.get("grpc.method") {
-        let status = metadata.get("grpc.status")
+        let status = metadata
+            .get("grpc.status")
             .and_then(|s| grpc_status_name(s))
             .unwrap_or_else(|| state.to_string());
         let duration_ms = metrics.duration_ns / 1_000_000;
@@ -290,12 +290,18 @@ fn generate_summary(
     if let Some(topic) = metadata.get("zmq.topic") {
         let count = metrics.request_count + metrics.response_count;
         let duration_s = metrics.duration_ns as f64 / 1_000_000_000.0;
-        return format!("PUB topic={} — {} messages ({:.1}s)", topic, count, duration_s);
+        return format!(
+            "PUB topic={} — {} messages ({:.1}s)",
+            topic, count, duration_s
+        );
     }
 
     // For DDS: "Topic=rt/chatter domain=0 — 256 samples"
     if let Some(topic) = metadata.get("dds.topic_name") {
-        let domain = metadata.get("dds.domain_id").map(|d| d.as_str()).unwrap_or("?");
+        let domain = metadata
+            .get("dds.domain_id")
+            .map(|d| d.as_str())
+            .unwrap_or("?");
         let count = metrics.request_count + metrics.response_count;
         return format!("Topic={} domain={} — {} samples", topic, domain, count);
     }

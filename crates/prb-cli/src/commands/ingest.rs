@@ -1,12 +1,12 @@
 //! Ingest command implementation.
 
 use crate::cli::IngestArgs;
-use anyhow::{bail, Context, Result};
-use prb_core::{CaptureAdapter, DebugEvent, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
+use anyhow::{Context, Result, bail};
+use prb_core::{CaptureAdapter, DebugEvent, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID};
 use prb_fixture::JsonFixtureAdapter;
+use prb_pcap::PcapCaptureAdapter;
 use prb_pcap::parallel::{ParallelPipeline, PipelineConfig};
 use prb_pcap::reader::PcapFileReader;
-use prb_pcap::PcapCaptureAdapter;
 use prb_storage::{SessionMetadata, SessionWriter};
 use std::fs::File;
 use std::io::{self, BufWriter, Read, Write};
@@ -20,7 +20,8 @@ enum InputFormat {
 }
 
 fn detect_format(path: &Path) -> Result<InputFormat> {
-    let mut file = File::open(path).with_context(|| format!("Failed to open input file {}", path.display()))?;
+    let mut file = File::open(path)
+        .with_context(|| format!("Failed to open input file {}", path.display()))?;
     let mut magic = [0u8; 4];
 
     // Try to read magic bytes
@@ -74,14 +75,16 @@ pub fn run_ingest(args: IngestArgs) -> Result<()> {
 /// JSON ingest path (always sequential).
 fn run_json_ingest(args: IngestArgs) -> Result<()> {
     tracing::info!("Detected JSON fixture format");
-    let mut adapter: Box<dyn CaptureAdapter> = Box::new(JsonFixtureAdapter::new(args.input.clone()));
+    let mut adapter: Box<dyn CaptureAdapter> =
+        Box::new(JsonFixtureAdapter::new(args.input.clone()));
 
     // Determine output format based on file extension
     if let Some(ref output_path) = args.output
-        && output_path.extension() == Some("mcap") {
-            // Write to MCAP format
-            return run_ingest_mcap(args, adapter);
-        }
+        && output_path.extension() == Some("mcap")
+    {
+        // Write to MCAP format
+        return run_ingest_mcap(args, adapter);
+    }
 
     write_events_ndjson(&args, &mut *adapter)
 }
@@ -101,10 +104,11 @@ fn run_sequential_pcap_ingest(args: IngestArgs) -> Result<()> {
 
     // Determine output format based on file extension
     if let Some(ref output_path) = args.output
-        && output_path.extension() == Some("mcap") {
-            let boxed_adapter: Box<dyn CaptureAdapter> = Box::new(adapter);
-            return run_ingest_mcap(args, boxed_adapter);
-        }
+        && output_path.extension() == Some("mcap")
+    {
+        let boxed_adapter: Box<dyn CaptureAdapter> = Box::new(adapter);
+        return run_ingest_mcap(args, boxed_adapter);
+    }
 
     write_events_ndjson(&args, &mut adapter)
 }
@@ -139,18 +143,19 @@ fn run_parallel_pcap_ingest(args: IngestArgs) -> Result<()> {
     let pipeline = ParallelPipeline::new(config, capture_path.clone(), tls_keylog);
 
     // Read all packets
-    let mut reader = PcapFileReader::open(&capture_path)
-        .context("Failed to open PCAP file")?;
-    let packets = reader.read_all_packets()
+    let mut reader = PcapFileReader::open(&capture_path).context("Failed to open PCAP file")?;
+    let packets = reader
+        .read_all_packets()
         .context("Failed to read packets from PCAP file")?;
 
     tracing::info!("Read {} packets from capture", packets.len());
 
     // Convert PcapPacket to OwnedNormalizedPacket
     // For now, skip fragments since we need stateful defrag
-    let normalized_packets: Vec<_> = packets.into_iter()
+    let normalized_packets: Vec<_> = packets
+        .into_iter()
         .filter_map(|pkt| {
-            use prb_pcap::{normalize_stateless, NormalizeResult};
+            use prb_pcap::{NormalizeResult, normalize_stateless};
             match normalize_stateless(pkt.linktype, pkt.timestamp_us, &pkt.data) {
                 Ok(NormalizeResult::Packet(normalized)) => Some(normalized),
                 Ok(NormalizeResult::Fragment { .. }) => None, // Skip fragments for now
@@ -162,7 +167,8 @@ fn run_parallel_pcap_ingest(args: IngestArgs) -> Result<()> {
     tracing::info!("Normalized {} packets", normalized_packets.len());
 
     let start = std::time::Instant::now();
-    let events = pipeline.run(normalized_packets)
+    let events = pipeline
+        .run(normalized_packets)
         .context("Parallel pipeline failed")?;
     let elapsed = start.elapsed();
 
@@ -207,8 +213,7 @@ fn write_events_ndjson(args: &IngestArgs, adapter: &mut dyn CaptureAdapter) -> R
             continue;
         }
 
-        serde_json::to_writer(&mut writer, &event)
-            .context("Failed to serialize event to JSON")?;
+        serde_json::to_writer(&mut writer, &event).context("Failed to serialize event to JSON")?;
         writeln!(&mut writer)?;
 
         count += 1;
@@ -247,8 +252,7 @@ fn write_events_from_vec(args: &IngestArgs, events: Vec<DebugEvent>) -> Result<(
             continue;
         }
 
-        serde_json::to_writer(&mut writer, &event)
-            .context("Failed to serialize event to JSON")?;
+        serde_json::to_writer(&mut writer, &event).context("Failed to serialize event to JSON")?;
         writeln!(&mut writer)?;
 
         count += 1;
@@ -289,8 +293,8 @@ fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Re
     let file = File::create(output_path)
         .with_context(|| format!("Failed to create output file {}", output_path))?;
 
-    let mut writer = SessionWriter::new(file, metadata)
-        .context("Failed to create MCAP session writer")?;
+    let mut writer =
+        SessionWriter::new(file, metadata).context("Failed to create MCAP session writer")?;
 
     // Process and write events
     let mut count = 0;

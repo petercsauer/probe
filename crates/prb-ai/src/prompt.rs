@@ -184,7 +184,11 @@ pub fn build_user_message(context: &ExplainContext) -> String {
     if !context.surrounding_summaries.is_empty() {
         msg.push_str("\n═══ SURROUNDING CONTEXT ═══\n");
         for (i, summary) in context.surrounding_summaries.iter().enumerate() {
-            msg.push_str(&format!("--- Context event {}/{} ---\n", i + 1, context.surrounding_summaries.len()));
+            msg.push_str(&format!(
+                "--- Context event {}/{} ---\n",
+                i + 1,
+                context.surrounding_summaries.len()
+            ));
             msg.push_str(summary);
             msg.push('\n');
         }

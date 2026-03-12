@@ -5,12 +5,12 @@
 //! - Capture summary and analysis
 //! - Anomaly detection
 
+use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
     ChatCompletionRequestUserMessage, CreateChatCompletionRequest, Role,
 };
-use async_openai::Client;
 use prb_core::DebugEvent;
 
 /// Error types for AI features.

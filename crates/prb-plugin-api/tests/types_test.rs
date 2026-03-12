@@ -109,6 +109,9 @@ fn test_wasm_decode_request_serde() {
     let deserialized: WasmDecodeRequest = serde_json::from_str(&json).expect("deserialize");
 
     assert_eq!(deserialized.data_b64, "AQIDBA==");
-    assert_eq!(deserialized.ctx.src_addr, Some("127.0.0.1:8080".to_string()));
+    assert_eq!(
+        deserialized.ctx.src_addr,
+        Some("127.0.0.1:8080".to_string())
+    );
     assert_eq!(deserialized.ctx.timestamp_nanos, Some(1000));
 }

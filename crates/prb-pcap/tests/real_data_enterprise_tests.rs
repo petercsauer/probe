@@ -114,7 +114,10 @@ fn test_real_data_enterprise_rdp_session_establishment() {
     if let Ok(metadata) = std::fs::metadata(&pcap_path) {
         // Skip test if file is suspiciously small (likely HTML error) or doesn't exist
         if metadata.len() < 5000 {
-            eprintln!("Skipping: RDP capture file appears invalid (size: {} bytes)", metadata.len());
+            eprintln!(
+                "Skipping: RDP capture file appears invalid (size: {} bytes)",
+                metadata.len()
+            );
             return;
         }
     } else {
@@ -141,7 +144,10 @@ fn test_real_data_enterprise_rdp_over_tls() {
     // Check if file is a valid pcap (not HTML error page from failed download)
     if let Ok(metadata) = std::fs::metadata(&pcap_path) {
         if metadata.len() < 5000 {
-            eprintln!("Skipping: RDP-SSL capture file appears invalid (size: {} bytes)", metadata.len());
+            eprintln!(
+                "Skipping: RDP-SSL capture file appears invalid (size: {} bytes)",
+                metadata.len()
+            );
             return;
         }
     } else {
@@ -172,7 +178,10 @@ fn test_real_data_enterprise_kerberos_auth() {
     // Check if file is a valid pcap (not HTML error page from failed download)
     if let Ok(metadata) = std::fs::metadata(&pcap_path) {
         if metadata.len() < 50000 {
-            eprintln!("Skipping: Kerberos capture file appears invalid (size: {} bytes)", metadata.len());
+            eprintln!(
+                "Skipping: Kerberos capture file appears invalid (size: {} bytes)",
+                metadata.len()
+            );
             return;
         }
     } else {
@@ -265,7 +274,10 @@ fn test_real_data_enterprise_sip_rtp() {
     // Check if file is a valid pcap (not HTML error page from failed download)
     if let Ok(metadata) = std::fs::metadata(&pcap_path) {
         if metadata.len() < 50000 {
-            eprintln!("Skipping: SIP/RTP capture file appears invalid (size: {} bytes)", metadata.len());
+            eprintln!(
+                "Skipping: SIP/RTP capture file appears invalid (size: {} bytes)",
+                metadata.len()
+            );
             return;
         }
     } else {

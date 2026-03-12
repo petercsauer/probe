@@ -4,7 +4,9 @@ use crate::normalize::{OwnedNormalizedPacket, TransportInfo};
 use crate::tcp::{StreamDirection, StreamEvent, TcpReassembler};
 use crate::tls::{TlsKeyLog, TlsStreamProcessor};
 use bytes::Bytes;
-use prb_core::{DebugEvent, Direction, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, Direction, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use rayon::prelude::*;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -42,10 +44,7 @@ impl ShardProcessor {
     ///
     /// A vector of event vectors, one per shard. Events maintain their
     /// relative order within each shard.
-    pub fn process_shards(
-        &self,
-        shards: Vec<Vec<OwnedNormalizedPacket>>,
-    ) -> Vec<Vec<DebugEvent>> {
+    pub fn process_shards(&self, shards: Vec<Vec<OwnedNormalizedPacket>>) -> Vec<Vec<DebugEvent>> {
         shards
             .into_par_iter()
             .map(|shard_packets| self.process_single_shard(shard_packets))
@@ -66,18 +65,16 @@ impl ShardProcessor {
 
         for packet in &packets {
             match &packet.transport {
-                TransportInfo::Tcp(_) => {
-                    match reassembler.process_owned_segment(packet) {
-                        Ok(stream_events) => {
-                            for stream_event in stream_events {
-                                if let StreamEvent::Data(stream) = stream_event {
-                                    self.process_stream(stream, &tls_processor, &mut events);
-                                }
+                TransportInfo::Tcp(_) => match reassembler.process_owned_segment(packet) {
+                    Ok(stream_events) => {
+                        for stream_event in stream_events {
+                            if let StreamEvent::Data(stream) = stream_event {
+                                self.process_stream(stream, &tls_processor, &mut events);
                             }
                         }
-                        Err(e) => tracing::warn!("TCP reassembly error: {}", e),
                     }
-                }
+                    Err(e) => tracing::warn!("TCP reassembly error: {}", e),
+                },
                 TransportInfo::Udp { src_port, dst_port } => {
                     events.push(create_udp_event(
                         packet,
@@ -112,7 +109,11 @@ impl ShardProcessor {
         match tls_processor.decrypt_stream(stream.clone()) {
             Ok(decrypted_stream) => {
                 // Create a DebugEvent from the decrypted stream
-                events.push(create_tcp_event(stream, decrypted_stream, &self.capture_path));
+                events.push(create_tcp_event(
+                    stream,
+                    decrypted_stream,
+                    &self.capture_path,
+                ));
             }
             Err(e) => {
                 tracing::warn!("TLS processing error: {}", e);
@@ -334,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_decode_grpc_in_shard() {
-        use crate::parallel::detect::{detect_protocol, DetectedProtocol};
+        use crate::parallel::detect::{DetectedProtocol, detect_protocol};
         use crate::tls::DecryptedStream;
 
         let keylog = Arc::new(TlsKeyLog::new());
@@ -347,9 +348,9 @@ mod tests {
         let h2_preface = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".to_vec();
 
         // Create TCP packets carrying HTTP/2 preface
-        let packets = vec![
-            make_tcp_packet(1000, ip1, 12345, ip2, 50051, 100, h2_preface),
-        ];
+        let packets = vec![make_tcp_packet(
+            1000, ip1, 12345, ip2, 50051, 100, h2_preface,
+        )];
 
         let shards = vec![packets];
         let results = processor.process_shards(shards);
@@ -372,12 +373,16 @@ mod tests {
         };
 
         let detected = detect_protocol(&decrypted_stream);
-        assert_eq!(detected, Some(DetectedProtocol::Grpc), "Should detect gRPC/HTTP2");
+        assert_eq!(
+            detected,
+            Some(DetectedProtocol::Grpc),
+            "Should detect gRPC/HTTP2"
+        );
     }
 
     #[test]
     fn test_decode_zmtp_in_shard() {
-        use crate::parallel::detect::{detect_protocol, DetectedProtocol};
+        use crate::parallel::detect::{DetectedProtocol, detect_protocol};
         use crate::tls::DecryptedStream;
 
         let keylog = Arc::new(TlsKeyLog::new());
@@ -391,9 +396,15 @@ mod tests {
         zmtp_greeting.extend_from_slice(&[3, 0]); // version 3.0
 
         // Create TCP packets carrying ZMTP greeting
-        let packets = vec![
-            make_tcp_packet(1000, ip1, 12345, ip2, 5555, 100, zmtp_greeting),
-        ];
+        let packets = vec![make_tcp_packet(
+            1000,
+            ip1,
+            12345,
+            ip2,
+            5555,
+            100,
+            zmtp_greeting,
+        )];
 
         let shards = vec![packets];
         let results = processor.process_shards(shards);

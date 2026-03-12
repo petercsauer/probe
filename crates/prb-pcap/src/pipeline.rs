@@ -67,7 +67,11 @@ impl PcapCaptureAdapter {
     /// * `capture_path` - Path to the PCAP/pcapng file
     /// * `tls_keylog_path` - Optional path to TLS keylog file for decryption
     pub fn new(capture_path: PathBuf, tls_keylog_path: Option<PathBuf>) -> Self {
-        Self::with_registry(capture_path, tls_keylog_path, crate::create_registry_with_builtins())
+        Self::with_registry(
+            capture_path,
+            tls_keylog_path,
+            crate::create_registry_with_builtins(),
+        )
     }
 
     /// Creates a new PCAP capture adapter with a custom decoder registry.
@@ -108,12 +112,14 @@ impl PcapCaptureAdapter {
     }
 
     /// Build TLS processor with keylog file or embedded keys from pcapng.
-    fn build_tls_processor(&self, reader: &PcapFileReader) -> Result<TlsStreamProcessor, CoreError> {
+    fn build_tls_processor(
+        &self,
+        reader: &PcapFileReader,
+    ) -> Result<TlsStreamProcessor, CoreError> {
         if let Some(ref keylog_path) = self.tls_keylog_path {
             // Load keylog file
-            let keylog = TlsKeyLog::from_file(keylog_path).map_err(|e| {
-                CoreError::Adapter(format!("failed to load TLS keylog: {}", e))
-            })?;
+            let keylog = TlsKeyLog::from_file(keylog_path)
+                .map_err(|e| CoreError::Adapter(format!("failed to load TLS keylog: {}", e)))?;
             tracing::info!("Loaded {} TLS keys from keylog", keylog.len());
             Ok(TlsStreamProcessor::with_keylog(keylog))
         } else {
@@ -160,10 +166,7 @@ impl PcapCaptureAdapter {
         let tls_processor = self.build_tls_processor(&reader)?;
 
         // Take ownership of the decoder registry
-        let registry = std::mem::replace(
-            &mut self.decoder_registry,
-            DecoderRegistry::new(),
-        );
+        let registry = std::mem::replace(&mut self.decoder_registry, DecoderRegistry::new());
 
         // Apply protocol override if set
         if let Some(ref protocol_name) = self.protocol_override {
@@ -179,12 +182,8 @@ impl PcapCaptureAdapter {
         // Process all packets through the core pipeline
         let origin = self.capture_path.display().to_string();
         for packet in &packets {
-            let result = core.process_packet(
-                packet.linktype,
-                packet.timestamp_us,
-                &packet.data,
-                &origin,
-            );
+            let result =
+                core.process_packet(packet.linktype, packet.timestamp_us, &packet.data, &origin);
 
             // Queue events
             for event in result.events {
@@ -224,7 +223,6 @@ impl PcapCaptureAdapter {
 
         Ok(())
     }
-
 }
 
 impl CaptureAdapter for PcapCaptureAdapter {

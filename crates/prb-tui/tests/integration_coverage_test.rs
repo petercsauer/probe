@@ -2,9 +2,11 @@
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
-use prb_tui::event_store::EventStore;
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::App;
+use prb_tui::event_store::EventStore;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -208,7 +210,10 @@ fn test_app_with_all_transports_rendered() {
             break;
         }
     }
-    assert!(has_protocol_counts, "Should show protocol counts in status bar");
+    assert!(
+        has_protocol_counts,
+        "Should show protocol counts in status bar"
+    );
 }
 
 #[test]
@@ -260,13 +265,7 @@ fn test_app_multiple_renders_different_sizes() {
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
-    let sizes = vec![
-        (40, 20),
-        (80, 24),
-        (120, 40),
-        (160, 50),
-        (50, 30),
-    ];
+    let sizes = vec![(40, 20), (80, 24), (120, 40), (160, 50), (50, 30)];
 
     for (width, height) in sizes {
         let area = Rect::new(0, 0, width, height);
@@ -364,5 +363,8 @@ fn test_metrics_overlay_toggle() {
 
     let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
     let should_quit = app.test_handle_key(esc_key);
-    assert!(!should_quit, "Pressing Esc should close overlay but not quit");
+    assert!(
+        !should_quit,
+        "Pressing Esc should close overlay but not quit"
+    );
 }

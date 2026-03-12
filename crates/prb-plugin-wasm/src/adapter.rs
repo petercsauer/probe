@@ -5,11 +5,11 @@ use bytes::Bytes;
 use extism::{Manifest, Plugin, Wasm};
 use prb_core::{CoreError, DebugEvent, DecodeContext, ProtocolDecoder, TransportKind};
 use prb_detect::{
-    DetectionContext, DetectionMethod, DetectionResult, DecoderFactory, ProtocolDetector,
+    DecoderFactory, DetectionContext, DetectionMethod, DetectionResult, ProtocolDetector,
     ProtocolId, TransportLayer,
 };
-use prb_plugin_api::{DecodeCtx, DetectContext, PluginMetadata};
 use prb_plugin_api::types::WasmDecodeRequest;
+use prb_plugin_api::{DecodeCtx, DetectContext, PluginMetadata};
 use std::path::PathBuf;
 use tracing::warn;
 
@@ -44,8 +44,8 @@ impl DecoderFactory for WasmDecoderFactory {
             .with_memory_max(self.limits.memory_max_pages)
             .with_timeout(self.limits.timeout);
 
-        let instance = Plugin::new(&manifest, [], true)
-            .expect("plugin already validated during load");
+        let instance =
+            Plugin::new(&manifest, [], true).expect("plugin already validated during load");
 
         Box::new(WasmDecoderInstance { instance })
     }
@@ -89,9 +89,7 @@ impl ProtocolDecoder for WasmDecoderInstance {
             .map_err(|e| CoreError::PayloadDecode(format!("deserialize response: {}", e)))?;
 
         // Convert DTOs to DebugEvents
-        dtos.into_iter()
-            .map(convert_dto_to_event)
-            .collect()
+        dtos.into_iter().map(convert_dto_to_event).collect()
     }
 }
 
@@ -188,14 +186,16 @@ fn convert_decode_context(ctx: &DecodeContext) -> DecodeCtx {
         src_addr: ctx.src_addr.clone(),
         dst_addr: ctx.dst_addr.clone(),
         timestamp_nanos: ctx.timestamp.as_ref().map(|ts| ts.as_nanos()),
-        metadata: ctx.metadata.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        metadata: ctx
+            .metadata
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
     }
 }
 
 /// Convert DebugEventDto to DebugEvent.
-fn convert_dto_to_event(
-    dto: prb_plugin_api::DebugEventDto,
-) -> Result<DebugEvent, CoreError> {
+fn convert_dto_to_event(dto: prb_plugin_api::DebugEventDto) -> Result<DebugEvent, CoreError> {
     use prb_core::{Direction, EventSource, NetworkAddr, Payload, Timestamp};
 
     let direction = match dto.direction.as_str() {
@@ -216,7 +216,10 @@ fn convert_dto_to_event(
     // Create event source
     let source = EventSource {
         adapter: "wasm-plugin".to_string(),
-        origin: dto.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
+        origin: dto
+            .src_addr
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string()),
         network: match (dto.src_addr.clone(), dto.dst_addr.clone()) {
             (Some(src), Some(dst)) => Some(NetworkAddr { src, dst }),
             _ => None,
@@ -242,9 +245,7 @@ fn convert_dto_to_event(
         });
     } else {
         // Default to empty raw payload if neither is present
-        builder = builder.payload(Payload::Raw {
-            raw: Bytes::new(),
-        });
+        builder = builder.payload(Payload::Raw { raw: Bytes::new() });
     }
 
     // Add metadata
@@ -352,7 +353,11 @@ mod tests {
         for (transport_str, expected_kind) in transports {
             let dto = DebugEventDto::minimal(transport_str, "request");
             let event = convert_dto_to_event(dto).expect("conversion should succeed");
-            assert_eq!(event.transport, expected_kind, "failed for transport: {}", transport_str);
+            assert_eq!(
+                event.transport, expected_kind,
+                "failed for transport: {}",
+                transport_str
+            );
         }
     }
 
@@ -372,7 +377,11 @@ mod tests {
         for (direction_str, expected_dir) in directions {
             let dto = DebugEventDto::minimal("tcp", direction_str);
             let event = convert_dto_to_event(dto).expect("conversion should succeed");
-            assert_eq!(event.direction, expected_dir, "failed for direction: {}", direction_str);
+            assert_eq!(
+                event.direction, expected_dir,
+                "failed for direction: {}",
+                direction_str
+            );
         }
     }
 
@@ -403,7 +412,11 @@ mod tests {
         let event = convert_dto_to_event(dto).expect("conversion should succeed");
 
         match event.payload {
-            prb_core::Payload::Decoded { raw, fields, schema_name } => {
+            prb_core::Payload::Decoded {
+                raw,
+                fields,
+                schema_name,
+            } => {
                 assert!(raw.is_empty());
                 assert_eq!(fields["message"], "test");
                 assert_eq!(fields["count"], 42);

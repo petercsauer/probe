@@ -31,7 +31,7 @@ fn prb() -> Command {
 fn create_test_mcap(path: &std::path::Path) {
     use bytes::Bytes;
     use prb_core::{Direction, EventSource, Payload, Timestamp, TransportKind};
-    use prb_storage::{SessionWriter, SessionMetadata};
+    use prb_storage::{SessionMetadata, SessionWriter};
 
     let file = fs::File::create(path).unwrap();
     let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
@@ -124,8 +124,8 @@ fn test_export_har() {
     // Verify HAR file was created and is valid JSON
     assert!(har_path.exists(), "HAR file should be created");
     let content = fs::read_to_string(&har_path).unwrap();
-    let _: serde_json::Value = serde_json::from_str(&content)
-        .expect("HAR file should be valid JSON");
+    let _: serde_json::Value =
+        serde_json::from_str(&content).expect("HAR file should be valid JSON");
     assert!(content.contains("\"log\""), "HAR should contain log object");
 }
 
@@ -189,11 +189,7 @@ fn test_merge_two_mcap_files() {
 
     // Create a simple OTLP JSON trace file
     let otlp_path = temp_dir.path().join("traces.json");
-    fs::write(
-        &otlp_path,
-        r#"{"resourceSpans": []}"#,
-    )
-    .unwrap();
+    fs::write(&otlp_path, r#"{"resourceSpans": []}"#).unwrap();
 
     prb()
         .arg("merge")
@@ -253,11 +249,7 @@ fn test_inspect_with_limit() {
     let fixture = fixtures_dir().join("sample.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     // Then inspect with --limit flag
     let output = prb()
@@ -276,11 +268,7 @@ fn test_inspect_json_format_output() {
     let fixture = fixtures_dir().join("sample.json");
 
     // First ingest
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     // Inspect with JSON format
     let output = prb()
@@ -295,8 +283,8 @@ fn test_inspect_json_format_output() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Verify it's valid JSON
-    let parsed: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Output should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Output should be valid JSON");
 
     // Should be an array of events
     assert!(parsed.is_array(), "JSON output should be an array");
@@ -309,7 +297,9 @@ fn test_export_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Export events to developer ecosystem formats"))
+        .stdout(predicate::str::contains(
+            "Export events to developer ecosystem formats",
+        ))
         .stdout(predicate::str::contains("--format"));
 }
 

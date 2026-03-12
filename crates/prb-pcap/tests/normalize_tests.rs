@@ -4,7 +4,13 @@ use prb_pcap::{PacketNormalizer, TransportInfo};
 use std::net::IpAddr;
 
 /// Helper to create a minimal Ethernet + IPv4 + TCP packet.
-fn create_ethernet_ipv4_tcp(src_ip: [u8; 4], dst_ip: [u8; 4], src_port: u16, dst_port: u16, payload: &[u8]) -> Vec<u8> {
+fn create_ethernet_ipv4_tcp(
+    src_ip: [u8; 4],
+    dst_ip: [u8; 4],
+    src_port: u16,
+    dst_port: u16,
+    payload: &[u8],
+) -> Vec<u8> {
     use etherparse::PacketBuilder;
 
     let builder = PacketBuilder::ethernet2(
@@ -20,7 +26,13 @@ fn create_ethernet_ipv4_tcp(src_ip: [u8; 4], dst_ip: [u8; 4], src_port: u16, dst
 }
 
 /// Helper to create a minimal Ethernet + IPv4 + UDP packet.
-fn create_ethernet_ipv4_udp(src_ip: [u8; 4], dst_ip: [u8; 4], src_port: u16, dst_port: u16, payload: &[u8]) -> Vec<u8> {
+fn create_ethernet_ipv4_udp(
+    src_ip: [u8; 4],
+    dst_ip: [u8; 4],
+    src_port: u16,
+    dst_port: u16,
+    payload: &[u8],
+) -> Vec<u8> {
     use etherparse::PacketBuilder;
 
     let builder = PacketBuilder::ethernet2(
@@ -117,7 +129,13 @@ fn create_sll2_ipv4_tcp() -> Vec<u8> {
 }
 
 /// Helper to create a raw IPv4 + TCP packet (no link layer).
-fn create_raw_ipv4_tcp(src_ip: [u8; 4], dst_ip: [u8; 4], src_port: u16, dst_port: u16, payload: &[u8]) -> Vec<u8> {
+fn create_raw_ipv4_tcp(
+    src_ip: [u8; 4],
+    dst_ip: [u8; 4],
+    src_port: u16,
+    dst_port: u16,
+    payload: &[u8],
+) -> Vec<u8> {
     use etherparse::PacketBuilder;
 
     let builder = PacketBuilder::ipv4(src_ip, dst_ip, 64).tcp(src_port, dst_port, 1000, 4096);
@@ -179,7 +197,13 @@ fn create_loopback_ipv6_tcp_linux() -> Vec<u8> {
 }
 
 /// Helper to create a raw IPv6 + TCP packet (no link layer).
-fn create_raw_ipv6_tcp(src_ip: [u8; 16], dst_ip: [u8; 16], src_port: u16, dst_port: u16, payload: &[u8]) -> Vec<u8> {
+fn create_raw_ipv6_tcp(
+    src_ip: [u8; 16],
+    dst_ip: [u8; 16],
+    src_port: u16,
+    dst_port: u16,
+    payload: &[u8],
+) -> Vec<u8> {
     use etherparse::PacketBuilder;
 
     let builder = PacketBuilder::ipv6(src_ip, dst_ip, 64).tcp(src_port, dst_port, 1000, 4096);
@@ -191,7 +215,7 @@ fn create_raw_ipv6_tcp(src_ip: [u8; 16], dst_ip: [u8; 16], src_port: u16, dst_po
 
 /// Helper to create a fragmented IPv4 packet (3 fragments).
 fn create_ipv4_fragments() -> Vec<Vec<u8>> {
-    use etherparse::{Ipv4Header, IpNumber};
+    use etherparse::{IpNumber, Ipv4Header};
 
     // Create a large payload that will be split into 3 fragments
     let full_payload = vec![0xAA; 3000]; // 3KB payload
@@ -208,10 +232,10 @@ fn create_ipv4_fragments() -> Vec<Vec<u8>> {
     let frag1_payload = &full_payload[0..1480]; // 1480 bytes (divisible by 8)
     let mut ip_header1 = Ipv4Header::new(
         frag1_payload.len() as u16, // payload length only
-        64,              // TTL
-        IpNumber(6),     // TCP
-        [192, 168, 1, 1], // src
-        [10, 0, 0, 1],   // dst
+        64,                         // TTL
+        IpNumber(6),                // TCP
+        [192, 168, 1, 1],           // src
+        [10, 0, 0, 1],              // dst
     )
     .unwrap();
     ip_header1.identification = 0x1234;
@@ -447,7 +471,9 @@ fn test_loopback_null() {
     let packet_ipv6_macos = create_loopback_ipv6_tcp_macos();
     let mut normalizer = PacketNormalizer::new();
 
-    let result = normalizer.normalize(0, 1000000, &packet_ipv6_macos).unwrap();
+    let result = normalizer
+        .normalize(0, 1000000, &packet_ipv6_macos)
+        .unwrap();
     assert!(result.is_some());
 
     let normalized = result.unwrap();
@@ -464,7 +490,9 @@ fn test_loopback_null() {
     let packet_ipv6_linux = create_loopback_ipv6_tcp_linux();
     let mut normalizer = PacketNormalizer::new();
 
-    let result = normalizer.normalize(0, 1000000, &packet_ipv6_linux).unwrap();
+    let result = normalizer
+        .normalize(0, 1000000, &packet_ipv6_linux)
+        .unwrap();
     assert!(result.is_some());
 
     let normalized = result.unwrap();
@@ -481,13 +509,22 @@ fn test_ip_fragment_reassembly() {
 
     // Feed fragments in order
     let result1 = normalizer.normalize(1, 1000000, &fragments[0]).unwrap();
-    assert!(result1.is_none(), "First fragment should return None (incomplete)");
+    assert!(
+        result1.is_none(),
+        "First fragment should return None (incomplete)"
+    );
 
     let result2 = normalizer.normalize(1, 1000001, &fragments[1]).unwrap();
-    assert!(result2.is_none(), "Second fragment should return None (incomplete)");
+    assert!(
+        result2.is_none(),
+        "Second fragment should return None (incomplete)"
+    );
 
     let result3 = normalizer.normalize(1, 1000002, &fragments[2]).unwrap();
-    assert!(result3.is_some(), "Third fragment should trigger reassembly");
+    assert!(
+        result3.is_some(),
+        "Third fragment should trigger reassembly"
+    );
 
     let normalized = result3.unwrap();
     assert_eq!(normalized.src_ip, IpAddr::from([192, 168, 1, 1]));
@@ -496,7 +533,11 @@ fn test_ip_fragment_reassembly() {
     // The parse_transport_from_bytes will try to parse as TCP and extract payload
     // Since we're building raw fragments, the TCP parsing may not be perfect
     // Just verify we got reasonable data back
-    assert!(normalized.payload.len() > 2900, "Expected at least 2900 bytes, got {}", normalized.payload.len());
+    assert!(
+        normalized.payload.len() > 2900,
+        "Expected at least 2900 bytes, got {}",
+        normalized.payload.len()
+    );
 }
 
 #[test]
@@ -546,7 +587,7 @@ fn test_ipv6_fragment() {
     let mut ipv6_header = Ipv6Header {
         traffic_class: 0,
         flow_label: Ipv6FlowLabel::try_new(0).unwrap(),
-        payload_length: 0,                 // will be updated
+        payload_length: 0,         // will be updated
         next_header: IpNumber(44), // Fragment header
         hop_limit: 64,
         source: [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -584,7 +625,10 @@ fn test_ipv6_fragment() {
     assert!(result1.is_none(), "First IPv6 fragment should return None");
 
     let result2 = normalizer.normalize(1, 2000001, &frag2).unwrap();
-    assert!(result2.is_some(), "Second IPv6 fragment should trigger reassembly");
+    assert!(
+        result2.is_some(),
+        "Second IPv6 fragment should trigger reassembly"
+    );
 
     let normalized = result2.unwrap();
     assert_eq!(
@@ -597,5 +641,9 @@ fn test_ipv6_fragment() {
     );
     // IPv6 fragments are reassembled; payload will be parsed for transport
     // Just verify we got reasonable data back
-    assert!(normalized.payload.len() > 1900, "Expected at least 1900 bytes, got {}", normalized.payload.len());
+    assert!(
+        normalized.payload.len() > 1900,
+        "Expected at least 1900 bytes, got {}",
+        normalized.payload.len()
+    );
 }

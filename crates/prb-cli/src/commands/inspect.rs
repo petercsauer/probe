@@ -3,7 +3,9 @@
 use crate::cli::{InspectArgs, OutputFormat};
 use crate::output;
 use anyhow::{Context, Result};
-use prb_core::{DebugEvent, Payload, TransportKind, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
+use prb_core::{
+    DebugEvent, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID, Payload, TransportKind,
+};
 use prb_decode::decode_wire_format;
 use prb_query::Filter;
 use prb_storage::SessionReader;
@@ -63,7 +65,10 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
     if args.wire_format {
         for event in &events {
             println!("=== Event {} at {} ===", event.id, event.timestamp);
-            println!("Transport: {} | Direction: {}", event.transport, event.direction);
+            println!(
+                "Transport: {} | Direction: {}",
+                event.transport, event.direction
+            );
 
             if let Payload::Raw { raw } = &event.payload {
                 match decode_wire_format(raw) {
@@ -203,9 +208,10 @@ fn read_events_from_mcap(
 
         // Apply filter if specified
         if let Some(ref transport) = filter
-            && &event.transport != transport {
-                continue;
-            }
+            && &event.transport != transport
+        {
+            continue;
+        }
 
         events.push(event);
     }
@@ -250,9 +256,10 @@ fn read_events_from_ndjson(
 
         // Apply filter if specified
         if let Some(ref transport) = filter
-            && &event.transport != transport {
-                continue;
-            }
+            && &event.transport != transport
+        {
+            continue;
+        }
 
         events.push(event);
     }

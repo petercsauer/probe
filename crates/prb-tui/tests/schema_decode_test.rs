@@ -4,7 +4,6 @@
 /// 1. Schema registry loads .proto files
 /// 2. Decode tree uses schema for decoding
 /// 3. Schema indicator appears in status bar
-
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use prb_schema::SchemaRegistry;
 use prb_tui::{App, EventStore};
@@ -16,7 +15,9 @@ fn test_schema_registry_integration() {
     let temp_dir = tempfile::tempdir().unwrap();
     let proto_path = temp_dir.path().join("test.proto");
 
-    std::fs::write(&proto_path, r#"
+    std::fs::write(
+        &proto_path,
+        r#"
 syntax = "proto3";
 package test;
 
@@ -24,16 +25,22 @@ message TestMessage {
     int32 id = 1;
     string name = 2;
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     // Load schema registry
     let mut registry = SchemaRegistry::new();
-    registry.load_proto_files(&[&proto_path], &[temp_dir.path()]).unwrap();
+    registry
+        .load_proto_files(&[&proto_path], &[temp_dir.path()])
+        .unwrap();
 
     // Verify schema loaded
     let messages = registry.list_messages();
-    assert!(messages.contains(&"test.TestMessage".to_string()),
-            "Schema should contain test.TestMessage");
+    assert!(
+        messages.contains(&"test.TestMessage".to_string()),
+        "Schema should contain test.TestMessage"
+    );
 
     // Create test event store
     let event = DebugEvent {
@@ -81,7 +88,9 @@ fn test_schema_message_lookup() {
     let temp_dir = tempfile::tempdir().unwrap();
     let proto_path = temp_dir.path().join("grpc_test.proto");
 
-    std::fs::write(&proto_path, r#"
+    std::fs::write(
+        &proto_path,
+        r#"
 syntax = "proto3";
 package api.v1;
 
@@ -97,10 +106,14 @@ message GetUserResponse {
 service UserService {
     rpc GetUser(GetUserRequest) returns (GetUserResponse);
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let mut registry = SchemaRegistry::new();
-    registry.load_proto_files(&[&proto_path], &[temp_dir.path()]).unwrap();
+    registry
+        .load_proto_files(&[&proto_path], &[temp_dir.path()])
+        .unwrap();
 
     // Verify both request and response messages are loaded
     assert!(registry.get_message("api.v1.GetUserRequest").is_some());

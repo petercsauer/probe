@@ -1,11 +1,11 @@
 //! Which-key popup for showing available key continuations after a prefix.
 
+use crate::theme::Theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
-use ratatui::style::{Color, Style};
-use crate::theme::Theme;
 
 /// Which-key popup for contextual help after pressing a prefix key.
 pub struct WhichKeyOverlay {
@@ -38,10 +38,7 @@ impl WhichKeyOverlay {
         let mut lines = Vec::new();
         for (key, desc) in &self.options {
             lines.push(Line::from(vec![
-                Span::styled(
-                    format!("  {}", key),
-                    Style::default().fg(Color::Yellow),
-                ),
+                Span::styled(format!("  {}", key), Style::default().fg(Color::Yellow)),
                 Span::raw("  "),
                 Span::styled(desc.clone(), Style::default().fg(Color::White)),
             ]));

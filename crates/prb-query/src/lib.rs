@@ -45,8 +45,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use prb_core::{
-        DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp,
-        TransportKind,
+        DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
     };
     use std::collections::BTreeMap;
 
@@ -64,9 +63,7 @@ mod tests {
             },
             transport,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata,
             correlation_keys: vec![],
             sequence: None,

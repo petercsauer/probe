@@ -2,9 +2,9 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap};
-use ratatui::style::{Color, Modifier, Style};
 
 /// Welcome overlay shown on first launch or when no file is loaded.
 pub struct WelcomeOverlay;

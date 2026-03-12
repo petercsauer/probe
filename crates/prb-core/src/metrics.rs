@@ -1,8 +1,8 @@
 //! Conversation metrics computation.
 
 use crate::{
-    conversation::{ConversationError, ConversationMetrics},
     CoreError, DebugEvent, Direction, Payload, Timestamp,
+    conversation::{ConversationError, ConversationMetrics},
 };
 
 /// Compute metrics for a flow.
@@ -19,9 +19,7 @@ pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, Co
     let end_time = timestamps.iter().max().copied();
 
     let duration_ns = match (start_time, end_time) {
-        (Some(start), Some(end)) => {
-            end.as_nanos().saturating_sub(start.as_nanos())
-        }
+        (Some(start), Some(end)) => end.as_nanos().saturating_sub(start.as_nanos()),
         _ => 0,
     };
 
@@ -37,9 +35,7 @@ pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, Co
         .map(|e| e.timestamp);
 
     let time_to_first_response_ns = match (first_outbound, first_inbound) {
-        (Some(out), Some(in_)) => {
-            Some(in_.as_nanos().saturating_sub(out.as_nanos()))
-        }
+        (Some(out), Some(in_)) => Some(in_.as_nanos().saturating_sub(out.as_nanos())),
         _ => None,
     };
 
@@ -91,17 +87,12 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
                 .cloned()
                 .unwrap_or_else(|| format!("gRPC error status {}", status));
 
-            return Some(
-                ConversationError::new("grpc-status", message).with_code(status.clone())
-            );
+            return Some(ConversationError::new("grpc-status", message).with_code(status.clone()));
         }
 
         // Check for RST_STREAM
         if event.metadata.get("h2.frame_type") == Some(&"RST_STREAM".to_string()) {
-            return Some(ConversationError::new(
-                "rst-stream",
-                "HTTP/2 stream reset",
-            ));
+            return Some(ConversationError::new("rst-stream", "HTTP/2 stream reset"));
         }
     }
 
@@ -128,10 +119,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
 
 /// Check for DDS sequence gaps.
 fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
-    let mut sequences: Vec<u64> = events
-        .iter()
-        .filter_map(|e| e.sequence)
-        .collect();
+    let mut sequences: Vec<u64> = events.iter().filter_map(|e| e.sequence).collect();
 
     if sequences.is_empty() {
         return None;
@@ -177,10 +165,7 @@ pub fn compute_aggregate_metrics(
     let latency_p95_ns = percentile(&durations, 0.95);
     let latency_p99_ns = percentile(&durations, 0.99);
 
-    let total_bytes = conversations
-        .iter()
-        .map(|c| c.metrics.total_bytes)
-        .sum();
+    let total_bytes = conversations.iter().map(|c| c.metrics.total_bytes).sum();
 
     // Compute conversations per second
     let time_span_ns = if let (Some(first), Some(last)) = (

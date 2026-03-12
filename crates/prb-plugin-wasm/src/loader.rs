@@ -2,7 +2,7 @@
 
 use crate::error::PluginError;
 use extism::{Manifest, Plugin, Wasm};
-use prb_plugin_api::{validate_api_version, PluginMetadata};
+use prb_plugin_api::{PluginMetadata, validate_api_version};
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
@@ -68,8 +68,7 @@ impl WasmPluginLoader {
         })?;
 
         // Validate API version
-        validate_api_version(&info.api_version)
-            .map_err(PluginError::ApiVersion)?;
+        validate_api_version(&info.api_version).map_err(PluginError::ApiVersion)?;
 
         debug!(
             plugin = %info.name,

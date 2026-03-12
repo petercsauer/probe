@@ -120,9 +120,7 @@ mod tests {
     #[test]
     fn test_synthetic_pcap_valid() {
         use super::SyntheticPcapBuilder;
-        let pcap_data = SyntheticPcapBuilder::new()
-            .tcp_flows(10, 100)
-            .build_pcap();
+        let pcap_data = SyntheticPcapBuilder::new().tcp_flows(10, 100).build_pcap();
 
         let tmpfile = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmpfile.path(), &pcap_data).unwrap();
@@ -150,13 +148,9 @@ mod tests {
 
     #[test]
     fn test_synthetic_pcap_deterministic() {
-        let pcap1 = SyntheticPcapBuilder::new()
-            .tcp_flows(3, 10)
-            .build_pcap();
+        let pcap1 = SyntheticPcapBuilder::new().tcp_flows(3, 10).build_pcap();
 
-        let pcap2 = SyntheticPcapBuilder::new()
-            .tcp_flows(3, 10)
-            .build_pcap();
+        let pcap2 = SyntheticPcapBuilder::new().tcp_flows(3, 10).build_pcap();
 
         // Same parameters should produce byte-identical output
         assert_eq!(pcap1, pcap2);

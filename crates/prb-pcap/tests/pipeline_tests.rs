@@ -18,7 +18,7 @@ fn create_tcp_segment(
     flags: TcpFlags,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
 
     let mut packet = Vec::new();
 
@@ -59,7 +59,7 @@ fn create_udp_datagram(
     dst_port: u16,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, UdpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, UdpHeader};
 
     let mut packet = Vec::new();
 
@@ -208,7 +208,10 @@ fn test_pipeline_tcp_stream() {
     let stats = adapter.stats();
     assert_eq!(stats.packets_read, 3, "Should read 3 packets");
     // TCP reassembler may emit multiple stream events for segments with payload
-    assert!(stats.tcp_streams >= 1, "Should reassemble at least 1 TCP stream");
+    assert!(
+        stats.tcp_streams >= 1,
+        "Should reassemble at least 1 TCP stream"
+    );
 }
 
 #[test]
@@ -218,9 +221,21 @@ fn test_pipeline_udp_datagram() {
 
     // Create UDP datagrams
     let packets = vec![
-        create_udp_datagram([192, 168, 1, 1], [10, 0, 0, 1], 5555, 5556, b"UDP message 1"),
+        create_udp_datagram(
+            [192, 168, 1, 1],
+            [10, 0, 0, 1],
+            5555,
+            5556,
+            b"UDP message 1",
+        ),
         create_udp_datagram([10, 0, 0, 1], [192, 168, 1, 1], 5556, 5555, b"UDP reply"),
-        create_udp_datagram([192, 168, 1, 1], [10, 0, 0, 1], 5555, 5556, b"UDP message 2"),
+        create_udp_datagram(
+            [192, 168, 1, 1],
+            [10, 0, 0, 1],
+            5555,
+            5556,
+            b"UDP message 2",
+        ),
     ];
 
     write_pcap_file(&pcap_path, &packets);
@@ -298,11 +313,7 @@ fn test_pipeline_mixed() {
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should produce 2 events: 1 TCP stream + 1 UDP datagram
-    assert_eq!(
-        events.len(),
-        2,
-        "Should produce 2 events (1 TCP + 1 UDP)"
-    );
+    assert_eq!(events.len(), 2, "Should produce 2 events (1 TCP + 1 UDP)");
 
     // Check stats
     let stats = adapter.stats();
@@ -369,10 +380,7 @@ fn test_pipeline_error_tolerance() {
     // Check stats
     let stats = adapter.stats();
     assert_eq!(stats.packets_read, 3, "Should read 3 packets");
-    assert_eq!(
-        stats.packets_failed, 1,
-        "Should report 1 failed packet"
-    );
+    assert_eq!(stats.packets_failed, 1, "Should report 1 failed packet");
     assert_eq!(stats.tcp_streams, 2, "Should reassemble 2 TCP streams");
 }
 
@@ -468,8 +476,10 @@ fn test_pipeline_timestamp_propagation() {
     // Packet header
     file.write_all(&pcap_timestamp_sec.to_le_bytes()).unwrap();
     file.write_all(&pcap_timestamp_usec.to_le_bytes()).unwrap();
-    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap();
-    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet.len() as u32).to_le_bytes())
+        .unwrap();
+    file.write_all(&(packet.len() as u32).to_le_bytes())
+        .unwrap();
     file.write_all(&packet).unwrap();
     file.flush().unwrap();
     drop(file);
@@ -483,7 +493,8 @@ fn test_pipeline_timestamp_propagation() {
     let event = events[0].as_ref().expect("Event should be Ok");
 
     // Calculate expected timestamp in nanoseconds
-    let expected_ns = (pcap_timestamp_sec as u64) * 1_000_000_000 + (pcap_timestamp_usec as u64) * 1_000;
+    let expected_ns =
+        (pcap_timestamp_sec as u64) * 1_000_000_000 + (pcap_timestamp_usec as u64) * 1_000;
 
     assert_eq!(
         event.timestamp.as_nanos(),
@@ -676,9 +687,8 @@ fn test_error_truncated_pcap() {
 
     // PCAP global header
     let header = [
-        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
     ];
     file.write_all(&header).unwrap();
 
@@ -716,9 +726,8 @@ fn test_error_empty_pcap() {
 
     // PCAP global header only
     let header = [
-        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
     ];
     file.write_all(&header).unwrap();
     file.flush().unwrap();
@@ -800,9 +809,8 @@ fn test_error_unknown_link_type() {
 
     // PCAP global header with unknown linktype
     let mut header = vec![
-        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0x00, 0x00,
+        0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x00, 0x00,
     ];
     header.extend_from_slice(&999u32.to_le_bytes()); // Unknown linktype
     file.write_all(&header).unwrap();
@@ -812,8 +820,10 @@ fn test_error_unknown_link_type() {
     let packet_data = [0xAA; 60];
     file.write_all(&ts_sec.to_le_bytes()).unwrap();
     file.write_all(&0u32.to_le_bytes()).unwrap();
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
     file.write_all(&packet_data).unwrap();
     file.flush().unwrap();
     drop(file);

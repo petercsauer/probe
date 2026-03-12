@@ -18,10 +18,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn collect_ok_events(adapter: &mut PcapCaptureAdapter) -> Vec<DebugEvent> {
-    adapter
-        .ingest()
-        .filter_map(|r| r.ok())
-        .collect()
+    adapter.ingest().filter_map(|r| r.ok()).collect()
 }
 
 #[test]
@@ -54,8 +51,14 @@ fn test_csv_export_from_http_capture() {
         csv_string.contains("timestamp"),
         "CSV should have timestamp column"
     );
-    assert!(csv_string.contains("src_addr"), "CSV should have src_addr column");
-    assert!(csv_string.contains("dst_addr"), "CSV should have dst_addr column");
+    assert!(
+        csv_string.contains("src_addr"),
+        "CSV should have src_addr column"
+    );
+    assert!(
+        csv_string.contains("dst_addr"),
+        "CSV should have dst_addr column"
+    );
     assert!(
         csv_string.contains("transport"),
         "CSV should have transport column"
@@ -63,11 +66,13 @@ fn test_csv_export_from_http_capture() {
 
     // Count rows (header + data)
     let line_count = csv_string.lines().count();
-    assert!(line_count > 1, "CSV should have header + at least one data row");
+    assert!(
+        line_count > 1,
+        "CSV should have header + at least one data row"
+    );
 
     // Verify CSV is parseable
-    let mut reader = csv::ReaderBuilder::new()
-        .from_reader(csv_string.as_bytes());
+    let mut reader = csv::ReaderBuilder::new().from_reader(csv_string.as_bytes());
 
     let headers = reader.headers().expect("Should have headers");
     assert!(!headers.is_empty(), "Should have columns");
@@ -94,7 +99,10 @@ fn test_csv_export_field_escaping() {
     let mut output = Vec::new();
     let result = exporter.export(&events, &mut output);
 
-    assert!(result.is_ok(), "CSV export should handle special characters");
+    assert!(
+        result.is_ok(),
+        "CSV export should handle special characters"
+    );
 
     // Verify CSV is parseable (csv crate handles escaping)
     let csv_string = String::from_utf8(output).unwrap();
@@ -102,7 +110,10 @@ fn test_csv_export_field_escaping() {
 
     // Should parse without errors
     let records: Vec<_> = reader.records().collect();
-    assert!(records.iter().all(|r| r.is_ok()), "All records should parse");
+    assert!(
+        records.iter().all(|r| r.is_ok()),
+        "All records should parse"
+    );
 }
 
 #[test]
@@ -131,10 +142,7 @@ fn test_har_export_from_http_capture() {
 
     // Verify HAR structure
     assert!(har_json.is_object(), "HAR should be an object");
-    assert!(
-        har_json.get("log").is_some(),
-        "HAR should have 'log' field"
-    );
+    assert!(har_json.get("log").is_some(), "HAR should have 'log' field");
 
     let log = har_json.get("log").unwrap();
     assert!(log.get("version").is_some(), "HAR log should have version");
@@ -308,7 +316,10 @@ fn test_otlp_span_structure() {
         first_span.get("traceId").is_some(),
         "Span should have traceId"
     );
-    assert!(first_span.get("spanId").is_some(), "Span should have spanId");
+    assert!(
+        first_span.get("spanId").is_some(),
+        "Span should have spanId"
+    );
     assert!(first_span.get("name").is_some(), "Span should have name");
     assert!(
         first_span.get("startTimeUnixNano").is_some(),

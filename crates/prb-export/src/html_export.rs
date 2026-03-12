@@ -434,8 +434,15 @@ mod tests {
 
         // Verify JSON is embedded
         let parsed_events: Vec<DebugEvent> = serde_json::from_str(
-            output.split("const EVENTS = ").nth(1).unwrap().split(';').next().unwrap()
-        ).unwrap();
+            output
+                .split("const EVENTS = ")
+                .nth(1)
+                .unwrap()
+                .split(';')
+                .next()
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(parsed_events.len(), 1);
     }
 

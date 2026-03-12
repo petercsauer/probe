@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, Borders, Widget};
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
-use crate::trace_extraction::{build_trace_trees, TraceSpan, TraceTree};
+use crate::trace_extraction::{TraceSpan, TraceTree, build_trace_trees};
 
 /// A tree node for rendering the trace hierarchy.
 #[derive(Debug, Clone)]
@@ -325,7 +325,9 @@ fn format_timestamp_short(ns: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prb_core::{DebugEvent, Timestamp, EventSource, TransportKind, Direction, Payload, CorrelationKey};
+    use prb_core::{
+        CorrelationKey, DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind,
+    };
 
     #[test]
     fn test_trace_correlation_pane_empty() {
@@ -361,7 +363,9 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Inbound)
-            .payload(Payload::Raw { raw: Bytes::from(vec![]) })
+            .payload(Payload::Raw {
+                raw: Bytes::from(vec![]),
+            })
             .build();
         event.correlation_keys.push(CorrelationKey::TraceContext {
             trace_id: "trace1".into(),

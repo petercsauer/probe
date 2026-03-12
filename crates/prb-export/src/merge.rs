@@ -1,4 +1,4 @@
-use prb_core::{DebugEvent, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID};
+use prb_core::{DebugEvent, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID};
 use std::collections::BTreeMap;
 
 /// Merged event with optional OTel span enrichment.
@@ -177,7 +177,10 @@ mod tests {
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].event.source.adapter, "pcap");
         assert!(merged[0].otel_span.is_some());
-        assert_eq!(merged[0].otel_span.as_ref().unwrap().service_name, "my-service");
+        assert_eq!(
+            merged[0].otel_span.as_ref().unwrap().service_name,
+            "my-service"
+        );
     }
 
     #[test]

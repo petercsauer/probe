@@ -1,14 +1,14 @@
 //! TLS keylog file picker overlay.
 
+use crate::theme::Theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
-use ratatui::style::{Color, Modifier, Style};
-use tui_input::Input;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::theme::Theme;
+use tui_input::Input;
 
 /// TLS keylog file picker overlay for selecting keylog files.
 pub struct TlsKeylogPickerOverlay {
@@ -61,10 +61,8 @@ impl TlsKeylogPickerOverlay {
                 }
 
                 // Collect files and directories
-                let mut items: Vec<PathBuf> = entries
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.path())
-                    .collect();
+                let mut items: Vec<PathBuf> =
+                    entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
 
                 // Sort: directories first, then files
                 items.sort_by(|a, b| {
@@ -108,7 +106,8 @@ impl TlsKeylogPickerOverlay {
                 // Navigate to parent directory
                 let current = Path::new(self.path_input.value());
                 if let Some(parent) = current.parent() {
-                    self.path_input = Input::default().with_value(parent.to_string_lossy().to_string());
+                    self.path_input =
+                        Input::default().with_value(parent.to_string_lossy().to_string());
                     self.refresh_files();
                 }
                 None
@@ -171,12 +170,11 @@ impl TlsKeylogPickerOverlay {
         );
 
         if let Some(ref error) = self.error {
-            let error_para = Paragraph::new(error.as_str())
-                .style(Style::default().fg(Color::Red));
+            let error_para = Paragraph::new(error.as_str()).style(Style::default().fg(Color::Red));
             error_para.render(list_area, buf);
         } else if self.files.is_empty() {
-            let empty_para = Paragraph::new("(empty directory)")
-                .style(Style::default().fg(Color::DarkGray));
+            let empty_para =
+                Paragraph::new("(empty directory)").style(Style::default().fg(Color::DarkGray));
             empty_para.render(list_area, buf);
         } else {
             let items: Vec<ListItem> = self

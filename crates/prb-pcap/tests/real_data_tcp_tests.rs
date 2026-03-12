@@ -37,7 +37,8 @@ fn test_tcp_ecn_sample() {
     let mut normalized_count = 0;
 
     for (idx, pkt) in packets.iter().enumerate() {
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
             normalized_count += 1;
 
@@ -83,7 +84,8 @@ fn test_tcp_anon_session() {
     let mut stream_data_events = 0;
 
     for pkt in packets.iter() {
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
             let events = reassembler
@@ -125,7 +127,8 @@ fn test_dns_remoteshell_tcp_reassembly() {
 
     for pkt in packets.iter() {
         // Skip packets that can't be normalized (e.g., ARP)
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
             tcp_segments += 1;
@@ -162,7 +165,8 @@ fn test_vlan_tagged_frames() {
 
     for pkt in packets.iter() {
         // Skip packets that can't be normalized
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
             normalized_count += 1;
 
@@ -205,7 +209,8 @@ fn test_ipv6_packet_normalization() {
     let mut normalized_count = 0;
 
     for pkt in packets.iter() {
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
             normalized_count += 1;
 

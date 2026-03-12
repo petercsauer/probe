@@ -2,9 +2,9 @@
 
 use bytes::Bytes;
 use prb_core::{
-    CorrelationKey, DebugEvent, Direction, EventSource, NetworkAddr, Payload, Timestamp,
-    TransportKind, METADATA_KEY_GRPC_METHOD, METADATA_KEY_ZMQ_TOPIC, METADATA_KEY_DDS_TOPIC_NAME,
-    METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_H2_STREAM_ID,
+    CorrelationKey, DebugEvent, Direction, EventSource, METADATA_KEY_DDS_DOMAIN_ID,
+    METADATA_KEY_DDS_TOPIC_NAME, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID,
+    METADATA_KEY_ZMQ_TOPIC, NetworkAddr, Payload, Timestamp, TransportKind,
 };
 
 /// Generate a synthetic dataset with ~50 events covering all transports.
@@ -226,7 +226,10 @@ pub fn generate_demo_events() -> Vec<DebugEvent> {
                 .transport(TransportKind::RawTcp)
                 .direction(Direction::Outbound)
                 .payload(Payload::Raw {
-                    raw: Bytes::from(format!("GET /api/v1/status HTTP/1.1\r\nHost: server{}\r\n\r\n", i)),
+                    raw: Bytes::from(format!(
+                        "GET /api/v1/status HTTP/1.1\r\nHost: server{}\r\n\r\n",
+                        i
+                    )),
                 })
                 .correlation_key(CorrelationKey::ConnectionId {
                     id: format!("tcp-{}", i + 1),
@@ -269,7 +272,9 @@ pub fn generate_demo_events() -> Vec<DebugEvent> {
                 })
                 .metadata(METADATA_KEY_GRPC_METHOD, "/test.TestService/Echo")
                 .metadata(METADATA_KEY_H2_STREAM_ID, (7 + i * 2).to_string())
-                .correlation_key(CorrelationKey::StreamId { id: 7 + i as u32 * 2 })
+                .correlation_key(CorrelationKey::StreamId {
+                    id: 7 + i as u32 * 2,
+                })
                 .sequence(12 + i)
                 .build(),
         );

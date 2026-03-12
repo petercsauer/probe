@@ -1,7 +1,7 @@
 //! Integration tests for EventStore and file loaders (S7.1 & S7.2).
 
-use prb_tui::loader::load_events;
 use prb_tui::EventStore;
+use prb_tui::loader::load_events;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -18,19 +18,20 @@ fn fixtures_dir() -> PathBuf {
 #[test]
 fn test_load_json_fixture() {
     let fixture = fixtures_dir().join("sample.json");
-    let store = load_events(&fixture, None).expect("Failed to load JSON fixture").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load JSON fixture")
+        .0;
 
     assert!(!store.is_empty(), "Store should contain events");
-    assert!(
-        store.time_range().is_some(),
-        "Store should have time range"
-    );
+    assert!(store.time_range().is_some(), "Store should have time range");
 }
 
 #[test]
 fn test_load_multi_transport_json() {
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture, None).expect("Failed to load multi-transport JSON").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load multi-transport JSON")
+        .0;
 
     assert!(!store.is_empty(), "Store should contain events");
 
@@ -47,7 +48,9 @@ fn test_load_multi_transport_json() {
 #[test]
 fn test_load_empty_json() {
     let fixture = fixtures_dir().join("empty.json");
-    let store = load_events(&fixture, None).expect("Failed to load empty JSON").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load empty JSON")
+        .0;
 
     assert_eq!(store.len(), 0, "Empty fixture should produce empty store");
     assert!(store.is_empty());
@@ -74,9 +77,7 @@ fn test_event_store_timestamp_sorting() {
             },
             transport: TransportKind::Grpc,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -92,9 +93,7 @@ fn test_event_store_timestamp_sorting() {
             },
             transport: TransportKind::Grpc,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -110,9 +109,7 @@ fn test_event_store_timestamp_sorting() {
             },
             transport: TransportKind::Grpc,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -139,7 +136,9 @@ fn test_event_store_filter() {
     use prb_query::Filter;
 
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load fixture")
+        .0;
 
     // Filter for gRPC only
     let filter = Filter::parse(r#"transport == "gRPC""#).expect("Failed to parse filter");
@@ -157,7 +156,9 @@ fn test_event_store_filter() {
 #[test]
 fn test_event_store_time_buckets() {
     let fixture = fixtures_dir().join("sample.json");
-    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load fixture")
+        .0;
 
     let indices = store.all_indices();
     let buckets = store.time_buckets(&indices, 10);
@@ -172,7 +173,9 @@ fn test_event_store_time_buckets() {
 #[test]
 fn test_event_store_protocol_counts() {
     let fixture = fixtures_dir().join("multi_transport.json");
-    let store = load_events(&fixture, None).expect("Failed to load fixture").0;
+    let store = load_events(&fixture, None)
+        .expect("Failed to load fixture")
+        .0;
 
     let indices = store.all_indices();
     let counts = store.protocol_counts(&indices);
@@ -194,7 +197,7 @@ fn test_event_store_protocol_counts() {
 
 #[test]
 fn test_load_pcap_basic() {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
 
     let temp_dir = tempfile::tempdir().unwrap();
     let pcap_path = temp_dir.path().join("test.pcap");
@@ -226,8 +229,14 @@ fn test_load_pcap_basic() {
     eth.write(&mut packet).unwrap();
 
     let payload_len = (20 + payload.len()) as u16;
-    let ipv4 =
-        Ipv4Header::new(payload_len, 64, IpNumber(6), [192, 168, 1, 1], [10, 0, 0, 1]).unwrap();
+    let ipv4 = Ipv4Header::new(
+        payload_len,
+        64,
+        IpNumber(6),
+        [192, 168, 1, 1],
+        [10, 0, 0, 1],
+    )
+    .unwrap();
     ipv4.write(&mut packet).unwrap();
 
     let mut tcp = TcpHeader::new(12345, 80, 1000, 4096);
@@ -253,7 +262,9 @@ fn test_load_pcap_basic() {
     drop(file);
 
     // Load the PCAP file
-    let store = load_events(&pcap_path, None).expect("Failed to load PCAP").0;
+    let store = load_events(&pcap_path, None)
+        .expect("Failed to load PCAP")
+        .0;
 
     assert!(!store.is_empty(), "PCAP should produce events");
 
@@ -323,7 +334,9 @@ fn test_load_mcap_roundtrip() {
     writer.finish().unwrap();
 
     // Load events back from MCAP
-    let store = load_events(&mcap_path, None).expect("Failed to load MCAP").0;
+    let store = load_events(&mcap_path, None)
+        .expect("Failed to load MCAP")
+        .0;
 
     assert_eq!(store.len(), 2, "Should load all events from MCAP");
     assert_eq!(store.get(0).unwrap().transport, TransportKind::Grpc);
@@ -337,7 +350,9 @@ fn test_format_detection() {
     // Test JSON detection
     let json_path = temp_dir.path().join("test.json");
     fs::write(&json_path, r#"{"version": 1, "events": []}"#).unwrap();
-    let store = load_events(&json_path, None).expect("Failed to load JSON").0;
+    let store = load_events(&json_path, None)
+        .expect("Failed to load JSON")
+        .0;
     assert_eq!(store.len(), 0);
 
     // Test MCAP detection
@@ -347,7 +362,9 @@ fn test_format_detection() {
         prb_storage::SessionWriter::new(file, prb_storage::SessionMetadata::new()).unwrap();
     writer.finish().unwrap();
 
-    let store = load_events(&mcap_path, None).expect("Failed to load MCAP").0;
+    let store = load_events(&mcap_path, None)
+        .expect("Failed to load MCAP")
+        .0;
     assert_eq!(store.len(), 0);
 }
 
@@ -394,9 +411,7 @@ fn test_event_store_large_dataset() {
                 TransportKind::Zmq
             },
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,

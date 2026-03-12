@@ -34,17 +34,17 @@ fn run_load(args: SchemaLoadArgs) -> Result<()> {
         }
         "proto" => {
             tracing::info!("Compiling proto file {}", args.path);
-            let include_paths: Vec<&Path> = args
-                .include_paths
-                .iter()
-                .map(|p| p.as_std_path())
-                .collect();
+            let include_paths: Vec<&Path> =
+                args.include_paths.iter().map(|p| p.as_std_path()).collect();
             registry
                 .load_proto_files(&[path], &include_paths)
                 .context("Failed to compile proto file")?;
         }
         _ => {
-            anyhow::bail!("Unsupported file extension: {}. Expected .proto or .desc", extension);
+            anyhow::bail!(
+                "Unsupported file extension: {}. Expected .proto or .desc",
+                extension
+            );
         }
     }
 
@@ -71,8 +71,8 @@ fn run_load(args: SchemaLoadArgs) -> Result<()> {
 fn run_list(args: SchemaListArgs) -> Result<()> {
     tracing::info!("Reading schemas from {}", args.session);
 
-    let reader = SessionReader::open(args.session.as_std_path())
-        .context("Failed to open session")?;
+    let reader =
+        SessionReader::open(args.session.as_std_path()).context("Failed to open session")?;
 
     let registry = reader
         .extract_schemas()
@@ -108,8 +108,8 @@ fn run_list(args: SchemaListArgs) -> Result<()> {
 fn run_export(args: SchemaExportArgs) -> Result<()> {
     tracing::info!("Exporting schemas from {} to {}", args.session, args.output);
 
-    let reader = SessionReader::open(args.session.as_std_path())
-        .context("Failed to open session")?;
+    let reader =
+        SessionReader::open(args.session.as_std_path()).context("Failed to open session")?;
 
     let registry = reader
         .extract_schemas()

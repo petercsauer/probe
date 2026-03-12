@@ -33,10 +33,10 @@ pub use event::{
     CorrelationKey, DebugEvent, DebugEventBuilder, Direction, EventId, EventSource, NetworkAddr,
     Payload, Timestamp, TransportKind,
 };
-pub use metrics::{compute_aggregate_metrics, compute_metrics, AggregateMetrics};
+pub use metrics::{AggregateMetrics, compute_aggregate_metrics, compute_metrics};
 pub use trace::{
-    extract_trace_context, parse_b3_multi, parse_b3_single, parse_uber_trace_id,
-    parse_w3c_traceparent, TraceContext,
+    TraceContext, extract_trace_context, parse_b3_multi, parse_b3_single, parse_uber_trace_id,
+    parse_w3c_traceparent,
 };
 pub use traits::{
     CaptureAdapter, CorrelationStrategy, DecodeContext, EventNormalizer, Flow, ProtocolDecoder,

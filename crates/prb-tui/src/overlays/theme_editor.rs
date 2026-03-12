@@ -1,11 +1,11 @@
 //! Theme editor overlay for live color customization.
 
+use crate::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
-use ratatui::style::{Color, Modifier, Style};
-use crate::theme::ThemeConfig;
 
 /// Color element that can be edited in the theme.
 #[derive(Debug, Clone)]
@@ -305,7 +305,10 @@ impl Widget for &ThemeEditorOverlay {
 
         // Main border block
         let title = if self.editing_color {
-            format!(" Theme Editor - Editing: {} ", self.elements[self.selected].name)
+            format!(
+                " Theme Editor - Editing: {} ",
+                self.elements[self.selected].name
+            )
         } else {
             format!(" Theme Editor - {} ", self.current_theme.name)
         };
@@ -327,8 +330,7 @@ impl Widget for &ThemeEditorOverlay {
         if self.editing_color {
             // Show color input field
             let input_text = format!("Color (hex or name): {}", self.color_input);
-            let input_para = Paragraph::new(input_text)
-                .style(Style::default().fg(Color::Yellow));
+            let input_para = Paragraph::new(input_text).style(Style::default().fg(Color::Yellow));
             input_para.render(chunks[0], buf);
         } else {
             // Show color element list
@@ -350,15 +352,14 @@ impl Widget for &ThemeEditorOverlay {
                         Span::styled(
                             format!("{:30} ", element.name),
                             if is_selected {
-                                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                                Style::default()
+                                    .fg(Color::Cyan)
+                                    .add_modifier(Modifier::BOLD)
                             } else {
                                 Style::default().fg(Color::White)
                             },
                         ),
-                        Span::styled(
-                            color_preview,
-                            Style::default().bg(element.color),
-                        ),
+                        Span::styled(color_preview, Style::default().bg(element.color)),
                         Span::styled(
                             format!(" {}", color_str),
                             if is_selected {
@@ -384,8 +385,7 @@ impl Widget for &ThemeEditorOverlay {
             "↑/↓: Select | Enter: Edit | r: Reset | s: Save | Esc: Close"
         };
 
-        let help = Paragraph::new(help_text)
-            .style(Style::default().fg(Color::DarkGray));
+        let help = Paragraph::new(help_text).style(Style::default().fg(Color::DarkGray));
         help.render(chunks[1], buf);
     }
 }
@@ -396,15 +396,16 @@ pub fn parse_color(s: &str) -> Result<Color, String> {
 
     // Try hex format first
     if let Some(hex) = s.strip_prefix('#')
-        && hex.len() == 6 {
-            let r = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| format!("Invalid hex color: {}", s))?;
-            let g = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| format!("Invalid hex color: {}", s))?;
-            let b = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| format!("Invalid hex color: {}", s))?;
-            return Ok(Color::Rgb(r, g, b));
-        }
+        && hex.len() == 6
+    {
+        let r =
+            u8::from_str_radix(&hex[0..2], 16).map_err(|_| format!("Invalid hex color: {}", s))?;
+        let g =
+            u8::from_str_radix(&hex[2..4], 16).map_err(|_| format!("Invalid hex color: {}", s))?;
+        let b =
+            u8::from_str_radix(&hex[4..6], 16).map_err(|_| format!("Invalid hex color: {}", s))?;
+        return Ok(Color::Rgb(r, g, b));
+    }
 
     // Try color names
     match s.to_lowercase().as_str() {

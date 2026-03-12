@@ -17,11 +17,13 @@ fn fixtures_dir() -> PathBuf {
 fn prb() -> Command {
     #[allow(deprecated)]
     let mut cmd = Command::cargo_bin("prb").unwrap();
-    cmd.current_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap());
+    cmd.current_dir(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap(),
+    );
     cmd
 }
 
@@ -81,11 +83,7 @@ fn test_cli_inspect_from_stdin() {
     let fixture = fixtures_dir().join("sample.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     // Then inspect from stdin
     prb()
@@ -137,11 +135,7 @@ fn test_cli_jobs_default_zero() {
     // This is implicit - if no --jobs is specified, it should still work
     let fixture = fixtures_dir().join("sample.json");
 
-    prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .assert()
-        .success();
+    prb().arg("ingest").arg(&fixture).assert().success();
 }
 
 #[test]
@@ -174,11 +168,7 @@ fn test_cli_inspect_json_format() {
     let fixture = fixtures_dir().join("sample.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     // Then inspect with JSON format
     prb()
@@ -206,11 +196,7 @@ fn test_cli_ingest_nonexistent_file() {
 fn test_cli_ingest_malformed() {
     let fixture = fixtures_dir().join("malformed.json");
 
-    prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .assert()
-        .failure();
+    prb().arg("ingest").arg(&fixture).assert().failure();
 }
 
 #[test]
@@ -218,11 +204,7 @@ fn test_cli_inspect_filter_transport() {
     let fixture = fixtures_dir().join("multi_transport.json");
 
     // First ingest
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     // Inspect with grpc filter
     let output = prb()
@@ -249,11 +231,7 @@ fn test_cli_pipe_end_to_end() {
     let fixture = fixtures_dir().join("grpc_sample.json");
 
     // Ingest
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     assert!(ingest_output.status.success());
 
@@ -336,7 +314,7 @@ fn test_cli_schemas_list() {
 
     // Create a session with embedded schema
     use prb_schema::SchemaRegistry;
-    use prb_storage::{SessionWriter, SessionMetadata};
+    use prb_storage::{SessionMetadata, SessionWriter};
 
     let mut registry = SchemaRegistry::new();
     registry.load_descriptor_set(&fds_bytes).unwrap();
@@ -358,7 +336,7 @@ fn test_cli_schemas_list() {
 
 // Helper to create a simple PCAP file
 fn create_test_pcap(path: &std::path::Path, include_tls: bool) {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
     use std::io::Write;
 
     let mut file = fs::File::create(path).unwrap();
@@ -395,7 +373,14 @@ fn create_test_pcap(path: &std::path::Path, include_tls: bool) {
 
     // IPv4 header
     let payload_len = (20 + payload.len()) as u16; // TCP header (20) + payload
-    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), [192, 168, 1, 1], [10, 0, 0, 1]).unwrap();
+    let ipv4 = Ipv4Header::new(
+        payload_len,
+        64,
+        IpNumber(6),
+        [192, 168, 1, 1],
+        [10, 0, 0, 1],
+    )
+    .unwrap();
     ipv4.write(&mut packet).unwrap();
 
     // TCP header
@@ -416,8 +401,10 @@ fn create_test_pcap(path: &std::path::Path, include_tls: bool) {
     let ts_usec = 0u32;
     file.write_all(&ts_sec.to_le_bytes()).unwrap(); // Timestamp seconds
     file.write_all(&ts_usec.to_le_bytes()).unwrap(); // Timestamp microseconds
-    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap(); // Included length
-    file.write_all(&(packet.len() as u32).to_le_bytes()).unwrap(); // Original length
+    file.write_all(&(packet.len() as u32).to_le_bytes())
+        .unwrap(); // Included length
+    file.write_all(&(packet.len() as u32).to_le_bytes())
+        .unwrap(); // Original length
 
     // Packet data
     file.write_all(&packet).unwrap();
@@ -533,11 +520,7 @@ fn test_cli_error_messages() {
     let bad_file = temp_dir.path().join("bad.json");
     fs::write(&bad_file, "not valid json {][").unwrap();
 
-    prb()
-        .arg("ingest")
-        .arg(&bad_file)
-        .assert()
-        .failure();
+    prb().arg("ingest").arg(&bad_file).assert().failure();
 }
 
 #[test]
@@ -547,11 +530,7 @@ fn test_cli_empty_input() {
     let empty_json = temp_dir.path().join("empty.json");
     fs::write(&empty_json, r#"{"version": 1, "events": []}"#).unwrap();
 
-    let output = prb()
-        .arg("ingest")
-        .arg(&empty_json)
-        .output()
-        .unwrap();
+    let output = prb().arg("ingest").arg(&empty_json).output().unwrap();
 
     assert!(output.status.success(), "Should exit 0 for empty input");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -593,11 +572,7 @@ fn test_cli_large_input_streaming() {
     drop(file);
 
     // Ingest and count output lines
-    let output = prb()
-        .arg("ingest")
-        .arg(&large_json)
-        .output()
-        .unwrap();
+    let output = prb().arg("ingest").arg(&large_json).output().unwrap();
 
     assert!(output.status.success(), "Should process large input");
 
@@ -612,11 +587,7 @@ fn test_cli_ingest_stdin_ndjson() {
     let fixture = fixtures_dir().join("sample.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     assert!(ingest_output.status.success());
 
@@ -663,11 +634,7 @@ fn test_cli_inspect_with_where_filter() {
     let fixture = fixtures_dir().join("multi_transport.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     assert!(ingest_output.status.success());
 
@@ -704,11 +671,7 @@ fn test_cli_inspect_with_metadata_filter() {
     let fixture = fixtures_dir().join("grpc_sample.json");
 
     // First ingest to get NDJSON
-    let ingest_output = prb()
-        .arg("ingest")
-        .arg(&fixture)
-        .output()
-        .unwrap();
+    let ingest_output = prb().arg("ingest").arg(&fixture).output().unwrap();
 
     assert!(ingest_output.status.success());
 

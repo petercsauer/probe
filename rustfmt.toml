@@ -1,0 +1,16 @@
+# Strict formatting for production code
+# Only stable features - unstable features require nightly rustfmt
+edition = "2024"
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Unix"
+use_small_heuristics = "Default"
+
+# Import organization
+reorder_imports = true
+reorder_modules = true
+
+# Code cleanup
+remove_nested_parens = true
+use_try_shorthand = true

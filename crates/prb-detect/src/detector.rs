@@ -187,10 +187,7 @@ impl ProtocolDetector for RtpsDetector {
 
         if &ctx.initial_bytes[0..4] == b"RTPS" {
             let version = if ctx.initial_bytes.len() >= 6 {
-                Some(format!(
-                    "{}.{}",
-                    ctx.initial_bytes[4], ctx.initial_bytes[5]
-                ))
+                Some(format!("{}.{}", ctx.initial_bytes[4], ctx.initial_bytes[5]))
             } else {
                 None
             };
@@ -221,10 +218,7 @@ impl GuessCrateDetector {
                 .tls()
                 .ssh()
                 .build(),
-            udp_detector: guess::ProtocolDetector::builder()
-                .udp()
-                .dns()
-                .build(),
+            udp_detector: guess::ProtocolDetector::builder().udp().dns().build(),
         }
     }
 }

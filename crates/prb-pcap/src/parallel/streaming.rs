@@ -8,17 +8,17 @@
 //! ```
 
 use crate::flow_key::FlowKey;
-use crate::normalize::{normalize_stateless, NormalizeResult, OwnedNormalizedPacket};
+use crate::normalize::{NormalizeResult, OwnedNormalizedPacket, normalize_stateless};
 use crate::parallel::stats::{AtomicPipelineStats, PipelineStats};
 use crate::reader::PcapPacket;
 use crate::tcp::TcpReassembler;
 use crate::tls::TlsStreamProcessor;
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, bounded};
 use prb_core::DebugEvent;
 use rayon::prelude::*;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::thread;
 
 /// Streaming pipeline that processes packets as they arrive via channels.
@@ -269,33 +269,32 @@ fn shard_worker(
     // Process packets as they arrive
     while let Ok(packet) = packet_rx.recv() {
         match &packet.transport {
-            TransportInfo::Tcp(_) => {
-                match reassembler.process_owned_segment(&packet) {
-                    Ok(stream_events) => {
-                        for stream_event in stream_events {
-                            if let StreamEvent::Data(stream) = stream_event {
-                                match tls_processor.decrypt_stream(stream.clone()) {
-                                    Ok(decrypted_stream) => {
-                                        let event = create_tcp_event(stream, decrypted_stream, &capture_path);
-                                        stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                                        if event_tx.send(event).is_err() {
-                                            return;
-                                        }
+            TransportInfo::Tcp(_) => match reassembler.process_owned_segment(&packet) {
+                Ok(stream_events) => {
+                    for stream_event in stream_events {
+                        if let StreamEvent::Data(stream) = stream_event {
+                            match tls_processor.decrypt_stream(stream.clone()) {
+                                Ok(decrypted_stream) => {
+                                    let event =
+                                        create_tcp_event(stream, decrypted_stream, &capture_path);
+                                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                                    if event_tx.send(event).is_err() {
+                                        return;
                                     }
-                                    Err(_) => {
-                                        let event = create_tcp_event_encrypted(stream, &capture_path);
-                                        stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                                        if event_tx.send(event).is_err() {
-                                            return;
-                                        }
+                                }
+                                Err(_) => {
+                                    let event = create_tcp_event_encrypted(stream, &capture_path);
+                                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                                    if event_tx.send(event).is_err() {
+                                        return;
                                     }
                                 }
                             }
                         }
                     }
-                    Err(e) => tracing::warn!("TCP reassembly error: {}", e),
                 }
-            }
+                Err(e) => tracing::warn!("TCP reassembly error: {}", e),
+            },
             TransportInfo::Udp { src_port, dst_port } => {
                 let event = create_udp_event(&packet, *src_port, *dst_port, &capture_path);
                 stats.events_emitted.fetch_add(1, Ordering::Relaxed);
@@ -475,12 +474,7 @@ mod tests {
     #[test]
     fn test_streaming_pipeline_basic() {
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            32,
-            2,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(32, 2, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 
@@ -514,12 +508,7 @@ mod tests {
     #[test]
     fn test_streaming_pipeline_empty() {
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            32,
-            2,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(32, 2, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 
@@ -540,7 +529,7 @@ mod tests {
     fn test_streaming_pipeline_backpressure() {
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
         let pipeline = StreamingPipeline::new(
-            8,  // Small batch size
+            8, // Small batch size
             2,
             PathBuf::from("/test.pcap"),
             keylog,
@@ -574,12 +563,7 @@ mod tests {
     #[test]
     fn test_streaming_stats_accuracy() {
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            16,
-            2,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 
@@ -609,12 +593,7 @@ mod tests {
     #[test]
     fn test_streaming_graceful_shutdown() {
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            32,
-            4,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(32, 4, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 
@@ -644,12 +623,8 @@ mod tests {
         // This test compares streaming vs batch processing
         // For now, just verify streaming produces events
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            16,
-            2,
-            PathBuf::from("/test.pcap"),
-            Arc::clone(&keylog),
-        );
+        let pipeline =
+            StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), Arc::clone(&keylog));
 
         let (tx, handle) = pipeline.start();
 
@@ -679,12 +654,7 @@ mod tests {
         // Test that fragments are counted in stats
         // For now, we'll just verify the stats counter exists
         let keylog = Arc::new(crate::tls::TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            16,
-            2,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 

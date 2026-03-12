@@ -5,7 +5,7 @@
 
 use crate::{CaptureConfig, CaptureEngine, CaptureError};
 use prb_core::{CaptureAdapter, CoreError, DebugEvent};
-use prb_pcap::{create_registry_with_builtins, PipelineCore, TlsStreamProcessor};
+use prb_pcap::{PipelineCore, TlsStreamProcessor, create_registry_with_builtins};
 use std::collections::VecDeque;
 use std::time::Duration;
 

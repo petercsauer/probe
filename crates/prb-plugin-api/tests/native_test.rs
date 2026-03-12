@@ -94,7 +94,7 @@ fn test_detect_result_ffi_not_detected() {
 // Test the macro by creating a minimal test decoder
 mod test_decoder {
     use super::*;
-    use prb_plugin_api::{DecodeCtx, DebugEventDto, DetectContext, PluginMetadata};
+    use prb_plugin_api::{DebugEventDto, DecodeCtx, DetectContext, PluginMetadata};
 
     struct TestDecoder;
 
@@ -144,12 +144,15 @@ mod test_decoder {
         assert_eq!(confidence, Some(0.9));
 
         let mut decoder = TestDecoder::new();
-        let result = decoder.decode(&[1, 2, 3], &DecodeCtx {
-            src_addr: None,
-            dst_addr: None,
-            timestamp_nanos: None,
-            metadata: std::collections::HashMap::new(),
-        });
+        let result = decoder.decode(
+            &[1, 2, 3],
+            &DecodeCtx {
+                src_addr: None,
+                dst_addr: None,
+                timestamp_nanos: None,
+                metadata: std::collections::HashMap::new(),
+            },
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();

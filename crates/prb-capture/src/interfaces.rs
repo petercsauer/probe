@@ -32,11 +32,7 @@ impl InterfaceInfo {
     /// Convert from a pcap Device.
     pub(crate) fn from_device(device: pcap::Device) -> Self {
         // Extract addresses
-        let addresses: Vec<IpAddr> = device
-            .addresses
-            .iter()
-            .map(|addr| addr.addr)
-            .collect();
+        let addresses: Vec<IpAddr> = device.addresses.iter().map(|addr| addr.addr).collect();
 
         // Determine interface properties from flags
         let is_up = device.flags.is_up();
@@ -100,7 +96,10 @@ impl InterfaceEnumerator {
     /// List all available network interfaces.
     pub fn list() -> Result<Vec<InterfaceInfo>, CaptureError> {
         let devices = pcap::Device::list()?;
-        Ok(devices.into_iter().map(InterfaceInfo::from_device).collect())
+        Ok(devices
+            .into_iter()
+            .map(InterfaceInfo::from_device)
+            .collect())
     }
 
     /// Find a specific interface by name.
@@ -113,9 +112,8 @@ impl InterfaceEnumerator {
 
     /// Get the default capture interface.
     pub fn default_device() -> Result<InterfaceInfo, CaptureError> {
-        let device = pcap::Device::lookup()?.ok_or_else(|| {
-            CaptureError::Other("no default capture device found".into())
-        })?;
+        let device = pcap::Device::lookup()?
+            .ok_or_else(|| CaptureError::Other("no default capture device found".into()))?;
         Ok(InterfaceInfo::from_device(device))
     }
 

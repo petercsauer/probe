@@ -83,8 +83,11 @@ fn string_lit(input: &str) -> IResult<&str, String> {
 fn number_lit(input: &str) -> IResult<&str, f64> {
     let (input, neg) = opt(char('-')).parse(input)?;
     let (input, int_part) = take_while1(|c: char| c.is_ascii_digit()).parse(input)?;
-    let (input, frac) =
-        opt(preceded(char('.'), take_while1(|c: char| c.is_ascii_digit()))).parse(input)?;
+    let (input, frac) = opt(preceded(
+        char('.'),
+        take_while1(|c: char| c.is_ascii_digit()),
+    ))
+    .parse(input)?;
 
     let mut s = String::new();
     if neg.is_some() {
@@ -367,21 +370,33 @@ mod tests {
     #[test]
     fn parse_string_escaping() {
         let expr = parse_expr(r#"msg == "line1\nline2""#).unwrap();
-        if let Expr::Compare { value: Value::String(s), .. } = expr {
+        if let Expr::Compare {
+            value: Value::String(s),
+            ..
+        } = expr
+        {
             assert_eq!(s, "line1\nline2");
         } else {
             panic!("Expected string with newline");
         }
 
         let expr = parse_expr(r#"msg == "tab\there""#).unwrap();
-        if let Expr::Compare { value: Value::String(s), .. } = expr {
+        if let Expr::Compare {
+            value: Value::String(s),
+            ..
+        } = expr
+        {
             assert_eq!(s, "tab\there");
         } else {
             panic!("Expected string with tab");
         }
 
         let expr = parse_expr(r#"msg == "backslash\\quote\"end""#).unwrap();
-        if let Expr::Compare { value: Value::String(s), .. } = expr {
+        if let Expr::Compare {
+            value: Value::String(s),
+            ..
+        } = expr
+        {
             assert_eq!(s, "backslash\\quote\"end");
         } else {
             panic!("Expected string with escaped backslash and quote");
@@ -389,7 +404,11 @@ mod tests {
 
         // Unknown escape sequence
         let expr = parse_expr(r#"msg == "unknown\x""#).unwrap();
-        if let Expr::Compare { value: Value::String(s), .. } = expr {
+        if let Expr::Compare {
+            value: Value::String(s),
+            ..
+        } = expr
+        {
             assert_eq!(s, "unknown\\x");
         } else {
             panic!("Expected string with literal backslash-x");
@@ -398,32 +417,62 @@ mod tests {
 
     #[test]
     fn parse_all_comparison_operators() {
-        assert!(matches!(parse_expr("x == 1").unwrap(), Expr::Compare { op: CmpOp::Eq, .. }));
-        assert!(matches!(parse_expr("x != 1").unwrap(), Expr::Compare { op: CmpOp::Ne, .. }));
-        assert!(matches!(parse_expr("x > 1").unwrap(), Expr::Compare { op: CmpOp::Gt, .. }));
-        assert!(matches!(parse_expr("x >= 1").unwrap(), Expr::Compare { op: CmpOp::Ge, .. }));
-        assert!(matches!(parse_expr("x < 1").unwrap(), Expr::Compare { op: CmpOp::Lt, .. }));
-        assert!(matches!(parse_expr("x <= 1").unwrap(), Expr::Compare { op: CmpOp::Le, .. }));
+        assert!(matches!(
+            parse_expr("x == 1").unwrap(),
+            Expr::Compare { op: CmpOp::Eq, .. }
+        ));
+        assert!(matches!(
+            parse_expr("x != 1").unwrap(),
+            Expr::Compare { op: CmpOp::Ne, .. }
+        ));
+        assert!(matches!(
+            parse_expr("x > 1").unwrap(),
+            Expr::Compare { op: CmpOp::Gt, .. }
+        ));
+        assert!(matches!(
+            parse_expr("x >= 1").unwrap(),
+            Expr::Compare { op: CmpOp::Ge, .. }
+        ));
+        assert!(matches!(
+            parse_expr("x < 1").unwrap(),
+            Expr::Compare { op: CmpOp::Lt, .. }
+        ));
+        assert!(matches!(
+            parse_expr("x <= 1").unwrap(),
+            Expr::Compare { op: CmpOp::Le, .. }
+        ));
     }
 
     #[test]
     fn parse_negative_and_fractional_numbers() {
         let expr = parse_expr("x == -42").unwrap();
-        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+        if let Expr::Compare {
+            value: Value::Number(n),
+            ..
+        } = expr
+        {
             assert_eq!(n, -42.0);
         } else {
             panic!("Expected negative number");
         }
 
         let expr = parse_expr("x == 4.56").unwrap();
-        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+        if let Expr::Compare {
+            value: Value::Number(n),
+            ..
+        } = expr
+        {
             assert!((n - 4.56).abs() < 0.00001);
         } else {
             panic!("Expected fractional number");
         }
 
         let expr = parse_expr("x == -0.5").unwrap();
-        if let Expr::Compare { value: Value::Number(n), .. } = expr {
+        if let Expr::Compare {
+            value: Value::Number(n),
+            ..
+        } = expr
+        {
             assert_eq!(n, -0.5);
         } else {
             panic!("Expected negative fractional number");

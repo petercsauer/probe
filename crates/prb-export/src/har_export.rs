@@ -24,9 +24,7 @@ fn payload_size(event: &DebugEvent) -> i64 {
 fn payload_body_text(event: &DebugEvent) -> Option<String> {
     match &event.payload {
         Payload::Decoded { fields, .. } => Some(serde_json::to_string_pretty(fields).ok()?),
-        Payload::Raw { raw } if !raw.is_empty() => {
-            String::from_utf8(raw.to_vec()).ok()
-        }
+        Payload::Raw { raw } if !raw.is_empty() => String::from_utf8(raw.to_vec()).ok(),
         _ => None,
     }
 }
@@ -42,24 +40,16 @@ fn event_to_har_entry(event: &DebugEvent) -> v1_2::Entries {
         .metadata
         .get("grpc.authority")
         .cloned()
-        .or_else(|| {
-            event
-                .source
-                .network
-                .as_ref()
-                .map(|n| n.dst.clone())
-        })
+        .or_else(|| event.source.network.as_ref().map(|n| n.dst.clone()))
         .unwrap_or_else(|| "unknown".into());
 
     let url = format!("https://{}{}", authority, method);
 
-    let mut request_headers = vec![
-        v1_2::Headers {
-            name: "content-type".into(),
-            value: "application/grpc".into(),
-            comment: None,
-        },
-    ];
+    let mut request_headers = vec![v1_2::Headers {
+        name: "content-type".into(),
+        value: "application/grpc".into(),
+        comment: None,
+    }];
 
     if let Some(encoding) = event.metadata.get("grpc.encoding") {
         request_headers.push(v1_2::Headers {
@@ -139,26 +129,22 @@ fn event_to_har_entry(event: &DebugEvent) -> v1_2::Entries {
             .network
             .as_ref()
             .map(|n| format!("{}->{}", n.src, n.dst)),
-        comment: Some(format!(
-            "Probe event #{} ({})",
-            event.id,
-            event.transport
-        )),
+        comment: Some(format!("Probe event #{} ({})", event.id, event.transport)),
     }
 }
 
 fn grpc_status_to_http(event: &DebugEvent) -> i64 {
     match event.metadata.get("grpc.status").map(|s| s.as_str()) {
         Some("0") | None => 200,
-        Some("1") => 499,   // CANCELLED
-        Some("3") => 400,   // INVALID_ARGUMENT
-        Some("4") => 504,   // DEADLINE_EXCEEDED
-        Some("5") => 404,   // NOT_FOUND
-        Some("7") => 403,   // PERMISSION_DENIED
-        Some("12") => 501,  // UNIMPLEMENTED
-        Some("13") => 500,  // INTERNAL
-        Some("14") => 503,  // UNAVAILABLE
-        Some("16") => 401,  // UNAUTHENTICATED
+        Some("1") => 499,  // CANCELLED
+        Some("3") => 400,  // INVALID_ARGUMENT
+        Some("4") => 504,  // DEADLINE_EXCEEDED
+        Some("5") => 404,  // NOT_FOUND
+        Some("7") => 403,  // PERMISSION_DENIED
+        Some("12") => 501, // UNIMPLEMENTED
+        Some("13") => 500, // INTERNAL
+        Some("14") => 503, // UNAVAILABLE
+        Some("16") => 401, // UNAUTHENTICATED
         _ => 500,
     }
 }
@@ -313,10 +299,12 @@ mod tests {
         assert_eq!(log["entries"].as_array().unwrap().len(), 1);
 
         let entry = &log["entries"][0];
-        assert!(entry["request"]["url"]
-            .as_str()
-            .unwrap()
-            .contains("/api.v1.Users/GetUser"));
+        assert!(
+            entry["request"]["url"]
+                .as_str()
+                .unwrap()
+                .contains("/api.v1.Users/GetUser")
+        );
         assert_eq!(entry["request"]["method"], "POST");
         assert_eq!(entry["request"]["httpVersion"], "HTTP/2.0");
         assert_eq!(entry["response"]["status"], 200);
@@ -431,7 +419,12 @@ mod tests {
 
         let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
         let entry = &parsed["log"]["entries"][0];
-        assert!(entry["request"]["url"].as_str().unwrap().contains("SecureMethod"));
+        assert!(
+            entry["request"]["url"]
+                .as_str()
+                .unwrap()
+                .contains("SecureMethod")
+        );
         // Timings include ssl field (can be -1 or null for unavailable)
         assert!(entry["timings"]["ssl"].is_null());
     }
@@ -448,9 +441,7 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Outbound)
-            .payload(Payload::Raw {
-                raw: Bytes::new(),
-            })
+            .payload(Payload::Raw { raw: Bytes::new() })
             .metadata("grpc.method", "/api/EmptyMethod")
             .build();
 

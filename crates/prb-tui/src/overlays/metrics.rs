@@ -2,11 +2,11 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::style::{Color, Style};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 
-use crate::theme::ThemeConfig;
 use crate::event_store::EventStore;
+use crate::theme::ThemeConfig;
 use prb_core::DebugEvent;
 
 /// Metrics overlay showing aggregate statistics.
@@ -100,10 +100,7 @@ impl MetricsOverlay {
         let mut current_y = inner.y;
 
         // Line 1: Total and filtered events
-        let line1 = format!(
-            "Total Events:     {}",
-            format_count(total_events)
-        );
+        let line1 = format!("Total Events:     {}", format_count(total_events));
         buf.set_string(inner.x, current_y, line1, theme.normal_row());
         current_y += 1;
 
@@ -119,7 +116,12 @@ impl MetricsOverlay {
         current_y += 1;
 
         // Throughput
-        buf.set_string(inner.x, current_y, "Throughput:", Style::default().fg(Color::Cyan));
+        buf.set_string(
+            inner.x,
+            current_y,
+            "Throughput:",
+            Style::default().fg(Color::Cyan),
+        );
         current_y += 1;
 
         let line3 = format!("  Events/sec:     {:.1}", events_per_sec);

@@ -1,6 +1,11 @@
 use crate::ExportError;
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind, CorrelationKey};
-use prb_core::{METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_PARENT_SPAN_ID};
+use prb_core::{
+    CorrelationKey, DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp,
+    TransportKind,
+};
+use prb_core::{
+    METADATA_KEY_OTEL_PARENT_SPAN_ID, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID,
+};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -121,7 +126,7 @@ pub fn otlp_to_events(request: &ExportTraceServiceRequest) -> Vec<DebugEvent> {
 fn span_to_event(span: &Span, service_name: &str, event_id: u64) -> DebugEvent {
     // Infer direction from span kind
     let direction = match span.kind {
-        1 => Direction::Unknown, // INTERNAL
+        1 => Direction::Unknown,  // INTERNAL
         2 => Direction::Inbound,  // SERVER
         3 => Direction::Outbound, // CLIENT
         4 => Direction::Outbound, // PRODUCER
@@ -131,11 +136,17 @@ fn span_to_event(span: &Span, service_name: &str, event_id: u64) -> DebugEvent {
 
     // Build metadata from span attributes
     let mut metadata = BTreeMap::new();
-    metadata.insert(METADATA_KEY_OTEL_TRACE_ID.to_string(), span.trace_id.clone());
+    metadata.insert(
+        METADATA_KEY_OTEL_TRACE_ID.to_string(),
+        span.trace_id.clone(),
+    );
     metadata.insert(METADATA_KEY_OTEL_SPAN_ID.to_string(), span.span_id.clone());
 
     if let Some(ref parent_span_id) = span.parent_span_id {
-        metadata.insert(METADATA_KEY_OTEL_PARENT_SPAN_ID.to_string(), parent_span_id.clone());
+        metadata.insert(
+            METADATA_KEY_OTEL_PARENT_SPAN_ID.to_string(),
+            parent_span_id.clone(),
+        );
     }
 
     // Add span attributes to metadata
@@ -280,8 +291,14 @@ mod tests {
         assert_eq!(event.source.adapter, "otlp-import");
         assert_eq!(event.source.origin, "test-service");
         assert_eq!(event.direction, Direction::Outbound);
-        assert_eq!(event.metadata.get(METADATA_KEY_OTEL_TRACE_ID).unwrap(), "4bf92f3577b34da6a3ce929d0e0e4736");
-        assert_eq!(event.metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "00f067aa0ba902b7");
+        assert_eq!(
+            event.metadata.get(METADATA_KEY_OTEL_TRACE_ID).unwrap(),
+            "4bf92f3577b34da6a3ce929d0e0e4736"
+        );
+        assert_eq!(
+            event.metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(),
+            "00f067aa0ba902b7"
+        );
     }
 
     #[test]
@@ -324,7 +341,7 @@ mod tests {
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].direction, Direction::Outbound); // CLIENT
-        assert_eq!(events[1].direction, Direction::Inbound);  // SERVER
+        assert_eq!(events[1].direction, Direction::Inbound); // SERVER
     }
 
     #[test]
@@ -367,11 +384,27 @@ mod tests {
         let events = otlp_to_events(&request);
 
         assert_eq!(events.len(), 2);
-        assert_eq!(events[0].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
-        assert!(!events[0].metadata.contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID));
+        assert_eq!(
+            events[0].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(),
+            "bbbbbbbbbbbbbbbb"
+        );
+        assert!(
+            !events[0]
+                .metadata
+                .contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID)
+        );
 
-        assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "cccccccccccccccc");
-        assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
+        assert_eq!(
+            events[1].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(),
+            "cccccccccccccccc"
+        );
+        assert_eq!(
+            events[1]
+                .metadata
+                .get(METADATA_KEY_OTEL_PARENT_SPAN_ID)
+                .unwrap(),
+            "bbbbbbbbbbbbbbbb"
+        );
     }
 
     #[test]
@@ -406,7 +439,11 @@ mod tests {
         // Should default to Unknown direction when kind is 0
         assert_eq!(event.direction, Direction::Unknown);
         // Should have no parent span ID
-        assert!(!event.metadata.contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID));
+        assert!(
+            !event
+                .metadata
+                .contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID)
+        );
     }
 
     #[test]

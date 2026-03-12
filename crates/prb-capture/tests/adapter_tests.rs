@@ -33,7 +33,11 @@ fn test_adapter_not_started_error() {
     assert!(event.is_err());
 
     let err_msg = event.unwrap_err().to_string();
-    assert!(err_msg.contains("not started"), "Expected 'not started' error, got: {}", err_msg);
+    assert!(
+        err_msg.contains("not started"),
+        "Expected 'not started' error, got: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -42,8 +46,7 @@ fn test_adapter_with_tls_keylog() {
     use tempfile::NamedTempFile;
 
     let keylog_file = NamedTempFile::new().unwrap();
-    let config = CaptureConfig::new("lo0")
-        .with_tls_keylog(keylog_file.path());
+    let config = CaptureConfig::new("lo0").with_tls_keylog(keylog_file.path());
 
     let adapter = LiveCaptureAdapter::new(config);
     assert!(adapter.is_ok());
@@ -52,8 +55,7 @@ fn test_adapter_with_tls_keylog() {
 #[test]
 fn test_adapter_with_filter() {
     // Test that we can create an adapter with BPF filter
-    let config = CaptureConfig::new("lo0")
-        .with_filter("tcp port 443");
+    let config = CaptureConfig::new("lo0").with_filter("tcp port 443");
 
     let adapter = LiveCaptureAdapter::new(config);
     assert!(adapter.is_ok());
@@ -78,8 +80,7 @@ fn test_live_capture_loopback() {
     use std::thread;
     use std::time::Duration;
 
-    let config = CaptureConfig::new("lo0")
-        .with_filter("icmp");
+    let config = CaptureConfig::new("lo0").with_filter("icmp");
 
     let mut adapter = LiveCaptureAdapter::new(config).unwrap();
 

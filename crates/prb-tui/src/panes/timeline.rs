@@ -48,7 +48,11 @@ impl TimelinePane {
         }
     }
 
-    fn bucket_time_range(&self, state: &AppState, bucket_idx: usize) -> Option<(Timestamp, Timestamp)> {
+    fn bucket_time_range(
+        &self,
+        state: &AppState,
+        bucket_idx: usize,
+    ) -> Option<(Timestamp, Timestamp)> {
         let (start, end) = state.store.time_range()?;
         if self.bucket_count == 0 {
             return None;
@@ -60,7 +64,10 @@ impl TimelinePane {
         let bucket_start = start.as_nanos() + (bucket_idx as u64 * bucket_width);
         let bucket_end = bucket_start + bucket_width;
 
-        Some((Timestamp::from_nanos(bucket_start), Timestamp::from_nanos(bucket_end)))
+        Some((
+            Timestamp::from_nanos(bucket_start),
+            Timestamp::from_nanos(bucket_end),
+        ))
     }
 
     fn events_in_bucket(&self, state: &AppState, bucket_idx: usize) -> Vec<usize> {
@@ -68,7 +75,8 @@ impl TimelinePane {
             return Vec::new();
         };
 
-        state.filtered_indices
+        state
+            .filtered_indices
             .iter()
             .filter_map(|&idx| {
                 let event = state.store.get(idx)?;
@@ -177,7 +185,14 @@ impl PaneComponent for TimelinePane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         let border_style = if focused {
             theme.focused_border()
         } else {
@@ -231,7 +246,14 @@ impl PaneComponent for TimelinePane {
 }
 
 impl TimelinePane {
-    fn render_multi_protocol(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render_multi_protocol(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         // Get protocol counts for display
         let protocol_counts = state.store.protocol_counts(&state.filtered_indices);
         let active_protocols: Vec<_> = protocol_counts.iter().map(|(p, _)| *p).collect();
@@ -256,22 +278,30 @@ impl TimelinePane {
         let mut protocol_buckets: Vec<(TransportKind, Vec<u64>)> = Vec::new();
 
         for &protocol in &active_protocols {
-            let protocol_indices: Vec<usize> = state.filtered_indices
+            let protocol_indices: Vec<usize> = state
+                .filtered_indices
                 .iter()
                 .filter(|&&idx| {
-                    state.store.get(idx).map(|e| e.transport == protocol).unwrap_or(false)
+                    state
+                        .store
+                        .get(idx)
+                        .map(|e| e.transport == protocol)
+                        .unwrap_or(false)
                 })
                 .copied()
                 .collect();
 
-            let buckets = state.store.time_buckets(&protocol_indices, self.bucket_count);
+            let buckets = state
+                .store
+                .time_buckets(&protocol_indices, self.bucket_count);
             protocol_buckets.push((protocol, buckets));
         }
 
         // Render each protocol's sparkline
         for (protocol_idx, (protocol, buckets)) in protocol_buckets.iter().enumerate() {
             let y_start = area.y + (protocol_idx * rows_per_protocol) as u16;
-            let row_height = rows_per_protocol.min((sparkline_height as usize) - (protocol_idx * rows_per_protocol));
+            let row_height = rows_per_protocol
+                .min((sparkline_height as usize) - (protocol_idx * rows_per_protocol));
 
             if row_height == 0 {
                 break;
@@ -294,7 +324,15 @@ impl TimelinePane {
         }
     }
 
-    fn render_sparkline(&self, area: Rect, buf: &mut Buffer, buckets: &[u64], protocol: TransportKind, theme: &ThemeConfig, _focused: bool) {
+    fn render_sparkline(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        buckets: &[u64],
+        protocol: TransportKind,
+        theme: &ThemeConfig,
+        _focused: bool,
+    ) {
         if buckets.is_empty() || area.height == 0 {
             return;
         }
@@ -348,7 +386,13 @@ impl TimelinePane {
         }
     }
 
-    fn render_cursor_and_selection(&self, area: Rect, buf: &mut Buffer, theme: &ThemeConfig, sparkline_height: u16) {
+    fn render_cursor_and_selection(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        theme: &ThemeConfig,
+        sparkline_height: u16,
+    ) {
         // Render selection range
         if let Some((start, end)) = self.selection {
             let actual_start = start.min(end);
@@ -362,8 +406,11 @@ impl TimelinePane {
                 for dy in 0..sparkline_height {
                     let y = area.y + dy;
                     if x < area.x + area.width && y < area.y + area.height {
-                        buf[(x, y)]
-                            .set_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::DIM));
+                        buf[(x, y)].set_style(
+                            Style::default()
+                                .bg(Color::DarkGray)
+                                .add_modifier(Modifier::DIM),
+                        );
                     }
                 }
             }
@@ -377,14 +424,20 @@ impl TimelinePane {
             for dy in 0..sparkline_height {
                 let y = area.y + dy;
                 if x < area.x + area.width && y < area.y + area.height {
-                    buf[(x, y)]
-                        .set_style(theme.selected_row().add_modifier(Modifier::BOLD));
+                    buf[(x, y)].set_style(theme.selected_row().add_modifier(Modifier::BOLD));
                 }
             }
         }
     }
 
-    fn render_latency_heatmap(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render_latency_heatmap(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         let Some(ref conversations) = state.conversations else {
             return;
         };
@@ -455,10 +508,10 @@ impl TimelinePane {
         // Render heatmap
         let chars = [' ', '░', '▒', '▓', '█'];
         let colors = [
-            Color::Green,      // 0-10ms - good
-            Color::Yellow,     // 10-50ms - ok
-            Color::LightRed,   // 50-100ms - slow
-            Color::Red,        // >100ms - bad
+            Color::Green,    // 0-10ms - good
+            Color::Yellow,   // 10-50ms - ok
+            Color::LightRed, // 50-100ms - slow
+            Color::Red,      // >100ms - bad
         ];
 
         for latency_idx in 0..num_latency_buckets {
@@ -508,8 +561,7 @@ impl TimelinePane {
             for latency_idx in 0..num_latency_buckets {
                 let y = area.y + latency_idx as u16;
                 if x < area.x + area.width && y < area.y + area.height {
-                    buf[(x, y)]
-                        .set_style(theme.selected_row().add_modifier(Modifier::BOLD));
+                    buf[(x, y)].set_style(theme.selected_row().add_modifier(Modifier::BOLD));
                 }
             }
         }
@@ -523,7 +575,13 @@ impl TimelinePane {
     }
 }
 
-fn format_time_legend(state: &AppState, _width: u16, theme: &ThemeConfig, cursor: &Option<usize>, timeline: &TimelinePane) -> Line<'static> {
+fn format_time_legend(
+    state: &AppState,
+    _width: u16,
+    theme: &ThemeConfig,
+    cursor: &Option<usize>,
+    timeline: &TimelinePane,
+) -> Line<'static> {
     let mut spans = Vec::new();
 
     if let Some((start, end)) = state.store.time_range() {
@@ -543,8 +601,13 @@ fn format_time_legend(state: &AppState, _width: u16, theme: &ThemeConfig, cursor
         let start_str = format_timestamp_short(bucket_start.as_nanos());
         let end_str = format_timestamp_short(bucket_end.as_nanos());
         spans.push(Span::styled(
-            format!(" ▶ {}-{} ({} events) ", start_str, end_str, events_in_bucket),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            format!(
+                " ▶ {}-{} ({} events) ",
+                start_str, end_str, events_in_bucket
+            ),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ));
     }
 

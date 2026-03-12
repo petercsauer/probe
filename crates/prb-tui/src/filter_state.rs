@@ -1,5 +1,5 @@
-use std::time::Instant;
 use prb_query::Filter;
+use std::time::Instant;
 
 const MAX_HISTORY_SIZE: usize = 50;
 const DEBOUNCE_MS: u64 = 100;
@@ -116,7 +116,9 @@ impl FilterState {
         if self.history_cursor.is_none() {
             self.history_temp_text = Some(self.text.clone());
             self.history_cursor = Some(self.history.len() - 1);
-        } else if let Some(cursor) = self.history_cursor && cursor > 0 {
+        } else if let Some(cursor) = self.history_cursor
+            && cursor > 0
+        {
             self.history_cursor = Some(cursor - 1);
         }
 

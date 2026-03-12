@@ -144,7 +144,8 @@ impl HexDumpPane {
         if self.search_matches.is_empty() {
             return;
         }
-        let next_idx = self.current_match_index
+        let next_idx = self
+            .current_match_index
             .map(|idx| (idx + 1) % self.search_matches.len())
             .unwrap_or(0);
         self.jump_to_match(next_idx);
@@ -154,7 +155,8 @@ impl HexDumpPane {
         if self.search_matches.is_empty() {
             return;
         }
-        let prev_idx = self.current_match_index
+        let prev_idx = self
+            .current_match_index
             .map(|idx| {
                 if idx == 0 {
                     self.search_matches.len() - 1
@@ -313,16 +315,29 @@ impl PaneComponent for HexDumpPane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         use ratatui::widgets::BorderType;
 
         // Build title with search status and diff mode indicator
         let title = if focused {
             if !self.search_matches.is_empty() {
-                format!(" Hex Dump [*] ({}/{} matches) {}",
+                format!(
+                    " Hex Dump [*] ({}/{} matches) {}",
                     self.current_match_index.map(|i| i + 1).unwrap_or(0),
                     self.search_matches.len(),
-                    if self.marked_event_bytes.is_some() { "(diff)" } else { "" })
+                    if self.marked_event_bytes.is_some() {
+                        "(diff)"
+                    } else {
+                        ""
+                    }
+                )
             } else if self.marked_event_bytes.is_some() {
                 " Hex Dump [*] (diff) ".to_string()
             } else {
@@ -404,8 +419,7 @@ impl PaneComponent for HexDumpPane {
             }
 
             let byte_offset = line_idx * 16;
-            let line_bytes = &payload_bytes
-                [byte_offset..payload_bytes.len().min(byte_offset + 16)];
+            let line_bytes = &payload_bytes[byte_offset..payload_bytes.len().min(byte_offset + 16)];
 
             let hex_line = render_hex_line(
                 byte_offset,
@@ -435,9 +449,7 @@ impl PaneComponent for HexDumpPane {
                 InputMode::JumpToOffset => format!("Jump to: {}", self.input_buffer),
                 InputMode::None => String::new(),
             };
-            let prompt_line = Line::from(vec![
-                Span::styled(prompt, theme.filter_bar()),
-            ]);
+            let prompt_line = Line::from(vec![Span::styled(prompt, theme.filter_bar())]);
             buf.set_line(inner.x, prompt_y, &prompt_line, inner.width);
         }
     }
@@ -503,9 +515,10 @@ fn render_hex_line(
                     let is_diff = marked_bytes
                         .and_then(|m| m.get(byte_pos))
                         .is_some_and(|&marked_byte| marked_byte != bytes[i])
-                        || (i + 1 < bytes.len() && marked_bytes
-                            .and_then(|m| m.get(byte_pos + 1))
-                            .is_some_and(|&marked_byte| marked_byte != bytes[i + 1]));
+                        || (i + 1 < bytes.len()
+                            && marked_bytes
+                                .and_then(|m| m.get(byte_pos + 1))
+                                .is_some_and(|&marked_byte| marked_byte != bytes[i + 1]));
                     let style = if is_search_match {
                         theme.hex_search_match()
                     } else if is_diff {
@@ -579,8 +592,8 @@ fn render_hex_line(
         if i < bytes.len() {
             let ch = bytes[i];
             let byte_pos = offset + i;
-            let is_highlighted = highlight
-                .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
+            let is_highlighted =
+                highlight.is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
             let is_search_match = search_matches.contains(&byte_pos);
             let is_diff = marked_bytes
                 .and_then(|m| m.get(byte_pos))
@@ -617,16 +630,14 @@ fn render_value_inspector(offset: usize, payload: &[u8], theme: &ThemeConfig) ->
         )]);
     }
 
-    let mut parts = vec![
-        Span::styled(format!("Offset: 0x{:04x} | ", offset), theme.hex_offset()),
-    ];
+    let mut parts = vec![Span::styled(
+        format!("Offset: 0x{:04x} | ", offset),
+        theme.hex_offset(),
+    )];
 
     // u8
     let u8_val = payload[offset];
-    parts.push(Span::styled(
-        format!("u8: {} | ", u8_val),
-        theme.hex_byte(),
-    ));
+    parts.push(Span::styled(format!("u8: {} | ", u8_val), theme.hex_byte()));
 
     // u16le
     if offset + 1 < payload.len() {
@@ -678,15 +689,14 @@ fn parse_hex_pattern(query: &str) -> Option<Vec<u8>> {
         bytes.push(byte);
     }
 
-    if bytes.is_empty() {
-        None
-    } else {
-        Some(bytes)
-    }
+    if bytes.is_empty() { None } else { Some(bytes) }
 }
 
 fn parse_hex_offset(input: &str) -> Result<usize, std::num::ParseIntError> {
-    let cleaned = input.trim().trim_start_matches("0x").trim_start_matches("0X");
+    let cleaned = input
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
     usize::from_str_radix(cleaned, 16)
 }
 
@@ -697,7 +707,15 @@ mod tests {
     #[test]
     fn test_hex_line_formatting() {
         let bytes = b"Hello, World!";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], None, &ThemeConfig::dark());
+        let line = render_hex_line(
+            0,
+            bytes,
+            None,
+            ByteGrouping::One,
+            &[],
+            None,
+            &ThemeConfig::dark(),
+        );
 
         // Should have offset + hex bytes + ASCII
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
@@ -721,12 +739,17 @@ mod tests {
         let line = render_hex_line(0, bytes, Some((2, 3)), ByteGrouping::One, &[], None, &theme);
 
         // Verify highlighting spans exist
-        let highlighted_count = line.spans.iter()
+        let highlighted_count = line
+            .spans
+            .iter()
             .filter(|s| s.style == theme.hex_highlight())
             .count();
 
         // Should have highlighted hex bytes (3) + ASCII chars (3) = 6 total
-        assert!(highlighted_count >= 6, "Expected at least 6 highlighted spans");
+        assert!(
+            highlighted_count >= 6,
+            "Expected at least 6 highlighted spans"
+        );
     }
 
     #[test]
@@ -747,7 +770,15 @@ mod tests {
     #[test]
     fn test_hex_line_non_printable() {
         let bytes = b"\x00\x01\x02\x03";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], None, &ThemeConfig::dark());
+        let line = render_hex_line(
+            0,
+            bytes,
+            None,
+            ByteGrouping::One,
+            &[],
+            None,
+            &ThemeConfig::dark(),
+        );
 
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 
@@ -768,7 +799,10 @@ mod tests {
         pane.set_highlight(256, 10);
 
         assert_eq!(pane.highlight, Some((256, 10)));
-        assert_eq!(pane.scroll_offset, 16, "Should auto-scroll to highlighted line");
+        assert_eq!(
+            pane.scroll_offset, 16,
+            "Should auto-scroll to highlighted line"
+        );
     }
 
     #[test]
@@ -788,9 +822,9 @@ mod tests {
         pane.scroll_offset = 10;
 
         // Simulate up key beyond bounds
-        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use crate::app::AppState;
         use crate::event_store::EventStore;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let store = EventStore::new(vec![]);
         let state = AppState {
@@ -808,7 +842,7 @@ mod tests {
         for _ in 0..20 {
             pane.handle_key(
                 KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE),
-                &state
+                &state,
             );
         }
 
@@ -823,15 +857,39 @@ mod tests {
 
         // Highlight bytes 8-16 (second half of first line + first half of second)
         let theme = ThemeConfig::dark();
-        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)), ByteGrouping::One, &[], None, &theme);
-        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)), ByteGrouping::One, &[], None, &theme);
+        let line1 = render_hex_line(
+            0,
+            &bytes[0..16],
+            Some((8, 8)),
+            ByteGrouping::One,
+            &[],
+            None,
+            &theme,
+        );
+        let line2 = render_hex_line(
+            16,
+            &bytes[16..32],
+            Some((8, 8)),
+            ByteGrouping::One,
+            &[],
+            None,
+            &theme,
+        );
 
         // Line 1 should have some highlighted spans (bytes 8-15)
-        let hl1 = line1.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();
+        let hl1 = line1
+            .spans
+            .iter()
+            .filter(|s| s.style == theme.hex_highlight())
+            .count();
         assert!(hl1 > 0, "Line 1 should have highlighted spans");
 
         // Line 2 should have no highlighted spans (highlight ends at byte 16)
-        let hl2 = line2.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();
+        let hl2 = line2
+            .spans
+            .iter()
+            .filter(|s| s.style == theme.hex_highlight())
+            .count();
         assert_eq!(hl2, 0, "Line 2 should have no highlighted spans");
     }
 
@@ -852,16 +910,21 @@ mod tests {
             ByteGrouping::One,
             &[],
             Some(marked_bytes),
-            &theme
+            &theme,
         );
 
         // Count spans with diff styling (yellow foreground)
-        let diff_count = line.spans.iter()
+        let diff_count = line
+            .spans
+            .iter()
             .filter(|s| s.style.fg == diff_style.fg)
             .count();
 
         // Should have some diff-styled spans for the differing bytes ("W" vs "E", etc.)
-        assert!(diff_count > 0, "Should have diff-highlighted spans for byte differences");
+        assert!(
+            diff_count > 0,
+            "Should have diff-highlighted spans for byte differences"
+        );
     }
 
     #[test]
@@ -873,30 +936,36 @@ mod tests {
         let diff_style = ratatui::style::Style::default().fg(ratatui::style::Color::Yellow);
 
         // Render with diff mode enabled but identical bytes
-        let line = render_hex_line(
-            0,
-            bytes,
-            None,
-            ByteGrouping::One,
-            &[],
-            Some(bytes),
-            &theme
-        );
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], Some(bytes), &theme);
 
         // Should have no diff-styled spans
-        let diff_count = line.spans.iter()
+        let diff_count = line
+            .spans
+            .iter()
             .filter(|s| s.style.fg == diff_style.fg)
             .count();
 
-        assert_eq!(diff_count, 0, "Should have no diff-highlighted spans when bytes are identical");
+        assert_eq!(
+            diff_count, 0,
+            "Should have no diff-highlighted spans when bytes are identical"
+        );
     }
 
     #[test]
     fn test_parse_hex_pattern() {
         // Test hex pattern parsing
-        assert_eq!(parse_hex_pattern("48 65 6c 6c 6f"), Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]));
-        assert_eq!(parse_hex_pattern("48656c6c6f"), Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]));
-        assert_eq!(parse_hex_pattern("DEADBEEF"), Some(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+        assert_eq!(
+            parse_hex_pattern("48 65 6c 6c 6f"),
+            Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f])
+        );
+        assert_eq!(
+            parse_hex_pattern("48656c6c6f"),
+            Some(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f])
+        );
+        assert_eq!(
+            parse_hex_pattern("DEADBEEF"),
+            Some(vec![0xDE, 0xAD, 0xBE, 0xEF])
+        );
         assert_eq!(parse_hex_pattern(""), None);
         assert_eq!(parse_hex_pattern("4"), None); // Odd length
         assert_eq!(parse_hex_pattern("ZZ"), None); // Invalid hex

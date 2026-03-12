@@ -37,9 +37,7 @@ impl RtpsHeader {
         }
 
         if &data[0..4] != RTPS_MAGIC {
-            return Err(DdsError::InvalidMagic([
-                data[0], data[1], data[2], data[3],
-            ]));
+            return Err(DdsError::InvalidMagic([data[0], data[1], data[2], data[3]]));
         }
 
         Ok(Self {
@@ -285,9 +283,10 @@ mod tests {
     #[test]
     fn test_rtps_bad_magic() {
         // WS-3.3: Non-RTPS data returns InvalidMagic error
-        let bad_data = vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                            0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-                            0x10, 0x11, 0x12, 0x13];
+        let bad_data = vec![
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+            0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13,
+        ];
 
         let result = RtpsHeader::parse(&bad_data);
         assert!(result.is_err(), "Should reject non-RTPS magic");

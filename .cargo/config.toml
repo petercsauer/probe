@@ -1,0 +1,38 @@
+[build]
+# Ensure fast builds in dev, optimized in release
+incremental = true
+
+[target.'cfg(all())']
+# Strict warnings - all warnings are errors
+rustflags = [
+    "-D", "warnings",
+    "-D", "clippy::all",
+    "-D", "clippy::pedantic",
+    "-D", "clippy::cargo",
+    "-W", "clippy::nursery",  # Warn on nursery, don't error
+]
+
+# Platform-specific: Unix-like systems
+[target.'cfg(unix)']
+rustflags = [
+    "-D", "warnings",
+    "-D", "clippy::all",
+    "-D", "clippy::pedantic",
+    "-D", "clippy::cargo",
+    "-W", "clippy::nursery",
+]
+
+# Platform-specific: Windows
+[target.'cfg(windows)']
+rustflags = [
+    "-D", "warnings",
+    "-D", "clippy::all",
+    "-D", "clippy::pedantic",
+    "-D", "clippy::cargo",
+    "-W", "clippy::nursery",
+]
+
+[alias]
+# Convenient aliases
+xtask = "run --package xtask --"
+cov = "llvm-cov --workspace --lcov --output-path lcov.info"

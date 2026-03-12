@@ -19,7 +19,7 @@ fn create_tcp_segment(
     flags: TcpFlags,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
 
     let mut packet = Vec::new();
 
@@ -76,7 +76,10 @@ fn write_pcap_file(path: &PathBuf, packets: &[Vec<u8>]) {
             ((timestamp_sec >> 8) & 0xff) as u8,
             ((timestamp_sec >> 16) & 0xff) as u8,
             ((timestamp_sec >> 24) & 0xff) as u8,
-            0x00, 0x00, 0x00, 0x00, // timestamp microseconds
+            0x00,
+            0x00,
+            0x00,
+            0x00, // timestamp microseconds
             (packet.len() as u32).to_le_bytes()[0],
             (packet.len() as u32).to_le_bytes()[1],
             (packet.len() as u32).to_le_bytes()[2],
@@ -107,20 +110,68 @@ fn test_grpc_stream_auto_detected() {
     // Note: SYN consumes 1 sequence number, so data starts at ISN+1
     let packets = vec![
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1000, 0, TcpFlags { syn: true, ack: false, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1000,
+            0,
+            TcpFlags {
+                syn: true,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 2], [192, 168, 1, 1], 50051, 12345,
-            2000, 1001, TcpFlags { syn: true, ack: true, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 2],
+            [192, 168, 1, 1],
+            50051,
+            12345,
+            2000,
+            1001,
+            TcpFlags {
+                syn: true,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001, 2001, TcpFlags { syn: false, ack: true, fin: false, rst: false, psh: true }, preface
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            preface,
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001 + preface.len() as u32, 2001, TcpFlags { syn: false, ack: true, fin: true, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001 + preface.len() as u32,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
     ];
 
@@ -138,7 +189,10 @@ fn test_grpc_stream_auto_detected() {
     // We can't guarantee detection without a full HTTP/2 frame, so we just
     // verify the pipeline ran without errors
     assert!(
-        matches!(first_event.transport, TransportKind::Grpc | TransportKind::RawTcp),
+        matches!(
+            first_event.transport,
+            TransportKind::Grpc | TransportKind::RawTcp
+        ),
         "Expected Grpc or RawTcp, got {:?}",
         first_event.transport
     );
@@ -154,20 +208,68 @@ fn test_unknown_protocol_falls_back() {
 
     let packets = vec![
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 8080,
-            1000, 0, TcpFlags { syn: true, ack: false, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            8080,
+            1000,
+            0,
+            TcpFlags {
+                syn: true,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 2], [192, 168, 1, 1], 8080, 12345,
-            2000, 1001, TcpFlags { syn: true, ack: true, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 2],
+            [192, 168, 1, 1],
+            8080,
+            12345,
+            2000,
+            1001,
+            TcpFlags {
+                syn: true,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 8080,
-            1001, 2001, TcpFlags { syn: false, ack: true, fin: false, rst: false, psh: true }, random_data
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            8080,
+            1001,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            random_data,
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 8080,
-            1001 + random_data.len() as u32, 2001, TcpFlags { syn: false, ack: true, fin: true, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            8080,
+            1001 + random_data.len() as u32,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
     ];
 
@@ -197,20 +299,68 @@ fn test_protocol_override() {
 
     let packets = vec![
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1000, 0, TcpFlags { syn: true, ack: false, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1000,
+            0,
+            TcpFlags {
+                syn: true,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 2], [192, 168, 1, 1], 50051, 12345,
-            2000, 1001, TcpFlags { syn: true, ack: true, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 2],
+            [192, 168, 1, 1],
+            50051,
+            12345,
+            2000,
+            1001,
+            TcpFlags {
+                syn: true,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001, 2001, TcpFlags { syn: false, ack: true, fin: false, rst: false, psh: true }, data
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            data,
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001 + data.len() as u32, 2001, TcpFlags { syn: false, ack: true, fin: true, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001 + data.len() as u32,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
     ];
 
@@ -227,7 +377,10 @@ fn test_protocol_override() {
     // it should still fall back to RawTcp after decode failure
     let first_event = &events[0];
     assert!(
-        matches!(first_event.transport, TransportKind::Grpc | TransportKind::RawTcp),
+        matches!(
+            first_event.transport,
+            TransportKind::Grpc | TransportKind::RawTcp
+        ),
         "Expected Grpc or RawTcp, got {:?}",
         first_event.transport
     );
@@ -242,20 +395,68 @@ fn test_pipeline_stats_tracking() {
 
     let packets = vec![
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1000, 0, TcpFlags { syn: true, ack: false, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1000,
+            0,
+            TcpFlags {
+                syn: true,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 2], [192, 168, 1, 1], 50051, 12345,
-            2000, 1001, TcpFlags { syn: true, ack: true, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 2],
+            [192, 168, 1, 1],
+            50051,
+            12345,
+            2000,
+            1001,
+            TcpFlags {
+                syn: true,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001, 2001, TcpFlags { syn: false, ack: true, fin: false, rst: false, psh: true }, preface
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            preface,
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001 + preface.len() as u32, 2001, TcpFlags { syn: false, ack: true, fin: true, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001 + preface.len() as u32,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
     ];
 
@@ -268,12 +469,18 @@ fn test_pipeline_stats_tracking() {
 
     // Basic sanity checks
     assert!(stats.packets_read > 0, "Expected packets to be read");
-    assert!(stats.tcp_streams > 0, "Expected TCP streams to be reassembled");
+    assert!(
+        stats.tcp_streams > 0,
+        "Expected TCP streams to be reassembled"
+    );
 
     // Protocol detection should have been attempted, resulting in either
     // protocol_decoded > 0 or protocol_fallback > 0
     let detection_attempted = stats.protocol_decoded + stats.protocol_fallback;
-    assert!(detection_attempted > 0, "Expected protocol detection to be attempted");
+    assert!(
+        detection_attempted > 0,
+        "Expected protocol detection to be attempted"
+    );
 }
 
 /// Helper to create a UDP datagram packet.
@@ -284,7 +491,7 @@ fn create_udp_datagram(
     dst_port: u16,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, UdpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, UdpHeader};
 
     let mut packet = Vec::new();
 
@@ -328,9 +535,13 @@ fn test_rtps_datagram_auto_detected() {
     let tmpdir = TempDir::new().unwrap();
     let pcap_path = tmpdir.path().join("test.pcap");
 
-    let packets = vec![
-        create_udp_datagram([192, 168, 1, 1], [192, 168, 1, 2], 7400, 7400, &rtps_data),
-    ];
+    let packets = vec![create_udp_datagram(
+        [192, 168, 1, 1],
+        [192, 168, 1, 2],
+        7400,
+        7400,
+        &rtps_data,
+    )];
 
     write_pcap_file(&pcap_path, &packets);
 
@@ -342,7 +553,10 @@ fn test_rtps_datagram_auto_detected() {
     // Should detect as DDS/RTPS or fall back to RawUdp
     let first_event = &events[0];
     assert!(
-        matches!(first_event.transport, TransportKind::DdsRtps | TransportKind::RawUdp),
+        matches!(
+            first_event.transport,
+            TransportKind::DdsRtps | TransportKind::RawUdp
+        ),
         "Expected DdsRtps or RawUdp, got {:?}",
         first_event.transport
     );
@@ -364,23 +578,71 @@ fn test_mixed_protocols_in_same_capture() {
     let packets = vec![
         // TCP connection 1 - gRPC
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1000, 0, TcpFlags { syn: true, ack: false, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1000,
+            0,
+            TcpFlags {
+                syn: true,
+                ack: false,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 2], [192, 168, 1, 1], 50051, 12345,
-            2000, 1001, TcpFlags { syn: true, ack: true, fin: false, rst: false, psh: false }, b""
+            [192, 168, 1, 2],
+            [192, 168, 1, 1],
+            50051,
+            12345,
+            2000,
+            1001,
+            TcpFlags {
+                syn: true,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001, 2001, TcpFlags { syn: false, ack: true, fin: false, rst: false, psh: true }, preface
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: false,
+                rst: false,
+                psh: true,
+            },
+            preface,
         ),
         // UDP datagram - RTPS
         create_udp_datagram([192, 168, 1, 3], [192, 168, 1, 4], 7400, 7400, &rtps_data),
         // Close TCP connection
         create_tcp_segment(
-            [192, 168, 1, 1], [192, 168, 1, 2], 12345, 50051,
-            1001 + preface.len() as u32, 2001, TcpFlags { syn: false, ack: true, fin: true, rst: false, psh: false }, b""
+            [192, 168, 1, 1],
+            [192, 168, 1, 2],
+            12345,
+            50051,
+            1001 + preface.len() as u32,
+            2001,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                fin: true,
+                rst: false,
+                psh: false,
+            },
+            b"",
         ),
     ];
 
@@ -390,11 +652,18 @@ fn test_mixed_protocols_in_same_capture() {
     let events: Vec<_> = adapter.ingest().collect::<Result<Vec<_>, _>>().unwrap();
 
     // Should have at least 2 events (TCP and UDP)
-    assert!(events.len() >= 2, "Expected at least 2 events for mixed protocols");
+    assert!(
+        events.len() >= 2,
+        "Expected at least 2 events for mixed protocols"
+    );
 
     // Verify we got both TCP and UDP events
-    let has_tcp = events.iter().any(|e| matches!(e.transport, TransportKind::Grpc | TransportKind::RawTcp));
-    let has_udp = events.iter().any(|e| matches!(e.transport, TransportKind::DdsRtps | TransportKind::RawUdp));
+    let has_tcp = events
+        .iter()
+        .any(|e| matches!(e.transport, TransportKind::Grpc | TransportKind::RawTcp));
+    let has_udp = events
+        .iter()
+        .any(|e| matches!(e.transport, TransportKind::DdsRtps | TransportKind::RawUdp));
 
     assert!(has_tcp, "Expected at least one TCP event");
     assert!(has_udp, "Expected at least one UDP event");

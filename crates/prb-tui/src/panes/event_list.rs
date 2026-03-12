@@ -94,10 +94,7 @@ fn format_dest(event: &prb_core::DebugEvent) -> String {
 }
 
 /// Compute adaptive column widths based on visible events.
-fn compute_column_widths(
-    events: &[&prb_core::DebugEvent],
-    total_width: u16,
-) -> ColumnWidths {
+fn compute_column_widths(events: &[&prb_core::DebugEvent], total_width: u16) -> ColumnWidths {
     let has_network = events.iter().any(|e| e.source.network.is_some());
 
     if has_network {
@@ -213,13 +210,33 @@ impl EventListPane {
                     SortColumn::Id => event_a.id.as_u64().cmp(&event_b.id.as_u64()),
                     SortColumn::Time => event_a.timestamp.cmp(&event_b.timestamp),
                     SortColumn::Source => {
-                        let src_a = event_a.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
-                        let src_b = event_b.source.network.as_ref().map(|n| n.src.as_str()).unwrap_or("");
+                        let src_a = event_a
+                            .source
+                            .network
+                            .as_ref()
+                            .map(|n| n.src.as_str())
+                            .unwrap_or("");
+                        let src_b = event_b
+                            .source
+                            .network
+                            .as_ref()
+                            .map(|n| n.src.as_str())
+                            .unwrap_or("");
                         src_a.cmp(src_b)
                     }
                     SortColumn::Dest => {
-                        let dst_a = event_a.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
-                        let dst_b = event_b.source.network.as_ref().map(|n| n.dst.as_str()).unwrap_or("");
+                        let dst_a = event_a
+                            .source
+                            .network
+                            .as_ref()
+                            .map(|n| n.dst.as_str())
+                            .unwrap_or("");
+                        let dst_b = event_b
+                            .source
+                            .network
+                            .as_ref()
+                            .map(|n| n.dst.as_str())
+                            .unwrap_or("");
                         dst_a.cmp(dst_b)
                     }
                     SortColumn::Protocol => event_a.transport.cmp(&event_b.transport),
@@ -303,7 +320,14 @@ impl PaneComponent for EventListPane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         use ratatui::widgets::BorderType;
 
         let block = if focused {
@@ -351,7 +375,8 @@ impl PaneComponent for EventListPane {
             off
         };
 
-        let visible_events: Vec<_> = (scroll_offset_start..total.min(scroll_offset_start + vis_height))
+        let visible_events: Vec<_> = (scroll_offset_start
+            ..total.min(scroll_offset_start + vis_height))
             .filter_map(|idx| {
                 let event_idx = sorted[idx];
                 state.store.get(event_idx)
@@ -363,8 +388,14 @@ impl PaneComponent for EventListPane {
         // Debug: log widths to see what's happening
         tracing::trace!(
             "EventList render: inner.width={}, cols: id={} time={} src={} dst={} proto={} dir={} summary={}",
-            inner.width, col_widths.id, col_widths.time, col_widths.src, col_widths.dst,
-            col_widths.proto, col_widths.dir, col_widths.summary
+            inner.width,
+            col_widths.id,
+            col_widths.time,
+            col_widths.src,
+            col_widths.dst,
+            col_widths.proto,
+            col_widths.dir,
+            col_widths.summary
         );
 
         // Header row
@@ -404,12 +435,7 @@ impl PaneComponent for EventListPane {
                 let src = format_source(event);
                 let dst = format_dest(event);
 
-                let summary = event
-                    .metadata
-                    .values()
-                    .next()
-                    .cloned()
-                    .unwrap_or_default();
+                let summary = event.metadata.values().next().cloned().unwrap_or_default();
 
                 let transport_style = if is_selected {
                     row_style
@@ -429,8 +455,18 @@ impl PaneComponent for EventListPane {
                 let time_text = format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis);
 
                 let mut spans = vec![
-                    Span::styled(pad_to_width(&id_text, col_widths.id as usize), if !event.warnings.is_empty() && !is_selected { warning_style } else { row_style }),
-                    Span::styled(pad_to_width(&time_text, col_widths.time as usize), row_style),
+                    Span::styled(
+                        pad_to_width(&id_text, col_widths.id as usize),
+                        if !event.warnings.is_empty() && !is_selected {
+                            warning_style
+                        } else {
+                            row_style
+                        },
+                    ),
+                    Span::styled(
+                        pad_to_width(&time_text, col_widths.time as usize),
+                        row_style,
+                    ),
                     Span::styled(pad_to_width(&src, col_widths.src as usize), row_style),
                 ];
 
@@ -469,7 +505,12 @@ impl PaneComponent for EventListPane {
     }
 }
 
-fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bool, theme: &ThemeConfig) -> Line<'static> {
+fn format_header(
+    col_widths: ColumnWidths,
+    sort_column: SortColumn,
+    reversed: bool,
+    theme: &ThemeConfig,
+) -> Line<'static> {
     let style = theme.header();
     let sort_indicator = if reversed { "v" } else { "^" };
 
@@ -485,15 +526,25 @@ fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bo
         pad_to_width("Time", col_widths.time as usize)
     };
 
-    let src_label = if col_widths.dst == 0 { "Origin" } else { "Source" };
+    let src_label = if col_widths.dst == 0 {
+        "Origin"
+    } else {
+        "Source"
+    };
     let src_text = if sort_column == SortColumn::Source {
-        pad_to_width(&format!("{}{}", src_label, sort_indicator), col_widths.src as usize)
+        pad_to_width(
+            &format!("{}{}", src_label, sort_indicator),
+            col_widths.src as usize,
+        )
     } else {
         pad_to_width(src_label, col_widths.src as usize)
     };
 
     let proto_text = if sort_column == SortColumn::Protocol {
-        pad_to_width(&format!("Protocol{}", sort_indicator), col_widths.proto as usize)
+        pad_to_width(
+            &format!("Protocol{}", sort_indicator),
+            col_widths.proto as usize,
+        )
     } else {
         pad_to_width("Protocol", col_widths.proto as usize)
     };
@@ -512,7 +563,10 @@ fn format_header(col_widths: ColumnWidths, sort_column: SortColumn, reversed: bo
 
     if col_widths.dst > 0 {
         let dst_text = if sort_column == SortColumn::Dest {
-            pad_to_width(&format!("Destination{}", sort_indicator), col_widths.dst as usize)
+            pad_to_width(
+                &format!("Destination{}", sort_indicator),
+                col_widths.dst as usize,
+            )
         } else {
             pad_to_width("Destination", col_widths.dst as usize)
         };
@@ -591,9 +645,7 @@ mod tests {
             },
             transport,
             direction,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -687,9 +739,18 @@ mod tests {
         assert_eq!(sorted.len(), 3);
 
         // Should be sorted by timestamp: 1000, 2000, 3000
-        assert_eq!(state.store.get(sorted[0]).unwrap().timestamp.as_nanos(), 1000);
-        assert_eq!(state.store.get(sorted[1]).unwrap().timestamp.as_nanos(), 2000);
-        assert_eq!(state.store.get(sorted[2]).unwrap().timestamp.as_nanos(), 3000);
+        assert_eq!(
+            state.store.get(sorted[0]).unwrap().timestamp.as_nanos(),
+            1000
+        );
+        assert_eq!(
+            state.store.get(sorted[1]).unwrap().timestamp.as_nanos(),
+            2000
+        );
+        assert_eq!(
+            state.store.get(sorted[2]).unwrap().timestamp.as_nanos(),
+            3000
+        );
     }
 
     #[test]
@@ -729,9 +790,18 @@ mod tests {
         let sorted = pane.sorted_indices(&state);
 
         // Should be sorted by timestamp descending: 3000, 2000, 1000
-        assert_eq!(state.store.get(sorted[0]).unwrap().timestamp.as_nanos(), 3000);
-        assert_eq!(state.store.get(sorted[1]).unwrap().timestamp.as_nanos(), 2000);
-        assert_eq!(state.store.get(sorted[2]).unwrap().timestamp.as_nanos(), 1000);
+        assert_eq!(
+            state.store.get(sorted[0]).unwrap().timestamp.as_nanos(),
+            3000
+        );
+        assert_eq!(
+            state.store.get(sorted[1]).unwrap().timestamp.as_nanos(),
+            2000
+        );
+        assert_eq!(
+            state.store.get(sorted[2]).unwrap().timestamp.as_nanos(),
+            1000
+        );
     }
 
     #[test]
@@ -771,9 +841,18 @@ mod tests {
         let sorted = pane.sorted_indices(&state);
 
         // Transport enum order: Grpc < Zmq < DdsRtps (declaration order in enum)
-        assert_eq!(state.store.get(sorted[0]).unwrap().transport, TransportKind::Grpc);
-        assert_eq!(state.store.get(sorted[1]).unwrap().transport, TransportKind::Zmq);
-        assert_eq!(state.store.get(sorted[2]).unwrap().transport, TransportKind::DdsRtps);
+        assert_eq!(
+            state.store.get(sorted[0]).unwrap().transport,
+            TransportKind::Grpc
+        );
+        assert_eq!(
+            state.store.get(sorted[1]).unwrap().transport,
+            TransportKind::Zmq
+        );
+        assert_eq!(
+            state.store.get(sorted[2]).unwrap().transport,
+            TransportKind::DdsRtps
+        );
     }
 
     #[test]
@@ -813,9 +892,36 @@ mod tests {
         let sorted = pane.sorted_indices(&state);
 
         // Should be sorted lexicographically
-        let src0 = state.store.get(sorted[0]).unwrap().source.network.as_ref().unwrap().src.as_str();
-        let src1 = state.store.get(sorted[1]).unwrap().source.network.as_ref().unwrap().src.as_str();
-        let src2 = state.store.get(sorted[2]).unwrap().source.network.as_ref().unwrap().src.as_str();
+        let src0 = state
+            .store
+            .get(sorted[0])
+            .unwrap()
+            .source
+            .network
+            .as_ref()
+            .unwrap()
+            .src
+            .as_str();
+        let src1 = state
+            .store
+            .get(sorted[1])
+            .unwrap()
+            .source
+            .network
+            .as_ref()
+            .unwrap()
+            .src
+            .as_str();
+        let src2 = state
+            .store
+            .get(sorted[2])
+            .unwrap()
+            .source
+            .network
+            .as_ref()
+            .unwrap()
+            .src
+            .as_str();
 
         assert_eq!(src0, "192.168.1.1:8080");
         assert_eq!(src1, "192.168.1.2:8080");
@@ -859,9 +965,18 @@ mod tests {
         let sorted = pane.sorted_indices(&state);
 
         // Inbound should come first
-        assert_eq!(state.store.get(sorted[0]).unwrap().direction, Direction::Inbound);
-        assert_eq!(state.store.get(sorted[1]).unwrap().direction, Direction::Outbound);
-        assert_eq!(state.store.get(sorted[2]).unwrap().direction, Direction::Outbound);
+        assert_eq!(
+            state.store.get(sorted[0]).unwrap().direction,
+            Direction::Inbound
+        );
+        assert_eq!(
+            state.store.get(sorted[1]).unwrap().direction,
+            Direction::Outbound
+        );
+        assert_eq!(
+            state.store.get(sorted[2]).unwrap().direction,
+            Direction::Outbound
+        );
     }
 
     #[test]
@@ -981,8 +1096,14 @@ mod tests {
 
         // Should only have 2 gRPC events
         assert_eq!(sorted.len(), 2);
-        assert_eq!(state.store.get(sorted[0]).unwrap().transport, TransportKind::Grpc);
-        assert_eq!(state.store.get(sorted[1]).unwrap().transport, TransportKind::Grpc);
+        assert_eq!(
+            state.store.get(sorted[0]).unwrap().transport,
+            TransportKind::Grpc
+        );
+        assert_eq!(
+            state.store.get(sorted[1]).unwrap().transport,
+            TransportKind::Grpc
+        );
     }
 
     #[test]
@@ -1043,9 +1164,7 @@ mod tests {
             },
             transport,
             direction,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -1057,9 +1176,27 @@ mod tests {
     fn test_fallback_to_origin_when_no_network() {
         // Test that events without network info show origin instead of "-"
         let events = vec![
-            make_event_no_network(1, 1000, TransportKind::Grpc, Direction::Inbound, "file-reader"),
-            make_event_no_network(2, 2000, TransportKind::Zmq, Direction::Outbound, "kafka-consumer"),
-            make_event_no_network(3, 3000, TransportKind::DdsRtps, Direction::Unknown, "log-parser"),
+            make_event_no_network(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "file-reader",
+            ),
+            make_event_no_network(
+                2,
+                2000,
+                TransportKind::Zmq,
+                Direction::Outbound,
+                "kafka-consumer",
+            ),
+            make_event_no_network(
+                3,
+                3000,
+                TransportKind::DdsRtps,
+                Direction::Unknown,
+                "log-parser",
+            ),
         ];
 
         let state = make_app_state(events);
@@ -1096,22 +1233,48 @@ mod tests {
 
         // Test narrow terminal (dst should be 0)
         let narrow_widths = compute_column_widths(&event_refs, 80);
-        assert_eq!(narrow_widths.dst, 0, "dst column should collapse in narrow mode without network");
+        assert_eq!(
+            narrow_widths.dst, 0,
+            "dst column should collapse in narrow mode without network"
+        );
         assert!(narrow_widths.src > 0, "src column should show origin");
-        assert!(narrow_widths.summary > 0, "summary should get remaining space");
+        assert!(
+            narrow_widths.summary > 0,
+            "summary should get remaining space"
+        );
 
         // Test wide terminal (dst should still be 0 because no network)
         let wide_widths = compute_column_widths(&event_refs, 180);
-        assert_eq!(wide_widths.dst, 0, "dst column should collapse even in wide mode without network");
-        assert!(wide_widths.src > narrow_widths.src, "src column should be wider in wide terminal");
+        assert_eq!(
+            wide_widths.dst, 0,
+            "dst column should collapse even in wide mode without network"
+        );
+        assert!(
+            wide_widths.src > narrow_widths.src,
+            "src column should be wider in wide terminal"
+        );
     }
 
     #[test]
     fn test_column_width_adaptation_with_network() {
         // Test that column widths adapt properly when network info IS present
         let events = vec![
-            make_event(1, 1000, TransportKind::Grpc, Direction::Inbound, "10.0.0.1:8080", "10.0.0.2:9090"),
-            make_event(2, 2000, TransportKind::Zmq, Direction::Outbound, "10.0.0.3:8080", "10.0.0.4:9090"),
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event(
+                2,
+                2000,
+                TransportKind::Zmq,
+                Direction::Outbound,
+                "10.0.0.3:8080",
+                "10.0.0.4:9090",
+            ),
         ];
 
         let state = make_app_state(events);
@@ -1120,28 +1283,69 @@ mod tests {
 
         // Test narrow terminal
         let narrow_widths = compute_column_widths(&event_refs, 80);
-        assert!(narrow_widths.dst > 0, "dst column should be visible with network info");
-        assert_eq!(narrow_widths.src, 18, "src width should be minimal in narrow terminal");
-        assert_eq!(narrow_widths.dst, 18, "dst width should be minimal in narrow terminal");
+        assert!(
+            narrow_widths.dst > 0,
+            "dst column should be visible with network info"
+        );
+        assert_eq!(
+            narrow_widths.src, 18,
+            "src width should be minimal in narrow terminal"
+        );
+        assert_eq!(
+            narrow_widths.dst, 18,
+            "dst width should be minimal in narrow terminal"
+        );
 
         // Test medium terminal
         let medium_widths = compute_column_widths(&event_refs, 110);
-        assert_eq!(medium_widths.src, 28, "src width should be balanced in medium terminal");
-        assert_eq!(medium_widths.dst, 28, "dst width should be balanced in medium terminal");
+        assert_eq!(
+            medium_widths.src, 28,
+            "src width should be balanced in medium terminal"
+        );
+        assert_eq!(
+            medium_widths.dst, 28,
+            "dst width should be balanced in medium terminal"
+        );
 
         // Test wide terminal
         let wide_widths = compute_column_widths(&event_refs, 180);
-        assert_eq!(wide_widths.src, 45, "src width should be generous in wide terminal");
-        assert_eq!(wide_widths.dst, 45, "dst width should be generous in wide terminal");
+        assert_eq!(
+            wide_widths.src, 45,
+            "src width should be generous in wide terminal"
+        );
+        assert_eq!(
+            wide_widths.dst, 45,
+            "dst width should be generous in wide terminal"
+        );
     }
 
     #[test]
     fn test_mixed_network_and_no_network_events() {
         // Test handling of mixed events (some with network, some without)
         let events = vec![
-            make_event(1, 1000, TransportKind::Grpc, Direction::Inbound, "10.0.0.1:8080", "10.0.0.2:9090"),
-            make_event_no_network(2, 2000, TransportKind::Zmq, Direction::Outbound, "file-reader"),
-            make_event(3, 3000, TransportKind::DdsRtps, Direction::Unknown, "10.0.0.3:8080", "10.0.0.4:9090"),
+            make_event(
+                1,
+                1000,
+                TransportKind::Grpc,
+                Direction::Inbound,
+                "10.0.0.1:8080",
+                "10.0.0.2:9090",
+            ),
+            make_event_no_network(
+                2,
+                2000,
+                TransportKind::Zmq,
+                Direction::Outbound,
+                "file-reader",
+            ),
+            make_event(
+                3,
+                3000,
+                TransportKind::DdsRtps,
+                Direction::Unknown,
+                "10.0.0.3:8080",
+                "10.0.0.4:9090",
+            ),
         ];
 
         let state = make_app_state(events);
@@ -1150,7 +1354,10 @@ mod tests {
 
         // When ANY event has network info, show full layout
         let widths = compute_column_widths(&event_refs, 110);
-        assert!(widths.dst > 0, "dst column should be visible when any event has network info");
+        assert!(
+            widths.dst > 0,
+            "dst column should be visible when any event has network info"
+        );
 
         // Verify fallback works for event without network
         let sorted = state.store.all_indices();

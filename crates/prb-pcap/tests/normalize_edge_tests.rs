@@ -1,6 +1,6 @@
 //! Edge case tests for packet normalization: IPv6, VLAN, truncated, fragmented.
 
-use prb_pcap::{normalize_stateless, NormalizeResult};
+use prb_pcap::{NormalizeResult, normalize_stateless};
 use std::net::IpAddr;
 
 /// Helper to create an Ethernet + IPv4 packet.
@@ -37,8 +37,12 @@ fn create_ipv6_packet(src_ip: [u8; 16], dst_ip: [u8; 16], payload: &[u8]) -> Vec
 
 #[test]
 fn test_normalize_ipv6_basic() {
-    let src = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01];
-    let dst = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02];
+    let src = [
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
+    ];
+    let dst = [
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02,
+    ];
 
     // UDP payload
     let mut udp_packet = Vec::new();
@@ -140,7 +144,7 @@ fn test_normalize_truncated_ip() {
 #[test]
 fn test_normalize_ipv4_fragment_first() {
     // Create a fragmented IPv4 packet (first fragment with MF=1, offset=0)
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -172,7 +176,7 @@ fn test_normalize_ipv4_fragment_first() {
 #[test]
 fn test_normalize_ipv4_fragment_middle() {
     // Middle fragment: MF=1, offset > 0
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -204,7 +208,7 @@ fn test_normalize_ipv4_fragment_middle() {
 #[test]
 fn test_normalize_ipv4_fragment_last() {
     // Last fragment: MF=0, offset > 0
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -236,7 +240,7 @@ fn test_normalize_ipv4_fragment_last() {
 #[test]
 fn test_normalize_malformed_udp_header() {
     // Valid Ethernet + IPv4, but truncated UDP header
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -260,7 +264,7 @@ fn test_normalize_malformed_udp_header() {
 #[test]
 fn test_normalize_malformed_tcp_header() {
     // Valid Ethernet + IPv4, but truncated TCP header
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -284,7 +288,7 @@ fn test_normalize_malformed_tcp_header() {
 #[test]
 fn test_normalize_icmp_packet() {
     // ICMP packet (protocol 1)
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 
@@ -317,7 +321,7 @@ fn test_normalize_icmp_packet() {
 #[test]
 fn test_normalize_zero_length_payload() {
     // Valid headers but zero-length payload
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
     let mut packet = Vec::new();
 

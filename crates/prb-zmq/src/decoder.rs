@@ -3,8 +3,8 @@
 use crate::parser::{ZmtpEvent, ZmtpParser};
 use bytes::Bytes;
 use prb_core::{
-    CorrelationKey, CoreError, DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr,
-    Payload, ProtocolDecoder, Timestamp, TransportKind, METADATA_KEY_ZMQ_TOPIC,
+    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource,
+    METADATA_KEY_ZMQ_TOPIC, NetworkAddr, Payload, ProtocolDecoder, Timestamp, TransportKind,
 };
 use std::collections::HashMap;
 
@@ -169,8 +169,14 @@ impl ZmqDecoder {
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
-                    src: ctx.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx.dst_addr.clone().unwrap_or_else(|| "unknown".to_string()),
+                    src: ctx
+                        .src_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    dst: ctx
+                        .dst_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                 }),
             })
             .transport(TransportKind::Zmq)
@@ -323,7 +329,11 @@ mod tests {
         // Payload should be empty
         match &event.payload {
             Payload::Raw { raw } => {
-                assert_eq!(raw.len(), 0, "Payload should be empty for topic-only message");
+                assert_eq!(
+                    raw.len(),
+                    0,
+                    "Payload should be empty for topic-only message"
+                );
             }
             _ => panic!("Expected Raw payload"),
         }
@@ -421,7 +431,9 @@ mod tests {
 
         // Check if any event has degradation warning
         let has_warning = events.iter().any(|e| {
-            e.warnings.iter().any(|w| w.contains("degradation") || w.contains("mid-stream"))
+            e.warnings
+                .iter()
+                .any(|w| w.contains("degradation") || w.contains("mid-stream"))
         });
         assert!(
             has_warning,

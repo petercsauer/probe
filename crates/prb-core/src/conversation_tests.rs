@@ -5,8 +5,14 @@ use super::*;
 #[test]
 fn test_conversation_id_new_and_display() {
     let id = ConversationId::new("grpc:192.168.1.1:8080->192.168.1.2:9090/stream123");
-    assert_eq!(id.as_str(), "grpc:192.168.1.1:8080->192.168.1.2:9090/stream123");
-    assert_eq!(id.to_string(), "grpc:192.168.1.1:8080->192.168.1.2:9090/stream123");
+    assert_eq!(
+        id.as_str(),
+        "grpc:192.168.1.1:8080->192.168.1.2:9090/stream123"
+    );
+    assert_eq!(
+        id.to_string(),
+        "grpc:192.168.1.1:8080->192.168.1.2:9090/stream123"
+    );
 }
 
 #[test]
@@ -20,13 +26,25 @@ fn test_conversation_id_serde_roundtrip() {
 #[test]
 fn test_conversation_kind_display() {
     assert_eq!(ConversationKind::UnaryRpc.to_string(), "unary-rpc");
-    assert_eq!(ConversationKind::ServerStreaming.to_string(), "server-streaming");
-    assert_eq!(ConversationKind::ClientStreaming.to_string(), "client-streaming");
-    assert_eq!(ConversationKind::BidirectionalStreaming.to_string(), "bidirectional-streaming");
+    assert_eq!(
+        ConversationKind::ServerStreaming.to_string(),
+        "server-streaming"
+    );
+    assert_eq!(
+        ConversationKind::ClientStreaming.to_string(),
+        "client-streaming"
+    );
+    assert_eq!(
+        ConversationKind::BidirectionalStreaming.to_string(),
+        "bidirectional-streaming"
+    );
     assert_eq!(ConversationKind::RequestReply.to_string(), "request-reply");
     assert_eq!(ConversationKind::PubSubChannel.to_string(), "pub-sub");
     assert_eq!(ConversationKind::Pipeline.to_string(), "pipeline");
-    assert_eq!(ConversationKind::TopicExchange.to_string(), "topic-exchange");
+    assert_eq!(
+        ConversationKind::TopicExchange.to_string(),
+        "topic-exchange"
+    );
     assert_eq!(ConversationKind::TcpStream.to_string(), "tcp-stream");
     assert_eq!(ConversationKind::Unknown.to_string(), "unknown");
 }
@@ -48,7 +66,8 @@ fn test_conversation_kind_serde_roundtrip() {
 
     for kind in kinds {
         let json = serde_json::to_string(&kind).expect("failed to serialize");
-        let deserialized: ConversationKind = serde_json::from_str(&json).expect("failed to deserialize");
+        let deserialized: ConversationKind =
+            serde_json::from_str(&json).expect("failed to deserialize");
         assert_eq!(kind, deserialized);
     }
 }
@@ -74,7 +93,8 @@ fn test_conversation_state_serde_roundtrip() {
 
     for state in states {
         let json = serde_json::to_string(&state).expect("failed to serialize");
-        let deserialized: ConversationState = serde_json::from_str(&json).expect("failed to deserialize");
+        let deserialized: ConversationState =
+            serde_json::from_str(&json).expect("failed to deserialize");
         assert_eq!(state, deserialized);
     }
 }
@@ -89,8 +109,7 @@ fn test_conversation_error_new() {
 
 #[test]
 fn test_conversation_error_with_code() {
-    let error = ConversationError::new("grpc-status", "Not found")
-        .with_code("5");
+    let error = ConversationError::new("grpc-status", "Not found").with_code("5");
     assert_eq!(error.kind, "grpc-status");
     assert_eq!(error.message, "Not found");
     assert_eq!(error.code, Some("5".to_string()));
@@ -98,10 +117,10 @@ fn test_conversation_error_with_code() {
 
 #[test]
 fn test_conversation_error_serde_roundtrip() {
-    let error = ConversationError::new("timeout", "Connection timeout")
-        .with_code("408");
+    let error = ConversationError::new("timeout", "Connection timeout").with_code("408");
     let json = serde_json::to_string(&error).expect("failed to serialize");
-    let deserialized: ConversationError = serde_json::from_str(&json).expect("failed to deserialize");
+    let deserialized: ConversationError =
+        serde_json::from_str(&json).expect("failed to deserialize");
     assert_eq!(error.kind, deserialized.kind);
     assert_eq!(error.message, deserialized.message);
     assert_eq!(error.code, deserialized.code);
@@ -134,12 +153,16 @@ fn test_conversation_metrics_serde_roundtrip() {
     };
 
     let json = serde_json::to_string(&metrics).expect("failed to serialize");
-    let deserialized: ConversationMetrics = serde_json::from_str(&json).expect("failed to deserialize");
+    let deserialized: ConversationMetrics =
+        serde_json::from_str(&json).expect("failed to deserialize");
 
     assert_eq!(metrics.start_time, deserialized.start_time);
     assert_eq!(metrics.end_time, deserialized.end_time);
     assert_eq!(metrics.duration_ns, deserialized.duration_ns);
-    assert_eq!(metrics.time_to_first_response_ns, deserialized.time_to_first_response_ns);
+    assert_eq!(
+        metrics.time_to_first_response_ns,
+        deserialized.time_to_first_response_ns
+    );
     assert_eq!(metrics.request_count, deserialized.request_count);
     assert_eq!(metrics.response_count, deserialized.response_count);
     assert_eq!(metrics.total_bytes, deserialized.total_bytes);
@@ -212,7 +235,10 @@ fn test_conversation_add_metadata() {
     conv.add_metadata("grpc.status", "0");
 
     assert_eq!(conv.metadata.len(), 2);
-    assert_eq!(conv.metadata.get("grpc.method"), Some(&"/api.v1.Users/GetUser".to_string()));
+    assert_eq!(
+        conv.metadata.get("grpc.method"),
+        Some(&"/api.v1.Users/GetUser".to_string())
+    );
     assert_eq!(conv.metadata.get("grpc.status"), Some(&"0".to_string()));
 }
 

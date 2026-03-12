@@ -25,10 +25,24 @@ fn test_keylog_parse() {
     let mut keylog2 = TlsKeyLog::new();
     let cr = "aa".repeat(32);
     let secret = "bb".repeat(32);
-    keylog2.parse_line(&format!("CLIENT_HANDSHAKE_TRAFFIC_SECRET {} {}", cr, secret)).unwrap();
-    keylog2.parse_line(&format!("SERVER_HANDSHAKE_TRAFFIC_SECRET {} {}", cr, secret)).unwrap();
-    keylog2.parse_line(&format!("CLIENT_TRAFFIC_SECRET_0 {} {}", cr, secret)).unwrap();
-    keylog2.parse_line(&format!("SERVER_TRAFFIC_SECRET_0 {} {}", cr, secret)).unwrap();
+    keylog2
+        .parse_line(&format!(
+            "CLIENT_HANDSHAKE_TRAFFIC_SECRET {} {}",
+            cr, secret
+        ))
+        .unwrap();
+    keylog2
+        .parse_line(&format!(
+            "SERVER_HANDSHAKE_TRAFFIC_SECRET {} {}",
+            cr, secret
+        ))
+        .unwrap();
+    keylog2
+        .parse_line(&format!("CLIENT_TRAFFIC_SECRET_0 {} {}", cr, secret))
+        .unwrap();
+    keylog2
+        .parse_line(&format!("SERVER_TRAFFIC_SECRET_0 {} {}", cr, secret))
+        .unwrap();
     assert_eq!(keylog2.len(), 1);
     let materials = keylog2.lookup(&hex::decode(&cr).unwrap()).unwrap();
     assert_eq!(materials.len(), 4);
@@ -115,7 +129,9 @@ fn aead_seal(
     let nonce_val = Nonce::try_assume_unique_for_key(nonce).unwrap();
     let mut sealing_key = SealingKey::new(unbound, OneNonce(Some(nonce_val)));
     let mut in_out = plaintext.to_vec();
-    sealing_key.seal_in_place_append_tag(Aad::from(aad), &mut in_out).unwrap();
+    sealing_key
+        .seal_in_place_append_tag(Aad::from(aad), &mut in_out)
+        .unwrap();
     in_out
 }
 
@@ -136,7 +152,8 @@ fn test_aes128gcm_decrypt_synthetic() {
     let decryptor = TlsDecryptor::new(
         &session,
         &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
-    ).unwrap();
+    )
+    .unwrap();
 
     let plaintext = b"Hello TLS 1.3 AES-128-GCM";
     let keys = prb_pcap::tls::kdf::derive_tls13_keys(&traffic_secret, 16, false).unwrap();
@@ -147,10 +164,15 @@ fn test_aes128gcm_decrypt_synthetic() {
     let aad = vec![0x17, 0x03, 0x03, (ct_len >> 8) as u8, ct_len as u8];
     let ciphertext = aead_seal(&ring::aead::AES_128_GCM, &keys.key, &nonce, &aad, plaintext);
 
-    let result = decryptor.decrypt_aead(
-        &ciphertext, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ClientToServer,
-    ).unwrap();
+    let result = decryptor
+        .decrypt_aead(
+            &ciphertext,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ClientToServer,
+        )
+        .unwrap();
     assert_eq!(result, plaintext);
 }
 
@@ -171,7 +193,8 @@ fn test_aes256gcm_decrypt_synthetic() {
     let decryptor = TlsDecryptor::new(
         &session,
         &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
-    ).unwrap();
+    )
+    .unwrap();
 
     let plaintext = b"Hello TLS 1.3 AES-256-GCM";
     let keys = prb_pcap::tls::kdf::derive_tls13_keys(&traffic_secret, 32, true).unwrap();
@@ -181,10 +204,15 @@ fn test_aes256gcm_decrypt_synthetic() {
     let aad = vec![0x17, 0x03, 0x03, (ct_len >> 8) as u8, ct_len as u8];
     let ciphertext = aead_seal(&ring::aead::AES_256_GCM, &keys.key, &nonce, &aad, plaintext);
 
-    let result = decryptor.decrypt_aead(
-        &ciphertext, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ClientToServer,
-    ).unwrap();
+    let result = decryptor
+        .decrypt_aead(
+            &ciphertext,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ClientToServer,
+        )
+        .unwrap();
     assert_eq!(result, plaintext);
 }
 
@@ -205,7 +233,8 @@ fn test_chacha20poly1305_decrypt_synthetic() {
     let decryptor = TlsDecryptor::new(
         &session,
         &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
-    ).unwrap();
+    )
+    .unwrap();
 
     let plaintext = b"Hello TLS 1.3 ChaCha20-Poly1305";
     let keys = prb_pcap::tls::kdf::derive_tls13_keys(&traffic_secret, 32, false).unwrap();
@@ -213,12 +242,23 @@ fn test_chacha20poly1305_decrypt_synthetic() {
 
     let ct_len = plaintext.len() + 16;
     let aad = vec![0x17, 0x03, 0x03, (ct_len >> 8) as u8, ct_len as u8];
-    let ciphertext = aead_seal(&ring::aead::CHACHA20_POLY1305, &keys.key, &nonce, &aad, plaintext);
+    let ciphertext = aead_seal(
+        &ring::aead::CHACHA20_POLY1305,
+        &keys.key,
+        &nonce,
+        &aad,
+        plaintext,
+    );
 
-    let result = decryptor.decrypt_aead(
-        &ciphertext, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ClientToServer,
-    ).unwrap();
+    let result = decryptor
+        .decrypt_aead(
+            &ciphertext,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ClientToServer,
+        )
+        .unwrap();
     assert_eq!(result, plaintext);
 }
 
@@ -310,9 +350,17 @@ fn test_end_to_end_tls12_synthetic() {
     let decryptor = TlsDecryptor::new(
         &session,
         &[KeyMaterial::MasterSecret(master_secret.clone())],
-    ).unwrap();
+    )
+    .unwrap();
 
-    let keys = prb_pcap::tls::kdf::derive_tls12_keys(&master_secret, &client_random, &server_random, 16, 4).unwrap();
+    let keys = prb_pcap::tls::kdf::derive_tls12_keys(
+        &master_secret,
+        &client_random,
+        &server_random,
+        16,
+        4,
+    )
+    .unwrap();
 
     let plaintext = b"TLS 1.2 test payload";
     let explicit_nonce: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -329,7 +377,13 @@ fn test_end_to_end_tls12_synthetic() {
     aad.extend_from_slice(&[0x03, 0x03]);
     aad.extend_from_slice(&(plaintext.len() as u16).to_be_bytes());
 
-    let ciphertext_and_tag = aead_seal(&ring::aead::AES_128_GCM, &keys.client_write_key, &nonce, &aad, plaintext);
+    let ciphertext_and_tag = aead_seal(
+        &ring::aead::AES_128_GCM,
+        &keys.client_write_key,
+        &nonce,
+        &aad,
+        plaintext,
+    );
 
     // TLS 1.2 record payload: explicit_nonce(8) + ciphertext + tag
     let mut record_payload = Vec::new();
@@ -337,10 +391,15 @@ fn test_end_to_end_tls12_synthetic() {
     record_payload.extend_from_slice(&ciphertext_and_tag);
 
     // Decrypt via direct API
-    let result = decryptor.decrypt_aead(
-        &record_payload, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ClientToServer,
-    ).unwrap();
+    let result = decryptor
+        .decrypt_aead(
+            &record_payload,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ClientToServer,
+        )
+        .unwrap();
     assert_eq!(result, plaintext);
 }
 
@@ -359,10 +418,14 @@ fn test_end_to_end_tls13_synthetic() {
         cipher_suite_id: 0x1301,
         version: TlsVersion::Tls13,
     };
-    let decryptor = TlsDecryptor::new(&session, &[
-        KeyMaterial::ClientTrafficSecret0(client_secret.clone()),
-        KeyMaterial::ServerTrafficSecret0(server_secret.clone()),
-    ]).unwrap();
+    let decryptor = TlsDecryptor::new(
+        &session,
+        &[
+            KeyMaterial::ClientTrafficSecret0(client_secret.clone()),
+            KeyMaterial::ServerTrafficSecret0(server_secret.clone()),
+        ],
+    )
+    .unwrap();
 
     // Client-to-server direction
     let plaintext_c2s = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
@@ -370,12 +433,23 @@ fn test_end_to_end_tls13_synthetic() {
     let nonce_c = keys_c.iv.clone();
     let ct_len = plaintext_c2s.len() + 16;
     let aad_c = vec![0x17, 0x03, 0x03, (ct_len >> 8) as u8, ct_len as u8];
-    let ct_c = aead_seal(&ring::aead::AES_128_GCM, &keys_c.key, &nonce_c, &aad_c, plaintext_c2s);
+    let ct_c = aead_seal(
+        &ring::aead::AES_128_GCM,
+        &keys_c.key,
+        &nonce_c,
+        &aad_c,
+        plaintext_c2s,
+    );
 
-    let result_c = decryptor.decrypt_aead(
-        &ct_c, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ClientToServer,
-    ).unwrap();
+    let result_c = decryptor
+        .decrypt_aead(
+            &ct_c,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ClientToServer,
+        )
+        .unwrap();
     assert_eq!(result_c, plaintext_c2s);
 
     // Server-to-client direction (uses server keys)
@@ -384,11 +458,22 @@ fn test_end_to_end_tls13_synthetic() {
     let nonce_s = keys_s.iv.clone();
     let ct_len_s = plaintext_s2c.len() + 16;
     let aad_s = vec![0x17, 0x03, 0x03, (ct_len_s >> 8) as u8, ct_len_s as u8];
-    let ct_s = aead_seal(&ring::aead::AES_128_GCM, &keys_s.key, &nonce_s, &aad_s, plaintext_s2c);
+    let ct_s = aead_seal(
+        &ring::aead::AES_128_GCM,
+        &keys_s.key,
+        &nonce_s,
+        &aad_s,
+        plaintext_s2c,
+    );
 
-    let result_s = decryptor.decrypt_aead(
-        &ct_s, 0, 0x17, 0x0303,
-        prb_pcap::tcp::StreamDirection::ServerToClient,
-    ).unwrap();
+    let result_s = decryptor
+        .decrypt_aead(
+            &ct_s,
+            0,
+            0x17,
+            0x0303,
+            prb_pcap::tcp::StreamDirection::ServerToClient,
+        )
+        .unwrap();
     assert_eq!(result_s, plaintext_s2c);
 }

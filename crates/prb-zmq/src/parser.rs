@@ -215,7 +215,13 @@ impl ZmtpParser {
     /// Try to parse a command frame.
     fn try_parse_command(&self) -> Result<(usize, ZmtpCommand), ZmqError> {
         if self.buffer.is_empty() {
-            return Ok((0, ZmtpCommand { name: String::new(), data: Vec::new() }));
+            return Ok((
+                0,
+                ZmtpCommand {
+                    name: String::new(),
+                    data: Vec::new(),
+                },
+            ));
         }
 
         let flags = self.buffer[0];
@@ -223,7 +229,13 @@ impl ZmtpParser {
 
         let (size_bytes, body_offset) = if is_long {
             if self.buffer.len() < 9 {
-                return Ok((0, ZmtpCommand { name: String::new(), data: Vec::new() }));
+                return Ok((
+                    0,
+                    ZmtpCommand {
+                        name: String::new(),
+                        data: Vec::new(),
+                    },
+                ));
             }
             let size = u64::from_be_bytes([
                 self.buffer[1],
@@ -238,7 +250,13 @@ impl ZmtpParser {
             (size, 9)
         } else {
             if self.buffer.len() < 2 {
-                return Ok((0, ZmtpCommand { name: String::new(), data: Vec::new() }));
+                return Ok((
+                    0,
+                    ZmtpCommand {
+                        name: String::new(),
+                        data: Vec::new(),
+                    },
+                ));
             }
             (self.buffer[1] as u64, 2)
         };
@@ -249,7 +267,13 @@ impl ZmtpParser {
 
         let total_size = body_offset + size_bytes as usize;
         if self.buffer.len() < total_size {
-            return Ok((0, ZmtpCommand { name: String::new(), data: Vec::new() }));
+            return Ok((
+                0,
+                ZmtpCommand {
+                    name: String::new(),
+                    data: Vec::new(),
+                },
+            ));
         }
 
         // Parse command body
@@ -495,8 +519,8 @@ mod tests {
         // Create message frame split: header in first feed, body in second
         let body = b"test_message";
         let frame_header = vec![
-            0x00,               // flags: no more frames
-            body.len() as u8,   // size
+            0x00,             // flags: no more frames
+            body.len() as u8, // size
         ];
 
         // Feed header only
@@ -600,8 +624,8 @@ mod tests {
         // Now feed a valid message frame
         let body = b"recovered_message";
         let frame = vec![
-            0x00,               // flags: no more frames
-            body.len() as u8,   // size
+            0x00,             // flags: no more frames
+            body.len() as u8, // size
         ];
         let mut frame_data = frame.clone();
         frame_data.extend_from_slice(body);

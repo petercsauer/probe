@@ -9,7 +9,10 @@ fn test_default_config_has_sane_values() {
     assert_eq!(config.interface, "");
     assert_eq!(config.bpf_filter, None);
     assert_eq!(config.snaplen, 65535, "should capture full packets");
-    assert!(config.promisc, "promiscuous mode should be enabled by default");
+    assert!(
+        config.promisc,
+        "promiscuous mode should be enabled by default"
+    );
     assert!(
         config.immediate_mode,
         "immediate mode should be enabled by default"

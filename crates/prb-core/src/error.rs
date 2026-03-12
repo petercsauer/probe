@@ -31,4 +31,3 @@ pub enum CoreError {
     #[error("adapter error: {0}")]
     Adapter(String),
 }
-

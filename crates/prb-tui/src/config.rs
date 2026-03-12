@@ -121,7 +121,10 @@ impl ColorOverrides {
     }
 
     /// Create ColorOverrides from a ThemeConfig (for saving custom themes)
-    pub fn from_theme(theme: &crate::theme::ThemeConfig, base_theme: &crate::theme::ThemeConfig) -> Option<Self> {
+    pub fn from_theme(
+        theme: &crate::theme::ThemeConfig,
+        base_theme: &crate::theme::ThemeConfig,
+    ) -> Option<Self> {
         let mut overrides = ColorOverrides {
             selected_row_fg: None,
             selected_row_bg: None,
@@ -204,11 +207,7 @@ impl ColorOverrides {
             has_overrides = true;
         }
 
-        if has_overrides {
-            Some(overrides)
-        } else {
-            None
-        }
+        if has_overrides { Some(overrides) } else { None }
     }
 }
 
@@ -342,17 +341,15 @@ impl Config {
         if let Some(path) = config_path {
             if path.exists() {
                 match fs::read_to_string(&path) {
-                    Ok(contents) => {
-                        match toml::from_str::<Config>(&contents) {
-                            Ok(config) => {
-                                tracing::debug!("Loaded config from {:?}", path);
-                                return config;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to parse config file {:?}: {}", path, e);
-                            }
+                    Ok(contents) => match toml::from_str::<Config>(&contents) {
+                        Ok(config) => {
+                            tracing::debug!("Loaded config from {:?}", path);
+                            return config;
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!("Failed to parse config file {:?}: {}", path, e);
+                        }
+                    },
                     Err(e) => {
                         tracing::warn!("Failed to read config file {:?}: {}", path, e);
                     }

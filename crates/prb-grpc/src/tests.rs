@@ -1,7 +1,7 @@
 //! Integration tests for gRPC decoder.
 
 use crate::decoder::GrpcDecoder;
-use prb_core::{DecodeContext, ProtocolDecoder, METADATA_KEY_GRPC_METHOD};
+use prb_core::{DecodeContext, METADATA_KEY_GRPC_METHOD, ProtocolDecoder};
 
 // Helper function to create test HTTP/2 frames
 fn create_http2_preface() -> Vec<u8> {
@@ -29,7 +29,7 @@ fn create_headers_frame(stream_id: u32, headers: &[(&str, &str)], end_stream: bo
         ((payload.len() >> 16) & 0xFF) as u8, // Length (24-bit big-endian)
         ((payload.len() >> 8) & 0xFF) as u8,
         (payload.len() & 0xFF) as u8,
-        0x01, // Type (HEADERS = 0x01)
+        0x01,  // Type (HEADERS = 0x01)
         flags, // Flags
     ];
     // Stream ID (31-bit)
@@ -46,7 +46,7 @@ fn create_data_frame(stream_id: u32, data: &[u8], end_stream: bool) -> Vec<u8> {
         ((data.len() >> 16) & 0xFF) as u8, // Length (24-bit big-endian)
         ((data.len() >> 8) & 0xFF) as u8,
         (data.len() & 0xFF) as u8,
-        0x00, // Type (DATA = 0x00)
+        0x00,  // Type (DATA = 0x00)
         flags, // Flags
     ];
     // Stream ID (31-bit)
@@ -130,11 +130,13 @@ fn test_grpc_simple_unary_call() {
     // Verify request event
     let request_event = &events[0];
     assert_eq!(request_event.transport, prb_core::TransportKind::Grpc);
-    assert!(request_event
-        .metadata
-        .get(METADATA_KEY_GRPC_METHOD)
-        .unwrap()
-        .contains("Method"));
+    assert!(
+        request_event
+            .metadata
+            .get(METADATA_KEY_GRPC_METHOD)
+            .unwrap()
+            .contains("Method")
+    );
 
     // Verify response event
     let response_event = &events[1];
@@ -143,8 +145,8 @@ fn test_grpc_simple_unary_call() {
 
 #[test]
 fn test_grpc_compressed_message() {
-    use flate2::write::GzEncoder;
     use flate2::Compression;
+    use flate2::write::GzEncoder;
     use std::io::Write;
 
     let mut decoder = GrpcDecoder::new();
@@ -236,10 +238,7 @@ fn test_grpc_streaming() {
     stream.extend_from_slice(&create_data_frame(1, &grpc_request, true));
 
     // Response HEADERS (stream 1)
-    let response_headers = vec![
-        (":status", "200"),
-        ("content-type", "application/grpc"),
-    ];
+    let response_headers = vec![(":status", "200"), ("content-type", "application/grpc")];
     stream.extend_from_slice(&create_headers_frame(1, &response_headers, false));
 
     // Multiple response DATA frames (streaming responses)
@@ -407,8 +406,11 @@ fn test_grpc_multi_frame_message() {
     // Split gRPC message across 3 DATA frames
     let request_payload = b"this_is_a_long_payload_that_spans_multiple_frames";
     let grpc_header = vec![
-        0u8,                                              // Not compressed
-        0, 0, 0, request_payload.len() as u8, // Length
+        0u8, // Not compressed
+        0,
+        0,
+        0,
+        request_payload.len() as u8, // Length
     ];
 
     // Frame 1: LPM header + first 10 bytes
@@ -549,7 +551,10 @@ fn test_h2_continuation_frame() {
 
     // Should successfully reassemble fragmented headers
     let events = decoder.decode_stream(&stream, &ctx).unwrap();
-    assert!(!events.is_empty(), "Should produce events from CONTINUATION frames");
+    assert!(
+        !events.is_empty(),
+        "Should produce events from CONTINUATION frames"
+    );
 
     // Verify the request has the gRPC method from the fragmented headers
     if let Some(event) = events.first() {
@@ -572,8 +577,8 @@ fn test_h2_unknown_frame_skip() {
     // Insert unknown frame type (0xFF)
     let unknown_frame = vec![
         0x00, 0x00, 0x08, // Length
-        0xFF,             // Unknown type
-        0x00,             // Flags
+        0xFF, // Unknown type
+        0x00, // Flags
         0x00, 0x00, 0x00, 0x00, // Stream ID
         0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, // Payload
     ];
@@ -595,7 +600,10 @@ fn test_h2_unknown_frame_skip() {
 
     // Should skip unknown frame and still parse valid frames
     let events = decoder.decode_stream(&stream, &ctx).unwrap();
-    assert!(!events.is_empty(), "Should produce events despite unknown frame");
+    assert!(
+        !events.is_empty(),
+        "Should produce events despite unknown frame"
+    );
 }
 
 #[test]
@@ -640,7 +648,10 @@ fn test_h2_padded_data_frame() {
 
     // Should handle padding correctly
     let events = decoder.decode_stream(&stream, &ctx).unwrap();
-    assert!(!events.is_empty(), "Should produce events from padded DATA frame");
+    assert!(
+        !events.is_empty(),
+        "Should produce events from padded DATA frame"
+    );
 }
 
 #[test]
@@ -658,23 +669,26 @@ fn test_h2_empty_headers_frame() {
     // Empty HEADERS frame
     let empty_headers = vec![
         0x00, 0x00, 0x00, // Length = 0
-        0x01,             // Type (HEADERS)
-        0x05,             // Flags (END_STREAM | END_HEADERS)
+        0x01, // Type (HEADERS)
+        0x05, // Flags (END_STREAM | END_HEADERS)
         0x00, 0x00, 0x00, 0x01, // Stream ID = 1
     ];
     stream.extend_from_slice(&empty_headers);
 
     // Should handle empty headers gracefully
     let result = decoder.decode_stream(&stream, &ctx);
-    assert!(result.is_ok(), "Should handle empty HEADERS frame gracefully");
+    assert!(
+        result.is_ok(),
+        "Should handle empty HEADERS frame gracefully"
+    );
 }
 
 #[test]
 fn test_lpm_compressed_gzip_roundtrip() {
     // Test gzip compression/decompression roundtrip
     use crate::lpm::{CompressionAlgorithm, LpmParser};
-    use flate2::write::GzEncoder;
     use flate2::Compression;
+    use flate2::write::GzEncoder;
     use std::io::Write;
 
     let original_payload = b"test_payload_for_gzip_compression";
@@ -694,15 +708,19 @@ fn test_lpm_compressed_gzip_roundtrip() {
     let messages = parser.feed(&data).unwrap();
 
     assert_eq!(messages.len(), 1, "Should parse one message");
-    assert_eq!(&messages[0].payload[..], original_payload, "Gzip roundtrip should preserve data");
+    assert_eq!(
+        &messages[0].payload[..],
+        original_payload,
+        "Gzip roundtrip should preserve data"
+    );
 }
 
 #[test]
 fn test_lpm_compressed_zlib_roundtrip() {
     // Test zlib compression/decompression (WS-2.7 - gRPC "deflate" uses zlib, not raw deflate)
     use crate::lpm::{CompressionAlgorithm, LpmParser};
-    use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use flate2::write::ZlibEncoder;
     use std::io::Write;
 
     let original_payload = b"test_payload_for_zlib_compression";
@@ -722,7 +740,11 @@ fn test_lpm_compressed_zlib_roundtrip() {
     let messages = parser.feed(&data).unwrap();
 
     assert_eq!(messages.len(), 1, "Should parse one message");
-    assert_eq!(&messages[0].payload[..], original_payload, "Zlib roundtrip should preserve data");
+    assert_eq!(
+        &messages[0].payload[..],
+        original_payload,
+        "Zlib roundtrip should preserve data"
+    );
 }
 
 #[test]
@@ -756,7 +778,11 @@ fn test_lpm_max_message_size() {
     let messages = parser.feed(&data).unwrap();
 
     assert_eq!(messages.len(), 1, "Should parse large message");
-    assert_eq!(messages[0].payload.len(), 1024 * 1024, "Payload should be 1MB");
+    assert_eq!(
+        messages[0].payload.len(),
+        1024 * 1024,
+        "Payload should be 1MB"
+    );
 }
 
 #[test]
@@ -786,10 +812,7 @@ fn test_grpc_direction_inference() {
     stream.extend_from_slice(&create_data_frame(1, &grpc_request, true));
 
     // Response headers (no :method)
-    let response_headers = vec![
-        (":status", "200"),
-        ("content-type", "application/grpc"),
-    ];
+    let response_headers = vec![(":status", "200"), ("content-type", "application/grpc")];
     stream.extend_from_slice(&create_headers_frame(1, &response_headers, false));
 
     let response_payload = b"response_data";
@@ -862,13 +885,15 @@ fn test_grpc_correlation_by_stream_id() {
     assert!(events.len() >= 2, "Should have events from both streams");
 
     // Check stream IDs in metadata
-    let stream1_events: Vec<_> = events.iter().filter(|e|
-        e.metadata.get("h2.stream_id") == Some(&"1".to_string())
-    ).collect();
+    let stream1_events: Vec<_> = events
+        .iter()
+        .filter(|e| e.metadata.get("h2.stream_id") == Some(&"1".to_string()))
+        .collect();
 
-    let stream3_events: Vec<_> = events.iter().filter(|e|
-        e.metadata.get("h2.stream_id") == Some(&"3".to_string())
-    ).collect();
+    let stream3_events: Vec<_> = events
+        .iter()
+        .filter(|e| e.metadata.get("h2.stream_id") == Some(&"3".to_string()))
+        .collect();
 
     assert!(!stream1_events.is_empty(), "Should have stream 1 events");
     assert!(!stream3_events.is_empty(), "Should have stream 3 events");

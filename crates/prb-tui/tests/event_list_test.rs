@@ -2,7 +2,9 @@
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
 use prb_tui::panes::event_list::{EventListPane, SortColumn};
@@ -72,8 +74,22 @@ fn test_event_list_pane_default() {
 #[test]
 fn test_event_list_handle_key_down() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -82,9 +98,9 @@ fn test_event_list_handle_key_down() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -98,8 +114,22 @@ fn test_event_list_handle_key_down() {
 #[test]
 fn test_event_list_handle_key_up() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -108,9 +138,9 @@ fn test_event_list_handle_key_up() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -125,8 +155,22 @@ fn test_event_list_handle_key_up() {
 #[test]
 fn test_event_list_handle_key_vim_j_k() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -135,9 +179,9 @@ fn test_event_list_handle_key_vim_j_k() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -156,9 +200,30 @@ fn test_event_list_handle_key_vim_j_k() {
 #[test]
 fn test_event_list_handle_key_home_end() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
-        make_test_event_with_network(3, 3_000_000_000, TransportKind::DdsRtps, "10.0.0.3", "10.0.0.4", Direction::Inbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
+        make_test_event_with_network(
+            3,
+            3_000_000_000,
+            TransportKind::DdsRtps,
+            "10.0.0.3",
+            "10.0.0.4",
+            Direction::Inbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -167,9 +232,9 @@ fn test_event_list_handle_key_home_end() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -190,9 +255,30 @@ fn test_event_list_handle_key_home_end() {
 #[test]
 fn test_event_list_handle_key_vim_g_g() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
-        make_test_event_with_network(3, 3_000_000_000, TransportKind::DdsRtps, "10.0.0.3", "10.0.0.4", Direction::Inbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
+        make_test_event_with_network(
+            3,
+            3_000_000_000,
+            TransportKind::DdsRtps,
+            "10.0.0.3",
+            "10.0.0.4",
+            Direction::Inbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -201,9 +287,9 @@ fn test_event_list_handle_key_vim_g_g() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -223,14 +309,16 @@ fn test_event_list_handle_key_vim_g_g() {
 #[test]
 fn test_event_list_handle_key_pagedown_pageup() {
     let events: Vec<_> = (0..50)
-        .map(|i| make_test_event_with_network(
-            i,
-            i * 1_000_000_000,
-            TransportKind::Grpc,
-            "10.0.0.1",
-            "10.0.0.2",
-            Direction::Inbound,
-        ))
+        .map(|i| {
+            make_test_event_with_network(
+                i,
+                i * 1_000_000_000,
+                TransportKind::Grpc,
+                "10.0.0.1",
+                "10.0.0.2",
+                Direction::Inbound,
+            )
+        })
         .collect();
     let store = EventStore::new(events);
     let state = AppState {
@@ -239,9 +327,9 @@ fn test_event_list_handle_key_pagedown_pageup() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -259,9 +347,14 @@ fn test_event_list_handle_key_pagedown_pageup() {
 
 #[test]
 fn test_event_list_handle_key_sort_toggle() {
-    let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-    ];
+    let events = vec![make_test_event_with_network(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1",
+        "10.0.0.2",
+        Direction::Inbound,
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -269,9 +362,9 @@ fn test_event_list_handle_key_sort_toggle() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -302,9 +395,9 @@ fn test_event_list_handle_key_empty_store() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -318,8 +411,22 @@ fn test_event_list_handle_key_empty_store() {
 #[test]
 fn test_event_list_handle_key_boundaries() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -328,9 +435,9 @@ fn test_event_list_handle_key_boundaries() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -351,8 +458,22 @@ fn test_event_list_handle_key_boundaries() {
 #[test]
 fn test_event_list_render_with_events() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -361,15 +482,21 @@ fn test_event_list_render_with_events() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
 
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render without panic and have content
     let mut has_content = false;
@@ -393,15 +520,21 @@ fn test_event_list_render_empty() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render without panic
     // Check for "No events" or "Empty" message
@@ -416,15 +549,39 @@ fn test_event_list_render_empty() {
         }
     }
     // Should show some message or at least the pane border
-    assert!(found_message || buffer[(0, 0)].symbol() != " ", "Should show something");
+    assert!(
+        found_message || buffer[(0, 0)].symbol() != " ",
+        "Should show something"
+    );
 }
 
 #[test]
 fn test_event_list_sorting_by_different_columns() {
     let events = vec![
-        make_test_event_with_network(3, 3_000_000_000, TransportKind::DdsRtps, "192.168.1.3", "192.168.1.1", Direction::Inbound),
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "192.168.1.1", "192.168.1.2", Direction::Outbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "192.168.1.2", "192.168.1.3", Direction::Inbound),
+        make_test_event_with_network(
+            3,
+            3_000_000_000,
+            TransportKind::DdsRtps,
+            "192.168.1.3",
+            "192.168.1.1",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "192.168.1.1",
+            "192.168.1.2",
+            Direction::Outbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "192.168.1.2",
+            "192.168.1.3",
+            Direction::Inbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -433,9 +590,9 @@ fn test_event_list_sorting_by_different_columns() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
@@ -443,27 +600,57 @@ fn test_event_list_sorting_by_different_columns() {
     // Sort by ID
     pane.sort_column = SortColumn::Id;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Sort by Protocol
     pane.sort_column = SortColumn::Protocol;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Sort by Source
     pane.sort_column = SortColumn::Source;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Sort by Dest
     pane.sort_column = SortColumn::Dest;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Sort by Direction
     pane.sort_column = SortColumn::Dir;
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // All should render without panic
 }
@@ -471,8 +658,22 @@ fn test_event_list_sorting_by_different_columns() {
 #[test]
 fn test_event_list_sort_reversed() {
     let events = vec![
-        make_test_event_with_network(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1", "10.0.0.2", Direction::Inbound),
-        make_test_event_with_network(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2", "10.0.0.3", Direction::Outbound),
+        make_test_event_with_network(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1",
+            "10.0.0.2",
+            Direction::Inbound,
+        ),
+        make_test_event_with_network(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2",
+            "10.0.0.3",
+            Direction::Outbound,
+        ),
     ];
     let store = EventStore::new(events);
     let state = AppState {
@@ -481,16 +682,22 @@ fn test_event_list_sort_reversed() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = EventListPane::new();
     pane.sort_reversed = true;
 
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 20));
-    pane.render(Rect::new(0, 0, 120, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render without panic with reversed sort
 }

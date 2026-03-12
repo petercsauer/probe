@@ -12,10 +12,7 @@ fn test_load_events_nonexistent_file() {
 
 #[test]
 fn test_load_events_empty_json() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
     writeln!(temp_file, r#"{{"events": []}}"#).unwrap();
     temp_file.flush().unwrap();
 
@@ -25,10 +22,7 @@ fn test_load_events_empty_json() {
 
 #[test]
 fn test_load_events_malformed_json() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
     writeln!(temp_file, r#"{{ invalid json"#).unwrap();
     temp_file.flush().unwrap();
 
@@ -40,10 +34,7 @@ fn test_load_events_malformed_json() {
 
 #[test]
 fn test_load_events_json_with_single_event() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
 
     let json_content = r#"{
         "events": [
@@ -74,10 +65,7 @@ fn test_load_events_json_with_single_event() {
 
 #[test]
 fn test_load_events_pcap_nonexistent() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".pcap")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".pcap").tempfile().unwrap();
 
     // Write invalid PCAP header
     temp_file.write_all(&[0x00, 0x01, 0x02, 0x03]).unwrap();
@@ -91,13 +79,12 @@ fn test_load_events_pcap_nonexistent() {
 
 #[test]
 fn test_load_events_mcap_empty() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".mcap")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".mcap").tempfile().unwrap();
 
     // Write MCAP magic bytes only
-    temp_file.write_all(&[0x89, b'M', b'C', b'A', b'P', 0x30, 0x0D, 0x0A]).unwrap();
+    temp_file
+        .write_all(&[0x89, b'M', b'C', b'A', b'P', 0x30, 0x0D, 0x0A])
+        .unwrap();
     temp_file.flush().unwrap();
 
     // Should attempt to load as MCAP
@@ -123,10 +110,7 @@ fn test_load_events_unknown_extension() {
 
 #[test]
 fn test_load_events_json_extension_with_pcap_magic() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
 
     // Write PCAP magic but with .json extension
     temp_file.write_all(&[0xd4, 0xc3, 0xb2, 0xa1]).unwrap();
@@ -140,10 +124,7 @@ fn test_load_events_json_extension_with_pcap_magic() {
 
 #[test]
 fn test_load_events_empty_file_with_json_extension() {
-    let temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
 
     // Empty file with .json extension
     let result = load_events(temp_file.path(), None);
@@ -172,10 +153,7 @@ fn test_load_events_pcapng_magic() {
 
 #[test]
 fn test_load_events_json_array_format() {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".json")
-        .tempfile()
-        .unwrap();
+    let mut temp_file = tempfile::Builder::new().suffix(".json").tempfile().unwrap();
 
     // JSON array start (different from object)
     writeln!(temp_file, "[]").unwrap();

@@ -4,9 +4,11 @@ mod buf_helpers;
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
-use prb_tui::event_store::EventStore;
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::App;
+use prb_tui::event_store::EventStore;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -45,9 +47,13 @@ fn make_test_event(
 
 #[test]
 fn test_ai_panel_toggle_open_with_a_key() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -72,9 +78,13 @@ fn test_ai_panel_toggle_open_with_a_key() {
 
 #[test]
 fn test_ai_panel_toggle_close_with_a_key() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -104,9 +114,13 @@ fn test_ai_panel_toggle_close_with_a_key() {
 
 #[test]
 fn test_ai_panel_close_with_escape() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -135,9 +149,13 @@ fn test_ai_panel_close_with_escape() {
 #[test]
 fn test_ai_panel_no_event_selected() {
     // Create app with no selection
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -155,9 +173,13 @@ fn test_ai_panel_no_event_selected() {
 
 #[test]
 fn test_ai_panel_render_overlay_centered() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -184,9 +206,13 @@ fn test_ai_panel_render_overlay_centered() {
 
 #[test]
 fn test_ai_panel_multiple_toggle_cycles() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -214,9 +240,13 @@ fn test_ai_panel_multiple_toggle_cycles() {
 
 #[test]
 fn test_ai_panel_escape_priority_over_other_overlays() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -229,7 +259,10 @@ fn test_ai_panel_escape_priority_over_other_overlays() {
     let mut buffer = Buffer::empty(area);
     app.test_render_to_buffer(area, &mut buffer);
     let status_open = row_text(&buffer, area.height - 1);
-    assert!(status_open.contains("AI EXPLAIN"), "AI panel should be open");
+    assert!(
+        status_open.contains("AI EXPLAIN"),
+        "AI panel should be open"
+    );
 
     // Press Escape - should close AI panel
     let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
@@ -279,9 +312,13 @@ fn test_ai_panel_with_different_event_types() {
 
 #[test]
 fn test_ai_panel_render_small_terminal() {
-    let events = vec![
-        make_test_event(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-    ];
+    let events = vec![make_test_event(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 

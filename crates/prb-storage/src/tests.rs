@@ -4,7 +4,7 @@ use super::*;
 use prb_core::{DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind};
 use prb_schema::SchemaRegistry;
 use prost::Message as ProstMessage;
-use prost_types::{FileDescriptorProto, FileDescriptorSet, DescriptorProto, FieldDescriptorProto};
+use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet};
 use std::fs::File;
 use tempfile::TempDir;
 
@@ -264,10 +264,14 @@ fn test_schema_roundtrip_mcap() {
 
     // Verify schemas were recovered
     let messages_after = extracted_registry.list_messages();
-    assert!(messages_after.iter().any(|m| m == "test.TestMessage1"),
-        "TestMessage1 should be found after extraction");
-    assert!(messages_after.iter().any(|m| m == "test.TestMessage2"),
-        "TestMessage2 should be found after extraction");
+    assert!(
+        messages_after.iter().any(|m| m == "test.TestMessage1"),
+        "TestMessage1 should be found after extraction"
+    );
+    assert!(
+        messages_after.iter().any(|m| m == "test.TestMessage2"),
+        "TestMessage2 should be found after extraction"
+    );
 
     // Verify we can look up messages
     let msg1 = extracted_registry.get_message("test.TestMessage1");
@@ -305,7 +309,9 @@ fn test_reader_metadata_missing() {
     {
         let file = File::create(&session_path).unwrap();
         let mut writer = SessionWriter::new(file, SessionMetadata::new()).unwrap();
-        writer.write_event(&create_test_event("test", "test.pcap", 1000)).unwrap();
+        writer
+            .write_event(&create_test_event("test", "test.pcap", 1000))
+            .unwrap();
         writer.finish().unwrap();
     }
 
@@ -327,10 +333,14 @@ fn test_channel_info_details() {
 
         // Write different numbers of events to different sources
         for i in 0..5 {
-            writer.write_event(&create_test_event("pcap", "source1.pcap", i)).unwrap();
+            writer
+                .write_event(&create_test_event("pcap", "source1.pcap", i))
+                .unwrap();
         }
         for i in 0..15 {
-            writer.write_event(&create_test_event("pcap", "source2.pcap", i)).unwrap();
+            writer
+                .write_event(&create_test_event("pcap", "source2.pcap", i))
+                .unwrap();
         }
 
         writer.finish().unwrap();

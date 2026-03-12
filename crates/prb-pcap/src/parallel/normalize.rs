@@ -6,7 +6,9 @@
 //! the stateful defragmentation pool.
 
 use crate::error::PcapError;
-use crate::normalize::{normalize_stateless, NormalizeResult, OwnedNormalizedPacket, PacketNormalizer};
+use crate::normalize::{
+    NormalizeResult, OwnedNormalizedPacket, PacketNormalizer, normalize_stateless,
+};
 use crate::reader::PcapPacket;
 use rayon::prelude::*;
 
@@ -195,7 +197,7 @@ mod tests {
     #[test]
     fn test_normalize_stateless_fragment_detected() {
         // Create a fragmented IPv4 packet using etherparse
-        use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header};
+        use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header};
 
         let mut data = Vec::new();
 
@@ -210,12 +212,13 @@ mod tests {
         // IPv4 header with MF (More Fragments) flag set
         // Use 60 bytes of payload to meet minimum ethernet frame requirements
         let mut ip_header = Ipv4Header::new(
-            60,  // payload length
-            64,  // TTL
+            60, // payload length
+            64, // TTL
             IpNumber::TCP,
-            [192, 168, 1, 1],  // src
-            [10, 0, 0, 1],     // dst
-        ).unwrap();
+            [192, 168, 1, 1], // src
+            [10, 0, 0, 1],    // dst
+        )
+        .unwrap();
 
         // Set the More Fragments flag (bit 13 in flags+fragment_offset)
         ip_header.more_fragments = true;
@@ -257,8 +260,8 @@ mod tests {
         assert!(matches!(result.unwrap(), NormalizeResult::Packet(_)));
 
         // Test Raw IP (linktype 101)
-        let builder = PacketBuilder::ipv4([192, 168, 1, 1], [10, 0, 0, 1], 64)
-            .tcp(12345, 80, 1000, 4096);
+        let builder =
+            PacketBuilder::ipv4([192, 168, 1, 1], [10, 0, 0, 1], 64).tcp(12345, 80, 1000, 4096);
         let mut raw_ip_data = Vec::new();
         builder.write(&mut raw_ip_data, b"raw ip test").unwrap();
 

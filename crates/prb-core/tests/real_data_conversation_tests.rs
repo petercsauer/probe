@@ -2,9 +2,7 @@
 //!
 //! Tests the conversation engine end-to-end with real protocol captures.
 
-use prb_core::{
-    CaptureAdapter, ConversationEngine, DebugEvent, TransportKind,
-};
+use prb_core::{CaptureAdapter, ConversationEngine, DebugEvent, TransportKind};
 use prb_pcap::PcapCaptureAdapter;
 use std::path::PathBuf;
 
@@ -18,10 +16,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn collect_ok_events(adapter: &mut PcapCaptureAdapter) -> Vec<DebugEvent> {
-    adapter
-        .ingest()
-        .filter_map(|r| r.ok())
-        .collect()
+    adapter.ingest().filter_map(|r| r.ok()).collect()
 }
 
 #[test]
@@ -37,7 +32,10 @@ fn test_http_conversation_reconstruction() {
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
     let events = collect_ok_events(&mut adapter);
 
-    assert!(!events.is_empty(), "Should produce events from HTTP capture");
+    assert!(
+        !events.is_empty(),
+        "Should produce events from HTTP capture"
+    );
 
     // Note: ConversationEngine requires registered strategies
     // For this test, we're validating that events are produced and parseable
@@ -95,7 +93,10 @@ fn test_grpc_conversation_reconstruction() {
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
     let events = collect_ok_events(&mut adapter);
 
-    assert!(!events.is_empty(), "Should produce events from gRPC capture");
+    assert!(
+        !events.is_empty(),
+        "Should produce events from gRPC capture"
+    );
 
     let engine = ConversationEngine::new();
     let result = engine.build_conversations(&events);
@@ -252,10 +253,7 @@ fn test_conversation_stats_aggregation() {
     let stats = conv_set.stats();
 
     // Should have protocol counts
-    assert!(
-        stats.total > 0,
-        "Should have at least one conversation"
-    );
+    assert!(stats.total > 0, "Should have at least one conversation");
 
     // Should match conversation count
     assert_eq!(

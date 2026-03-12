@@ -185,14 +185,20 @@ impl TlsKeyLog {
             }
         };
 
-        self.keys.entry(client_random).or_default().push(key_material);
+        self.keys
+            .entry(client_random)
+            .or_default()
+            .push(key_material);
         Ok(())
     }
 
     /// Inserts key material for a client_random.
     /// Multiple keys can exist for the same client_random (e.g., TLS 1.3 client + server secrets).
     pub fn insert(&mut self, client_random: Vec<u8>, key_material: KeyMaterial) {
-        self.keys.entry(client_random).or_default().push(key_material);
+        self.keys
+            .entry(client_random)
+            .or_default()
+            .push(key_material);
     }
 
     /// Looks up all key material by client_random.
@@ -218,12 +224,12 @@ impl TlsKeyLog {
 
         // For TLS 1.3, select based on direction
         match direction {
-            crate::tcp::StreamDirection::ClientToServer => {
-                materials.iter().find(|m| matches!(m, KeyMaterial::ClientTrafficSecret0(_)))
-            }
-            crate::tcp::StreamDirection::ServerToClient => {
-                materials.iter().find(|m| matches!(m, KeyMaterial::ServerTrafficSecret0(_)))
-            }
+            crate::tcp::StreamDirection::ClientToServer => materials
+                .iter()
+                .find(|m| matches!(m, KeyMaterial::ClientTrafficSecret0(_))),
+            crate::tcp::StreamDirection::ServerToClient => materials
+                .iter()
+                .find(|m| matches!(m, KeyMaterial::ServerTrafficSecret0(_))),
         }
     }
 

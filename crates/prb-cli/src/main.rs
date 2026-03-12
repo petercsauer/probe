@@ -5,7 +5,7 @@
 use anyhow::Result;
 use clap::Parser;
 use prb_cli::{cli, commands};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 fn main() -> Result<()> {
     // Parse CLI arguments first to check if we're in TUI mode

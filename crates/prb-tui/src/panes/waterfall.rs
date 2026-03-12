@@ -4,7 +4,9 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget};
+use ratatui::widgets::{
+    Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
+};
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
@@ -96,17 +98,17 @@ impl WaterfallPane {
                     .event_ids
                     .iter()
                     .any(|event_id| filtered_event_ids.contains(event_id));
-                if has_filtered_event {
-                    Some(idx)
-                } else {
-                    None
-                }
+                if has_filtered_event { Some(idx) } else { None }
             })
             .collect()
     }
 
     /// Sort conversations according to current sort mode
-    fn sort_conversations(&self, conversations: &[Conversation], filtered_indices: &[usize]) -> Vec<usize> {
+    fn sort_conversations(
+        &self,
+        conversations: &[Conversation],
+        filtered_indices: &[usize],
+    ) -> Vec<usize> {
         let mut indices = filtered_indices.to_vec();
 
         indices.sort_by(|&a, &b| {
@@ -137,7 +139,10 @@ impl WaterfallPane {
     }
 
     /// Compute time range from conversations at given indices
-    fn compute_time_range_filtered(conversations: &[Conversation], indices: &[usize]) -> Option<(u64, u64)> {
+    fn compute_time_range_filtered(
+        conversations: &[Conversation],
+        indices: &[usize],
+    ) -> Option<(u64, u64)> {
         if indices.is_empty() {
             return None;
         }
@@ -179,8 +184,16 @@ impl WaterfallPane {
         is_selected: bool,
         _theme: &ThemeConfig,
     ) -> (String, Style) {
-        let start_time = conv.metrics.start_time.map(|t| t.as_nanos()).unwrap_or(min_time);
-        let end_time = conv.metrics.end_time.map(|t| t.as_nanos()).unwrap_or(start_time);
+        let start_time = conv
+            .metrics
+            .start_time
+            .map(|t| t.as_nanos())
+            .unwrap_or(min_time);
+        let end_time = conv
+            .metrics
+            .end_time
+            .map(|t| t.as_nanos())
+            .unwrap_or(start_time);
 
         // Calculate positions
         let rel_start = start_time.saturating_sub(min_time);
@@ -233,11 +246,13 @@ impl WaterfallPane {
 
         // Determine style based on conversation state
         let style = if conv.state == ConversationState::Error {
-            Style::default().fg(Color::Red).add_modifier(if is_selected {
-                Modifier::REVERSED
-            } else {
-                Modifier::empty()
-            })
+            Style::default()
+                .fg(Color::Red)
+                .add_modifier(if is_selected {
+                    Modifier::REVERSED
+                } else {
+                    Modifier::empty()
+                })
         } else {
             let proto_color = match conv.protocol {
                 prb_core::TransportKind::Grpc => Color::Cyan,
@@ -245,11 +260,13 @@ impl WaterfallPane {
                 prb_core::TransportKind::DdsRtps => Color::Magenta,
                 _ => Color::Gray,
             };
-            Style::default().fg(proto_color).add_modifier(if is_selected {
-                Modifier::REVERSED
-            } else {
-                Modifier::empty()
-            })
+            Style::default()
+                .fg(proto_color)
+                .add_modifier(if is_selected {
+                    Modifier::REVERSED
+                } else {
+                    Modifier::empty()
+                })
         };
 
         (bar, style)
@@ -342,7 +359,12 @@ impl WaterfallPane {
             );
             buf.set_string(area.x, y + 1, &breakdown, style);
         } else {
-            buf.set_string(area.x, y + 1, "TTFR: N/A  |  No timing breakdown available", style);
+            buf.set_string(
+                area.x,
+                y + 1,
+                "TTFR: N/A  |  No timing breakdown available",
+                style,
+            );
         }
 
         // Line 3: Request/Response counts, bytes, and status
@@ -422,7 +444,11 @@ impl PaneComponent for WaterfallPane {
                     if let Some(&first_event_id) = conv.event_ids.first() {
                         // Find the event index in the filtered indices
                         if let Some(pos) = state.filtered_indices.iter().position(|&idx| {
-                            state.store.get(idx).map(|e| e.id == first_event_id).unwrap_or(false)
+                            state
+                                .store
+                                .get(idx)
+                                .map(|e| e.id == first_event_id)
+                                .unwrap_or(false)
                         }) {
                             return Action::SelectEvent(pos);
                         }
@@ -455,7 +481,11 @@ impl PaneComponent for WaterfallPane {
         focused: bool,
     ) {
         let sort_indicator = if self.sort_ascending { "↑" } else { "↓" };
-        let title = format!(" Waterfall [Sort: {} {}] ", self.sort_mode.label(), sort_indicator);
+        let title = format!(
+            " Waterfall [Sort: {} {}] ",
+            self.sort_mode.label(),
+            sort_indicator
+        );
         let block = Block::default()
             .borders(Borders::ALL)
             .title(title)
@@ -508,7 +538,9 @@ impl PaneComponent for WaterfallPane {
         }
 
         // Compute time range from filtered conversations
-        let Some((min_time, max_time)) = Self::compute_time_range_filtered(conversations, &filtered_indices) else {
+        let Some((min_time, max_time)) =
+            Self::compute_time_range_filtered(conversations, &filtered_indices)
+        else {
             buf.set_string(
                 inner.x,
                 inner.y,
@@ -535,7 +567,9 @@ impl PaneComponent for WaterfallPane {
         let label_width = 25u16;
         let duration_width = 8u16;
         let error_label_width = 5u16;
-        let bar_width = inner.width.saturating_sub(label_width + duration_width + error_label_width + 3);
+        let bar_width = inner
+            .width
+            .saturating_sub(label_width + duration_width + error_label_width + 3);
 
         // Get sorted filtered indices
         let sorted_indices = self.sort_conversations(conversations, &filtered_indices);
@@ -579,14 +613,8 @@ impl PaneComponent for WaterfallPane {
             buf.set_string(inner.x, y, &method_display, label_style);
 
             // Render timing bar
-            let (bar, bar_style) = self.render_bar(
-                conv,
-                min_time,
-                time_range,
-                bar_width,
-                is_selected,
-                theme,
-            );
+            let (bar, bar_style) =
+                self.render_bar(conv, min_time, time_range, bar_width, is_selected, theme);
             buf.set_string(inner.x + label_width + 1, y, &bar, bar_style);
 
             // Render duration (right side)

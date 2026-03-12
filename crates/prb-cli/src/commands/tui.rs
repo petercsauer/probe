@@ -1,8 +1,8 @@
 use crate::cli::TuiArgs;
 use anyhow::{Context, Result};
 use prb_capture::{CaptureConfig, CaptureError, InterfaceEnumerator, LiveCaptureAdapter};
-use prb_tui::loader::{load_events, load_events_streaming, load_schemas, LoadEvent};
-use prb_tui::{generate_demo_events, App, EventStore, LiveDataSource};
+use prb_tui::loader::{LoadEvent, load_events, load_events_streaming, load_schemas};
+use prb_tui::{App, EventStore, LiveDataSource, generate_demo_events};
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -23,20 +23,24 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
         tracing::info!("Generated {} demo events", events.len());
         (EventStore::new(events), None, 0, None)
     } else {
-        let input = args.input.as_ref().context("Input file required (or use --demo or --interface)")?;
+        let input = args
+            .input
+            .as_ref()
+            .context("Input file required (or use --demo or --interface)")?;
         let path = std::path::PathBuf::from(input.as_str());
 
         // TLS keylog file (for pcap/pcapng decryption)
         let tls_keylog = args.tls_keylog.as_ref().map(|p| PathBuf::from(p.as_str()));
 
         // Check file size to decide whether to use streaming load
-        let file_size = std::fs::metadata(&path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
 
         // Use streaming load for files > 10MB or if they have > 10K estimated events
         let (store, tls_stats) = if file_size > 10 * 1024 * 1024 {
-            tracing::info!("Loading large file ({:.2} MB) with streaming...", file_size as f64 / (1024.0 * 1024.0));
+            tracing::info!(
+                "Loading large file ({:.2} MB) with streaming...",
+                file_size as f64 / (1024.0 * 1024.0)
+            );
             load_with_streaming(&path, tls_keylog)?
         } else {
             load_events(&path, tls_keylog).context("Failed to load events")?
@@ -55,32 +59,41 @@ pub fn run_tui(args: TuiArgs) -> Result<()> {
     }
 
     // Load schemas if provided (not applicable in demo mode)
-    let schema_registry = if !args.demo && (!args.proto.is_empty() || !args.descriptor_set.is_empty()) {
-        let input = args.input.as_ref().unwrap(); // Safe: we checked demo mode above
-        let path = std::path::PathBuf::from(input.as_str());
-        let proto_paths: Vec<std::path::PathBuf> = args.proto.iter().map(|p| p.as_std_path().to_path_buf()).collect();
-        let desc_paths: Vec<std::path::PathBuf> = args.descriptor_set.iter().map(|p| p.as_std_path().to_path_buf()).collect();
+    let schema_registry =
+        if !args.demo && (!args.proto.is_empty() || !args.descriptor_set.is_empty()) {
+            let input = args.input.as_ref().unwrap(); // Safe: we checked demo mode above
+            let path = std::path::PathBuf::from(input.as_str());
+            let proto_paths: Vec<std::path::PathBuf> = args
+                .proto
+                .iter()
+                .map(|p| p.as_std_path().to_path_buf())
+                .collect();
+            let desc_paths: Vec<std::path::PathBuf> = args
+                .descriptor_set
+                .iter()
+                .map(|p| p.as_std_path().to_path_buf())
+                .collect();
 
-        let mcap_path = if path.extension().and_then(|e| e.to_str()) == Some("mcap") {
-            Some(path.as_path())
+            let mcap_path = if path.extension().and_then(|e| e.to_str()) == Some("mcap") {
+                Some(path.as_path())
+            } else {
+                None
+            };
+
+            match load_schemas(&proto_paths, &desc_paths, mcap_path) {
+                Ok(registry) => {
+                    let msg_count = registry.list_messages().len();
+                    tracing::info!("Loaded schema registry with {} message types", msg_count);
+                    Some(registry)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load schemas: {}", e);
+                    None
+                }
+            }
         } else {
             None
         };
-
-        match load_schemas(&proto_paths, &desc_paths, mcap_path) {
-            Ok(registry) => {
-                let msg_count = registry.list_messages().len();
-                tracing::info!("Loaded schema registry with {} message types", msg_count);
-                Some(registry)
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load schemas: {}", e);
-                None
-            }
-        }
-    } else {
-        None
-    };
 
     let mut app = App::new(store, args.where_clause, schema_registry);
 
@@ -131,8 +144,11 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
             ref remediation,
         } => anyhow::anyhow!("{message}\n\n  {remediation}"),
         CaptureError::InterfaceNotFound(ref dev) => {
-            anyhow::anyhow!("Network interface '{}' not found.\n\n  Available interfaces:\n{}",
-                dev, format_available_interfaces())
+            anyhow::anyhow!(
+                "Network interface '{}' not found.\n\n  Available interfaces:\n{}",
+                dev,
+                format_available_interfaces()
+            )
         }
         _ => anyhow::anyhow!("{e}"),
     })?;
@@ -153,7 +169,10 @@ fn run_tui_live(interface: String, args: TuiArgs) -> Result<()> {
 }
 
 /// Load events with streaming and progress display.
-fn load_with_streaming(path: &std::path::Path, tls_keylog: Option<PathBuf>) -> Result<(EventStore, Option<prb_tui::loader::TlsStats>)> {
+fn load_with_streaming(
+    path: &std::path::Path,
+    tls_keylog: Option<PathBuf>,
+) -> Result<(EventStore, Option<prb_tui::loader::TlsStats>)> {
     let (tx, rx) = mpsc::channel();
 
     // Start streaming load in background thread
@@ -184,7 +203,12 @@ fn load_with_streaming(path: &std::path::Path, tls_keylog: Option<PathBuf>) -> R
             }
             Ok(LoadEvent::Progress { loaded, total }) => {
                 if let Some(t) = total {
-                    eprint!("\rLoading events... {}/{} ({:.1}%)", loaded, t, (loaded as f64 / t as f64) * 100.0);
+                    eprint!(
+                        "\rLoading events... {}/{} ({:.1}%)",
+                        loaded,
+                        t,
+                        (loaded as f64 / t as f64) * 100.0
+                    );
                 } else {
                     eprint!("\rLoading events... {} loaded", loaded);
                 }
@@ -211,24 +235,29 @@ fn load_with_streaming(path: &std::path::Path, tls_keylog: Option<PathBuf>) -> R
 
 /// Run TUI in diff mode comparing two captures.
 fn run_tui_diff(args: TuiArgs) -> Result<()> {
-    let file1 = args.input.as_ref()
+    let file1 = args
+        .input
+        .as_ref()
         .context("First file required for diff mode (use positional argument)")?;
-    let file2 = args.diff_file.as_ref()
+    let file2 = args
+        .diff_file
+        .as_ref()
         .context("Second file required for diff mode (use --diff-file)")?;
 
     let path1 = PathBuf::from(file1.as_str());
     let path2 = PathBuf::from(file2.as_str());
 
     tracing::info!("Loading first file: {:?}", path1);
-    let (store1, _) = load_events(&path1, None)
-        .context("Failed to load first file")?;
+    let (store1, _) = load_events(&path1, None).context("Failed to load first file")?;
 
     tracing::info!("Loading second file: {:?}", path2);
-    let (store2, _) = load_events(&path2, None)
-        .context("Failed to load second file")?;
+    let (store2, _) = load_events(&path2, None).context("Failed to load second file")?;
 
-    tracing::info!("Loaded {} events from file 1, {} from file 2",
-        store1.len(), store2.len());
+    tracing::info!(
+        "Loaded {} events from file 1, {} from file 2",
+        store1.len(),
+        store2.len()
+    );
 
     let mut app = App::new_diff(store1, store2, path1, path2);
     app.run()

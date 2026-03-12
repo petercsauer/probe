@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::ai_smart::{Anomaly, ProtocolHint};
@@ -75,7 +75,12 @@ impl AiPanel {
                     crate::ai_smart::AnomalySeverity::Medium => "🟡 MEDIUM",
                     crate::ai_smart::AnomalySeverity::Low => "🟢 LOW",
                 };
-                lines.push(format!("\n{}. {} [{}]", i + 1, anomaly.title, severity_marker));
+                lines.push(format!(
+                    "\n{}. {} [{}]",
+                    i + 1,
+                    anomaly.title,
+                    severity_marker
+                ));
                 lines.push(format!("   {}", anomaly.description));
                 if !anomaly.event_indices.is_empty() {
                     lines.push(format!("   Affects {} events", anomaly.event_indices.len()));
@@ -109,7 +114,12 @@ impl AiPanel {
         }
     }
 
-    pub fn start_explain(&mut self, event: &DebugEvent, all_events: &[DebugEvent], config: &prb_ai::AiConfig) {
+    pub fn start_explain(
+        &mut self,
+        event: &DebugEvent,
+        all_events: &[DebugEvent],
+        config: &prb_ai::AiConfig,
+    ) {
         // Check cache first
         if let Some(cached) = self.cached.get(&event.id) {
             self.content = cached.clone();
@@ -124,7 +134,10 @@ impl AiPanel {
         self.streaming = true;
 
         // Find the event index in all_events
-        let target_idx = all_events.iter().position(|e| e.id == event.id).unwrap_or(0);
+        let target_idx = all_events
+            .iter()
+            .position(|e| e.id == event.id)
+            .unwrap_or(0);
 
         // Create channel for streaming tokens
         let (tx, rx) = mpsc::unbounded_channel();
@@ -180,7 +193,7 @@ impl AiPanel {
                 } else if chunk.starts_with("\n[ERROR:") {
                     self.streaming = false;
                     self.stream_rx = None;
-                    self.error = Some(chunk[9..chunk.len()-1].to_string());
+                    self.error = Some(chunk[9..chunk.len() - 1].to_string());
                     break;
                 } else {
                     self.content.push_str(&chunk);
@@ -223,7 +236,14 @@ impl PaneComponent for AiPanel {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, _state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        _state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         let border_style = if focused {
             theme.focused_border()
         } else {

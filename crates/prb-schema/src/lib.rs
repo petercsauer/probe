@@ -7,5 +7,5 @@
 mod error;
 mod registry;
 
-pub use error::{SchemaError, Result};
+pub use error::{Result, SchemaError};
 pub use registry::SchemaRegistry;

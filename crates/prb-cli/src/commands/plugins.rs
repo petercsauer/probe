@@ -159,7 +159,9 @@ fn run_info(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<()>
 
             match builtin.protocol_id {
                 "grpc" => {
-                    println!("  Magic:      \"PRI * HTTP/2.0\\r\\n\\r\\nSM\\r\\n\\r\\n\" (HTTP/2 connection preface)");
+                    println!(
+                        "  Magic:      \"PRI * HTTP/2.0\\r\\n\\r\\nSM\\r\\n\\r\\n\" (HTTP/2 connection preface)"
+                    );
                     println!("  Ports:      50051, 443 (with TLS)");
                     println!("  Confidence: 0.95 (magic bytes), 0.5 (port only)");
                     println!();
@@ -243,29 +245,23 @@ fn run_install(
         "so" | "dylib" | "dll" => {
             println!("Validating native plugin...");
             let mut loader = NativePluginLoader::new();
-            let plugin = loader.load(path_std).context("Failed to load native plugin")?;
+            let plugin = loader
+                .load(path_std)
+                .context("Failed to load native plugin")?;
             let info = plugin.metadata().clone();
             let backend = PluginBackend::Native {
-                library: path_std
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
+                library: path_std.file_name().unwrap().to_str().unwrap().to_string(),
             };
             (backend, info)
         }
         "wasm" => {
             println!("Validating WASM plugin...");
             let mut loader = WasmPluginLoader::new();
-            let info = loader.load(path_std).context("Failed to load WASM plugin")?;
+            let info = loader
+                .load(path_std)
+                .context("Failed to load WASM plugin")?;
             let backend = PluginBackend::Wasm {
-                module: path_std
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
+                module: path_std.file_name().unwrap().to_str().unwrap().to_string(),
             };
             (backend, info)
         }
@@ -328,11 +324,7 @@ fn run_remove(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<(
     let dest_dir = dir.join(name);
 
     if !dest_dir.exists() {
-        anyhow::bail!(
-            "Plugin '{}' not found at {}",
-            name,
-            dest_dir.display()
-        );
+        anyhow::bail!("Plugin '{}' not found at {}", name, dest_dir.display());
     }
 
     println!("Removing plugin '{}' from {}...", name, dest_dir.display());

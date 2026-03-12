@@ -4,8 +4,8 @@ use bytes::Bytes;
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
-use prb_tui::panes::timeline::TimelinePane;
 use prb_tui::panes::PaneComponent;
+use prb_tui::panes::timeline::TimelinePane;
 use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -51,19 +51,25 @@ fn test_timeline_render_empty_store() {
     let store = EventStore::new(vec![]);
     let state = AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![],
         selected_event: None,
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render without panic
     // Check that the title "Timeline" is present
@@ -94,15 +100,21 @@ fn test_timeline_render_with_events() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render without panic and have some content
     let mut has_content = false;
@@ -127,20 +139,32 @@ fn test_timeline_render_focused_vs_unfocused() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
 
     // Render focused
     let mut buffer_focused = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_focused, &state, &ThemeConfig::dark(), true);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer_focused,
+        &state,
+        &ThemeConfig::dark(),
+        true,
+    );
 
     // Render unfocused
     let mut buffer_unfocused = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer_unfocused, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer_unfocused,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Both should render without panic
     // Border colors should differ (we can't easily test that in unit tests)
@@ -157,16 +181,22 @@ fn test_timeline_render_small_area() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
 
     // Very small area (should handle gracefully)
     let mut buffer = Buffer::empty(Rect::new(0, 0, 5, 2));
-    pane.render(Rect::new(0, 0, 5, 2), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 5, 2),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should not panic with small area
 }
@@ -186,15 +216,21 @@ fn test_timeline_render_with_multiple_transports() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 10));
 
-    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render protocol legend with multiple types
     // Check for numbers that would appear in counts
@@ -229,15 +265,21 @@ fn test_timeline_render_with_filter_active() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 10));
 
-    pane.render(Rect::new(0, 0, 120, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 120, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should show "(filtered)" indicator
     let mut found_filtered = false;
@@ -271,15 +313,21 @@ fn test_timeline_time_range_display() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should display time legend with HH:MM:SS format
     // Look for colons in the time display
@@ -353,9 +401,9 @@ fn test_format_time_legend_with_events() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -384,9 +432,9 @@ fn test_format_time_legend_with_filter() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -405,9 +453,9 @@ fn test_format_time_legend_empty_store() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let legend = prb_tui::panes::timeline::test_format_time_legend(&state, 80);
@@ -429,9 +477,9 @@ fn test_timeline_handle_key_unhandled() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();
@@ -458,9 +506,9 @@ fn test_timeline_handle_key_left_right() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = TimelinePane::new();

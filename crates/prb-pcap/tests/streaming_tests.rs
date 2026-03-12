@@ -87,12 +87,7 @@ fn test_streaming_partial_batch_flush() {
 #[test]
 fn test_streaming_multiple_batches() {
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        16,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -115,12 +110,7 @@ fn test_streaming_multiple_batches() {
 fn test_streaming_slow_sender() {
     // Simulate slow packet arrival
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        32,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(32, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -140,12 +130,7 @@ fn test_streaming_slow_sender() {
 fn test_streaming_fast_burst() {
     // Send a fast burst of packets
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        64,
-        4,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(64, 4, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -169,7 +154,7 @@ fn test_streaming_channel_capacity_respected() {
     // Verify bounded channels enforce backpressure
     let keylog = Arc::new(TlsKeyLog::new());
     let pipeline = StreamingPipeline::new(
-        8,  // Small batch
+        8, // Small batch
         2,
         PathBuf::from("/test.pcap"),
         keylog,
@@ -192,12 +177,7 @@ fn test_streaming_channel_capacity_respected() {
 #[test]
 fn test_streaming_stats_collection() {
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        16,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -220,12 +200,7 @@ fn test_streaming_stats_collection() {
 fn test_streaming_immediate_close() {
     // Close sender immediately without sending any packets
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        32,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(32, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -244,12 +219,7 @@ fn test_streaming_varying_shard_counts() {
     // Test with different shard counts
     for num_shards in [1, 2, 4, 8, 16] {
         let keylog = Arc::new(TlsKeyLog::new());
-        let pipeline = StreamingPipeline::new(
-            32,
-            num_shards,
-            PathBuf::from("/test.pcap"),
-            keylog,
-        );
+        let pipeline = StreamingPipeline::new(32, num_shards, PathBuf::from("/test.pcap"), keylog);
 
         let (tx, handle) = pipeline.start();
 
@@ -261,7 +231,12 @@ fn test_streaming_varying_shard_counts() {
         drop(tx);
 
         let events = handle.recv_all();
-        assert_eq!(events.len(), 100, "Shard count {} should produce 100 events", num_shards);
+        assert_eq!(
+            events.len(),
+            100,
+            "Shard count {} should produce 100 events",
+            num_shards
+        );
         assert_eq!(handle.num_shards(), num_shards);
     }
 }
@@ -270,12 +245,7 @@ fn test_streaming_varying_shard_counts() {
 fn test_streaming_recv_one_by_one() {
     // Test receiving events one by one instead of recv_all()
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        16,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -324,12 +294,7 @@ fn test_streaming_large_payloads() {
 fn test_streaming_interleaved_flows() {
     // Test with packets from multiple interleaved flows
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        32,
-        4,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(32, 4, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -353,12 +318,7 @@ fn test_streaming_interleaved_flows() {
 #[test]
 fn test_streaming_stats_snapshot_consistency() {
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        16,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 
@@ -383,12 +343,7 @@ fn test_streaming_stats_snapshot_consistency() {
 fn test_streaming_mixed_valid_invalid_packets() {
     // Mix valid and invalid (malformed) packets
     let keylog = Arc::new(TlsKeyLog::new());
-    let pipeline = StreamingPipeline::new(
-        16,
-        2,
-        PathBuf::from("/test.pcap"),
-        keylog,
-    );
+    let pipeline = StreamingPipeline::new(16, 2, PathBuf::from("/test.pcap"), keylog);
 
     let (tx, handle) = pipeline.start();
 

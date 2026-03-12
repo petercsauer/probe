@@ -51,7 +51,9 @@ pub fn grpc_status_explanation(code: u32) -> Option<&'static str> {
 /// connection state changes or errors.
 pub fn tcp_flag_explanation(flags: &str) -> Option<&'static str> {
     match flags {
-        "RST" | "R" => Some("Connection forcefully terminated. Causes: crashed server, firewall, port not listening"),
+        "RST" | "R" => Some(
+            "Connection forcefully terminated. Causes: crashed server, firewall, port not listening",
+        ),
         "FIN" | "F" => Some("Graceful connection close initiated"),
         "SYN" | "S" => Some("Connection establishment request"),
         "SYN-ACK" | "SA" => Some("Connection establishment acknowledgment"),
@@ -194,23 +196,41 @@ mod tests {
 
     #[test]
     fn test_tls_alert_description_common_alerts() {
-        assert_eq!(tls_alert_description(0), Some("close_notify — Connection closing normally"));
-        assert_eq!(tls_alert_description(40), Some("handshake_failure — No common cipher suite or parameters"));
-        assert_eq!(tls_alert_description(42), Some("bad_certificate — Certificate is corrupt"));
-        assert_eq!(tls_alert_description(45), Some("certificate_expired — Certificate has expired"));
-        assert_eq!(tls_alert_description(48), Some("unknown_ca — CA certificate not recognized"));
-        assert_eq!(tls_alert_description(70), Some("protocol_version — Protocol version not supported"));
+        assert_eq!(
+            tls_alert_description(0),
+            Some("close_notify — Connection closing normally")
+        );
+        assert_eq!(
+            tls_alert_description(40),
+            Some("handshake_failure — No common cipher suite or parameters")
+        );
+        assert_eq!(
+            tls_alert_description(42),
+            Some("bad_certificate — Certificate is corrupt")
+        );
+        assert_eq!(
+            tls_alert_description(45),
+            Some("certificate_expired — Certificate has expired")
+        );
+        assert_eq!(
+            tls_alert_description(48),
+            Some("unknown_ca — CA certificate not recognized")
+        );
+        assert_eq!(
+            tls_alert_description(70),
+            Some("protocol_version — Protocol version not supported")
+        );
     }
 
     #[test]
     fn test_tls_alert_description_all_rfc_alerts() {
         // Test a representative sample of all RFC-defined alerts
-        assert!(tls_alert_description(0).is_some());   // close_notify
-        assert!(tls_alert_description(10).is_some());  // unexpected_message
-        assert!(tls_alert_description(20).is_some());  // bad_record_mac
-        assert!(tls_alert_description(40).is_some());  // handshake_failure
-        assert!(tls_alert_description(80).is_some());  // internal_error
-        assert!(tls_alert_description(86).is_some());  // inappropriate_fallback
+        assert!(tls_alert_description(0).is_some()); // close_notify
+        assert!(tls_alert_description(10).is_some()); // unexpected_message
+        assert!(tls_alert_description(20).is_some()); // bad_record_mac
+        assert!(tls_alert_description(40).is_some()); // handshake_failure
+        assert!(tls_alert_description(80).is_some()); // internal_error
+        assert!(tls_alert_description(86).is_some()); // inappropriate_fallback
         assert!(tls_alert_description(112).is_some()); // unrecognized_name
         assert!(tls_alert_description(120).is_some()); // no_application_protocol
     }

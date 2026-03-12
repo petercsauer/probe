@@ -1,9 +1,7 @@
 //! Integration tests for export functionality.
 
 use bytes::Bytes;
-use prb_core::{
-    DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind,
-};
+use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufWriter, Write};
@@ -195,7 +193,10 @@ fn test_export_empty_events() {
     assert!(export_path.exists());
 
     let contents = fs::read_to_string(&export_path).unwrap();
-    assert!(!contents.is_empty(), "Empty export should still have headers");
+    assert!(
+        !contents.is_empty(),
+        "Empty export should still have headers"
+    );
 }
 
 #[test]

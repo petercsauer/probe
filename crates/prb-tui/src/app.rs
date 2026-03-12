@@ -3,26 +3,31 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{execute, event::EnableMouseCapture, event::DisableMouseCapture};
+use crossterm::{event::DisableMouseCapture, event::EnableMouseCapture, execute};
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use tokio::sync::mpsc;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Widget};
-use unicode_width::UnicodeWidthStr;
-use ratatui::Terminal;
-use tui_input::backend::crossterm::EventHandler;
+use tokio::sync::mpsc;
 use tui_input::Input;
+use tui_input::backend::crossterm::EventHandler;
+use unicode_width::UnicodeWidthStr;
 
 use crate::config::Config;
-use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
+use crate::filter_state::FilterState;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, ThemeEditorOverlay, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{
+    CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay,
+    PluginManagerOverlay, PluginType, ThemeEditorOverlay, WelcomeOverlay, WhichKeyOverlay,
+};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::conversation_list::ConversationListPane;
 use crate::panes::decode_tree::DecodeTreePane;
@@ -36,17 +41,17 @@ use crate::ring_buffer::RingBuffer;
 use crate::theme::ThemeConfig;
 
 use prb_capture::CaptureStats;
-use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
-use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue, LenValue};
+use prb_core::{DebugEvent, METADATA_KEY_GRPC_METHOD, Payload};
+use prb_dds::DdsCorrelationStrategy;
+use prb_decode::{LenValue, WireMessage, WireValue, decode_wire_format, decode_with_schema};
 use prb_export;
+use prb_grpc::GrpcCorrelationStrategy;
 use prb_plugin_native::NativePluginLoader;
 use prb_plugin_wasm::WasmPluginLoader;
-use prb_grpc::GrpcCorrelationStrategy;
-use prb_zmq::ZmqCorrelationStrategy;
-use prb_dds::DdsCorrelationStrategy;
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
-use serde_json::{json, Value as JsonValue};
+use prb_zmq::ZmqCorrelationStrategy;
+use serde_json::{Value as JsonValue, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneId {
@@ -154,7 +159,8 @@ pub struct App {
 
     // AI smart features channels
     anomaly_rx: Option<mpsc::UnboundedReceiver<Result<Vec<crate::ai_smart::Anomaly>, String>>>,
-    protocol_rx: Option<mpsc::UnboundedReceiver<Result<Vec<crate::ai_smart::ProtocolHint>, String>>>,
+    protocol_rx:
+        Option<mpsc::UnboundedReceiver<Result<Vec<crate::ai_smart::ProtocolHint>, String>>>,
 
     // Command palette and overlays
     #[allow(dead_code)]
@@ -198,7 +204,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(store: EventStore, initial_filter: Option<String>, schema_registry: Option<SchemaRegistry>) -> Self {
+    pub fn new(
+        store: EventStore,
+        initial_filter: Option<String>,
+        schema_registry: Option<SchemaRegistry>,
+    ) -> Self {
         let config = Config::load();
 
         let visible_columns = config.tui.columns.visible.clone();
@@ -215,16 +225,17 @@ impl App {
         };
 
         if let Some(ref filter_str) = initial_filter
-            && let Ok(filter) = Filter::parse(filter_str) {
-                state.filtered_indices = state.store.filter_indices(&filter);
-                state.filter_text = filter_str.clone();
-                state.filter = Some(filter);
-                state.selected_event = if state.filtered_indices.is_empty() {
-                    None
-                } else {
-                    Some(0)
-                };
-            }
+            && let Ok(filter) = Filter::parse(filter_str)
+        {
+            state.filtered_indices = state.store.filter_indices(&filter);
+            state.filter_text = filter_str.clone();
+            state.filter = Some(filter);
+            state.selected_event = if state.filtered_indices.is_empty() {
+                None
+            } else {
+                Some(0)
+            };
+        }
 
         let mut theme = ThemeConfig::from_name(&config.tui.theme);
         // Apply custom color overrides from config
@@ -232,7 +243,11 @@ impl App {
             overrides.apply_to_theme(&mut theme);
         }
         let plugin_manager = Self::load_plugins();
-        let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
+        let input_mode = if state.store.is_empty() {
+            InputMode::Welcome
+        } else {
+            InputMode::Normal
+        };
 
         App {
             state,
@@ -322,7 +337,10 @@ impl App {
                 overrides.apply_to_theme(&mut theme);
             }
             self.theme = theme;
-            self.set_status_message(&format!("Config reloaded, switched to {} theme", self.config.tui.theme));
+            self.set_status_message(&format!(
+                "Config reloaded, switched to {} theme",
+                self.config.tui.theme
+            ));
         } else {
             // Even if theme name didn't change, color overrides might have
             let mut theme = ThemeConfig::from_name(&self.config.tui.theme);
@@ -347,7 +365,7 @@ impl App {
 
     /// Save current TUI session to a file.
     pub fn save_session(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        use crate::session::{Session, PaneFocus};
+        use crate::session::{PaneFocus, Session};
 
         let mut session = Session::new();
         session.input_file = self.input_file_path.clone();
@@ -410,8 +428,14 @@ impl App {
         // Calculate time range from events (convert nanoseconds to microseconds)
         let time_range = if !self.state.store.is_empty() {
             let events = self.state.store.events();
-            let first_ts = events.first().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
-            let last_ts = events.last().map(|e| e.timestamp.as_nanos() / 1000).unwrap_or(0);
+            let first_ts = events
+                .first()
+                .map(|e| e.timestamp.as_nanos() / 1000)
+                .unwrap_or(0);
+            let last_ts = events
+                .last()
+                .map(|e| e.timestamp.as_nanos() / 1000)
+                .unwrap_or(0);
             Some((first_ts, last_ts))
         } else {
             None
@@ -423,16 +447,15 @@ impl App {
                 // Try to open as MCAP and extract metadata
                 if let Ok(reader) = prb_storage::SessionReader::open(path) {
                     let metadata = reader.metadata().ok().flatten();
-                    let channels_info = reader.channels()
-                        .ok()
-                        .map(|chans| {
-                            chans.into_iter()
-                                .map(|ch| ChannelDisplay {
-                                    topic: ch.topic,
-                                    message_count: ch.message_count,
-                                })
-                                .collect()
-                        });
+                    let channels_info = reader.channels().ok().map(|chans| {
+                        chans
+                            .into_iter()
+                            .map(|ch| ChannelDisplay {
+                                topic: ch.topic,
+                                message_count: ch.message_count,
+                            })
+                            .collect()
+                    });
                     (metadata, channels_info)
                 } else {
                     (None, None)
@@ -444,7 +467,8 @@ impl App {
             (None, None)
         };
 
-        let file_path = self.input_file_path
+        let file_path = self
+            .input_file_path
             .as_ref()
             .and_then(|p| p.to_str())
             .unwrap_or("<loaded data>")
@@ -577,12 +601,7 @@ impl App {
         };
 
         // Create diff view overlay (without conversations for now)
-        let diff_view = crate::overlays::DiffViewOverlay::new(
-            &events1,
-            &events2,
-            None,
-            None,
-        );
+        let diff_view = crate::overlays::DiffViewOverlay::new(&events1, &events2, None, None);
 
         let mut theme = ThemeConfig::from_name(&config.tui.theme);
         // Apply custom color overrides from config
@@ -892,12 +911,14 @@ impl App {
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<()> {
         // Poll AI panel stream if active
-        if self.ai_panel_visible && self.ai_panel.is_streaming()
+        if self.ai_panel_visible
+            && self.ai_panel.is_streaming()
             && let Some(selected_idx) = self.state.selected_event
             && let Some(&event_idx) = self.state.filtered_indices.get(selected_idx)
-            && let Some(event) = self.state.store.get(event_idx) {
-                self.ai_panel.poll_stream(event.id);
-            }
+            && let Some(event) = self.state.store.get(event_idx)
+        {
+            self.ai_panel.poll_stream(event.id);
+        }
 
         // Poll AI filter generation result
         if let Some(ref mut rx) = self.ai_filter_rx
@@ -1072,8 +1093,10 @@ impl App {
 
                 // Check which pane was clicked
                 for (pane_id, rect) in &self.pane_rects {
-                    if col >= rect.x && col < rect.x + rect.width
-                        && row >= rect.y && row < rect.y + rect.height
+                    if col >= rect.x
+                        && col < rect.x + rect.width
+                        && row >= rect.y
+                        && row < rect.y + rect.height
                     {
                         self.focus = *pane_id;
 
@@ -1097,11 +1120,17 @@ impl App {
                     DragState::ResizingVertical(_) => {
                         // Calculate new vertical split based on mouse position
                         if let Some(event_list_rect) = self.pane_rects.get(&PaneId::EventList) {
-                            let total_height = event_list_rect.height +
-                                self.pane_rects.get(&PaneId::DecodeTree).map(|r| r.height).unwrap_or(0);
+                            let total_height = event_list_rect.height
+                                + self
+                                    .pane_rects
+                                    .get(&PaneId::DecodeTree)
+                                    .map(|r| r.height)
+                                    .unwrap_or(0);
                             if total_height > 0 {
                                 let event_list_height = row.saturating_sub(event_list_rect.y);
-                                let new_percentage = ((event_list_height as f32 / total_height as f32) * 100.0) as u16;
+                                let new_percentage =
+                                    ((event_list_height as f32 / total_height as f32) * 100.0)
+                                        as u16;
                                 self.vertical_split = new_percentage.clamp(20, 80);
                             }
                         }
@@ -1109,11 +1138,17 @@ impl App {
                     DragState::ResizingHorizontal(_) => {
                         // Calculate new horizontal split based on mouse position
                         if let Some(decode_tree_rect) = self.pane_rects.get(&PaneId::DecodeTree) {
-                            let total_width = decode_tree_rect.width +
-                                self.pane_rects.get(&PaneId::HexDump).map(|r| r.width).unwrap_or(0);
+                            let total_width = decode_tree_rect.width
+                                + self
+                                    .pane_rects
+                                    .get(&PaneId::HexDump)
+                                    .map(|r| r.width)
+                                    .unwrap_or(0);
                             if total_width > 0 {
                                 let decode_tree_width = col.saturating_sub(decode_tree_rect.x);
-                                let new_percentage = ((decode_tree_width as f32 / total_width as f32) * 100.0) as u16;
+                                let new_percentage =
+                                    ((decode_tree_width as f32 / total_width as f32) * 100.0)
+                                        as u16;
                                 self.horizontal_split = new_percentage.clamp(20, 80);
                             }
                         }
@@ -1131,7 +1166,7 @@ impl App {
                         for _ in 0..3 {
                             let action = self.event_list.handle_key(
                                 KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                                &self.state
+                                &self.state,
                             );
                             self.process_action(action);
                         }
@@ -1144,7 +1179,7 @@ impl App {
                     PaneId::DecodeTree => {
                         let action = self.decode_tree.handle_key(
                             KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
-                            &self.state
+                            &self.state,
                         );
                         self.process_action(action);
                     }
@@ -1158,7 +1193,7 @@ impl App {
                         for _ in 0..3 {
                             let action = self.event_list.handle_key(
                                 KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
-                                &self.state
+                                &self.state,
                             );
                             self.process_action(action);
                         }
@@ -1172,7 +1207,6 @@ impl App {
                         let action = self.decode_tree.handle_key(
                             KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
                             &self.state,
-
                         );
                         self.process_action(action);
                     }
@@ -1217,10 +1251,12 @@ impl App {
                         let text = self.goto_input.value();
                         if let Ok(event_id) = text.trim().parse::<usize>() {
                             // Find the event in filtered indices
-                            if let Some(pos) = self.state.filtered_indices
-                                .iter()
-                                .position(|&idx| self.state.store.get(idx).is_some_and(|e| e.id.as_u64() == event_id as u64))
-                            {
+                            if let Some(pos) = self.state.filtered_indices.iter().position(|&idx| {
+                                self.state
+                                    .store
+                                    .get(idx)
+                                    .is_some_and(|e| e.id.as_u64() == event_id as u64)
+                            }) {
                                 self.event_list.selected = pos;
                                 self.process_action(Action::SelectEvent(pos));
                             }
@@ -1228,12 +1264,12 @@ impl App {
                         self.input_mode = InputMode::Normal;
                     }
                     KeyCode::Esc => {
-                // Clear zoom first if active
-                if self.zoomed_pane.is_some() {
-                    self.zoomed_pane = None;
-                    return false;
-                }
-                // Then clear filter if active
+                        // Clear zoom first if active
+                        if self.zoomed_pane.is_some() {
+                            self.zoomed_pane = None;
+                            return false;
+                        }
+                        // Then clear filter if active
                         self.input_mode = InputMode::Normal;
                     }
                     _ => {
@@ -1300,46 +1336,51 @@ impl App {
 
         // Check configured keybindings
         if let Some(quit_key) = self.config.tui.keybindings.quit_keycode()
-            && key.code == quit_key {
-                return true;
-            }
+            && key.code == quit_key
+        {
+            return true;
+        }
         if let Some(help_key) = self.config.tui.keybindings.help_keycode()
-            && key.code == help_key {
-                self.input_mode = InputMode::Help;
-                return false;
-            }
+            && key.code == help_key
+        {
+            self.input_mode = InputMode::Help;
+            return false;
+        }
         if let Some(filter_key) = self.config.tui.keybindings.filter_keycode()
-            && key.code == filter_key {
-                self.input_mode = InputMode::Filter;
-                self.filter_input = Input::new(self.state.filter_text.clone());
-                self.filter_error = None;
-                return false;
-            }
+            && key.code == filter_key
+        {
+            self.input_mode = InputMode::Filter;
+            self.filter_input = Input::new(self.state.filter_text.clone());
+            self.filter_error = None;
+            return false;
+        }
         if let Some(theme_key) = self.config.tui.keybindings.theme_cycle_keycode()
-            && key.code == theme_key {
-                self.theme = match self.theme.name.as_str() {
-                    "Dark" => ThemeConfig::light(),
-                    "Light" => ThemeConfig::catppuccin_mocha(),
-                    "Catppuccin Mocha" => ThemeConfig::dracula(),
-                    "Dracula" => ThemeConfig::colorblind_safe(),
-                    "Colorblind Safe" => ThemeConfig::high_contrast(),
-                    "High Contrast" => ThemeConfig::dark(),
-                    _ => ThemeConfig::dark(),
-                };
-                let message = format!("Theme: {}", self.theme.name);
-                self.status_message = Some((message, std::time::Instant::now()));
-                return false;
-            }
+            && key.code == theme_key
+        {
+            self.theme = match self.theme.name.as_str() {
+                "Dark" => ThemeConfig::light(),
+                "Light" => ThemeConfig::catppuccin_mocha(),
+                "Catppuccin Mocha" => ThemeConfig::dracula(),
+                "Dracula" => ThemeConfig::colorblind_safe(),
+                "Colorblind Safe" => ThemeConfig::high_contrast(),
+                "High Contrast" => ThemeConfig::dark(),
+                _ => ThemeConfig::dark(),
+            };
+            let message = format!("Theme: {}", self.theme.name);
+            self.status_message = Some((message, std::time::Instant::now()));
+            return false;
+        }
         if let Some(zoom_key) = self.config.tui.keybindings.zoom_keycode()
-            && key.code == zoom_key {
-                // Toggle zoom on focused pane
-                if self.zoomed_pane.is_some() {
-                    self.zoomed_pane = None;
-                } else {
-                    self.zoomed_pane = Some(self.focus);
-                }
-                return false;
+            && key.code == zoom_key
+        {
+            // Toggle zoom on focused pane
+            if self.zoomed_pane.is_some() {
+                self.zoomed_pane = None;
+            } else {
+                self.zoomed_pane = Some(self.focus);
             }
+            return false;
+        }
 
         match key.code {
             KeyCode::Char(':') => {
@@ -1505,11 +1546,15 @@ impl App {
                     if let Some(selected_idx) = self.state.selected_event {
                         if let Some(&event_idx) = self.state.filtered_indices.get(selected_idx) {
                             if let Some(event) = self.state.store.get(event_idx) {
-                                let all_events: Vec<_> = self.state.filtered_indices.iter()
+                                let all_events: Vec<_> = self
+                                    .state
+                                    .filtered_indices
+                                    .iter()
                                     .filter_map(|&idx| self.state.store.get(idx).cloned())
                                     .collect();
                                 self.ai_panel_visible = true;
-                                self.ai_panel.start_explain(event, &all_events, &self.config.ai);
+                                self.ai_panel
+                                    .start_explain(event, &all_events, &self.config.ai);
                             } else {
                                 self.set_status_message("No event selected");
                             }
@@ -1818,7 +1863,8 @@ impl App {
 
                     // Spawn async task
                     tokio::spawn(async move {
-                        let result = crate::ai_smart::identify_protocol(&payload_bytes, &config).await;
+                        let result =
+                            crate::ai_smart::identify_protocol(&payload_bytes, &config).await;
                         let _ = tx.send(result);
                     });
 
@@ -1859,14 +1905,11 @@ impl App {
 
         // Start streaming in background
         tokio::spawn(async move {
-            let result = crate::ai_features::generate_capture_summary(
-                &events,
-                &config,
-                |chunk: &str| {
+            let result =
+                crate::ai_features::generate_capture_summary(&events, &config, |chunk: &str| {
                     let _ = tx.send(chunk.to_string());
-                },
-            )
-            .await;
+                })
+                .await;
 
             match result {
                 Ok(_) => {
@@ -1916,12 +1959,18 @@ impl App {
                     self.reload_config();
                     self.input_mode = InputMode::Normal;
                     return false;
-                } else if let Some(path_str) = input.strip_prefix("save-session ").or_else(|| input.strip_prefix("save ")) {
+                } else if let Some(path_str) = input
+                    .strip_prefix("save-session ")
+                    .or_else(|| input.strip_prefix("save "))
+                {
                     // Save session command
                     let path = std::path::Path::new(path_str.trim());
                     match self.save_session(path) {
                         Ok(_) => {
-                            self.set_status_message(&format!("Session saved to {}", path.display()));
+                            self.set_status_message(&format!(
+                                "Session saved to {}",
+                                path.display()
+                            ));
                         }
                         Err(e) => {
                             self.set_status_message(&format!("Failed to save session: {}", e));
@@ -1932,11 +1981,14 @@ impl App {
                 } else if input == "tls-keylog" || input == "keylog" {
                     // Open TLS keylog picker
                     self.tls_keylog_picker = Some(crate::overlays::TlsKeylogPickerOverlay::new(
-                        self.input_file_path.as_deref().and_then(|p| p.parent())
+                        self.input_file_path.as_deref().and_then(|p| p.parent()),
                     ));
                     self.input_mode = InputMode::TlsKeylogPicker;
                     return false;
-                } else if let Some(query) = input.strip_prefix("/ai ").or_else(|| input.strip_prefix("ai ")) {
+                } else if let Some(query) = input
+                    .strip_prefix("/ai ")
+                    .or_else(|| input.strip_prefix("ai "))
+                {
                     // AI natural language filter generation
                     let query = query.trim().to_string();
                     if !query.is_empty() {
@@ -2074,7 +2126,8 @@ impl App {
                     KeyCode::Char('r') => {
                         // Reload plugins
                         self.reload_plugins();
-                        self.plugin_manager.set_status("Plugins reloaded".to_string());
+                        self.plugin_manager
+                            .set_status("Plugins reloaded".to_string());
                         false
                     }
                     KeyCode::Char('c') => {
@@ -2087,7 +2140,8 @@ impl App {
                         if !self.plugin_manager.plugins.is_empty() {
                             let selected = self.plugin_manager.selected;
                             self.plugin_manager.remove_plugin(selected);
-                            self.plugin_manager.set_status("Plugin removed from list".to_string());
+                            self.plugin_manager
+                                .set_status("Plugin removed from list".to_string());
                         }
                         false
                     }
@@ -2098,7 +2152,8 @@ impl App {
                 // Info view: Esc or 'i' or 'v' to go back
                 if key.code == KeyCode::Esc
                     || key.code == KeyCode::Char('i')
-                    || key.code == KeyCode::Char('v') {
+                    || key.code == KeyCode::Char('v')
+                {
                     self.plugin_manager.show_list();
                 }
                 false
@@ -2115,9 +2170,11 @@ impl App {
                         let path = self.plugin_manager.get_install_path();
                         if !path.is_empty() {
                             if let Err(e) = self.install_plugin(&path) {
-                                self.plugin_manager.set_status(format!("Install failed: {}", e));
+                                self.plugin_manager
+                                    .set_status(format!("Install failed: {}", e));
                             } else {
-                                self.plugin_manager.set_status("Plugin installed successfully".to_string());
+                                self.plugin_manager
+                                    .set_status("Plugin installed successfully".to_string());
                                 self.plugin_manager.show_list();
                             }
                         }
@@ -2125,7 +2182,9 @@ impl App {
                     }
                     _ => {
                         // Pass input to the text field
-                        self.plugin_manager.install_input.handle_event(&Event::Key(key));
+                        self.plugin_manager
+                            .install_input
+                            .handle_event(&Event::Key(key));
                         false
                     }
                 }
@@ -2154,7 +2213,8 @@ impl App {
             return Err(format!("File not found: {}", path));
         }
 
-        let extension = path_obj.extension()
+        let extension = path_obj
+            .extension()
             .and_then(|s| s.to_str())
             .ok_or_else(|| "No file extension".to_string())?;
 
@@ -2165,7 +2225,8 @@ impl App {
                 match loader.load(path_obj) {
                     Ok(plugin) => {
                         let metadata = plugin.metadata().clone();
-                        self.plugin_manager.add_plugin(metadata, PluginType::Native, true);
+                        self.plugin_manager
+                            .add_plugin(metadata, PluginType::Native, true);
                         Ok(())
                     }
                     Err(e) => Err(format!("Failed to load native plugin: {}", e)),
@@ -2176,7 +2237,8 @@ impl App {
                 let mut loader = WasmPluginLoader::new();
                 match loader.load(path_obj) {
                     Ok(metadata) => {
-                        self.plugin_manager.add_plugin(metadata, PluginType::Wasm, true);
+                        self.plugin_manager
+                            .add_plugin(metadata, PluginType::Wasm, true);
                         Ok(())
                     }
                     Err(e) => Err(format!("Failed to load WASM plugin: {}", e)),
@@ -2185,7 +2247,6 @@ impl App {
             _ => Err(format!("Unsupported file extension: {}", extension)),
         }
     }
-
 
     fn handle_export_dialog_key(&mut self, key: KeyEvent) -> bool {
         let Some(ref mut dialog) = self.export_dialog else {
@@ -2467,7 +2528,8 @@ impl App {
                     self.theme = editor.current_theme.clone();
                     // Save color overrides to config
                     let base_theme = ThemeConfig::from_name(&self.config.tui.theme);
-                    self.config.tui.colors = crate::config::ColorOverrides::from_theme(&self.theme, &base_theme);
+                    self.config.tui.colors =
+                        crate::config::ColorOverrides::from_theme(&self.theme, &base_theme);
                     self.save_config();
                     self.set_status_message("Theme saved to config");
                     false
@@ -2525,11 +2587,17 @@ impl App {
                     // Select current item
                     if let Some(path) = picker.select_current() {
                         // File selected - reload with TLS keylog
-                        self.set_status_message(&format!("Loading with TLS keylog: {}", path.display()));
+                        self.set_status_message(&format!(
+                            "Loading with TLS keylog: {}",
+                            path.display()
+                        ));
 
                         // TODO: Implement reload with TLS keylog
                         // For now, just show message
-                        self.set_status_message(&format!("TLS keylog selected: {}", path.display()));
+                        self.set_status_message(&format!(
+                            "TLS keylog selected: {}",
+                            path.display()
+                        ));
 
                         self.tls_keylog_picker = None;
                         self.input_mode = InputMode::Normal;
@@ -2636,12 +2704,12 @@ impl App {
                     return;
                 }
             }
-            _ => {
-                self.state.filtered_indices
-                    .iter()
-                    .filter_map(|&idx| self.state.store.get(idx).cloned())
-                    .collect()
-            }
+            _ => self
+                .state
+                .filtered_indices
+                .iter()
+                .filter_map(|&idx| self.state.store.get(idx).cloned())
+                .collect(),
         };
 
         let export_format = match format.format.as_str() {
@@ -2651,7 +2719,11 @@ impl App {
                     if let Err(e) = serde_json::to_writer_pretty(&mut writer, &events) {
                         self.set_status_message(&format!("Export failed: {}", e));
                     } else {
-                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                        self.set_status_message(&format!(
+                            "Exported {} events to {}",
+                            events.len(),
+                            path
+                        ));
                     }
                 } else {
                     self.set_status_message(&format!("Failed to create file: {}", path));
@@ -2677,7 +2749,11 @@ impl App {
                     if let Err(e) = exporter.export(&events, &mut writer) {
                         self.set_status_message(&format!("Export failed: {}", e));
                     } else {
-                        self.set_status_message(&format!("Exported {} events to {}", events.len(), path));
+                        self.set_status_message(&format!(
+                            "Exported {} events to {}",
+                            events.len(),
+                            path
+                        ));
                     }
                 } else {
                     self.set_status_message(&format!("Failed to create file: {}", path));
@@ -2693,7 +2769,9 @@ impl App {
         use std::io::BufWriter;
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        let events: Vec<_> = self.state.filtered_indices
+        let events: Vec<_> = self
+            .state
+            .filtered_indices
             .iter()
             .filter_map(|&idx| self.state.store.get(idx).cloned())
             .collect();
@@ -2713,57 +2791,72 @@ impl App {
     fn copy_selected_as_json(&self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx)
-                    && let Ok(json) = serde_json::to_string_pretty(event) {
-                        Self::osc52_copy(&json);
-                    }
+            && let Some(event) = self.state.store.get(store_idx)
+            && let Ok(json) = serde_json::to_string_pretty(event)
+        {
+            Self::osc52_copy(&json);
+        }
     }
 
     fn copy_hex_dump(&self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    // Extract raw bytes from payload
-                    let raw_bytes = match &event.payload {
-                        Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
-                    };
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            // Extract raw bytes from payload
+            let raw_bytes = match &event.payload {
+                Payload::Raw { raw } | Payload::Decoded { raw, .. } => raw,
+            };
 
-                    // Format as hex dump
-                    let mut hex_lines = Vec::new();
-                    for (offset, chunk) in raw_bytes.chunks(16).enumerate() {
-                        let hex_part: Vec<String> = chunk.iter()
-                            .map(|b| format!("{:02x}", b))
-                            .collect();
-                        let ascii_part: String = chunk.iter()
-                            .map(|&b| if (32..=126).contains(&b) { b as char } else { '.' })
-                            .collect();
-                        hex_lines.push(format!("{:08x}  {:47}  {}",
-                            offset * 16, hex_part.join(" "), ascii_part));
-                    }
+            // Format as hex dump
+            let mut hex_lines = Vec::new();
+            for (offset, chunk) in raw_bytes.chunks(16).enumerate() {
+                let hex_part: Vec<String> = chunk.iter().map(|b| format!("{:02x}", b)).collect();
+                let ascii_part: String = chunk
+                    .iter()
+                    .map(|&b| {
+                        if (32..=126).contains(&b) {
+                            b as char
+                        } else {
+                            '.'
+                        }
+                    })
+                    .collect();
+                hex_lines.push(format!(
+                    "{:08x}  {:47}  {}",
+                    offset * 16,
+                    hex_part.join(" "),
+                    ascii_part
+                ));
+            }
 
-                    Self::osc52_copy(&hex_lines.join("\n"));
-                }
+            Self::osc52_copy(&hex_lines.join("\n"));
+        }
     }
 
     fn copy_decoded_tree(&self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    let decoded_text = self.format_decoded_tree(event);
-                    Self::osc52_copy(&decoded_text);
-                }
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            let decoded_text = self.format_decoded_tree(event);
+            Self::osc52_copy(&decoded_text);
+        }
     }
 
     fn copy_source_address(&self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    let address = event.source.network
-                        .as_ref()
-                        .map(|n| n.src.clone())
-                        .unwrap_or_else(|| event.source.origin.clone());
-                    Self::osc52_copy(&address);
-                }
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            let address = event
+                .source
+                .network
+                .as_ref()
+                .map(|n| n.src.clone())
+                .unwrap_or_else(|| event.source.origin.clone());
+            Self::osc52_copy(&address);
+        }
     }
 
     fn format_decoded_tree(&self, event: &DebugEvent) -> String {
@@ -2775,12 +2868,15 @@ impl App {
         };
 
         if let Some(ref registry) = self.state.schema_registry
-            && let Some(schema) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
+            && let Some(schema) = event
+                .metadata
+                .get(METADATA_KEY_GRPC_METHOD)
                 .and_then(|method| registry.get_message(method))
-                && let Ok(decoded) = decode_with_schema(raw_bytes, &schema) {
-                    Self::format_wire_value(&decoded.to_json(), 0, &mut lines);
-                    return lines.join("\n");
-                }
+            && let Ok(decoded) = decode_with_schema(raw_bytes, &schema)
+        {
+            Self::format_wire_value(&decoded.to_json(), 0, &mut lines);
+            return lines.join("\n");
+        }
 
         if let Ok(wire_msg) = decode_wire_format(raw_bytes) {
             Self::format_wire_message(&wire_msg, 0, &mut lines);
@@ -2791,7 +2887,12 @@ impl App {
 
     fn format_wire_message(msg: &WireMessage, indent: usize, lines: &mut Vec<String>) {
         for field in &msg.fields {
-            lines.push(format!("{}{}: {:?}", "  ".repeat(indent), field.field_number, field.value));
+            lines.push(format!(
+                "{}{}: {:?}",
+                "  ".repeat(indent),
+                field.field_number,
+                field.value
+            ));
             if let WireValue::LengthDelimited(LenValue::SubMessage(nested_msg)) = &field.value {
                 Self::format_wire_message(nested_msg, indent + 1, lines);
             }
@@ -2802,8 +2903,16 @@ impl App {
         match value {
             JsonValue::Object(obj) => {
                 for (key, val) in obj {
-                    lines.push(format!("{}{}: {}", "  ".repeat(indent), key,
-                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
+                    lines.push(format!(
+                        "{}{}: {}",
+                        "  ".repeat(indent),
+                        key,
+                        if val.is_object() || val.is_array() {
+                            String::new()
+                        } else {
+                            val.to_string()
+                        }
+                    ));
                     if val.is_object() || val.is_array() {
                         Self::format_wire_value(val, indent + 1, lines);
                     }
@@ -2811,8 +2920,16 @@ impl App {
             }
             JsonValue::Array(arr) => {
                 for (i, val) in arr.iter().enumerate() {
-                    lines.push(format!("{}[{}]: {}", "  ".repeat(indent), i,
-                        if val.is_object() || val.is_array() { String::new() } else { val.to_string() }));
+                    lines.push(format!(
+                        "{}[{}]: {}",
+                        "  ".repeat(indent),
+                        i,
+                        if val.is_object() || val.is_array() {
+                            String::new()
+                        } else {
+                            val.to_string()
+                        }
+                    ));
                     if val.is_object() || val.is_array() {
                         Self::format_wire_value(val, indent + 1, lines);
                     }
@@ -2924,12 +3041,12 @@ impl App {
 
         // Right-aligned keybind hints
         let hint = " [S]top [P]ause [f]ollow  Tab:pane  ?:help  q:quit ";
-        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let used: usize = spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
-        spans.push(Span::styled(
-            " ".repeat(padding),
-            self.theme.status_bar(),
-        ));
+        spans.push(Span::styled(" ".repeat(padding), self.theme.status_bar()));
         spans.push(Span::styled(hint, self.theme.status_bar()));
 
         let line = Line::from(spans);
@@ -2989,22 +3106,23 @@ impl App {
 
             // Try schema-backed decode first (for gRPC)
             if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD)
-                && let Some(msg_desc) = registry.get_message(method) {
-                    match decode_with_schema(&bytes, &msg_desc) {
-                        Ok(decoded) => {
-                            event.payload = Payload::Decoded {
-                                raw: bytes,
-                                fields: decoded.to_json(),
-                                schema_name: Some(method.to_string()),
-                            };
-                            tracing::debug!("Decoded event {} with schema {}", event.id, method);
-                            return;
-                        }
-                        Err(e) => {
-                            tracing::debug!("Schema decode failed for {}: {}", method, e);
-                        }
+                && let Some(msg_desc) = registry.get_message(method)
+            {
+                match decode_with_schema(&bytes, &msg_desc) {
+                    Ok(decoded) => {
+                        event.payload = Payload::Decoded {
+                            raw: bytes,
+                            fields: decoded.to_json(),
+                            schema_name: Some(method.to_string()),
+                        };
+                        tracing::debug!("Decoded event {} with schema {}", event.id, method);
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::debug!("Schema decode failed for {}: {}", method, e);
                     }
                 }
+            }
 
             // Fallback: wire-format decode (field numbers only)
             match decode_wire_format(&bytes) {
@@ -3031,21 +3149,57 @@ impl App {
             // Clear pane_rects and render only zoomed pane
             self.pane_rects.clear();
             self.pane_rects.insert(zoomed, area);
-            
+
             let focus = self.focus;
             match zoomed {
                 PaneId::EventList => {
                     if self.showing_waterfall {
-                        self.waterfall.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                        self.waterfall.render(
+                            area,
+                            buf,
+                            &self.state,
+                            &self.theme,
+                            focus == PaneId::EventList,
+                        )
                     } else if self.showing_conversations {
-                        self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                        self.conversation_list.render(
+                            area,
+                            buf,
+                            &self.state,
+                            &self.theme,
+                            focus == PaneId::EventList,
+                        )
                     } else {
-                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                        self.event_list.render(
+                            area,
+                            buf,
+                            &self.state,
+                            &self.theme,
+                            focus == PaneId::EventList,
+                        )
                     }
                 }
-                PaneId::DecodeTree => self.decode_tree.render(area, buf, &self.state, &self.theme, focus == PaneId::DecodeTree),
-                PaneId::HexDump => self.hex_dump.render(area, buf, &self.state, &self.theme, focus == PaneId::HexDump),
-                PaneId::Timeline => self.timeline.render(area, buf, &self.state, &self.theme, focus == PaneId::Timeline),
+                PaneId::DecodeTree => self.decode_tree.render(
+                    area,
+                    buf,
+                    &self.state,
+                    &self.theme,
+                    focus == PaneId::DecodeTree,
+                ),
+                PaneId::HexDump => self.hex_dump.render(
+                    area,
+                    buf,
+                    &self.state,
+                    &self.theme,
+                    focus == PaneId::HexDump,
+                ),
+                PaneId::Timeline => self.timeline.render(
+                    area,
+                    buf,
+                    &self.state,
+                    &self.theme,
+                    focus == PaneId::Timeline,
+                ),
             }
             return;
         }
@@ -3053,35 +3207,77 @@ impl App {
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),  // filter bar
+                Constraint::Length(1), // filter bar
                 Constraint::Min(10),   // main content
                 Constraint::Length(5), // timeline
-                Constraint::Length(1),  // status bar
+                Constraint::Length(1), // status bar
             ])
             .split(area);
 
         // Split main content: top = event list, bottom = decode tree + hex dump
         let vert_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(self.vertical_split), Constraint::Percentage(100 - self.vertical_split)])
+            .constraints([
+                Constraint::Percentage(self.vertical_split),
+                Constraint::Percentage(100 - self.vertical_split),
+            ])
             .split(main_layout[1]);
 
         let horiz_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(self.horizontal_split), Constraint::Percentage(100 - self.horizontal_split)])
+            .constraints([
+                Constraint::Percentage(self.horizontal_split),
+                Constraint::Percentage(100 - self.horizontal_split),
+            ])
             .split(vert_layout[1]);
 
         let focus = self.focus;
         if self.showing_waterfall {
-            self.waterfall.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            self.waterfall.render(
+                vert_layout[0],
+                buf,
+                &self.state,
+                &self.theme,
+                focus == PaneId::EventList,
+            );
         } else if self.showing_conversations {
-            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            self.conversation_list.render(
+                vert_layout[0],
+                buf,
+                &self.state,
+                &self.theme,
+                focus == PaneId::EventList,
+            );
         } else {
-            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            self.event_list.render(
+                vert_layout[0],
+                buf,
+                &self.state,
+                &self.theme,
+                focus == PaneId::EventList,
+            );
         }
-        self.decode_tree.render(horiz_layout[0], buf, &self.state, &self.theme, focus == PaneId::DecodeTree);
-        self.hex_dump.render(horiz_layout[1], buf, &self.state, &self.theme, focus == PaneId::HexDump);
-        self.timeline.render(main_layout[2], buf, &self.state, &self.theme, focus == PaneId::Timeline);
+        self.decode_tree.render(
+            horiz_layout[0],
+            buf,
+            &self.state,
+            &self.theme,
+            focus == PaneId::DecodeTree,
+        );
+        self.hex_dump.render(
+            horiz_layout[1],
+            buf,
+            &self.state,
+            &self.theme,
+            focus == PaneId::HexDump,
+        );
+        self.timeline.render(
+            main_layout[2],
+            buf,
+            &self.state,
+            &self.theme,
+            focus == PaneId::Timeline,
+        );
 
         // Store pane rectangles for mouse hit-testing
         self.pane_rects.clear();
@@ -3104,7 +3300,20 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme, self.showing_conversations, self.showing_waterfall, self.ai_panel_visible, self.showing_trace_correlation);
+            Self::render_status_bar_static(
+                main_layout[3],
+                buf,
+                &self.state,
+                self.focus,
+                self.zoomed_pane,
+                &self.status_message,
+                &self.tls_stats,
+                &self.theme,
+                self.showing_conversations,
+                self.showing_waterfall,
+                self.ai_panel_visible,
+                self.showing_trace_correlation,
+            );
         }
 
         if self.input_mode == InputMode::Help {
@@ -3135,7 +3344,11 @@ impl App {
         // Render AI Filter overlay
         if self.input_mode == InputMode::AiFilter {
             let width = 70u16.min(area.width.saturating_sub(4));
-            let height = if self.ai_filter_generated.is_some() { 6 } else { 3 };
+            let height = if self.ai_filter_generated.is_some() {
+                6
+            } else {
+                3
+            };
             let x = (area.width.saturating_sub(width)) / 2;
             let y = (area.height.saturating_sub(height)) / 2;
             let overlay_area = Rect::new(x, y, width, height);
@@ -3168,22 +3381,23 @@ impl App {
 
                 // Show help text
                 y_offset += 1;
-                let help_line = Line::from(vec![
-                    Span::styled("[Enter: Apply | Esc: Cancel]", Style::default()),
-                ]);
+                let help_line = Line::from(vec![Span::styled(
+                    "[Enter: Apply | Esc: Cancel]",
+                    Style::default(),
+                )]);
                 buf.set_line(inner.x, inner.y + y_offset, &help_line, inner.width);
             } else if self.ai_filter_generating {
                 y_offset += 1;
-                let generating_line = Line::from(vec![
-                    Span::styled("Generating filter...", Style::default()),
-                ]);
+                let generating_line =
+                    Line::from(vec![Span::styled("Generating filter...", Style::default())]);
                 buf.set_line(inner.x, inner.y + y_offset, &generating_line, inner.width);
             } else {
                 // Show help text for entering query
                 y_offset += 1;
-                let help_line = Line::from(vec![
-                    Span::styled("[Enter: Generate | Esc: Cancel]", Style::default()),
-                ]);
+                let help_line = Line::from(vec![Span::styled(
+                    "[Enter: Generate | Esc: Cancel]",
+                    Style::default(),
+                )]);
                 buf.set_line(inner.x, inner.y + y_offset, &help_line, inner.width);
             }
         }
@@ -3193,14 +3407,16 @@ impl App {
         }
 
         if self.input_mode == InputMode::ExportDialog
-            && let Some(ref dialog) = self.export_dialog {
-                dialog.render(area, buf);
-            }
+            && let Some(ref dialog) = self.export_dialog
+        {
+            dialog.render(area, buf);
+        }
 
         if self.input_mode == InputMode::CaptureConfig
-            && let Some(ref config) = self.capture_config {
-                config.render(area, buf);
-            }
+            && let Some(ref config) = self.capture_config
+        {
+            config.render(area, buf);
+        }
 
         if self.input_mode == InputMode::CopyMode {
             let width = 40u16.min(area.width.saturating_sub(4));
@@ -3219,12 +3435,14 @@ impl App {
             let inner = block.inner(overlay_area);
             block.render(overlay_area, buf);
 
-            let help_lines = ["y - copy event as JSON",
+            let help_lines = [
+                "y - copy event as JSON",
                 "h - copy hex dump",
                 "d - copy decoded tree",
                 "a - copy source address",
                 "",
-                "Esc - cancel"];
+                "Esc - cancel",
+            ];
 
             for (i, line) in help_lines.iter().enumerate() {
                 if i < inner.height as usize {
@@ -3241,34 +3459,48 @@ impl App {
 
         // Render SessionInfo overlay
         if self.input_mode == InputMode::SessionInfo
-            && let Some(ref session_info) = self.session_info {
-                crate::overlays::SessionInfoOverlay::render(area, buf, session_info);
-            }
+            && let Some(ref session_info) = self.session_info
+        {
+            crate::overlays::SessionInfoOverlay::render(area, buf, session_info);
+        }
 
         // Render WhichKey overlay
         if self.input_mode == InputMode::WhichKey
-            && let Some(ref overlay) = self.which_key_overlay {
-                overlay.render(area, buf);
-            }
+            && let Some(ref overlay) = self.which_key_overlay
+        {
+            overlay.render(area, buf);
+        }
 
         // Render CommandPalette overlay
         if self.input_mode == InputMode::CommandPalette {
             self.command_palette.render(area, buf);
-
         }
         // Render follow stream overlay
         if let Some(ref overlay) = self.follow_stream_overlay
-            && let Some(ref conv_set) = self.state.conversations {
-                let conv_idx = overlay.conversation_idx;
-                if conv_idx < conv_set.conversations.len() {
-                    overlay.render(area, buf, &conv_set.conversations[conv_idx], self.state.store.events(), &self.theme);
-                }
+            && let Some(ref conv_set) = self.state.conversations
+        {
+            let conv_idx = overlay.conversation_idx;
+            if conv_idx < conv_set.conversations.len() {
+                overlay.render(
+                    area,
+                    buf,
+                    &conv_set.conversations[conv_idx],
+                    self.state.store.events(),
+                    &self.theme,
+                );
             }
+        }
 
         // Render metrics overlay
         if self.metrics_overlay {
             let metrics_overlay = MetricsOverlay::new();
-            metrics_overlay.render(area, buf, &self.state.store, &self.state.filtered_indices, &self.theme);
+            metrics_overlay.render(
+                area,
+                buf,
+                &self.state.store,
+                &self.state.filtered_indices,
+                &self.theme,
+            );
         }
         // Render AI panel overlay
         if self.ai_panel_visible {
@@ -3280,7 +3512,8 @@ impl App {
             let overlay_area = Rect::new(x, y, width, height);
 
             Clear.render(overlay_area, buf);
-            self.ai_panel.render(overlay_area, buf, &self.state, &self.theme, true);
+            self.ai_panel
+                .render(overlay_area, buf, &self.state, &self.theme, true);
         }
 
         // Render trace correlation overlay
@@ -3293,7 +3526,8 @@ impl App {
             let overlay_area = Rect::new(x, y, width, height);
 
             Clear.render(overlay_area, buf);
-            self.trace_correlation.render(overlay_area, buf, &self.state, &self.theme, true);
+            self.trace_correlation
+                .render(overlay_area, buf, &self.state, &self.theme, true);
         }
 
         // Render diff view overlay if active
@@ -3303,15 +3537,17 @@ impl App {
 
         // Render theme editor overlay if active
         if self.input_mode == InputMode::ThemeEditor
-            && let Some(ref theme_editor) = self.theme_editor {
-                theme_editor.render(area, buf);
-            }
+            && let Some(ref theme_editor) = self.theme_editor
+        {
+            theme_editor.render(area, buf);
+        }
 
         // Render TLS keylog picker overlay
         if self.input_mode == InputMode::TlsKeylogPicker
-            && let Some(ref picker) = self.tls_keylog_picker {
-                picker.render(area, buf);
-            }
+            && let Some(ref picker) = self.tls_keylog_picker
+        {
+            picker.render(area, buf);
+        }
     }
 
     /// Check if we're in live capture mode.
@@ -3322,11 +3558,11 @@ impl App {
     /// Syntax highlight filter expression for display.
     fn highlight_filter_syntax(text: &str, _theme: &ThemeConfig) -> Vec<Span<'static>> {
         use ratatui::style::Color;
-        
+
         let mut spans = Vec::new();
         let chars: Vec<char> = text.chars().collect();
         let mut i = 0;
-        
+
         while i < chars.len() {
             // Skip whitespace
             if chars[i].is_whitespace() {
@@ -3337,7 +3573,7 @@ impl App {
                 spans.push(Span::raw(chars[start..i].iter().collect::<String>()));
                 continue;
             }
-            
+
             // String literals
             if chars[i] == '"' {
                 let start = i;
@@ -3356,7 +3592,7 @@ impl App {
                 spans.push(Span::styled(text, Style::default().fg(Color::Green)));
                 continue;
             }
-            
+
             // Numbers
             if chars[i].is_ascii_digit() {
                 let start = i;
@@ -3367,20 +3603,33 @@ impl App {
                 spans.push(Span::styled(text, Style::default().fg(Color::Magenta)));
                 continue;
             }
-            
+
             // Operators and keywords
             let start = i;
             while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '"' {
                 i += 1;
             }
             let text: String = chars[start..i].iter().collect();
-            
+
             // Check if it's an operator
-            if matches!(text.as_str(), "==" | "!=" | "contains" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "and" | "or") {
+            if matches!(
+                text.as_str(),
+                "==" | "!=" | "contains" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "and" | "or"
+            ) {
                 spans.push(Span::styled(text, Style::default().fg(Color::Yellow)));
             }
             // Check if it's a field name
-            else if matches!(text.as_str(), "transport" | "source" | "dest" | "origin" | "direction" | "payload" | "metadata" | "conversation") {
+            else if matches!(
+                text.as_str(),
+                "transport"
+                    | "source"
+                    | "dest"
+                    | "origin"
+                    | "direction"
+                    | "payload"
+                    | "metadata"
+                    | "conversation"
+            ) {
                 spans.push(Span::styled(text, Style::default().fg(Color::Cyan)));
             }
             // Default
@@ -3388,7 +3637,7 @@ impl App {
                 spans.push(Span::raw(text));
             }
         }
-        
+
         spans
     }
 
@@ -3414,9 +3663,7 @@ impl App {
         let match_count = state.filtered_indices.len();
         let total = state.store.len();
 
-        let mut spans = vec![
-            Span::styled(" / ", theme.help_key()),
-        ];
+        let mut spans = vec![Span::styled(" / ", theme.help_key())];
 
         if filter_display.is_empty() && !is_filtering {
             spans.push(Span::styled(
@@ -3458,18 +3705,34 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig, showing_conversations: bool, showing_waterfall: bool, ai_panel_visible: bool, showing_trace_correlation: bool) {
+    fn render_status_bar_static(
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        focus: PaneId,
+        zoomed_pane: Option<PaneId>,
+        status_message: &Option<(String, std::time::Instant)>,
+        tls_stats: &Option<crate::loader::TlsStats>,
+        theme: &ThemeConfig,
+        showing_conversations: bool,
+        showing_waterfall: bool,
+        ai_panel_visible: bool,
+        showing_trace_correlation: bool,
+    ) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
-                // Add zoom indicator if active
+        // Add zoom indicator if active
         let zoom_indicator = if let Some(pane) = zoomed_pane {
-            format!(" [ZOOMED: {}] ", match pane {
-                PaneId::EventList => "Events",
-                PaneId::DecodeTree => "Decode",
-                PaneId::HexDump => "Hex",
-                PaneId::Timeline => "Timeline",
-            })
+            format!(
+                " [ZOOMED: {}] ",
+                match pane {
+                    PaneId::EventList => "Events",
+                    PaneId::DecodeTree => "Decode",
+                    PaneId::HexDump => "Hex",
+                    PaneId::Timeline => "Timeline",
+                }
+            )
         } else {
             String::new()
         };
@@ -3514,12 +3777,16 @@ impl App {
             if showing_conversations {
                 spans.push(Span::styled(
                     " [CONVERSATIONS] ",
-                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                    Style::default()
+                        .fg(ratatui::style::Color::Cyan)
+                        .bg(ratatui::style::Color::DarkGray),
                 ));
             } else if showing_waterfall {
                 spans.push(Span::styled(
                     " [WATERFALL] ",
-                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                    Style::default()
+                        .fg(ratatui::style::Color::Cyan)
+                        .bg(ratatui::style::Color::DarkGray),
                 ));
             }
 
@@ -3527,13 +3794,18 @@ impl App {
             if showing_trace_correlation {
                 spans.push(Span::styled(
                     " [TRACES] ",
-                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                    Style::default()
+                        .fg(ratatui::style::Color::Cyan)
+                        .bg(ratatui::style::Color::DarkGray),
                 ));
             }
 
             if state.filter.is_some() {
                 if !zoom_indicator.is_empty() {
-                    spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));
+                    spans.push(Span::styled(
+                        zoom_indicator,
+                        Style::default().fg(ratatui::style::Color::Yellow),
+                    ));
                 }
 
                 spans.push(Span::styled(
@@ -3555,7 +3827,9 @@ impl App {
                 let color = theme.transport_color(*kind);
                 spans.push(Span::styled(
                     format!("{}: {} ", kind, count),
-                    Style::default().fg(color).bg(ratatui::style::Color::DarkGray),
+                    Style::default()
+                        .fg(color)
+                        .bg(ratatui::style::Color::DarkGray),
                 ));
             }
 
@@ -3575,9 +3849,16 @@ impl App {
             if let Some(stats) = tls_stats {
                 spans.push(Span::styled(" │ ", theme.status_bar()));
                 spans.push(Span::styled(
-                    format!("TLS: {}/{} streams decrypted ", stats.decrypted, stats.total),
+                    format!(
+                        "TLS: {}/{} streams decrypted ",
+                        stats.decrypted, stats.total
+                    ),
                     Style::default()
-                        .fg(if stats.decrypted > 0 { ratatui::style::Color::Green } else { ratatui::style::Color::Yellow })
+                        .fg(if stats.decrypted > 0 {
+                            ratatui::style::Color::Green
+                        } else {
+                            ratatui::style::Color::Yellow
+                        })
                         .bg(ratatui::style::Color::DarkGray),
                 ));
             }
@@ -3590,12 +3871,12 @@ impl App {
             PaneId::HexDump => " Tab:pane  j/k:scroll  g:top  ?:help  q:quit ",
             PaneId::Timeline => " Tab:pane  ?:help  q:quit ",
         };
-        let used: usize = spans.iter().map(|s| UnicodeWidthStr::width(s.content.as_ref())).sum();
+        let used: usize = spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
         let padding = (area.width as usize).saturating_sub(used + UnicodeWidthStr::width(hint));
-        spans.push(Span::styled(
-            " ".repeat(padding),
-            theme.status_bar(),
-        ));
+        spans.push(Span::styled(" ".repeat(padding), theme.status_bar()));
         spans.push(Span::styled(hint, theme.status_bar()));
 
         let line = Line::from(spans);
@@ -3617,9 +3898,11 @@ impl App {
         Clear.render(overlay_area, buf);
 
         let title = if self.help_scroll_offset > 0 {
-            format!(" Help (j/k to scroll, ? to close) [{}/{}] ",
+            format!(
+                " Help (j/k to scroll, ? to close) [{}/{}] ",
                 self.help_scroll_offset + 1,
-                self.help_scroll_offset + height as usize)
+                self.help_scroll_offset + height as usize
+            )
         } else {
             " Help (j/k to scroll, ? to close) ".to_string()
         };
@@ -3657,16 +3940,14 @@ impl App {
         ];
 
         // Apply scroll offset
-        let visible_lines = help_lines.iter()
+        let visible_lines = help_lines
+            .iter()
             .skip(self.help_scroll_offset)
             .take(inner.height as usize);
 
         for (i, (key, desc)) in visible_lines.enumerate() {
             let line = if desc.is_empty() {
-                Line::from(Span::styled(
-                    key.to_string(),
-                    self.theme.help_key(),
-                ))
+                Line::from(Span::styled(key.to_string(), self.theme.help_key()))
             } else {
                 Line::from(vec![
                     Span::styled(format!("{:<20}", key), self.theme.help_key()),
@@ -3718,125 +3999,128 @@ impl App {
     fn apply_quick_filter_source(&mut self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    let source = event
-                        .source
-                        .network
-                        .as_ref()
-                        .map(|n| n.src.as_str())
-                        .unwrap_or(&event.source.origin);
-                    let filter_text = format!("source == \"{}\"", source);
-                    
-                    if let Ok(filter) = Filter::parse(&filter_text) {
-                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                        self.state.filter = Some(filter.clone());
-                        self.state.filter_text = filter_text.clone();
-                        self.filter_state.set_text(filter_text.clone());
-                        self.filter_state.commit(Some(filter));
-                        self.event_list.selected = 0;
-                        self.event_list.scroll_offset = 0;
-                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                            None
-                        } else {
-                            Some(0)
-                        };
-                    }
-                }
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            let source = event
+                .source
+                .network
+                .as_ref()
+                .map(|n| n.src.as_str())
+                .unwrap_or(&event.source.origin);
+            let filter_text = format!("source == \"{}\"", source);
+
+            if let Ok(filter) = Filter::parse(&filter_text) {
+                self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                self.state.filter = Some(filter.clone());
+                self.state.filter_text = filter_text.clone();
+                self.filter_state.set_text(filter_text.clone());
+                self.filter_state.commit(Some(filter));
+                self.event_list.selected = 0;
+                self.event_list.scroll_offset = 0;
+                self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
+        }
     }
 
     /// Apply quick filter for destination address.
     fn apply_quick_filter_dest(&mut self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx)
-                    && let Some(ref network) = event.source.network {
-                        let filter_text = format!("dest == \"{}\"", network.dst);
-                        
-                        if let Ok(filter) = Filter::parse(&filter_text) {
-                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                            self.state.filter = Some(filter.clone());
-                            self.state.filter_text = filter_text.clone();
-                            self.filter_state.set_text(filter_text.clone());
-                            self.filter_state.commit(Some(filter));
-                            self.event_list.selected = 0;
-                            self.event_list.scroll_offset = 0;
-                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                                None
-                            } else {
-                                Some(0)
-                            };
-                        }
-                    }
+            && let Some(event) = self.state.store.get(store_idx)
+            && let Some(ref network) = event.source.network
+        {
+            let filter_text = format!("dest == \"{}\"", network.dst);
+
+            if let Ok(filter) = Filter::parse(&filter_text) {
+                self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                self.state.filter = Some(filter.clone());
+                self.state.filter_text = filter_text.clone();
+                self.filter_state.set_text(filter_text.clone());
+                self.filter_state.commit(Some(filter));
+                self.event_list.selected = 0;
+                self.event_list.scroll_offset = 0;
+                self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
+        }
     }
 
     /// Apply quick filter for transport protocol.
     fn apply_quick_filter_transport(&mut self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    let transport = format!("{}", event.transport);
-                    let filter_text = format!("transport == \"{}\"", transport);
-                    
-                    if let Ok(filter) = Filter::parse(&filter_text) {
-                        self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                        self.state.filter = Some(filter.clone());
-                        self.state.filter_text = filter_text.clone();
-                        self.filter_state.set_text(filter_text.clone());
-                        self.filter_state.commit(Some(filter));
-                        self.event_list.selected = 0;
-                        self.event_list.scroll_offset = 0;
-                        self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                            None
-                        } else {
-                            Some(0)
-                        };
-                    }
-                }
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            let transport = format!("{}", event.transport);
+            let filter_text = format!("transport == \"{}\"", transport);
+
+            if let Ok(filter) = Filter::parse(&filter_text) {
+                self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                self.state.filter = Some(filter.clone());
+                self.state.filter_text = filter_text.clone();
+                self.filter_state.set_text(filter_text.clone());
+                self.filter_state.commit(Some(filter));
+                self.event_list.selected = 0;
+                self.event_list.scroll_offset = 0;
+                self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
+        }
     }
 
     /// Apply quick filter for conversation (using correlation keys).
     fn apply_quick_filter_conversation(&mut self) {
         if let Some(selected_idx) = self.state.selected_event
             && let Some(&store_idx) = self.state.filtered_indices.get(selected_idx)
-                && let Some(event) = self.state.store.get(store_idx) {
-                    // Try to build a conversation filter from correlation keys
-                    if let Some(key) = event.correlation_keys.first() {
-                        let filter_text = match key {
-                            prb_core::CorrelationKey::StreamId { id } => {
-                                format!("conversation.stream_id == {}", id)
-                            }
-                            prb_core::CorrelationKey::Topic { name } => {
-                                format!("conversation.topic == \"{}\"", name)
-                            }
-                            prb_core::CorrelationKey::ConnectionId { id } => {
-                                format!("conversation.connection_id == \"{}\"", id)
-                            }
-                            prb_core::CorrelationKey::TraceContext { trace_id, .. } => {
-                                format!("conversation.trace_id == \"{}\"", trace_id)
-                            }
-                            prb_core::CorrelationKey::Custom { key: k, value: v } => {
-                                format!("conversation.{} == \"{}\"", k, v)
-                            }
-                        };
-                        
-                        if let Ok(filter) = Filter::parse(&filter_text) {
-                            self.state.filtered_indices = self.state.store.filter_indices(&filter);
-                            self.state.filter = Some(filter.clone());
-                            self.state.filter_text = filter_text.clone();
-                            self.filter_state.set_text(filter_text.clone());
-                            self.filter_state.commit(Some(filter));
-                            self.event_list.selected = 0;
-                            self.event_list.scroll_offset = 0;
-                            self.state.selected_event = if self.state.filtered_indices.is_empty() {
-                                None
-                            } else {
-                                Some(0)
-                            };
-                        }
+            && let Some(event) = self.state.store.get(store_idx)
+        {
+            // Try to build a conversation filter from correlation keys
+            if let Some(key) = event.correlation_keys.first() {
+                let filter_text = match key {
+                    prb_core::CorrelationKey::StreamId { id } => {
+                        format!("conversation.stream_id == {}", id)
                     }
-                }
-    }
+                    prb_core::CorrelationKey::Topic { name } => {
+                        format!("conversation.topic == \"{}\"", name)
+                    }
+                    prb_core::CorrelationKey::ConnectionId { id } => {
+                        format!("conversation.connection_id == \"{}\"", id)
+                    }
+                    prb_core::CorrelationKey::TraceContext { trace_id, .. } => {
+                        format!("conversation.trace_id == \"{}\"", trace_id)
+                    }
+                    prb_core::CorrelationKey::Custom { key: k, value: v } => {
+                        format!("conversation.{} == \"{}\"", k, v)
+                    }
+                };
 
+                if let Ok(filter) = Filter::parse(&filter_text) {
+                    self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                    self.state.filter = Some(filter.clone());
+                    self.state.filter_text = filter_text.clone();
+                    self.filter_state.set_text(filter_text.clone());
+                    self.filter_state.commit(Some(filter));
+                    self.event_list.selected = 0;
+                    self.event_list.scroll_offset = 0;
+                    self.state.selected_event = if self.state.filtered_indices.is_empty() {
+                        None
+                    } else {
+                        Some(0)
+                    };
+                }
+            }
+        }
+    }
 }
 
 /// Convert a wire-format decoded message to JSON.

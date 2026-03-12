@@ -45,9 +45,13 @@ impl ThemeConfig {
             "light" => Self::light(),
             "solarized" | "solarized-dark" | "solarized_dark" => Self::solarized(),
             "monokai" => Self::monokai(),
-            "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => Self::catppuccin_mocha(),
+            "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => {
+                Self::catppuccin_mocha()
+            }
             "dracula" => Self::dracula(),
-            "colorblind-safe" | "colorblind_safe" | "colorblind safe" | "accessible" => Self::colorblind_safe(),
+            "colorblind-safe" | "colorblind_safe" | "colorblind safe" | "accessible" => {
+                Self::colorblind_safe()
+            }
             "deuteranopia" => Self::deuteranopia(),
             "protanopia" => Self::protanopia(),
             "tritanopia" => Self::tritanopia(),
@@ -160,33 +164,33 @@ impl ThemeConfig {
             name: "Catppuccin Mocha".to_string(),
             selected_row_fg: Color::Rgb(30, 30, 46), // Base
             selected_row_bg: Color::Rgb(137, 180, 250), // Blue
-            zebra_bg: Color::Rgb(24, 24, 37), // Mantle
+            zebra_bg: Color::Rgb(24, 24, 37),        // Mantle
             normal_bg: Color::Reset,
-            warning_bg: Color::Rgb(88, 28, 36), // Dark red
+            warning_bg: Color::Rgb(88, 28, 36),        // Dark red
             focused_border: Color::Rgb(137, 180, 250), // Blue
             unfocused_border: Color::Rgb(88, 91, 112), // Surface2
             focused_title_fg: Color::Rgb(137, 180, 250), // Blue
             unfocused_title_fg: Color::Rgb(88, 91, 112), // Surface2
-            header_fg: Color::Rgb(249, 226, 175), // Yellow
-            status_bar_fg: Color::Rgb(205, 214, 244), // Text
-            status_bar_bg: Color::Rgb(49, 50, 68), // Surface1
-            filter_bar_fg: Color::Rgb(205, 214, 244), // Text
-            filter_bar_bg: Color::Rgb(30, 30, 46), // Base
+            header_fg: Color::Rgb(249, 226, 175),      // Yellow
+            status_bar_fg: Color::Rgb(205, 214, 244),  // Text
+            status_bar_bg: Color::Rgb(49, 50, 68),     // Surface1
+            filter_bar_fg: Color::Rgb(205, 214, 244),  // Text
+            filter_bar_bg: Color::Rgb(30, 30, 46),     // Base
             filter_error_fg: Color::Rgb(243, 139, 168), // Red
-            warning_fg: Color::Rgb(243, 139, 168), // Red
-            tree_key_fg: Color::Rgb(137, 180, 250), // Blue
-            tree_value_fg: Color::Rgb(205, 214, 244), // Text
-            hex_offset_fg: Color::Rgb(88, 91, 112), // Surface2
-            hex_byte_fg: Color::Rgb(205, 214, 244), // Text
-            hex_highlight_fg: Color::Rgb(30, 30, 46), // Base
+            warning_fg: Color::Rgb(243, 139, 168),     // Red
+            tree_key_fg: Color::Rgb(137, 180, 250),    // Blue
+            tree_value_fg: Color::Rgb(205, 214, 244),  // Text
+            hex_offset_fg: Color::Rgb(88, 91, 112),    // Surface2
+            hex_byte_fg: Color::Rgb(205, 214, 244),    // Text
+            hex_highlight_fg: Color::Rgb(30, 30, 46),  // Base
             hex_highlight_bg: Color::Rgb(249, 226, 175), // Yellow
             hex_search_match_fg: Color::Rgb(30, 30, 46), // Base
             hex_search_match_bg: Color::Rgb(203, 166, 247), // Mauve
-            hex_ascii_fg: Color::Rgb(166, 227, 161), // Green
-            hex_nonprint_fg: Color::Rgb(88, 91, 112), // Surface2
-            sparkline_fg: Color::Rgb(137, 180, 250), // Blue
-            help_key_fg: Color::Rgb(249, 226, 175), // Yellow
-            help_desc_fg: Color::Rgb(205, 214, 244), // Text
+            hex_ascii_fg: Color::Rgb(166, 227, 161),   // Green
+            hex_nonprint_fg: Color::Rgb(88, 91, 112),  // Surface2
+            sparkline_fg: Color::Rgb(137, 180, 250),   // Blue
+            help_key_fg: Color::Rgb(249, 226, 175),    // Yellow
+            help_desc_fg: Color::Rgb(205, 214, 244),   // Text
             transport_colors,
         }
     }
@@ -204,33 +208,33 @@ impl ThemeConfig {
             name: "Dracula".to_string(),
             selected_row_fg: Color::Rgb(40, 42, 54), // Background
             selected_row_bg: Color::Rgb(139, 233, 253), // Cyan
-            zebra_bg: Color::Rgb(30, 31, 41), // Darker background
+            zebra_bg: Color::Rgb(30, 31, 41),        // Darker background
             normal_bg: Color::Reset,
-            warning_bg: Color::Rgb(68, 23, 36), // Dark red
+            warning_bg: Color::Rgb(68, 23, 36),        // Dark red
             focused_border: Color::Rgb(139, 233, 253), // Cyan
-            unfocused_border: Color::Rgb(68, 71, 90), // Current Line
+            unfocused_border: Color::Rgb(68, 71, 90),  // Current Line
             focused_title_fg: Color::Rgb(139, 233, 253), // Cyan
             unfocused_title_fg: Color::Rgb(98, 114, 164), // Comment
-            header_fg: Color::Rgb(241, 250, 140), // Yellow
-            status_bar_fg: Color::Rgb(248, 248, 242), // Foreground
-            status_bar_bg: Color::Rgb(68, 71, 90), // Current Line
-            filter_bar_fg: Color::Rgb(248, 248, 242), // Foreground
-            filter_bar_bg: Color::Rgb(40, 42, 54), // Background
-            filter_error_fg: Color::Rgb(255, 85, 85), // Red
-            warning_fg: Color::Rgb(255, 85, 85), // Red
-            tree_key_fg: Color::Rgb(139, 233, 253), // Cyan
-            tree_value_fg: Color::Rgb(248, 248, 242), // Foreground
-            hex_offset_fg: Color::Rgb(98, 114, 164), // Comment
-            hex_byte_fg: Color::Rgb(248, 248, 242), // Foreground
-            hex_highlight_fg: Color::Rgb(40, 42, 54), // Background
+            header_fg: Color::Rgb(241, 250, 140),      // Yellow
+            status_bar_fg: Color::Rgb(248, 248, 242),  // Foreground
+            status_bar_bg: Color::Rgb(68, 71, 90),     // Current Line
+            filter_bar_fg: Color::Rgb(248, 248, 242),  // Foreground
+            filter_bar_bg: Color::Rgb(40, 42, 54),     // Background
+            filter_error_fg: Color::Rgb(255, 85, 85),  // Red
+            warning_fg: Color::Rgb(255, 85, 85),       // Red
+            tree_key_fg: Color::Rgb(139, 233, 253),    // Cyan
+            tree_value_fg: Color::Rgb(248, 248, 242),  // Foreground
+            hex_offset_fg: Color::Rgb(98, 114, 164),   // Comment
+            hex_byte_fg: Color::Rgb(248, 248, 242),    // Foreground
+            hex_highlight_fg: Color::Rgb(40, 42, 54),  // Background
             hex_highlight_bg: Color::Rgb(241, 250, 140), // Yellow
             hex_search_match_fg: Color::Rgb(40, 42, 54), // Background
             hex_search_match_bg: Color::Rgb(189, 147, 249), // Purple
-            hex_ascii_fg: Color::Rgb(80, 250, 123), // Green
+            hex_ascii_fg: Color::Rgb(80, 250, 123),    // Green
             hex_nonprint_fg: Color::Rgb(98, 114, 164), // Comment
-            sparkline_fg: Color::Rgb(139, 233, 253), // Cyan
-            help_key_fg: Color::Rgb(241, 250, 140), // Yellow
-            help_desc_fg: Color::Rgb(248, 248, 242), // Foreground
+            sparkline_fg: Color::Rgb(139, 233, 253),   // Cyan
+            help_key_fg: Color::Rgb(241, 250, 140),    // Yellow
+            help_desc_fg: Color::Rgb(248, 248, 242),   // Foreground
             transport_colors,
         }
     }
@@ -262,8 +266,8 @@ impl ThemeConfig {
             filter_bar_fg: Color::White,
             filter_bar_bg: Color::Black,
             filter_error_fg: Color::Rgb(238, 119, 51), // Orange instead of red
-            warning_fg: Color::Rgb(238, 119, 51), // Orange instead of red
-            tree_key_fg: Color::Rgb(0, 119, 187), // Blue
+            warning_fg: Color::Rgb(238, 119, 51),      // Orange instead of red
+            tree_key_fg: Color::Rgb(0, 119, 187),      // Blue
             tree_value_fg: Color::White,
             hex_offset_fg: Color::DarkGray,
             hex_byte_fg: Color::White,
@@ -271,7 +275,7 @@ impl ThemeConfig {
             hex_highlight_bg: Color::Rgb(204, 187, 68), // Yellow
             hex_search_match_fg: Color::Black,
             hex_search_match_bg: Color::Rgb(170, 51, 119), // Purple
-            hex_ascii_fg: Color::Rgb(0, 153, 136), // Teal
+            hex_ascii_fg: Color::Rgb(0, 153, 136),         // Teal
             hex_nonprint_fg: Color::DarkGray,
             sparkline_fg: Color::Rgb(0, 119, 187), // Blue
             help_key_fg: Color::Rgb(238, 119, 51), // Orange
@@ -307,8 +311,8 @@ impl ThemeConfig {
             filter_bar_fg: Color::White,
             filter_bar_bg: Color::Black,
             filter_error_fg: Color::Rgb(255, 153, 51), // Orange instead of red
-            warning_fg: Color::Rgb(255, 153, 51), // Orange instead of red
-            tree_key_fg: Color::Rgb(51, 102, 204), // Blue
+            warning_fg: Color::Rgb(255, 153, 51),      // Orange instead of red
+            tree_key_fg: Color::Rgb(51, 102, 204),     // Blue
             tree_value_fg: Color::White,
             hex_offset_fg: Color::DarkGray,
             hex_byte_fg: Color::White,
@@ -316,10 +320,10 @@ impl ThemeConfig {
             hex_highlight_bg: Color::Rgb(255, 204, 51), // Yellow
             hex_search_match_fg: Color::Black,
             hex_search_match_bg: Color::Rgb(153, 102, 204), // Purple
-            hex_ascii_fg: Color::Rgb(51, 153, 204), // Cyan
+            hex_ascii_fg: Color::Rgb(51, 153, 204),         // Cyan
             hex_nonprint_fg: Color::DarkGray,
             sparkline_fg: Color::Rgb(51, 102, 204), // Blue
-            help_key_fg: Color::Rgb(255, 204, 51), // Yellow
+            help_key_fg: Color::Rgb(255, 204, 51),  // Yellow
             help_desc_fg: Color::White,
             transport_colors,
         }
@@ -352,8 +356,8 @@ impl ThemeConfig {
             filter_bar_fg: Color::White,
             filter_bar_bg: Color::Black,
             filter_error_fg: Color::Rgb(204, 187, 51), // Gold instead of red
-            warning_fg: Color::Rgb(204, 187, 51), // Gold instead of red
-            tree_key_fg: Color::Rgb(0, 102, 204), // Blue
+            warning_fg: Color::Rgb(204, 187, 51),      // Gold instead of red
+            tree_key_fg: Color::Rgb(0, 102, 204),      // Blue
             tree_value_fg: Color::White,
             hex_offset_fg: Color::DarkGray,
             hex_byte_fg: Color::White,
@@ -361,7 +365,7 @@ impl ThemeConfig {
             hex_highlight_bg: Color::Rgb(255, 221, 51), // Yellow
             hex_search_match_fg: Color::Black,
             hex_search_match_bg: Color::Rgb(102, 153, 204), // Light blue
-            hex_ascii_fg: Color::Rgb(0, 153, 204), // Cyan
+            hex_ascii_fg: Color::Rgb(0, 153, 204),          // Cyan
             hex_nonprint_fg: Color::DarkGray,
             sparkline_fg: Color::Rgb(0, 102, 204), // Blue
             help_key_fg: Color::Rgb(255, 221, 51), // Yellow
@@ -397,8 +401,8 @@ impl ThemeConfig {
             filter_bar_fg: Color::White,
             filter_bar_bg: Color::Black,
             filter_error_fg: Color::Rgb(255, 51, 51), // Red
-            warning_fg: Color::Rgb(255, 51, 51), // Red
-            tree_key_fg: Color::Rgb(0, 153, 136), // Teal
+            warning_fg: Color::Rgb(255, 51, 51),      // Red
+            tree_key_fg: Color::Rgb(0, 153, 136),     // Teal
             tree_value_fg: Color::White,
             hex_offset_fg: Color::DarkGray,
             hex_byte_fg: Color::White,
@@ -406,7 +410,7 @@ impl ThemeConfig {
             hex_highlight_bg: Color::Rgb(204, 51, 102), // Pink
             hex_search_match_fg: Color::Black,
             hex_search_match_bg: Color::Rgb(153, 0, 102), // Magenta
-            hex_ascii_fg: Color::Rgb(0, 187, 153), // Cyan-green
+            hex_ascii_fg: Color::Rgb(0, 187, 153),        // Cyan-green
             hex_nonprint_fg: Color::DarkGray,
             sparkline_fg: Color::Rgb(0, 153, 136), // Teal
             help_key_fg: Color::Rgb(204, 51, 102), // Pink
@@ -429,7 +433,7 @@ impl ThemeConfig {
             name: "High Contrast".to_string(),
             selected_row_fg: Color::White,
             selected_row_bg: Color::Rgb(0, 0, 255), // Pure blue
-            zebra_bg: Color::Rgb(20, 20, 20), // Very dark gray
+            zebra_bg: Color::Rgb(20, 20, 20),       // Very dark gray
             normal_bg: Color::Black,
             warning_bg: Color::Rgb(80, 0, 0), // Dark red
             focused_border: Color::White,
@@ -442,7 +446,7 @@ impl ThemeConfig {
             filter_bar_fg: Color::White,
             filter_bar_bg: Color::Black,
             filter_error_fg: Color::Rgb(255, 100, 100), // Bright red
-            warning_fg: Color::Rgb(255, 100, 100), // Bright red
+            warning_fg: Color::Rgb(255, 100, 100),      // Bright red
             tree_key_fg: Color::White,
             tree_value_fg: Color::Rgb(200, 200, 200), // Light gray
             hex_offset_fg: Color::Rgb(150, 150, 150), // Mid-light gray
@@ -451,8 +455,8 @@ impl ThemeConfig {
             hex_highlight_bg: Color::White,
             hex_search_match_fg: Color::Black,
             hex_search_match_bg: Color::Rgb(255, 255, 0), // Bright yellow
-            hex_ascii_fg: Color::Rgb(150, 255, 150), // Bright green
-            hex_nonprint_fg: Color::Rgb(120, 120, 120), // Gray
+            hex_ascii_fg: Color::Rgb(150, 255, 150),      // Bright green
+            hex_nonprint_fg: Color::Rgb(120, 120, 120),   // Gray
             sparkline_fg: Color::White,
             help_key_fg: Color::White,
             help_desc_fg: Color::Rgb(200, 200, 200), // Light gray
@@ -474,33 +478,33 @@ impl ThemeConfig {
             name: "Solarized".to_string(),
             selected_row_fg: Color::Rgb(0, 43, 54), // Base03
             selected_row_bg: Color::Rgb(38, 139, 210), // Blue
-            zebra_bg: Color::Rgb(7, 54, 66), // Base02
+            zebra_bg: Color::Rgb(7, 54, 66),        // Base02
             normal_bg: Color::Reset,
-            warning_bg: Color::Rgb(88, 28, 36), // Dark red
-            focused_border: Color::Rgb(38, 139, 210), // Blue
+            warning_bg: Color::Rgb(88, 28, 36),         // Dark red
+            focused_border: Color::Rgb(38, 139, 210),   // Blue
             unfocused_border: Color::Rgb(88, 110, 117), // Base01
             focused_title_fg: Color::Rgb(38, 139, 210), // Blue
             unfocused_title_fg: Color::Rgb(88, 110, 117), // Base01
-            header_fg: Color::Rgb(181, 137, 0), // Yellow
-            status_bar_fg: Color::Rgb(131, 148, 150), // Base0
-            status_bar_bg: Color::Rgb(7, 54, 66), // Base02
-            filter_bar_fg: Color::Rgb(131, 148, 150), // Base0
-            filter_bar_bg: Color::Rgb(0, 43, 54), // Base03
-            filter_error_fg: Color::Rgb(220, 50, 47), // Red
-            warning_fg: Color::Rgb(220, 50, 47), // Red
-            tree_key_fg: Color::Rgb(38, 139, 210), // Blue
-            tree_value_fg: Color::Rgb(131, 148, 150), // Base0
-            hex_offset_fg: Color::Rgb(88, 110, 117), // Base01
-            hex_byte_fg: Color::Rgb(131, 148, 150), // Base0
-            hex_highlight_fg: Color::Rgb(0, 43, 54), // Base03
-            hex_highlight_bg: Color::Rgb(181, 137, 0), // Yellow
+            header_fg: Color::Rgb(181, 137, 0),         // Yellow
+            status_bar_fg: Color::Rgb(131, 148, 150),   // Base0
+            status_bar_bg: Color::Rgb(7, 54, 66),       // Base02
+            filter_bar_fg: Color::Rgb(131, 148, 150),   // Base0
+            filter_bar_bg: Color::Rgb(0, 43, 54),       // Base03
+            filter_error_fg: Color::Rgb(220, 50, 47),   // Red
+            warning_fg: Color::Rgb(220, 50, 47),        // Red
+            tree_key_fg: Color::Rgb(38, 139, 210),      // Blue
+            tree_value_fg: Color::Rgb(131, 148, 150),   // Base0
+            hex_offset_fg: Color::Rgb(88, 110, 117),    // Base01
+            hex_byte_fg: Color::Rgb(131, 148, 150),     // Base0
+            hex_highlight_fg: Color::Rgb(0, 43, 54),    // Base03
+            hex_highlight_bg: Color::Rgb(181, 137, 0),  // Yellow
             hex_search_match_fg: Color::Rgb(0, 43, 54), // Base03
             hex_search_match_bg: Color::Rgb(211, 54, 130), // Magenta
-            hex_ascii_fg: Color::Rgb(133, 153, 0), // Green
-            hex_nonprint_fg: Color::Rgb(88, 110, 117), // Base01
-            sparkline_fg: Color::Rgb(38, 139, 210), // Blue
-            help_key_fg: Color::Rgb(181, 137, 0), // Yellow
-            help_desc_fg: Color::Rgb(131, 148, 150), // Base0
+            hex_ascii_fg: Color::Rgb(133, 153, 0),      // Green
+            hex_nonprint_fg: Color::Rgb(88, 110, 117),  // Base01
+            sparkline_fg: Color::Rgb(38, 139, 210),     // Blue
+            help_key_fg: Color::Rgb(181, 137, 0),       // Yellow
+            help_desc_fg: Color::Rgb(131, 148, 150),    // Base0
             transport_colors,
         }
     }
@@ -519,33 +523,33 @@ impl ThemeConfig {
             name: "Monokai".to_string(),
             selected_row_fg: Color::Rgb(39, 40, 34), // Background
             selected_row_bg: Color::Rgb(102, 217, 239), // Blue/Cyan
-            zebra_bg: Color::Rgb(30, 31, 27), // Darker background
+            zebra_bg: Color::Rgb(30, 31, 27),        // Darker background
             normal_bg: Color::Reset,
-            warning_bg: Color::Rgb(68, 23, 36), // Dark red
-            focused_border: Color::Rgb(102, 217, 239), // Blue/Cyan
+            warning_bg: Color::Rgb(68, 23, 36),         // Dark red
+            focused_border: Color::Rgb(102, 217, 239),  // Blue/Cyan
             unfocused_border: Color::Rgb(117, 113, 94), // Comment
             focused_title_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
             unfocused_title_fg: Color::Rgb(117, 113, 94), // Comment
-            header_fg: Color::Rgb(230, 219, 116), // Yellow
-            status_bar_fg: Color::Rgb(248, 248, 242), // Foreground
-            status_bar_bg: Color::Rgb(73, 72, 62), // Line highlight
-            filter_bar_fg: Color::Rgb(248, 248, 242), // Foreground
-            filter_bar_bg: Color::Rgb(39, 40, 34), // Background
-            filter_error_fg: Color::Rgb(249, 38, 114), // Pink
-            warning_fg: Color::Rgb(249, 38, 114), // Pink
-            tree_key_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
-            tree_value_fg: Color::Rgb(248, 248, 242), // Foreground
-            hex_offset_fg: Color::Rgb(117, 113, 94), // Comment
-            hex_byte_fg: Color::Rgb(248, 248, 242), // Foreground
-            hex_highlight_fg: Color::Rgb(39, 40, 34), // Background
+            header_fg: Color::Rgb(230, 219, 116),       // Yellow
+            status_bar_fg: Color::Rgb(248, 248, 242),   // Foreground
+            status_bar_bg: Color::Rgb(73, 72, 62),      // Line highlight
+            filter_bar_fg: Color::Rgb(248, 248, 242),   // Foreground
+            filter_bar_bg: Color::Rgb(39, 40, 34),      // Background
+            filter_error_fg: Color::Rgb(249, 38, 114),  // Pink
+            warning_fg: Color::Rgb(249, 38, 114),       // Pink
+            tree_key_fg: Color::Rgb(102, 217, 239),     // Blue/Cyan
+            tree_value_fg: Color::Rgb(248, 248, 242),   // Foreground
+            hex_offset_fg: Color::Rgb(117, 113, 94),    // Comment
+            hex_byte_fg: Color::Rgb(248, 248, 242),     // Foreground
+            hex_highlight_fg: Color::Rgb(39, 40, 34),   // Background
             hex_highlight_bg: Color::Rgb(230, 219, 116), // Yellow
             hex_search_match_fg: Color::Rgb(39, 40, 34), // Background
             hex_search_match_bg: Color::Rgb(174, 129, 255), // Purple
-            hex_ascii_fg: Color::Rgb(166, 226, 46), // Green
-            hex_nonprint_fg: Color::Rgb(117, 113, 94), // Comment
-            sparkline_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
-            help_key_fg: Color::Rgb(230, 219, 116), // Yellow
-            help_desc_fg: Color::Rgb(248, 248, 242), // Foreground
+            hex_ascii_fg: Color::Rgb(166, 226, 46),     // Green
+            hex_nonprint_fg: Color::Rgb(117, 113, 94),  // Comment
+            sparkline_fg: Color::Rgb(102, 217, 239),    // Blue/Cyan
+            help_key_fg: Color::Rgb(230, 219, 116),     // Yellow
+            help_desc_fg: Color::Rgb(248, 248, 242),    // Foreground
             transport_colors,
         }
     }

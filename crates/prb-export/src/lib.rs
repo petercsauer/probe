@@ -1,20 +1,20 @@
-mod error;
 mod csv_export;
+mod error;
 mod har_export;
 mod html_export;
+mod merge;
 mod otlp_export;
 mod otlp_import;
-mod merge;
 #[cfg(feature = "parquet")]
 mod parquet_export;
 
-pub use error::ExportError;
 pub use csv_export::CsvExporter;
+pub use error::ExportError;
 pub use har_export::HarExporter;
 pub use html_export::HtmlExporter;
+pub use merge::{MergedEvent, SpanSummary, merge_traces_with_packets};
 pub use otlp_export::OtlpExporter;
-pub use otlp_import::{parse_otlp_json, otlp_to_events, ExportTraceServiceRequest};
-pub use merge::{merge_traces_with_packets, MergedEvent, SpanSummary};
+pub use otlp_import::{ExportTraceServiceRequest, otlp_to_events, parse_otlp_json};
 #[cfg(feature = "parquet")]
 pub use parquet_export::ParquetExporter;
 

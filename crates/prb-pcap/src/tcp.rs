@@ -19,7 +19,6 @@ use std::ops::Range;
 /// Default connection timeout in microseconds (30 seconds).
 const DEFAULT_TIMEOUT_US: u64 = 30_000_000;
 
-
 /// Direction of TCP stream data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StreamDirection {
@@ -179,7 +178,10 @@ impl TcpReassembler {
     /// Processes a TCP segment from a normalized packet.
     ///
     /// Returns a vector of stream events (data, gaps, timeouts).
-    pub fn process_segment(&mut self, packet: &NormalizedPacket) -> Result<Vec<StreamEvent>, PcapError> {
+    pub fn process_segment(
+        &mut self,
+        packet: &NormalizedPacket,
+    ) -> Result<Vec<StreamEvent>, PcapError> {
         let tcp_info = match &packet.transport {
             TransportInfo::Tcp(info) => info,
             _ => return Ok(Vec::new()), // Not a TCP packet
@@ -233,7 +235,9 @@ impl TcpReassembler {
             data,
             is_complete: dir_state.fin_seen,
             missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
-            timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(dir_state.last_activity_us),
+            timestamp_us: dir_state
+                .first_packet_timestamp_us
+                .unwrap_or(dir_state.last_activity_us),
         })
     }
 
@@ -347,11 +351,7 @@ impl TcpReassembler {
         // Initialize sequence number on first segment
         if dir_state.initial_seq.is_none() {
             // If this is a SYN packet, the ISN should be seq+1 because SYN consumes one sequence number
-            let isn = if flags.syn {
-                seq.wrapping_add(1)
-            } else {
-                seq
-            };
+            let isn = if flags.syn { seq.wrapping_add(1) } else { seq };
             dir_state.initial_seq = Some(isn);
             dir_state.first_packet_timestamp_us = Some(timestamp_us);
         }
@@ -383,7 +383,10 @@ impl TcpReassembler {
             } else {
                 // After consuming some bytes, check if new data extends contiguously
                 // by seeing if the payload_buffer has data at consumed_offset
-                if dir_state.payload_buffer.contains_key(&dir_state.consumed_offset) {
+                if dir_state
+                    .payload_buffer
+                    .contains_key(&dir_state.consumed_offset)
+                {
                     // Calculate how much contiguous data we have from consumed_offset
                     let mut len = 0;
                     let mut check_offset = dir_state.consumed_offset;
@@ -441,9 +444,7 @@ impl TcpReassembler {
                     data,
                     is_complete: dir_state.fin_seen,
                     missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
-                    timestamp_us: dir_state
-                        .first_packet_timestamp_us
-                        .unwrap_or(timestamp_us),
+                    timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(timestamp_us),
                 }));
             }
         }

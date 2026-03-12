@@ -4,12 +4,12 @@ use crate::config::AiConfig;
 use crate::context::ExplainContext;
 use crate::error::AiError;
 use crate::prompt::{build_system_prompt, build_user_message};
+use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
     ChatCompletionRequestUserMessage, CreateChatCompletionRequest, Role,
 };
-use async_openai::Client;
 use futures::StreamExt;
 use prb_core::DebugEvent;
 

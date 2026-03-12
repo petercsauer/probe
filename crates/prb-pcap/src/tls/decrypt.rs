@@ -13,8 +13,11 @@ use crate::error::PcapError;
 use crate::tls::kdf::{derive_tls12_keys, derive_tls13_keys};
 use crate::tls::keylog::KeyMaterial;
 use crate::tls::session::SessionInfo;
-use ring::aead::{Aad, BoundKey, Nonce, NonceSequence, OpeningKey, UnboundKey, AES_128_GCM, AES_256_GCM, CHACHA20_POLY1305};
-use tls_parser::{parse_tls_plaintext, TlsMessage, TlsRecordType};
+use ring::aead::{
+    AES_128_GCM, AES_256_GCM, Aad, BoundKey, CHACHA20_POLY1305, Nonce, NonceSequence, OpeningKey,
+    UnboundKey,
+};
+use tls_parser::{TlsMessage, TlsRecordType, parse_tls_plaintext};
 
 /// AEAD cipher algorithms supported for TLS decryption.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +72,7 @@ impl TlsDecryptor {
                 return Err(PcapError::TlsKey(format!(
                     "unsupported cipher suite: 0x{:04x}",
                     session.cipher_suite_id
-                )))
+                )));
             }
         };
 
@@ -85,21 +88,23 @@ impl TlsDecryptor {
                 .iter()
                 .find(|m| matches!(m, KeyMaterial::ServerTrafficSecret0(_)));
 
-            let (client_key, client_iv) = if let Some(KeyMaterial::ClientTrafficSecret0(secret)) = client_secret {
-                let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
-                (keys.key, keys.iv)
-            } else {
-                // No client secret - use empty keys (decryption will fail gracefully)
-                (vec![0u8; session.key_len()], vec![0u8; 12])
-            };
+            let (client_key, client_iv) =
+                if let Some(KeyMaterial::ClientTrafficSecret0(secret)) = client_secret {
+                    let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
+                    (keys.key, keys.iv)
+                } else {
+                    // No client secret - use empty keys (decryption will fail gracefully)
+                    (vec![0u8; session.key_len()], vec![0u8; 12])
+                };
 
-            let (server_key, server_iv) = if let Some(KeyMaterial::ServerTrafficSecret0(secret)) = server_secret {
-                let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
-                (keys.key, keys.iv)
-            } else {
-                // No server secret - use empty keys (decryption will fail gracefully)
-                (vec![0u8; session.key_len()], vec![0u8; 12])
-            };
+            let (server_key, server_iv) =
+                if let Some(KeyMaterial::ServerTrafficSecret0(secret)) = server_secret {
+                    let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
+                    (keys.key, keys.iv)
+                } else {
+                    // No server secret - use empty keys (decryption will fail gracefully)
+                    (vec![0u8; session.key_len()], vec![0u8; 12])
+                };
 
             (client_key, client_iv, server_key, server_iv)
         } else {
@@ -127,7 +132,7 @@ impl TlsDecryptor {
                 _ => {
                     return Err(PcapError::TlsKey(
                         "TLS 1.2 requires master secret".to_string(),
-                    ))
+                    ));
                 }
             }
         };
@@ -185,8 +190,12 @@ impl TlsDecryptor {
                         for msg in record.msg {
                             if let TlsMessage::ApplicationData(app_data) = msg {
                                 // Decrypt this record
-                                let decrypted =
-                                    self.decrypt_record(app_data.blob, sequence, &record.hdr, direction)?;
+                                let decrypted = self.decrypt_record(
+                                    app_data.blob,
+                                    sequence,
+                                    &record.hdr,
+                                    direction,
+                                )?;
                                 plaintext.extend_from_slice(&decrypted);
                                 sequence += 1;
                             }
@@ -297,7 +306,12 @@ impl TlsDecryptor {
     ///
     /// TLS 1.2 (RFC 5246 Section 6.2.3.3): seq_num (8) + type (1) + version (2) + length (2) = 13 bytes
     /// TLS 1.3 (RFC 8446 Section 5.2): type (1) + version (2) + length (2) = 5 bytes
-    fn construct_aad(&self, record_hdr: &tls_parser::TlsRecordHeader, ciphertext_len: usize, sequence: u64) -> Vec<u8> {
+    fn construct_aad(
+        &self,
+        record_hdr: &tls_parser::TlsRecordHeader,
+        ciphertext_len: usize,
+        sequence: u64,
+    ) -> Vec<u8> {
         if self.is_tls13 {
             vec![
                 u8::from(record_hdr.record_type),
@@ -337,7 +351,9 @@ mod tests {
 
     #[test]
     fn test_tls13_nonce_construction() {
-        let iv = vec![0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb];
+        let iv = vec![
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb,
+        ];
         let sequence = 0x0000000000000001u64;
 
         // Mock decryptor
@@ -350,7 +366,9 @@ mod tests {
             is_tls13: true,
         };
 
-        let nonce = decryptor.construct_nonce(&iv, sequence, &[0u8; 32]).unwrap();
+        let nonce = decryptor
+            .construct_nonce(&iv, sequence, &[0u8; 32])
+            .unwrap();
 
         // Verify nonce is IV XOR'd with sequence number
         assert_eq!(nonce.len(), 12);

@@ -14,7 +14,11 @@ pub fn row_text(buf: &Buffer, y: u16) -> String {
 /// Extract a rectangular region as a vec of row strings.
 pub fn region_text(buf: &Buffer, x: u16, y: u16, w: u16, h: u16) -> Vec<String> {
     (y..y + h)
-        .map(|row| (x..x + w).map(|col| buf[(col, row)].symbol().to_string()).collect())
+        .map(|row| {
+            (x..x + w)
+                .map(|col| buf[(col, row)].symbol().to_string())
+                .collect()
+        })
         .collect()
 }
 

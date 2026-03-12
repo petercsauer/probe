@@ -2,8 +2,8 @@
 
 use prb_capture::{CaptureStats, LiveCaptureAdapter};
 use prb_core::{CaptureAdapter, DebugEvent};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -114,7 +114,10 @@ fn capture_event_forwarder(
                 event_count += 1;
 
                 // Send event to TUI (blocking send from non-async context)
-                if tx.blocking_send(AppEvent::CapturedEvent(Box::new(event))).is_err() {
+                if tx
+                    .blocking_send(AppEvent::CapturedEvent(Box::new(event)))
+                    .is_err()
+                {
                     tracing::debug!("TUI event channel closed, stopping capture");
                     break;
                 }

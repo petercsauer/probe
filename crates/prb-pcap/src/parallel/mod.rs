@@ -11,8 +11,8 @@ mod shard;
 pub mod stats;
 pub mod streaming;
 
-pub use detect::{detect_protocol, DetectedProtocol};
-pub use normalize::{process_fragments, NormalizeBatch};
+pub use detect::{DetectedProtocol, detect_protocol};
+pub use normalize::{NormalizeBatch, process_fragments};
 pub use orchestrator::{ParallelPipeline, PipelineConfig};
 pub use partition::FlowPartitioner;
 pub use shard::ShardProcessor;

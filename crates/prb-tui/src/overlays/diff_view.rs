@@ -2,11 +2,13 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, Clear, Widget};
 use ratatui::style::{Color, Style};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 
 use crate::theme::ThemeConfig;
-use prb_core::{compute_aggregate_metrics, conversation::Conversation, DebugEvent, AggregateMetrics};
+use prb_core::{
+    AggregateMetrics, DebugEvent, compute_aggregate_metrics, conversation::Conversation,
+};
 use std::collections::{HashMap, HashSet};
 
 /// Diff entry representing matched or unmatched events.
@@ -18,13 +20,9 @@ pub enum DiffEntry {
         event2_idx: usize,
     },
     /// Event unique to first file.
-    OnlyInFirst {
-        event_idx: usize,
-    },
+    OnlyInFirst { event_idx: usize },
     /// Event unique to second file.
-    OnlyInSecond {
-        event_idx: usize,
-    },
+    OnlyInSecond { event_idx: usize },
 }
 
 /// Conversation diff entry.
@@ -37,13 +35,9 @@ pub enum ConversationDiff {
         changed: bool, // true if status/duration differs significantly
     },
     /// Conversation only in first file.
-    OnlyInFirst {
-        conv_idx: usize,
-    },
+    OnlyInFirst { conv_idx: usize },
     /// Conversation only in second file.
-    OnlyInSecond {
-        conv_idx: usize,
-    },
+    OnlyInSecond { conv_idx: usize },
 }
 
 /// Regression analysis result.
@@ -65,13 +59,17 @@ impl RegressionReport {
         let metrics2 = compute_aggregate_metrics(convs2);
 
         let latency_p50_change_pct = if metrics1.latency_p50_ns > 0 {
-            ((metrics2.latency_p50_ns as f64 - metrics1.latency_p50_ns as f64) / metrics1.latency_p50_ns as f64) * 100.0
+            ((metrics2.latency_p50_ns as f64 - metrics1.latency_p50_ns as f64)
+                / metrics1.latency_p50_ns as f64)
+                * 100.0
         } else {
             0.0
         };
 
         let latency_p95_change_pct = if metrics1.latency_p95_ns > 0 {
-            ((metrics2.latency_p95_ns as f64 - metrics1.latency_p95_ns as f64) / metrics1.latency_p95_ns as f64) * 100.0
+            ((metrics2.latency_p95_ns as f64 - metrics1.latency_p95_ns as f64)
+                / metrics1.latency_p95_ns as f64)
+                * 100.0
         } else {
             0.0
         };
@@ -188,7 +186,10 @@ impl DiffViewOverlay {
 
             // Check if method matches (if available)
             let method_match = e1.metadata.get("method") == e2.metadata.get("method");
-            if !method_match && e1.metadata.contains_key("method") && e2.metadata.contains_key("method") {
+            if !method_match
+                && e1.metadata.contains_key("method")
+                && e2.metadata.contains_key("method")
+            {
                 continue;
             }
 

@@ -1,6 +1,8 @@
 //! Detection engine that orchestrates multiple detectors.
 
-use crate::detector::{GrpcDetector, GuessCrateDetector, PortMappingDetector, RtpsDetector, ZmtpDetector};
+use crate::detector::{
+    GrpcDetector, GuessCrateDetector, PortMappingDetector, RtpsDetector, ZmtpDetector,
+};
 use crate::types::{
     DetectionContext, DetectionMethod, DetectionResult, ProtocolDetector, ProtocolId,
 };

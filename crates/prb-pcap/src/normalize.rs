@@ -186,9 +186,8 @@ impl PacketNormalizer {
             }
             113 => {
                 // Linux SLL (cooked capture)
-                SlicedPacket::from_linux_sll(data).map_err(|e| {
-                    PcapError::Parse(format!("failed to parse SLL packet: {:?}", e))
-                })?
+                SlicedPacket::from_linux_sll(data)
+                    .map_err(|e| PcapError::Parse(format!("failed to parse SLL packet: {:?}", e)))?
             }
             276 => {
                 // Linux SLL2 (not supported by etherparse, use custom parser)
@@ -198,7 +197,7 @@ impl PacketNormalizer {
                 return Err(PcapError::InvalidLinktype(format!(
                     "unsupported linktype: {}",
                     linktype
-                )))
+                )));
             }
         };
 
@@ -211,7 +210,7 @@ impl PacketNormalizer {
             None => {
                 return Err(PcapError::Parse(
                     "no network layer found in packet".to_string(),
-                ))
+                ));
             }
         };
 
@@ -222,7 +221,7 @@ impl PacketNormalizer {
             NetSlice::Arp(_) => {
                 return Err(PcapError::Parse(
                     "ARP packets not supported for normalization".to_string(),
-                ))
+                ));
             }
         };
 
@@ -313,12 +312,8 @@ impl PacketNormalizer {
                 let payload = udp.payload();
                 (TransportInfo::Udp { src_port, dst_port }, payload)
             }
-            Some(TransportSlice::Icmpv4(icmp)) => {
-                (TransportInfo::Other(1), icmp.payload())
-            }
-            Some(TransportSlice::Icmpv6(icmp)) => {
-                (TransportInfo::Other(58), icmp.payload())
-            }
+            Some(TransportSlice::Icmpv4(icmp)) => (TransportInfo::Other(1), icmp.payload()),
+            Some(TransportSlice::Icmpv6(icmp)) => (TransportInfo::Other(58), icmp.payload()),
             None => {
                 // No transport layer or unknown protocol
                 (
@@ -480,10 +475,7 @@ impl PacketNormalizer {
             0x0800 | 0x86dd => {
                 // IPv4 or IPv6
                 SlicedPacket::from_ip(payload).map_err(|e| {
-                    PcapError::Parse(format!(
-                        "failed to parse IP packet in SLL2 frame: {:?}",
-                        e
-                    ))
+                    PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {:?}", e))
                 })
             }
             _ => Err(PcapError::Parse(format!(
@@ -554,22 +546,21 @@ pub fn normalize_stateless(
             return Err(PcapError::InvalidLinktype(format!(
                 "unsupported: {}",
                 linktype
-            )))
+            )));
         }
     };
 
     let vlan_id = sliced.vlan_ids().first().map(|v| v.value());
 
-    let net = sliced.net.as_ref().ok_or_else(|| {
-        PcapError::Parse("no network layer".into())
-    })?;
+    let net = sliced
+        .net
+        .as_ref()
+        .ok_or_else(|| PcapError::Parse("no network layer".into()))?;
 
     let is_fragmented = match net {
         NetSlice::Ipv4(ipv4) => ipv4.payload().fragmented,
         NetSlice::Ipv6(ipv6) => ipv6.payload().fragmented,
-        NetSlice::Arp(_) => {
-            return Err(PcapError::Parse("ARP not supported".into()))
-        }
+        NetSlice::Arp(_) => return Err(PcapError::Parse("ARP not supported".into())),
     };
 
     if is_fragmented {
@@ -610,10 +601,13 @@ fn extract_ips(net: &NetSlice) -> (IpAddr, IpAddr) {
 }
 
 /// Extracts transport layer information from a sliced packet (helper for stateless normalization).
-fn extract_transport<'a>(sliced: &'a SlicedPacket<'a>) -> Result<(TransportInfo, &'a [u8]), PcapError> {
-    let net = sliced.net.as_ref().ok_or_else(|| {
-        PcapError::Parse("no network layer".into())
-    })?;
+fn extract_transport<'a>(
+    sliced: &'a SlicedPacket<'a>,
+) -> Result<(TransportInfo, &'a [u8]), PcapError> {
+    let net = sliced
+        .net
+        .as_ref()
+        .ok_or_else(|| PcapError::Parse("no network layer".into()))?;
 
     let ip_payload_slice = match net {
         NetSlice::Ipv4(ipv4) => ipv4.payload(),
@@ -648,12 +642,8 @@ fn extract_transport<'a>(sliced: &'a SlicedPacket<'a>) -> Result<(TransportInfo,
             },
             udp.payload(),
         )),
-        Some(TransportSlice::Icmpv4(icmp)) => {
-            Ok((TransportInfo::Other(1), icmp.payload()))
-        }
-        Some(TransportSlice::Icmpv6(icmp)) => {
-            Ok((TransportInfo::Other(58), icmp.payload()))
-        }
+        Some(TransportSlice::Icmpv4(icmp)) => Ok((TransportInfo::Other(1), icmp.payload())),
+        Some(TransportSlice::Icmpv6(icmp)) => Ok((TransportInfo::Other(58), icmp.payload())),
         None => Ok((
             TransportInfo::Other(ip_payload_slice.ip_number.0),
             ip_payload_slice.payload,
@@ -698,10 +688,7 @@ fn parse_sll2_static(data: &[u8]) -> Result<SlicedPacket<'_>, PcapError> {
     let payload = &data[20..];
     match protocol_type {
         0x0800 | 0x86dd => SlicedPacket::from_ip(payload).map_err(|e| {
-            PcapError::Parse(format!(
-                "failed to parse IP packet in SLL2 frame: {:?}",
-                e
-            ))
+            PcapError::Parse(format!("failed to parse IP packet in SLL2 frame: {:?}", e))
         }),
         _ => Err(PcapError::Parse(format!(
             "unsupported protocol type in SLL2 frame: 0x{:04x}",

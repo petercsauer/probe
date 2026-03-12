@@ -4,9 +4,11 @@ mod buf_helpers;
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
-use prb_tui::event_store::EventStore;
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::App;
+use prb_tui::event_store::EventStore;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
@@ -46,8 +48,20 @@ fn make_test_event_full(
 #[test]
 fn test_app_render_all_panes_visible() {
     let events = vec![
-        make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-        make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
+        make_test_event_full(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+        ),
+        make_test_event_full(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+        ),
     ];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
@@ -72,9 +86,27 @@ fn test_app_render_all_panes_visible() {
 #[test]
 fn test_app_render_filter_bar_with_active_filter() {
     let events = vec![
-        make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-        make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
-        make_test_event_full(3, 3_000_000_000, TransportKind::Grpc, "10.0.0.3:9999", "10.0.0.4:1111"),
+        make_test_event_full(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+        ),
+        make_test_event_full(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+        ),
+        make_test_event_full(
+            3,
+            3_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.3:9999",
+            "10.0.0.4:1111",
+        ),
     ];
     let store = EventStore::new(events);
     let mut app = App::new(store, Some(r#"transport == "gRPC""#.to_string()), None);
@@ -97,8 +129,20 @@ fn test_app_render_filter_bar_with_active_filter() {
 #[test]
 fn test_app_render_status_bar_content() {
     let events = vec![
-        make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-        make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
+        make_test_event_full(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+        ),
+        make_test_event_full(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+        ),
     ];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
@@ -119,7 +163,13 @@ fn test_app_render_status_bar_content() {
 
 #[test]
 fn test_app_render_with_filter_mode_active() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -133,19 +183,25 @@ fn test_app_render_with_filter_mode_active() {
     app.test_render_to_buffer(area, &mut buffer);
 
     // Should show cursor/indicator in filter mode
-    let first_line_text: String = (0..area.width)
-        .map(|x| buffer[(x, 0)].symbol())
-        .collect();
+    let first_line_text: String = (0..area.width).map(|x| buffer[(x, 0)].symbol()).collect();
 
-    assert!(first_line_text.contains("/") || first_line_text.contains("▏"),
-        "Should show filter input indicator");
+    assert!(
+        first_line_text.contains("/") || first_line_text.contains("▏"),
+        "Should show filter input indicator"
+    );
 }
 
 #[test]
 fn test_app_render_different_pane_focus() {
     use prb_tui::app::PaneId;
 
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -170,7 +226,13 @@ fn test_app_render_different_pane_focus() {
 
 #[test]
 fn test_app_render_very_small_terminal() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -184,7 +246,13 @@ fn test_app_render_very_small_terminal() {
 
 #[test]
 fn test_app_render_very_wide_terminal() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -198,7 +266,13 @@ fn test_app_render_very_wide_terminal() {
 
 #[test]
 fn test_app_render_help_overlay_small_terminal() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -217,7 +291,13 @@ fn test_app_render_help_overlay_small_terminal() {
 
 #[test]
 fn test_app_render_help_overlay_very_small() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -235,8 +315,20 @@ fn test_app_render_help_overlay_very_small() {
 #[test]
 fn test_app_filter_mode_typing_simulation() {
     let events = vec![
-        make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-        make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
+        make_test_event_full(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+        ),
+        make_test_event_full(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+        ),
     ];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
@@ -265,10 +357,34 @@ fn test_app_filter_mode_typing_simulation() {
 #[test]
 fn test_app_render_with_multiple_protocol_types() {
     let events = vec![
-        make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678"),
-        make_test_event_full(2, 2_000_000_000, TransportKind::Zmq, "10.0.0.2:5678", "10.0.0.3:9999"),
-        make_test_event_full(3, 3_000_000_000, TransportKind::DdsRtps, "10.0.0.3:9999", "10.0.0.4:1111"),
-        make_test_event_full(4, 4_000_000_000, TransportKind::RawTcp, "10.0.0.4:1111", "10.0.0.5:2222"),
+        make_test_event_full(
+            1,
+            1_000_000_000,
+            TransportKind::Grpc,
+            "10.0.0.1:1234",
+            "10.0.0.2:5678",
+        ),
+        make_test_event_full(
+            2,
+            2_000_000_000,
+            TransportKind::Zmq,
+            "10.0.0.2:5678",
+            "10.0.0.3:9999",
+        ),
+        make_test_event_full(
+            3,
+            3_000_000_000,
+            TransportKind::DdsRtps,
+            "10.0.0.3:9999",
+            "10.0.0.4:1111",
+        ),
+        make_test_event_full(
+            4,
+            4_000_000_000,
+            TransportKind::RawTcp,
+            "10.0.0.4:1111",
+            "10.0.0.5:2222",
+        ),
     ];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
@@ -293,7 +409,13 @@ fn test_app_render_with_multiple_protocol_types() {
 
 #[test]
 fn test_app_render_empty_filter_prompt() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -303,19 +425,25 @@ fn test_app_render_empty_filter_prompt() {
     app.test_render_to_buffer(area, &mut buffer);
 
     // Check filter bar shows "type / to filter" when no filter is active
-    let first_line_text: String = (0..area.width)
-        .map(|x| buffer[(x, 0)].symbol())
-        .collect();
+    let first_line_text: String = (0..area.width).map(|x| buffer[(x, 0)].symbol()).collect();
 
-    assert!(first_line_text.contains("/") || first_line_text.contains("filter"),
-        "Should show filter prompt");
+    assert!(
+        first_line_text.contains("/") || first_line_text.contains("filter"),
+        "Should show filter prompt"
+    );
 }
 
 #[test]
 fn test_app_key_in_help_mode_ignored() {
     use prb_tui::app::InputMode;
 
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -341,7 +469,13 @@ fn test_app_key_in_help_mode_ignored() {
 fn test_app_process_action_quit() {
     use prb_tui::panes::Action;
 
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
@@ -351,17 +485,18 @@ fn test_app_process_action_quit() {
 
 #[test]
 fn test_app_render_layout_constraints() {
-    let events = vec![make_test_event_full(1, 1_000_000_000, TransportKind::Grpc, "10.0.0.1:1234", "10.0.0.2:5678")];
+    let events = vec![make_test_event_full(
+        1,
+        1_000_000_000,
+        TransportKind::Grpc,
+        "10.0.0.1:1234",
+        "10.0.0.2:5678",
+    )];
     let store = EventStore::new(events);
     let mut app = App::new(store, None, None);
 
     // Test various terminal sizes to ensure layout constraints work
-    let sizes = vec![
-        (40, 20),
-        (80, 24),
-        (120, 40),
-        (200, 60),
-    ];
+    let sizes = vec![(40, 20), (80, 24), (120, 40), (200, 60)];
 
     for (width, height) in sizes {
         let area = Rect::new(0, 0, width, height);

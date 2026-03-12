@@ -23,5 +23,5 @@ pub use ring_buffer::RingBuffer;
 pub use session::Session;
 
 // Re-export schema types for external use
+pub use prb_decode::{DecodedMessage, WireMessage, decode_wire_format, decode_with_schema};
 pub use prb_schema::SchemaRegistry;
-pub use prb_decode::{decode_with_schema, decode_wire_format, DecodedMessage, WireMessage};

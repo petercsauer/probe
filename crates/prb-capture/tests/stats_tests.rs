@@ -31,10 +31,18 @@ fn test_drop_rate_with_drops() {
     };
 
     let drop_rate = stats.drop_rate();
-    assert!((drop_rate - 0.02).abs() < 0.001, "expected ~0.02, got {}", drop_rate);
+    assert!(
+        (drop_rate - 0.02).abs() < 0.001,
+        "expected ~0.02, got {}",
+        drop_rate
+    );
 
     let drop_pct = stats.drop_percentage();
-    assert!((drop_pct - 2.0).abs() < 0.1, "expected ~2.0%, got {}", drop_pct);
+    assert!(
+        (drop_pct - 2.0).abs() < 0.1,
+        "expected ~2.0%, got {}",
+        drop_pct
+    );
 }
 
 #[test]
@@ -49,7 +57,11 @@ fn test_drop_rate_with_no_packets() {
         bytes_per_second: 0.0,
     };
 
-    assert_eq!(stats.drop_rate(), 0.0, "drop rate should be 0 with no packets");
+    assert_eq!(
+        stats.drop_rate(),
+        0.0,
+        "drop rate should be 0 with no packets"
+    );
     assert_eq!(stats.drop_percentage(), 0.0, "drop percentage should be 0");
 }
 
@@ -66,7 +78,11 @@ fn test_drop_rate_with_all_drops() {
     };
 
     assert_eq!(stats.drop_rate(), 1.0, "drop rate should be 1.0");
-    assert_eq!(stats.drop_percentage(), 100.0, "drop percentage should be 100%");
+    assert_eq!(
+        stats.drop_percentage(),
+        100.0,
+        "drop percentage should be 100%"
+    );
 }
 
 #[test]
@@ -106,6 +122,9 @@ fn test_stats_clone() {
     let cloned = stats.clone();
     assert_eq!(cloned.packets_received, stats.packets_received);
     assert_eq!(cloned.packets_dropped_kernel, stats.packets_dropped_kernel);
-    assert_eq!(cloned.packets_dropped_channel, stats.packets_dropped_channel);
+    assert_eq!(
+        cloned.packets_dropped_channel,
+        stats.packets_dropped_channel
+    );
     assert_eq!(cloned.bytes_received, stats.bytes_received);
 }

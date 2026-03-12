@@ -75,10 +75,7 @@ fn test_rtps_multicast_handling() {
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should handle RTPS multicast traffic without panic
-    assert!(
-        !events.is_empty(),
-        "Should process RTPS multicast traffic"
-    );
+    assert!(!events.is_empty(), "Should process RTPS multicast traffic");
 
     let stats = adapter.stats();
     assert!(stats.packets_read > 0, "Should read RTPS packets");
@@ -189,10 +186,7 @@ fn test_coap_udp_handling() {
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should handle CoAP UDP traffic without panic
-    assert!(
-        !events.is_empty(),
-        "Should process CoAP UDP traffic"
-    );
+    assert!(!events.is_empty(), "Should process CoAP UDP traffic");
 
     let stats = adapter.stats();
     assert!(stats.packets_read > 0, "Should read CoAP packets");

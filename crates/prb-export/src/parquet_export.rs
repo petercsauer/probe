@@ -1,7 +1,5 @@
 use crate::{ExportError, Exporter};
-use arrow::array::{
-    ArrayRef, UInt64Builder, StringBuilder,
-};
+use arrow::array::{ArrayRef, StringBuilder, UInt64Builder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::ArrowWriter;
@@ -95,7 +93,11 @@ fn events_to_record_batch(events: &[DebugEvent]) -> Result<RecordBatch, ExportEr
                 schema_name_builder.append_null();
                 decoded_fields_builder.append_null();
             }
-            Payload::Decoded { raw, fields, schema_name } => {
+            Payload::Decoded {
+                raw,
+                fields,
+                schema_name,
+            } => {
                 payload_type_builder.append_value("decoded");
                 payload_size_builder.append_value(raw.len() as u64);
                 if let Some(name) = schema_name {
@@ -204,11 +206,14 @@ impl Exporter for ParquetExporter {
             // Arrow writer requires a file-like object with seek, but we have a Write trait.
             // We'll need to collect to a buffer first, then write.
             let mut buffer = Vec::new();
-            let mut arrow_writer = ArrowWriter::try_new(&mut buffer, batch.schema(), Some(props))
-                .map_err(|e| ExportError::Other(format!("Parquet writer error: {}", e)))?;
-            arrow_writer.write(&batch)
+            let mut arrow_writer =
+                ArrowWriter::try_new(&mut buffer, batch.schema(), Some(props))
+                    .map_err(|e| ExportError::Other(format!("Parquet writer error: {}", e)))?;
+            arrow_writer
+                .write(&batch)
                 .map_err(|e| ExportError::Other(format!("Parquet write error: {}", e)))?;
-            arrow_writer.close()
+            arrow_writer
+                .close()
                 .map_err(|e| ExportError::Other(format!("Parquet close error: {}", e)))?;
             writer.write_all(&buffer)?;
             return Ok(());
@@ -220,9 +225,11 @@ impl Exporter for ParquetExporter {
         let mut buffer = Vec::new();
         let mut arrow_writer = ArrowWriter::try_new(&mut buffer, batch.schema(), Some(props))
             .map_err(|e| ExportError::Other(format!("Parquet writer error: {}", e)))?;
-        arrow_writer.write(&batch)
+        arrow_writer
+            .write(&batch)
             .map_err(|e| ExportError::Other(format!("Parquet write error: {}", e)))?;
-        arrow_writer.close()
+        arrow_writer
+            .close()
             .map_err(|e| ExportError::Other(format!("Parquet close error: {}", e)))?;
 
         writer.write_all(&buffer)?;
