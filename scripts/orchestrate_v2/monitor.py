@@ -100,6 +100,53 @@ async def _handle_control(request: web.Request) -> web.Response:
         except Exception as e:
             return web.json_response({"ok": False, "error": str(e)}, status=500)
 
+    elif action == "interject":
+        # Validate message parameter
+        message = data.get("message", "").strip()
+        if not message:
+            return web.json_response({"ok": False, "error": "message parameter required and must be non-empty"}, status=400)
+        if len(message) > 2000:
+            return web.json_response({"ok": False, "error": "message exceeds maximum length of 2000 characters"}, status=400)
+
+        # Check if segment is running
+        pid = pids.get(seg_num)
+        if not pid:
+            return web.json_response({"ok": False, "error": "segment not running"}, status=404)
+
+        try:
+            # Kill the running process
+            os.killpg(os.getpgid(pid), signal_mod.SIGTERM)
+
+            # Store the operator message
+            interject_id = await state.enqueue_interject(seg_num, message)
+
+            # Reset segment to pending status
+            await state.reset_for_retry(seg_num)
+
+            # Log compound event with message preview
+            message_preview = message[:100] + "..." if len(message) > 100 else message
+            await state.log_event(
+                "operator_interject",
+                f"S{seg_num:02d} killed, message stored (ID {interject_id}), reset to pending: {message_preview}",
+                severity="warn",
+            )
+
+            return web.json_response({
+                "ok": True,
+                "action": "interject",
+                "seg_num": seg_num,
+                "interject_id": interject_id,
+                "message": "Segment killed, operator message stored, and segment reset for retry"
+            })
+        except Exception as e:
+            # Log error and return failure response
+            await state.log_event(
+                "operator_interject_error",
+                f"S{seg_num:02d} interject failed: {str(e)}",
+                severity="error",
+            )
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
     elif action == "set_status":
         new_status = data.get("status")
         if not new_status:
