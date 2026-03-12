@@ -27,6 +27,8 @@ pub struct TimelinePane {
     selection: Option<(usize, usize)>,
     /// Current display mode
     mode: TimelineMode,
+    /// Zoom level (0.25 = 25% detail, 1.0 = normal, 4.0 = 4x detail)
+    zoom_level: f64,
 }
 
 impl Default for TimelinePane {
@@ -42,6 +44,7 @@ impl TimelinePane {
             bucket_count: 0,
             selection: None,
             mode: TimelineMode::MultiProtocol,
+            zoom_level: 1.0,
         }
     }
 
@@ -145,7 +148,7 @@ impl PaneComponent for TimelinePane {
                 }
                 Action::None
             }
-            KeyCode::Char('l') | KeyCode::Char('L') => {
+            KeyCode::Char('h') | KeyCode::Char('H') => {
                 // Toggle between multi-protocol and latency heatmap
                 if state.conversations.is_some() {
                     self.mode = match self.mode {
@@ -153,6 +156,16 @@ impl PaneComponent for TimelinePane {
                         TimelineMode::LatencyHeatmap => TimelineMode::MultiProtocol,
                     };
                 }
+                Action::None
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                // Zoom in (increase detail)
+                self.zoom_level = (self.zoom_level * 1.5).min(4.0);
+                Action::None
+            }
+            KeyCode::Char('-') | KeyCode::Char('_') => {
+                // Zoom out (decrease detail)
+                self.zoom_level = (self.zoom_level / 1.5).max(0.25);
                 Action::None
             }
             KeyCode::Esc => {
@@ -198,7 +211,8 @@ impl PaneComponent for TimelinePane {
             return;
         }
 
-        self.bucket_count = inner.width as usize;
+        self.bucket_count = ((inner.width as f64) * self.zoom_level) as usize;
+        self.bucket_count = self.bucket_count.max(1);
 
         match self.mode {
             TimelineMode::MultiProtocol => {
@@ -523,11 +537,13 @@ fn format_time_legend(state: &AppState, _width: u16, theme: &ThemeConfig, cursor
 
     // Show cursor info if active
     if let Some(cursor_pos) = cursor
-        && timeline.bucket_time_range(state, *cursor_pos).is_some()
+        && let Some((bucket_start, bucket_end)) = timeline.bucket_time_range(state, *cursor_pos)
     {
         let events_in_bucket = timeline.events_in_bucket(state, *cursor_pos).len();
+        let start_str = format_timestamp_short(bucket_start.as_nanos());
+        let end_str = format_timestamp_short(bucket_end.as_nanos());
         spans.push(Span::styled(
-            format!(" [{}] ", events_in_bucket),
+            format!(" ▶ {}-{} ({} events) ", start_str, end_str, events_in_bucket),
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         ));
     }
@@ -560,6 +576,14 @@ fn format_time_legend(state: &AppState, _width: u16, theme: &ThemeConfig, cursor
         spans.push(Span::styled(
             format!(" [sel: {}] ", width),
             Style::default().fg(Color::Magenta),
+        ));
+    }
+
+    // Show zoom level if not default
+    if (timeline.zoom_level - 1.0).abs() > 0.01 {
+        spans.push(Span::styled(
+            format!(" [zoom: {:.1}x] ", timeline.zoom_level),
+            Style::default().fg(Color::Green),
         ));
     }
 
