@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: prb
+            asset_name: prb-linux-x86_64.tar.gz
+
+          # macOS Intel
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: prb
+            asset_name: prb-macos-x86_64.tar.gz
+
+          # macOS ARM (M1/M2)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: prb
+            asset_name: prb-macos-arm64.tar.gz
+
+          # Windows
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: prb.exe
+            asset_name: prb-windows-x86_64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Install platform-specific dependencies
+      - name: Install libpcap (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Install libpcap (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install libpcap
+
+      - name: Install WinPcap (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install winpcap
+        continue-on-error: true
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} -p prb-cli
+
+      # Package Unix binaries (.tar.gz)
+      - name: Package (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_name }} ../../../
+
+      # Package Windows binary (.zip)
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_name }} ../../../
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.asset_name }}
