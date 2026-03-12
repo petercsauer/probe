@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +15,15 @@ if TYPE_CHECKING:
     from .state import StateDB
 
 log = logging.getLogger(__name__)
+
+
+# Language-specific health check presets
+HEALTH_CHECK_PRESETS = {
+    "rust": ["cargo", "check", "--workspace", "--message-format=json"],
+    "python": ["python", "-m", "py_compile"],
+    "node": ["npm", "run", "build"],
+    "go": ["go", "build", "./..."],
+}
 
 
 @dataclass
@@ -48,21 +58,31 @@ class RecoveryAgent:
         self.recovery_config = RecoveryConfig()
 
     async def check_workspace_health(self) -> tuple[bool, list[str]]:
-        """Check if workspace builds cleanly using cargo check.
+        """Check if workspace builds cleanly using configured health check command.
+
+        Uses config.health_check_command if set, otherwise defaults to Rust preset
+        (cargo check --workspace --message-format=json).
 
         Returns:
             tuple: (healthy: bool, error_list: list[str])
                 - healthy: True if no compilation errors, False otherwise
-                - error_list: List of error messages from cargo check
+                - error_list: List of error messages from health check
         """
         log.info("Running workspace health check...")
 
+        # Determine health check command
+        health_check_cmd = getattr(self.config, 'health_check_command', '')
+        if health_check_cmd and isinstance(health_check_cmd, str):
+            cmd = shlex.split(health_check_cmd)
+        else:
+            # Default to Rust preset for backward compatibility
+            cmd = HEALTH_CHECK_PRESETS["rust"]
+
+        log.debug("Health check command: %s", " ".join(cmd))
+
         try:
             proc = await asyncio.create_subprocess_exec(
-                "cargo",
-                "check",
-                "--workspace",
-                "--message-format=json",
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 limit=2**22,  # 4MB buffer like in runner.py
@@ -130,22 +150,26 @@ class RecoveryAgent:
             return False, [f"Health check exception: {exc}"]
 
     async def identify_cascade_victims(
-        self, wave_segments: list
+        self, wave_segments: list, log_dir: Path | None = None
     ) -> list[int]:
         """Identify segments that failed due to pre-existing errors from prior segments.
 
-        Reads builder reports from logs/ directory and looks for victim markers:
+        Reads builder reports from log directory and looks for victim markers:
         - "pre-existing errors"
         - "my code is correct"
         - "blocked by S{N}"
 
         Args:
             wave_segments: List of SegmentRow objects from the completed wave
+            log_dir: Directory containing log files (default: ./logs)
 
         Returns:
             List of segment numbers that should be retried
         """
         log.info("Scanning for cascade victims in wave...")
+
+        if log_dir is None:
+            log_dir = Path("logs")
 
         victims = []
 
@@ -155,7 +179,7 @@ class RecoveryAgent:
                 continue
 
             # Read the builder report log
-            log_path = Path(f"logs/S{seg.num:02d}.log")
+            log_path = log_dir / f"S{seg.num:02d}.log"
             if not log_path.exists():
                 log.warning("Log file not found for S%02d", seg.num)
                 continue

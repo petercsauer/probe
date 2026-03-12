@@ -127,6 +127,8 @@ class OrchestrateConfig:
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
     enable_preflight_checks: bool = True
     preflight_timeout: int = 120
+    workspace_dir_name: str = ".claude"  # Configurable workspace directory name
+    health_check_command: str = ""  # Custom health check command (empty = use preset)
 
     @classmethod
     def _load_toml(cls, path: Path) -> dict:
@@ -164,8 +166,11 @@ class OrchestrateConfig:
                 break
             workspace_root = workspace_root.parent
 
+        # Load workspace directory name from environment or use default
+        workspace_dir = os.environ.get("ORCHESTRATE_WORKSPACE_DIR", ".claude")
+
         # Load project-level config
-        project_config_path = workspace_root / ".claude" / "orchestrate.toml"
+        project_config_path = workspace_root / workspace_dir / "orchestrate.toml"
         project_raw = cls._load_toml(project_config_path)
 
         # Load task-level config
@@ -191,7 +196,7 @@ class OrchestrateConfig:
 
         # Auto-generate ntfy topic from project directory name if not specified
         project_name = workspace_root.name if workspace_root else "orchestrate"
-        default_topic = f"{project_name}-psauer"
+        default_topic = project_name
 
         # Isolation env vars: nested table under [isolation]
         iso_env: dict[str, str] = {}
@@ -240,4 +245,6 @@ class OrchestrateConfig:
             recovery_max_attempts=recovery.get("max_attempts", 1),
             recovery_health_check_timeout=recovery.get("health_check_timeout", 120),
             retry_policy=retry_policy,
+            workspace_dir_name=workspace_dir,
+            health_check_command=recovery.get("health_check_command", ""),
         )

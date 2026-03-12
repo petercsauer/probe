@@ -29,7 +29,8 @@ class WorktreePool:
         self,
         repo_root: Path,
         pool_size: int,
-        target_branch: str = "main"
+        target_branch: str = "main",
+        workspace_dir_name: str = ".claude"
     ):
         """Initialize worktree pool.
 
@@ -37,10 +38,12 @@ class WorktreePool:
             repo_root: Root directory of the git repository
             pool_size: Number of worktrees to create in the pool
             target_branch: Branch to reset worktrees to (default: main)
+            workspace_dir_name: Name of workspace directory (default: .claude)
         """
         self._repo_root = repo_root
         self._pool_size = pool_size
         self._target_branch = target_branch
+        self._workspace_dir_name = workspace_dir_name
         self._worktrees: list[Worktree] = []
         self._queue: asyncio.Queue[Worktree] = asyncio.Queue()
 
@@ -49,10 +52,10 @@ class WorktreePool:
 
         This method:
         1. Prunes stale worktree references
-        2. Creates or reuses worktrees in .claude/worktrees/pool-{id:02d}
+        2. Creates or reuses worktrees in {workspace_dir}/worktrees/pool-{id:02d}
         3. Initializes the acquisition queue
         """
-        worktrees_dir = self._repo_root / ".claude" / "worktrees"
+        worktrees_dir = self._repo_root / self._workspace_dir_name / "worktrees"
         worktrees_dir.mkdir(parents=True, exist_ok=True)
 
         # Prune stale worktree references

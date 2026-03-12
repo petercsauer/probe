@@ -224,7 +224,7 @@ class Orchestrator:
                 ))
 
         # Identify victims
-        victims = await self.recovery_agent.identify_cascade_victims(wave_seg_rows)
+        victims = await self.recovery_agent.identify_cascade_victims(wave_seg_rows, self.log_dir)
 
         if not victims:
             log.info("Recovery: No cascade victims identified")

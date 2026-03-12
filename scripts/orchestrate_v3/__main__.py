@@ -408,6 +408,7 @@ async def _orchestrate_inner(
             repo_root=Path.cwd(),
             pool_size=pool_size,
             target_branch="main",  # TODO: detect current branch
+            workspace_dir_name=config.workspace_dir_name,
         )
         await pool.create()
         log.info("Created worktree pool with %d worktrees", pool_size)
