@@ -199,7 +199,22 @@
     display: flex; justify-content: space-between; align-items: center;
     font-size: 13px; font-weight: 600; flex-shrink: 0;
   }
+  .log-header-right {
+    display: flex; align-items: center; gap: 16px;
+  }
   .log-header .live-badge { color: var(--running); font-size: 11px; font-weight: 700; animation: pulse 2s infinite; }
+  .log-header .token-cost-display {
+    font-size: 11px; color: var(--text-dim); display: flex; gap: 12px; align-items: center;
+  }
+  .log-header .token-cost-display .metric {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .log-header .token-cost-display .metric .value {
+    color: var(--text); font-weight: 600; font-family: 'Monaco', 'Menlo', monospace;
+  }
+  .log-header .token-cost-display .cost {
+    color: var(--running); font-weight: 700;
+  }
 
   /* ── Log bottom toolbar ── */
   .log-bottom-toolbar {
@@ -577,7 +592,10 @@
   <div class="log-panel">
     <div class="log-header">
       <span>LOG: <span id="log-seg-label">select a segment</span></span>
-      <span class="live-badge" id="live-badge"></span>
+      <div class="log-header-right">
+        <div class="token-cost-display" id="token-cost-display"></div>
+        <span class="live-badge" id="live-badge"></span>
+      </div>
     </div>
 
     <!-- Dynamic tabs -->
@@ -1007,6 +1025,11 @@
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
 
+        // Update token/cost display if active segment
+        if (activeSeg != null) {
+          updateTokenCostDisplay(activeSeg);
+        }
+
         // Update interject UI state if active segment status changed
         if (activeSeg != null) {
           const activeSgment = data.segments.find(s => s.num === activeSeg);
@@ -1405,10 +1428,98 @@
       const data = await response.json();
       segmentAttempts = data.attempts || [];
       renderLogTabs(segNum);
+      updateTokenCostDisplay(segNum);
     } catch (e) {
       console.error('Failed to load attempts:', e);
       segmentAttempts = [];
     }
+  }
+
+  function updateTokenCostDisplay(segNum) {
+    const displayEl = document.getElementById('token-cost-display');
+    if (!displayEl) return;
+
+    const seg = lastSegments && lastSegments.find(s => s.num === segNum);
+    if (!seg) {
+      displayEl.innerHTML = '';
+      return;
+    }
+
+    // Calculate total tokens and cost across all attempts
+    let totalIn = 0;
+    let totalOut = 0;
+    let totalCacheRead = 0;
+    let totalCacheCreation = 0;
+    let totalCost = 0;
+
+    segmentAttempts.forEach(att => {
+      totalIn += att.tokens_in || 0;
+      totalOut += att.tokens_out || 0;
+      totalCacheRead += att.cache_read_tokens || 0;
+      totalCacheCreation += att.cache_creation_tokens || 0;
+      totalCost += att.cost_usd || 0;
+    });
+
+    // If no attempts yet, check if segment has token data directly
+    if (segmentAttempts.length === 0 && seg.attempts_history) {
+      seg.attempts_history.forEach(att => {
+        totalIn += att.tokens_in || 0;
+        totalOut += att.tokens_out || 0;
+        totalCacheRead += att.cache_read_tokens || 0;
+        totalCacheCreation += att.cache_creation_tokens || 0;
+        totalCost += att.cost_usd || 0;
+      });
+    }
+
+    const totalTokens = totalIn + totalOut + totalCacheRead + totalCacheCreation;
+
+    if (totalTokens === 0 && totalCost === 0) {
+      displayEl.innerHTML = '';
+      return;
+    }
+
+    // Format large numbers
+    function formatNumber(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
+
+    let html = '';
+
+    // Show token breakdown if we have it
+    if (totalIn > 0 || totalOut > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-coins"></i>
+          <span class="value">${formatNumber(totalIn + totalOut)}</span>
+          <span style="font-size: 10px;">tok</span>
+        </div>
+      `;
+    }
+
+    // Show cache tokens if significant
+    if (totalCacheRead > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-database" style="color: var(--pass);"></i>
+          <span class="value">${formatNumber(totalCacheRead)}</span>
+          <span style="font-size: 10px;">cached</span>
+        </div>
+      `;
+    }
+
+    // Show cost
+    if (totalCost > 0) {
+      html += `
+        <div class="metric cost">
+          <i class="fa-solid fa-dollar-sign"></i>
+          <span class="value">${totalCost.toFixed(3)}</span>
+        </div>
+      `;
+    }
+
+    displayEl.innerHTML = html;
   }
 
   function renderLogTabs(segNum) {

@@ -35,7 +35,10 @@
   <div class="log-panel">
     <div class="log-header">
       <span>LOG: <span id="log-seg-label">select a segment</span></span>
-      <span class="live-badge" id="live-badge"></span>
+      <div class="log-header-right">
+        <div class="token-cost-display" id="token-cost-display"></div>
+        <span class="live-badge" id="live-badge"></span>
+      </div>
     </div>
     <div class="log-content" id="log-content"></div>
     <div class="log-bottom-toolbar">
@@ -450,6 +453,11 @@
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
 
+        // Update token/cost display if active segment
+        if (activeSeg != null) {
+          updateTokenCostDisplay(activeSeg);
+        }
+
         // Update interject UI state if active segment status changed
         if (activeSeg != null) {
           const activeSgment = data.segments.find(s => s.num === activeSeg);
@@ -845,6 +853,84 @@
     }
   };
 
+  function updateTokenCostDisplay(segNum) {
+    const displayEl = document.getElementById('token-cost-display');
+    if (!displayEl) return;
+
+    const seg = lastSegments && lastSegments.find(s => s.num === segNum);
+    if (!seg) {
+      displayEl.innerHTML = '';
+      return;
+    }
+
+    // Calculate total tokens and cost from attempts_history
+    let totalIn = 0;
+    let totalOut = 0;
+    let totalCacheRead = 0;
+    let totalCacheCreation = 0;
+    let totalCost = 0;
+
+    if (seg.attempts_history && seg.attempts_history.length > 0) {
+      seg.attempts_history.forEach(att => {
+        totalIn += att.tokens_in || 0;
+        totalOut += att.tokens_out || 0;
+        totalCacheRead += att.cache_read_tokens || 0;
+        totalCacheCreation += att.cache_creation_tokens || 0;
+        totalCost += att.cost_usd || 0;
+      });
+    }
+
+    const totalTokens = totalIn + totalOut + totalCacheRead + totalCacheCreation;
+
+    if (totalTokens === 0 && totalCost === 0) {
+      displayEl.innerHTML = '';
+      return;
+    }
+
+    // Format large numbers
+    function formatNumber(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
+
+    let html = '';
+
+    // Show token breakdown if we have it
+    if (totalIn > 0 || totalOut > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-coins"></i>
+          <span class="value">${formatNumber(totalIn + totalOut)}</span>
+          <span style="font-size: 10px;">tok</span>
+        </div>
+      `;
+    }
+
+    // Show cache tokens if significant
+    if (totalCacheRead > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-database" style="color: var(--pass);"></i>
+          <span class="value">${formatNumber(totalCacheRead)}</span>
+          <span style="font-size: 10px;">cached</span>
+        </div>
+      `;
+    }
+
+    // Show cost
+    if (totalCost > 0) {
+      html += `
+        <div class="metric cost">
+          <i class="fa-solid fa-dollar-sign"></i>
+          <span class="value">${totalCost.toFixed(3)}</span>
+        </div>
+      `;
+    }
+
+    displayEl.innerHTML = html;
+  }
+
   window._selectSeg = function(num, title, status) {
     activeSeg = num;
     localStorage.setItem('orchestrate_activeSeg', num);
@@ -875,6 +961,9 @@
     if (interjectInput) {
       interjectInput.disabled = !canInterject;
     }
+
+    // Update token/cost display
+    updateTokenCostDisplay(num);
 
     _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
   };
