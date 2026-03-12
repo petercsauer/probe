@@ -108,26 +108,29 @@ async def _handle_control(request: web.Request) -> web.Response:
         if len(message) > 2000:
             return web.json_response({"ok": False, "error": "message exceeds maximum length of 2000 characters"}, status=400)
 
-        # Check if segment is running
-        pid = pids.get(seg_num)
-        if not pid:
-            return web.json_response({"ok": False, "error": "segment not running"}, status=404)
-
         try:
-            # Kill the running process
-            os.killpg(os.getpgid(pid), signal_mod.SIGTERM)
+            # Kill the process if it's currently running
+            pid = pids.get(seg_num)
+            killed = False
+            if pid:
+                try:
+                    os.killpg(os.getpgid(pid), signal_mod.SIGTERM)
+                    killed = True
+                except Exception:
+                    pass  # Process may have already terminated
 
             # Store the operator message
             interject_id = await state.enqueue_interject(seg_num, message)
 
-            # Reset segment to pending status
+            # Reset segment to pending status (cancels any retry delays)
             await state.reset_for_retry(seg_num)
 
             # Log compound event with message preview
             message_preview = message[:100] + "..." if len(message) > 100 else message
+            status_msg = f"killed and reset" if killed else "reset to pending"
             await state.log_event(
                 "operator_interject",
-                f"S{seg_num:02d} killed, message stored (ID {interject_id}), reset to pending: {message_preview}",
+                f"S{seg_num:02d} {status_msg}, message stored (ID {interject_id}): {message_preview}",
                 severity="warn",
             )
 
@@ -136,7 +139,8 @@ async def _handle_control(request: web.Request) -> web.Response:
                 "action": "interject",
                 "seg_num": seg_num,
                 "interject_id": interject_id,
-                "message": "Segment killed, operator message stored, and segment reset for retry"
+                "killed": killed,
+                "message": "Operator message stored and segment reset for retry"
             })
         except Exception as e:
             # Log error and return failure response

@@ -462,7 +462,7 @@
         type="text"
         id="interject-input"
         class="toolbar-interject-input"
-        placeholder="Enter interject message for running segment..."
+        placeholder="Enter interject message (resets segment to pending)..."
         maxlength="2000"
         disabled
         onkeydown="if(event.key==='Enter' && !this.disabled) interjectCurrentSeg()"
@@ -886,14 +886,14 @@
         if (activeSeg != null) {
           const activeSgment = data.segments.find(s => s.num === activeSeg);
           if (activeSgment) {
+            const canInterject = ['running', 'failed', 'partial', 'blocked', 'timeout', 'unknown'].includes(activeSgment.status);
             const interjectBtn = document.getElementById('interject-btn');
             const interjectInput = document.getElementById('interject-input');
-            const isRunning = (activeSgment.status === 'running');
             if (interjectBtn) {
-              interjectBtn.disabled = !isRunning;
+              interjectBtn.disabled = !canInterject;
             }
             if (interjectInput) {
-              interjectInput.disabled = !isRunning;
+              interjectInput.disabled = !canInterject;
             }
           }
         }
@@ -1034,7 +1034,7 @@
     }
 
     // Simple confirmation
-    if (!confirm(`Send interject message to S${String(activeSeg).padStart(2,'0')}?\n\nThis will pause the segment execution.`)) {
+    if (!confirm(`Send interject message to S${String(activeSeg).padStart(2,'0')}?\n\nThis will:\n- Kill the segment if running\n- Reset it to pending for immediate retry\n- Include your message in the next execution`)) {
       return;
     }
 
@@ -1288,13 +1288,15 @@
     }
 
     // Enable/disable interject UI based on segment status
+    // Allow interject on running segments and failed states (they'll auto-restart)
+    const canInterject = ['running', 'failed', 'partial', 'blocked', 'timeout', 'unknown'].includes(status);
     const interjectBtn = document.getElementById('interject-btn');
     const interjectInput = document.getElementById('interject-input');
     if (interjectBtn) {
-      interjectBtn.disabled = (status !== 'running');
+      interjectBtn.disabled = !canInterject;
     }
     if (interjectInput) {
-      interjectInput.disabled = (status !== 'running');
+      interjectInput.disabled = !canInterject;
     }
 
     _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
