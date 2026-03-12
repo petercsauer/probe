@@ -42,9 +42,9 @@ async def test_conflict_abort():
     )
     if result.returncode == 0:
         original_branch = "main"
-        print("✓ Checked out main branch")
+        print("[OK] Checked out main branch")
     else:
-        print("✓ Using current HEAD state")
+        print("[OK] Using current HEAD state")
 
     try:
         # Create a temporary worktree for testing
@@ -64,7 +64,7 @@ async def test_conflict_abort():
         )
 
         await pool.create()
-        print("✓ Created test pool")
+        print("[OK] Created test pool")
 
         # Create a conflicting change in main
         # Use unique filename to avoid issues with previous test runs
@@ -82,11 +82,11 @@ async def test_conflict_abort():
             check=True,
             capture_output=True
         )
-        print("✓ Created conflicting commit in main")
+        print("[OK] Created conflicting commit in main")
 
         # Acquire worktree and make a conflicting change
         async with pool.acquire(seg_num=98) as wt:
-            print(f"✓ Acquired worktree: {wt.path}")
+            print(f"[OK] Acquired worktree: {wt.path}")
 
             # Create conflicting content
             test_file = wt.path / conflict_filename
@@ -104,7 +104,7 @@ async def test_conflict_abort():
                 check=True,
                 capture_output=True
             )
-            print("✓ Created conflicting commit in worktree")
+            print("[OK] Created conflicting commit in worktree")
 
             # Create a fake segment
             seg = Segment(
@@ -119,9 +119,9 @@ async def test_conflict_abort():
             result = await _merge_worktree_changes(wt, seg)
 
             if not result:
-                print("✓ Merge correctly returned False for conflict")
+                print("[OK] Merge correctly returned False for conflict")
             else:
-                print("✗ Merge should have failed due to conflict")
+                print("[X] Merge should have failed due to conflict")
                 await pool.cleanup()
                 return False
 
@@ -132,12 +132,12 @@ async def test_conflict_abort():
             capture_output=True
         )
         conflict_file.unlink(missing_ok=True)
-        print("✓ Cleaned up test changes")
+        print("[OK] Cleaned up test changes")
 
         await pool.cleanup()
-        print("✓ Pool cleaned up")
+        print("[OK] Pool cleaned up")
 
-        print("\n✅ Merge conflict handling test passed!")
+        print("\nPASS Merge conflict handling test passed!")
         return True
 
     finally:

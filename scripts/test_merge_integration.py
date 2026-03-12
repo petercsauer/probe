@@ -37,11 +37,11 @@ async def test_merge_clean():
         )
 
         await pool.create()
-        print("✓ Created test pool")
+        print("[OK] Created test pool")
 
         # Acquire worktree and make a simple change
         async with pool.acquire(seg_num=99) as wt:
-            print(f"✓ Acquired worktree: {wt.path}")
+            print(f"[OK] Acquired worktree: {wt.path}")
 
             # Create a test file in the worktree
             test_file = wt.path / "test_merge_file.txt"
@@ -60,7 +60,7 @@ async def test_merge_clean():
                 check=True,
                 capture_output=True
             )
-            print("✓ Created test commit in worktree")
+            print("[OK] Created test commit in worktree")
 
             # Create a fake segment
             seg = Segment(
@@ -75,9 +75,9 @@ async def test_merge_clean():
             result = await _merge_worktree_changes(wt, seg)
 
             if result:
-                print("✓ Merge successful")
+                print("[OK] Merge successful")
             else:
-                print("✗ Merge failed")
+                print("[X] Merge failed")
                 await pool.cleanup()
                 return False
 
@@ -97,13 +97,13 @@ async def test_merge_clean():
                 check=True,
                 capture_output=True
             )
-            print("✓ Cleaned up test file")
+            print("[OK] Cleaned up test file")
 
         # Cleanup pool
         await pool.cleanup()
-        print("✓ Pool cleaned up")
+        print("[OK] Pool cleaned up")
 
-        print("\n✅ Merge integration test passed!")
+        print("\nPASS Merge integration test passed!")
         return True
 
     finally:
@@ -153,7 +153,7 @@ async def test_detached_head_merge():
             check=True,
             capture_output=True
         )
-        print("✓ Entered detached HEAD state")
+        print("[OK] Entered detached HEAD state")
 
         # Verify we're in detached HEAD
         result = subprocess.run(
@@ -162,9 +162,9 @@ async def test_detached_head_merge():
             text=True
         )
         if result.returncode == 0:
-            print("✗ Failed to enter detached HEAD state")
+            print("[X] Failed to enter detached HEAD state")
             return False
-        print("✓ Confirmed detached HEAD state")
+        print("[OK] Confirmed detached HEAD state")
 
         # Create a temporary worktree for testing
         pool = WorktreePool(
@@ -174,11 +174,11 @@ async def test_detached_head_merge():
         )
 
         await pool.create()
-        print("✓ Created test pool")
+        print("[OK] Created test pool")
 
         # Acquire worktree and make a simple change
         async with pool.acquire(seg_num=97) as wt:
-            print(f"✓ Acquired worktree: {wt.path}")
+            print(f"[OK] Acquired worktree: {wt.path}")
 
             # Create a test file in the worktree
             test_file = wt.path / "test_detached_merge_file.txt"
@@ -197,7 +197,7 @@ async def test_detached_head_merge():
                 check=True,
                 capture_output=True
             )
-            print("✓ Created test commit in worktree")
+            print("[OK] Created test commit in worktree")
 
             # Create a fake segment
             seg = Segment(
@@ -212,19 +212,19 @@ async def test_detached_head_merge():
             result = await _merge_worktree_changes(wt, seg)
 
             if result:
-                print("✓ Merge successful in detached HEAD")
+                print("[OK] Merge successful in detached HEAD")
             else:
-                print("✗ Merge failed in detached HEAD")
+                print("[X] Merge failed in detached HEAD")
                 await pool.cleanup()
                 return False
 
         # Verify the file was merged to main repo
         test_file_main = Path.cwd() / "test_detached_merge_file.txt"
         if not test_file_main.exists():
-            print("✗ Merged file not found in main repo")
+            print("[X] Merged file not found in main repo")
             await pool.cleanup()
             return False
-        print("✓ Verified file was merged")
+        print("[OK] Verified file was merged")
 
         # Clean up the test file
         test_file_main.unlink()
@@ -240,13 +240,13 @@ async def test_detached_head_merge():
             check=True,
             capture_output=True
         )
-        print("✓ Cleaned up test file")
+        print("[OK] Cleaned up test file")
 
         # Cleanup pool
         await pool.cleanup()
-        print("✓ Pool cleaned up")
+        print("[OK] Pool cleaned up")
 
-        print("\n✅ Detached HEAD merge test passed!")
+        print("\nPASS Detached HEAD merge test passed!")
         return True
 
     finally:

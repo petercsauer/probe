@@ -22,7 +22,7 @@ def test_compute_dependents():
     assert segments[0].dependents == [3], f"Expected [3], got {segments[0].dependents}"
     assert segments[1].dependents == [3], f"Expected [3], got {segments[1].dependents}"
     assert segments[2].dependents == [], f"Expected [], got {segments[2].dependents}"
-    print("✓ test_compute_dependents: PASS")
+    print("[OK] test_compute_dependents: PASS")
 
 
 def test_circular_dependency_detection():
@@ -39,7 +39,7 @@ def test_circular_dependency_detection():
         assert False, "Should have raised ValueError for circular dependency"
     except ValueError as e:
         assert "Circular dependency" in str(e)
-        print("✓ test_circular_dependency_detection: PASS")
+        print("[OK] test_circular_dependency_detection: PASS")
 
 
 def test_topological_sort():
@@ -57,7 +57,7 @@ def test_topological_sort():
     assert segments[0].wave == 1, f"S1 should be wave 1, got {segments[0].wave}"
     assert segments[1].wave == 1, f"S2 should be wave 1, got {segments[1].wave}"
     assert segments[2].wave == 2, f"S3 should be wave 2, got {segments[2].wave}"
-    print("✓ test_topological_sort: PASS")
+    print("[OK] test_topological_sort: PASS")
 
 
 def test_complex_dependency_chain():
@@ -89,7 +89,7 @@ def test_complex_dependency_chain():
     assert segments[3].dependents == [5], f"S4 dependents {segments[3].dependents}"
     assert segments[4].dependents == [], f"S5 dependents {segments[4].dependents}"
 
-    print("✓ test_complex_dependency_chain: PASS")
+    print("[OK] test_complex_dependency_chain: PASS")
 
 
 if __name__ == "__main__":

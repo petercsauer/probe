@@ -31,7 +31,7 @@ async def test_preflight_disabled():
 
         assert healthy == True, "Should return healthy when disabled"
         assert errors == [], "Should have no errors when disabled"
-        print("✓ test_preflight_disabled: PASS")
+        print("[OK] test_preflight_disabled: PASS")
     finally:
         await state.close()
         db_path.unlink(missing_ok=True)
@@ -59,9 +59,9 @@ async def test_preflight_timeout_handling():
             # Should have timeout message in errors
             assert any("timeout" in e.lower() or "exception" in e.lower() for e in errors), \
                 f"Expected timeout/exception in errors, got: {errors}"
-            print("✓ test_preflight_timeout_handling: PASS (timed out)")
+            print("[OK] test_preflight_timeout_handling: PASS (timed out)")
         else:
-            print("✓ test_preflight_timeout_handling: PASS (succeeded quickly)")
+            print("[OK] test_preflight_timeout_handling: PASS (succeeded quickly)")
     finally:
         await state.close()
         db_path.unlink(missing_ok=True)

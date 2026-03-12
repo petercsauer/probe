@@ -3680,7 +3680,7 @@ impl App {
         }
 
         if let Some(err) = filter_error {
-            spans.push(Span::styled(format!("  ✗ {}", err), theme.filter_error()));
+            spans.push(Span::styled(format!("  [X] {}", err), theme.filter_error()));
         } else if is_filtering {
             // Show preview count during typing (yellow for preview)
             if let Some(preview_count) = filter_state.preview_count {

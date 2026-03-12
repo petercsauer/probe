@@ -83,7 +83,11 @@ def _resolve_isolation_env(seg_num: int, config: OrchestrateConfig) -> dict[str,
     return env
 
 
-def _build_prompt(seg: "Segment", config: OrchestrateConfig) -> str:
+def _build_prompt(
+    seg: "Segment",
+    config: OrchestrateConfig,
+    interject: str | None = None,
+) -> str:
     """Assemble the prompt for a segment's claude session."""
     parts: list[str] = []
     parts.append("You are an iterative-builder. Build ONE segment and report results.\n")
@@ -105,6 +109,15 @@ def _build_prompt(seg: "Segment", config: OrchestrateConfig) -> str:
         except (KeyError, IndexError):
             rules = config.extra_rules
         parts.append(rules.strip() + "\n")
+
+    if interject:
+        parts.append("\n" + "="*60)
+        parts.append("⚠️  OPERATOR INTERJECT MESSAGE")
+        parts.append("="*60)
+        parts.append(interject)
+        parts.append("")
+        parts.append("Address this feedback and continue the segment.")
+        parts.append("="*60 + "\n")
 
     parts.append("Begin now.")
     return "\n".join(parts)
@@ -223,11 +236,12 @@ def _extract_status(log_text: str) -> str:
         return earliest_status
 
     # Lenient patterns for common variations
+    # Patterns accept both emoji and text formats
     patterns = [
         (r"\*\*Status:\*\*\s+(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"Status:\s+(COMPLETE|SUCCESS|DONE)", "pass"),
-        (r"\*\*Segment Status:\*\*\s*✅\s*(COMPLETE|SUCCESS|DONE)", "pass"),
-        (r"Segment Status:\s*✅\s*(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"\*\*Segment Status:\*\*\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"Segment Status:\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"COMPLETE\s*-\s*No further work required", "pass"),
         (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
         (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
@@ -346,7 +360,12 @@ async def run_segment(
 
     Returns (status, summary).
     """
-    prompt = _build_prompt(seg, config)
+    # Check for pending operator interject
+    pending_interject = await state.get_pending_interject(seg.num)
+    interject_msg = pending_interject["message"] if pending_interject else None
+    interject_id = pending_interject["id"] if pending_interject else None
+
+    prompt = _build_prompt(seg, config, interject=interject_msg)
     env = _build_env(seg.num, config)
     raw_log = log_dir / f"S{seg.num:02d}.stream.jsonl"
     human_log = log_dir / f"S{seg.num:02d}.log"
@@ -389,6 +408,15 @@ async def run_segment(
 
         if register_pid and proc.pid:
             register_pid(seg.num, proc.pid)
+
+        # Mark interject as consumed after successful process spawn
+        if interject_id:
+            await state.consume_interject(interject_id)
+            await state.log_event(
+                "interject_consumed",
+                f"S{seg.num:02d} restarted with operator message",
+                severity="info"
+            )
 
         heartbeat = asyncio.create_task(
             _segment_heartbeat_task(

@@ -32,15 +32,15 @@ def _summarize_tool_call(name: str, inp: dict) -> str:
 def _tool_icon(name: str) -> str:
     """Return a fitting icon for a tool name."""
     icons = {
-        "Read": "📖", "Write": "✏️", "Edit": "✏️", "StrReplace": "✏️",
-        "Bash": "⚡", "Shell": "⚡", "Grep": "🔍", "Glob": "🔍",
-        "TodoWrite": "📋", "Task": "🤖", "WebSearch": "🌐", "WebFetch": "🌐",
-        "Delete": "🗑️",
+        "Read": "[R]", "Write": "[W]", "Edit": "[E]", "StrReplace": "[E]",
+        "Bash": "[$]", "Shell": "[$]", "Grep": "[G]", "Glob": "[G]",
+        "TodoWrite": "[T]", "Task": "[A]", "WebSearch": "[S]", "WebFetch": "[F]",
+        "Delete": "[D]",
     }
     for key, icon in icons.items():
         if name.lower().startswith(key.lower()):
             return icon
-    return "⏺"
+    return "[·]"
 
 
 def _parse_stream_line_rich(raw_line: str) -> list[dict]:

@@ -95,8 +95,8 @@ class Notifier:
     async def started(self, plan_title: str, total: int, waves: int) -> None:
         await self.enqueue(
             "started",
-            f"🚀 {plan_title}\n{total} segments · {waves} waves",
-            title="Orchestration started",
+            f"STARTED: {plan_title}\nSegments: {total} | Waves: {waves} | Parallel: {self._config.max_parallel}",
+            title=f"Orchestration: {plan_title}",
             priority="default",
             tags="rocket",
         )
@@ -106,14 +106,17 @@ class Notifier:
     ) -> None:
         passed = sum(1 for _, s in results if s == "pass")
         failed = [(n, s) for n, s in results if s != "pass"]
-        lines = [f"Wave {wave}/{total_waves}: {passed}/{len(results)} passed"]
-        for n, s in failed:
-            lines.append(f"  ❌ S{n:02d} {s}")
+        status = "PASS" if not failed else "FAIL"
+        lines = [f"WAVE {wave}/{total_waves} {status}: {passed}/{len(results)} passed"]
+        if failed:
+            lines.append("Failed segments:")
+            for n, s in failed:
+                lines.append(f"  S{n:02d}: {s.upper()}")
         priority = "urgent" if failed else "default"
         await self.enqueue(
             "wave_complete",
             "\n".join(lines),
-            title=f"Wave {wave} complete",
+            title=f"Wave {wave}/{total_waves} {status}",
             priority=priority,
             tags="x" if failed else "white_check_mark",
         )
@@ -121,40 +124,40 @@ class Notifier:
     async def segment_complete(
         self, num: int, title: str, status: str, summary: str
     ) -> None:
-        icon = {
-            "pass": "✅", "partial": "⚠️", "blocked": "🚫",
-            "failed": "❌", "timeout": "⏰",
-        }.get(status, "❓")
         kind = (
             "segment_complete_fail" if status not in ("pass",) else "segment_complete_pass"
         )
+        # Compact format: status prefix + segment info + summary
+        msg_lines = [
+            f"S{num:02d} {status.upper()}: {title}",
+            f"---",
+            summary[:300] if summary else "(no summary)"
+        ]
         await self.enqueue(
             kind,
-            f"{icon} S{num:02d} {status.upper()}: {title}\n{summary[:300]}",
-            title=f"S{num:02d} {status.upper()}",
+            "\n".join(msg_lines),
+            title=f"S{num:02d} {status.upper()}: {title[:30]}",
             priority=PRIORITY_MAP.get(status, "default"),
         )
 
     async def gate_result(self, wave: int, passed: bool, detail: str) -> None:
         kind = "gate_result" if passed else "gate_fail"
-        msg = (
-            f"{'✅' if passed else '🚨'} Gate Wave {wave}: "
-            f"{'PASSED' if passed else 'FAILED'}"
-        )
+        status = "PASS" if passed else "FAIL"
+        msg = f"GATE Wave {wave}: {status}"
         if not passed:
-            msg += f"\n{detail[:300]}"
+            msg += f"\n---\n{detail[:300]}"
         await self.enqueue(
             kind,
             msg,
-            title=f"Gate Wave {wave}",
+            title=f"Gate Wave {wave}: {status}",
             priority="urgent" if not passed else "low",
         )
 
     async def stall(self, seg_num: int, minutes: int, activity: str) -> None:
         await self.enqueue(
             "segment_stall",
-            f"⚠️ S{seg_num:02d} stalled ({minutes}min no output)\n{activity[:200]}",
-            title=f"S{seg_num:02d} stalled",
+            f"STALL: S{seg_num:02d} ({minutes}min no output)\nLast activity:\n{activity[:200]}",
+            title=f"S{seg_num:02d} STALLED ({minutes}min)",
             priority="high",
             tags="warning",
         )
@@ -162,8 +165,8 @@ class Notifier:
     async def network_down(self, waited_sec: int) -> None:
         await self.enqueue(
             "network_down",
-            f"📡 Network unreachable for {waited_sec}s\nOrchestration paused",
-            title="Network outage",
+            f"NETWORK DOWN: Unreachable for {waited_sec}s\nOrchestration paused, waiting for connectivity",
+            title=f"Network outage ({waited_sec}s)",
             priority="high",
             tags="satellite",
         )
@@ -171,19 +174,31 @@ class Notifier:
     async def finished(self, plan_title: str, progress: dict[str, int]) -> None:
         total = sum(progress.values())
         passed = progress.get("pass", 0)
-        icon = "🎉" if passed == total else "⚠️"
+        status = "SUCCESS" if passed == total else "PARTIAL"
+
+        # Build detailed status breakdown
+        lines = [
+            f"COMPLETE: {plan_title}",
+            f"Status: {status} ({passed}/{total} passed)",
+            "---",
+            "Breakdown:"
+        ]
+        for status_type, count in sorted(progress.items()):
+            if count > 0:
+                lines.append(f"  {status_type}: {count}")
+
         await self.enqueue(
             "finished",
-            f"{icon} {plan_title}\n{passed}/{total} passed\n{progress}",
-            title="Orchestration complete",
+            "\n".join(lines),
+            title=f"{status}: {plan_title}",
             tags="checkered_flag",
         )
 
     async def error(self, message: str) -> None:
         await self.enqueue(
             "error",
-            f"🔥 {message}",
-            title="Orchestrator error",
+            f"ERROR: {message}",
+            title="Orchestrator ERROR",
             priority="urgent",
             tags="fire",
         )
@@ -191,7 +206,7 @@ class Notifier:
     async def heartbeat(self, summary: str) -> None:
         await self.enqueue(
             "heartbeat",
-            f"💓 Heartbeat\n{summary}",
-            title="Heartbeat",
+            f"STATUS: {summary}",
+            title="Progress Update",
             priority="min",
         )

@@ -1,0 +1,50 @@
+# Project-level orchestrate configuration for probe
+# These settings are inherited by all orchestrate tasks unless overridden
+
+[execution]
+max_parallel = 8
+segment_timeout = 3600  # 1 hour
+max_retries = 2
+heartbeat_interval = 900  # 15 minutes
+stall_threshold = 1800  # 30 minutes
+network_retry_max = 600  # 10 minutes
+
+[isolation]
+# Default to worktree isolation for safety
+strategy = "worktree"
+
+[gate]
+# Full validation after each wave
+command = "cargo build --workspace && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings"
+
+[notifications]
+# Notifications enabled by default, topic auto-generated from project name
+enabled = true
+verbosity = "all"
+max_attempts = 3
+retry_delays = [10, 60, 300]
+
+[monitor]
+# Dashboard enabled by default on port 8080
+enabled = true
+port = 8080
+
+[recovery]
+enabled = true
+max_attempts = 2
+health_check_timeout = 120
+
+[retry_policy]
+max_retries = 3
+initial_delay = 30
+max_delay = 600
+exponential_base = 2.0
+jitter = true
+retry_on = ["timeout", "failed", "unknown"]
+no_retry_on = ["blocked"]
+
+[git]
+main_branch = "main"
+auto_commit = true
+auto_push = false
+commit_message_template = "WIP: Segment {number} {title} - cycle {cycle}"

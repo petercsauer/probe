@@ -487,10 +487,10 @@ fn main() {
 
     println!("=== All benchmarks passed! ===\n");
     println!("Summary:");
-    println!("  ✓ 100K events: Filter <10ms, Sort <5ms");
-    println!("  ✓ 500K events: Filter <500ms, Sort <2s");
-    println!("  ✓ Incremental filtering: <5ms per batch");
-    println!("  ✓ Virtual scrolling: Cache hit <1ms");
-    println!("  ✓ Index building: <200ms for 100K events");
+    println!("  [OK] 100K events: Filter <10ms, Sort <5ms");
+    println!("  [OK] 500K events: Filter <500ms, Sort <2s");
+    println!("  [OK] Incremental filtering: <5ms per batch");
+    println!("  [OK] Virtual scrolling: Cache hit <1ms");
+    println!("  [OK] Index building: <200ms for 100K events");
     println!();
 }

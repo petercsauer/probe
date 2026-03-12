@@ -530,7 +530,7 @@ fn build_tree_items(
             warn_children.push(TreeItem::new_leaf(format!("w.{}", i), w.clone()));
         }
         items.push(
-            TreeItem::new("warnings".to_string(), "⚠ Warnings", warn_children)
+            TreeItem::new("warnings".to_string(), "[!] Warnings", warn_children)
                 .expect("warn children valid"),
         );
     }

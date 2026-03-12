@@ -265,7 +265,7 @@ const HTML_TEMPLATE: &str = r#"<!DOCTYPE html>
                 const warningsHtml = event.warnings && event.warnings.length > 0 ?
                     `<div class="detail-section">
                         <h4>Warnings</h4>
-                        <div class="content">${event.warnings.map(w => `<div>⚠ ${w}</div>`).join('')}</div>
+                        <div class="content">${event.warnings.map(w => `<div>[!] ${w}</div>`).join('')}</div>
                     </div>` : '';
 
                 return `

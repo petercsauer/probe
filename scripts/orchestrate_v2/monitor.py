@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal as signal_mod
 import time
 from pathlib import Path
@@ -25,15 +26,17 @@ log = logging.getLogger(__name__)
 _DASHBOARD_PATH = Path(__file__).parent / "dashboard.html"
 
 
-def _create_app(state: "StateDB", log_dir: Path, running_pids: dict | None = None) -> web.Application:
+def _create_app(state: "StateDB", log_dir: Path, plan_root: Path | None = None, running_pids: dict | None = None) -> web.Application:
     app = web.Application()
     app["state"] = state
     app["log_dir"] = log_dir
+    app["plan_root"] = plan_root
     app["running_pids"] = running_pids if running_pids is not None else {}
     app.router.add_get("/", _handle_dashboard)
     app.router.add_get("/api/state", _handle_state)
     app.router.add_get("/api/events", _handle_events_sse)
     app.router.add_get("/api/logs/{seg_id}", _handle_log_sse)
+    app.router.add_get("/api/prompt/{seg_id}", _handle_prompt)
     app.router.add_post("/api/control", _handle_control)
     return app
 
@@ -113,6 +116,46 @@ async def _handle_control(request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "action": "set_status", "seg_num": seg_num, "status": new_status})
 
     return web.json_response({"ok": False, "error": f"unknown action: {action}"}, status=400)
+
+
+async def _handle_prompt(request: web.Request) -> web.Response:
+    """GET /api/prompt/{seg_id} — return the segment's markdown file."""
+    seg_id = request.match_info["seg_id"]
+    plan_root: Path | None = request.app.get("plan_root")
+
+    if not plan_root:
+        return web.Response(text="Plan root not configured", status=500)
+
+    # Parse segment number from seg_id (e.g., "S03" -> 3)
+    seg_num_match = re.match(r"S(\d+)", seg_id)
+    if not seg_num_match:
+        return web.Response(text="Invalid segment ID", status=400)
+
+    seg_num = int(seg_num_match.group(1))
+
+    # Look for segment file in segments/ or handoff/ directory
+    segments_dir = plan_root / "segments"
+    handoff_dir = plan_root / "handoff"
+
+    # Try segments directory first
+    if segments_dir.exists():
+        for seg_file in segments_dir.glob(f"{seg_num:02d}-*.md"):
+            try:
+                content = seg_file.read_text(encoding="utf-8")
+                return web.Response(text=content, content_type="text/plain")
+            except Exception as e:
+                return web.Response(text=f"Error reading segment file: {e}", status=500)
+
+    # Try handoff directory
+    if handoff_dir.exists():
+        for seg_file in handoff_dir.glob(f"S{seg_num:02d}-*.md"):
+            try:
+                content = seg_file.read_text(encoding="utf-8")
+                return web.Response(text=content, content_type="text/plain")
+            except Exception as e:
+                return web.Response(text=f"Error reading segment file: {e}", status=500)
+
+    return web.Response(text=f"Segment file not found for {seg_id}", status=404)
 
 
 async def _handle_events_sse(request: web.Request) -> web.StreamResponse:
@@ -203,17 +246,18 @@ async def _handle_log_sse(request: web.Request) -> web.StreamResponse:
 class MonitorServer:
     """Manages the aiohttp dashboard server lifecycle."""
 
-    def __init__(self, state: "StateDB", log_dir: Path, port: int, running_pids: dict | None = None):
+    def __init__(self, state: "StateDB", log_dir: Path, port: int, plan_root: Path | None = None, running_pids: dict | None = None):
         self._state = state
         self._log_dir = log_dir
         self._port = port
+        self._plan_root = plan_root
         self._running_pids = running_pids if running_pids is not None else {}
         self._runner: web.AppRunner | None = None
 
     async def start(self) -> None:
         if self._port <= 0:
             return
-        app = _create_app(self._state, self._log_dir, self._running_pids)
+        app = _create_app(self._state, self._log_dir, self._plan_root, self._running_pids)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, "0.0.0.0", self._port, reuse_address=True)

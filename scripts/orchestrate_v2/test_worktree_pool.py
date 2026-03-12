@@ -26,7 +26,7 @@ async def main():
     try:
         # Create the pool
         await pool.create()
-        print("✓ Pool created successfully")
+        print("[OK] Pool created successfully")
 
         # Verify worktrees exist
         import subprocess
@@ -42,7 +42,7 @@ async def main():
         # Test acquisition
         print("Testing acquire/release...")
         async with pool.acquire(seg_num=1) as wt1:
-            print(f"✓ Acquired worktree {wt1.pool_id} at {wt1.path}")
+            print(f"[OK] Acquired worktree {wt1.pool_id} at {wt1.path}")
             print(f"  Branch: {wt1.branch}")
             print(f"  Segment: {wt1.current_segment}")
 
@@ -54,11 +54,11 @@ async def main():
                 text=True
             )
             if result.stdout.strip() == "":
-                print("  ✓ Worktree is clean")
+                print("  [OK] Worktree is clean")
             else:
                 print(f"  WARNING: Worktree not clean:\n{result.stdout}")
 
-        print("✓ Worktree released")
+        print("[OK] Worktree released")
 
         # Test concurrent acquisition
         print("\nTesting concurrent acquisition...")
@@ -73,12 +73,12 @@ async def main():
             acquire_test(2),
             acquire_test(3)
         )
-        print(f"✓ Concurrent acquisitions successful: {results}")
+        print(f"[OK] Concurrent acquisitions successful: {results}")
 
         # Cleanup
         print("\nCleaning up...")
         await pool.cleanup()
-        print("✓ Pool cleaned up")
+        print("[OK] Pool cleaned up")
 
         # Verify worktrees removed
         result = subprocess.run(
@@ -88,16 +88,16 @@ async def main():
             text=True
         )
         if ".claude/worktrees/pool-" not in result.stdout:
-            print("✓ All pool worktrees removed")
+            print("[OK] All pool worktrees removed")
         else:
             print("WARNING: Some pool worktrees still exist:")
             print(result.stdout)
 
-        print("\n✅ All tests passed!")
+        print("\nPASS All tests passed!")
         return 0
 
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\nFAIL Test failed: {e}")
         import traceback
         traceback.print_exc()
         return 1

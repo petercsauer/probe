@@ -166,11 +166,11 @@ fn run_info(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<()>
                     println!("  Confidence: 0.95 (magic bytes), 0.5 (port only)");
                     println!();
                     println!("Capabilities:");
-                    println!("  ✓ HTTP/2 frame parsing");
-                    println!("  ✓ HPACK header decompression");
-                    println!("  ✓ gRPC LPM (5-byte header)");
-                    println!("  ✓ gzip/deflate decompression");
-                    println!("  ✓ Trailers (grpc-status, grpc-message)");
+                    println!("  [OK] HTTP/2 frame parsing");
+                    println!("  [OK] HPACK header decompression");
+                    println!("  [OK] gRPC LPM (5-byte header)");
+                    println!("  [OK] gzip/deflate decompression");
+                    println!("  [OK] Trailers (grpc-status, grpc-message)");
                 }
                 "zmtp" => {
                     println!("  Magic:      0xFF + length + 0x7F + \"ZMTP\" (ZMTP 3.x greeting)");
@@ -178,9 +178,9 @@ fn run_info(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<()>
                     println!("  Confidence: 0.95 (magic bytes), 0.4 (port only)");
                     println!();
                     println!("Capabilities:");
-                    println!("  ✓ ZMTP 3.0/3.1 greeting");
-                    println!("  ✓ Frame parsing");
-                    println!("  ✓ Socket type detection");
+                    println!("  [OK] ZMTP 3.0/3.1 greeting");
+                    println!("  [OK] Frame parsing");
+                    println!("  [OK] Socket type detection");
                 }
                 "rtps" => {
                     println!("  Magic:      \"RTPS\" (RTPS header)");
@@ -188,9 +188,9 @@ fn run_info(name: &str, plugin_dir_override: Option<&Utf8PathBuf>) -> Result<()>
                     println!("  Confidence: 0.95 (magic bytes), 0.6 (port only)");
                     println!();
                     println!("Capabilities:");
-                    println!("  ✓ RTPS message parsing");
-                    println!("  ✓ SEDP discovery");
-                    println!("  ✓ Data submessages");
+                    println!("  [OK] RTPS message parsing");
+                    println!("  [OK] SEDP discovery");
+                    println!("  [OK] Data submessages");
                 }
                 _ => {}
             }

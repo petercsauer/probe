@@ -160,7 +160,7 @@ fn print_event_summary(event: &DebugEvent) {
     }
 
     if !event.warnings.is_empty() {
-        println!("⚠ Warnings: {}", event.warnings.join("; "));
+        println!("[!] Warnings: {}", event.warnings.join("; "));
     }
 }
 

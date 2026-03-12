@@ -53,10 +53,10 @@ coverage-check:
     coverage=$(cargo llvm-cov --workspace --summary-only | grep -oP 'TOTAL.*\K[0-9.]+(?=%)')
     echo "Total coverage: $coverage%"
     if (( $(echo "$coverage < 80.0" | bc -l) )); then
-        echo "❌ Coverage $coverage% is below 80% threshold"
+        echo "[FAIL] Coverage $coverage% is below 80% threshold"
         exit 1
     fi
-    echo "✅ Coverage $coverage% meets threshold"
+    echo "[PASS] Coverage $coverage% meets threshold"
 
 # Run benchmarks
 bench:
@@ -111,13 +111,13 @@ setup:
     cargo install cargo-outdated --locked
     cargo install cargo-nextest --locked
     cargo install just --locked
-    @echo "✅ Developer tools installed!"
+    @echo "[PASS] Developer tools installed!"
 
 # Install pre-commit hooks
 install-hooks:
     @echo "Installing pre-commit hooks..."
     @bash scripts/install-hooks.sh
-    @echo "✅ Pre-commit hooks installed!"
+    @echo "[PASS] Pre-commit hooks installed!"
 
 # Run TUI with test data
 tui:

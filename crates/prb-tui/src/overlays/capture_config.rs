@@ -59,10 +59,10 @@ impl CaptureConfigOverlay {
         let privilege_warning = if let Some(iface) = interfaces.first() {
             match PrivilegeCheck::check(&iface.name) {
                 Ok(()) => None,
-                Err(e) => Some(format!("⚠ {}", e)),
+                Err(e) => Some(format!("[!] {}", e)),
             }
         } else {
-            Some("⚠ No network interfaces found".to_string())
+            Some("[!] No network interfaces found".to_string())
         };
 
         Self {
@@ -87,10 +87,10 @@ impl CaptureConfigOverlay {
         if let Some(iface) = self.interfaces.get(self.selected_interface) {
             self.privilege_warning = match PrivilegeCheck::check(&iface.name) {
                 Ok(()) => None,
-                Err(e) => Some(format!("⚠ {}", e)),
+                Err(e) => Some(format!("[!] {}", e)),
             };
         } else {
-            self.privilege_warning = Some("⚠ No network interfaces found".to_string());
+            self.privilege_warning = Some("[!] No network interfaces found".to_string());
             self.selected_interface = 0;
         }
     }
@@ -109,7 +109,7 @@ impl CaptureConfigOverlay {
         if let Some(iface) = self.interfaces.get(self.selected_interface) {
             self.privilege_warning = match PrivilegeCheck::check(&iface.name) {
                 Ok(()) => None,
-                Err(e) => Some(format!("⚠ {}", e)),
+                Err(e) => Some(format!("[!] {}", e)),
             };
         }
     }
@@ -411,7 +411,7 @@ impl CaptureConfigOverlay {
             && inner.height > 1
         {
             let error_line = Line::from(Span::styled(
-                format!("⚠ {}", error),
+                format!("[!] {}", error),
                 Style::default().fg(Color::Red),
             ));
             buf.set_line(inner.x, inner.y + 1, &error_line, inner.width);

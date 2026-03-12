@@ -1,0 +1,118 @@
+# Orchestrate v2 Configuration for Google-Level Infrastructure
+# Comprehensive CI/CD, testing, quality gates, and developer tooling
+
+[plan]
+name = "google-level-infra"
+description = "Transform PRB codebase to Google-level standards: CI/CD, 80%+ coverage, security scanning, strict linting"
+workspace_root = "/Users/psauer/probe"
+plan_root = "/Users/psauer/probe/.claude/plans/google-level-infra"
+preamble = [
+    "/Users/psauer/probe/scripts/orchestrate_v2/prompts/iterative-builder.md",
+    "/Users/psauer/probe/scripts/orchestrate_v2/prompts/devcontainer-exec.md"
+]
+
+[execution]
+max_concurrent = 4  # Conservative for quality-gate heavy work
+cycle_timeout_minutes = 45  # Coverage generation takes time
+max_retries = 2
+persist_state = true
+state_file = "state.db"
+
+[isolation]
+# REQUIRED: Isolate segments in separate git worktrees
+strategy = "worktree"
+
+[monitor]
+enabled = true
+port = 8081  # Different port from TUI plan
+
+[build]
+# Use separate build directory to avoid conflicts
+target_dir = "/tmp/orchestrate-google-infra"
+pre_build_clean = false
+
+[commands]
+# Standard Rust/Cargo commands
+build = "cargo build --workspace"
+test = "cargo nextest run --workspace"
+clippy = "cargo clippy --workspace --all-targets -- -D warnings"
+fmt_check = "cargo fmt --all -- --check"
+fmt = "cargo fmt --all"
+
+# Coverage commands
+coverage = "cargo llvm-cov --workspace --lcov --output-path lcov.info"
+coverage_html = "cargo llvm-cov --workspace --html"
+
+# Security commands
+audit = "cargo audit"
+deny = "cargo deny check"
+
+# Doc commands
+doc = "cargo doc --workspace --no-deps"
+doc_check = "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps"
+
+[validation]
+# Gates that must pass for each segment
+required_gates = ["build", "test", "clippy", "fmt_check"]
+optional_gates = ["audit"]
+
+# Regression tests (run on main after merge)
+regression_test_command = "cargo nextest run --workspace"
+regression_clippy_command = "cargo clippy --workspace --all-targets -- -D warnings"
+
+[git]
+main_branch = "main"
+segment_branch_prefix = "orchestrate/google-infra/S"
+commit_message_template = "infra: Segment {number} {title} - cycle {cycle}"
+auto_commit = true
+auto_push = false
+
+[waves]
+# Wave definitions from manifest
+wave_1 = [1, 2]           # Foundation: fix existing issues, quality configs
+wave_2 = [3, 4, 5]        # CI/CD: main workflow, release, dependencies
+wave_3 = [6, 7]           # Test coverage: analysis & gap filling
+wave_4 = [8, 9, 10]       # Developer Experience: justfile, hooks, editor config
+wave_5 = [11, 12]         # Security & Performance: audit, benchmarks
+wave_6 = [13]             # Documentation: API docs, ADRs
+
+[discovery]
+# Auto-discover segments from segments/ directory
+segment_pattern = "segments/{number:02d}-*.md"
+handoff_pattern = "handoff/S{number:02d}-*.md"
+
+[notifications]
+# Notification preferences
+notify_on_complete = true
+notify_on_error = true
+notify_on_wave_complete = true
+
+[logging]
+level = "info"
+log_file = "orchestrate.log"
+color = true
+
+[hooks]
+# Pre/post hooks for segments
+pre_segment = []
+post_segment = []
+pre_wave = []
+post_wave = []
+
+[features]
+# Feature flags for orchestrator behavior
+parallel_execution = true
+worktree_isolation = true
+auto_merge = false  # Require manual review for infra changes
+interactive_mode = false
+dry_run = false
+
+[custom]
+# Custom settings for this plan
+install_tools = [
+    "cargo-llvm-cov",
+    "cargo-audit",
+    "cargo-deny",
+    "cargo-outdated",
+    "just"
+]

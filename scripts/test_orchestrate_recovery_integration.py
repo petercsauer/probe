@@ -36,7 +36,7 @@ class TestRecoveryIntegration:
         # Check that recovery should trigger
         has_failures = any(status in ("partial", "blocked") for _, status in wave_results)
         assert has_failures, "Wave should have failures to trigger recovery"
-        print("✓ test_recovery_triggers_on_partial")
+        print("[OK] test_recovery_triggers_on_partial")
 
     async def test_recovery_retries_victims(self):
         """Test that recovery identifies and retries victim segments."""
@@ -110,7 +110,7 @@ class TestRecoveryIntegration:
                     assert 1 in victims, f"Expected S01 in victims: {victims}"
                     assert 2 not in victims, f"S02 should not be victim: {victims}"
 
-                print("✓ test_recovery_retries_victims")
+                print("[OK] test_recovery_retries_victims")
 
             finally:
                 os.chdir(orig_cwd)
@@ -144,7 +144,7 @@ class TestRecoveryIntegration:
 
         # Should filter out S01 since it exceeded max_attempts
         assert 1 not in filtered_victims, "S01 should be filtered by circuit breaker"
-        print("✓ test_recovery_circuit_breaker")
+        print("[OK] test_recovery_circuit_breaker")
 
 
 async def main():
@@ -158,16 +158,16 @@ async def main():
         await integration_tests.test_recovery_retries_victims()
         await integration_tests.test_recovery_circuit_breaker()
 
-        print("\n✅ All integration tests passed!")
+        print("\nPASS All integration tests passed!")
         return 0
 
     except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\nFAIL Test failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nFAIL Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1

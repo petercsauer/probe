@@ -323,8 +323,8 @@ def cmd_status(plan_dir: Path) -> None:
     print(f"Progress: {data['progress']}\n")
     for seg in data["segments"]:
         status = seg["status"].upper()
-        icon = {"PASS": "✅", "RUNNING": "🔄", "PENDING": "⏳", "FAILED": "❌",
-                "BLOCKED": "🚫", "PARTIAL": "⚠️", "TIMEOUT": "⏰"}.get(status, "❓")
+        icon = {"PASS": "PASS", "RUNNING": "🔄", "PENDING": "⏳", "FAILED": "FAIL",
+                "BLOCKED": "BLOCK", "PARTIAL": "[!]", "TIMEOUT": "TIMEOUT"}.get(status, "UNKNOWN")
         print(f"  {icon} S{seg['num']:02d} [{status:8s}] {seg['title']}")
     print()
 

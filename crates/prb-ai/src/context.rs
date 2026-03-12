@@ -102,7 +102,7 @@ fn summarize_event(event: &DebugEvent) -> String {
     }
 
     if !event.warnings.is_empty() {
-        parts.push(format!("⚠ Warnings: {}", event.warnings.join("; ")));
+        parts.push(format!("[!] Warnings: {}", event.warnings.join("; ")));
     }
 
     for (k, v) in &event.metadata {

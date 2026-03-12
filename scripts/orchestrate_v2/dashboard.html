@@ -4,9 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Orchestrator Dashboard</title>
+<!-- Font Awesome 6 Free -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --bg: #1c2128; --surface: #161b22; --border: #30363d;
     --text: #e6edf3; --text-dim: #8b949e; --text-muted: #6e7681;
     --pass: #238636; --pass-bg: #0d2117; --running: #1f6feb; --running-bg: #0d1d3a;
     --pending: #484f58; --pending-bg: #1c1f24;
@@ -15,7 +17,13 @@
     --gate-pass: #238636; --gate-fail: #da3633; --gate-pending: #484f58;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
   .header { padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
@@ -31,13 +39,15 @@
 
   /* ── Mobile layout (<640px) ── */
   @media (max-width: 640px) {
-    .layout { display: block; height: calc(100vh - 100px - 52px); padding-bottom: 52px; }
-    .timeline { display: none; height: 100%; overflow-y: auto; }
-    .log-panel { display: none; height: 100%; }
-    .events { display: none; max-height: calc(100vh - 100px - 52px); }
+    .layout { display: flex; flex-direction: column; height: calc(100vh - 100px - 52px); }
+    /* Timeline/Events: tabbed at top */
+    .timeline { display: none; flex: 1; overflow-y: auto; }
+    .events { display: none; flex: 1; }
     .timeline.tab-active { display: block; }
-    .log-panel.tab-active { display: flex; }
     .events.tab-active { display: flex; flex-direction: column; }
+    /* Log panel: always visible at bottom (terminal-style) */
+    .log-panel { display: flex !important; height: 50%; min-height: 200px; border-top: 2px solid var(--border); order: 10; }
+    .log-content { font-size: 11px; }
     .seg-row { min-height: 48px; padding: 10px 16px; }
     .tab-bar { display: flex; }
   }
@@ -57,23 +67,15 @@
   .tab-btn.active { color: var(--running); }
 
   /* ── Wave Timeline (left panel) ── */
-  .timeline { overflow-y: auto; border-right: 1px solid var(--border); padding: 16px 0; }
+  .timeline { overflow-y: auto; border-right: 1px solid var(--border); padding: 0 0 16px 0; background: #0d1117; }
 
-  /* ── Timeline toolbar (status filter) ── */
-  .timeline-toolbar {
-    padding: 6px 12px 10px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  }
-  .timeline-toolbar label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-  .timeline-toolbar select {
-    background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
-  }
 
   .wave-group { margin-bottom: 4px; }
   .wave-header {
     display: flex; align-items: center; gap: 8px; padding: 6px 20px;
     font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--text-muted); position: sticky; top: 0; background: var(--bg); z-index: 1;
+    color: var(--text-muted); position: sticky; top: 0; background: #0d1117; z-index: 10;
+    border-bottom: 1px solid var(--border);
   }
   .wave-header .wave-line { flex: 1; height: 1px; background: var(--border); }
   .wave-header.active { color: var(--running); }
@@ -110,14 +112,15 @@
   .status-dropdown {
     position: absolute; top: 100%; right: 0; margin-top: 4px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 9999; min-width: 120px;
-    display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6); z-index: 9999; min-width: 120px;
+    display: none; opacity: 1;
   }
   .status-dropdown.show { display: block; }
   .status-dropdown-item {
     padding: 6px 12px; font-size: 11px; cursor: pointer;
     transition: background 0.1s; text-transform: uppercase;
     font-weight: 600; letter-spacing: 0.3px;
+    background: var(--surface);
   }
   .status-dropdown-item:hover { background: rgba(255,255,255,0.08); }
   .status-dropdown-item:first-child { border-radius: 6px 6px 0 0; }
@@ -182,7 +185,7 @@
   /* ── Log Panel (right) ── */
   .log-panel { display: flex; flex-direction: column; overflow: hidden; }
   .log-header {
-    padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface);
+    padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
     display: flex; justify-content: space-between; align-items: center;
     font-size: 13px; font-weight: 600; flex-shrink: 0;
   }
@@ -190,123 +193,184 @@
 
   /* ── Log toolbar ── */
   .log-toolbar {
-    padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+    padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg);
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
   .log-toolbar input {
-    flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    flex: 1; background: rgba(0,0,0,0.2); color: var(--text); border: 1px solid var(--border);
     border-radius: 4px; padding: 4px 10px; font-size: 12px; font-family: 'SF Mono', monospace;
     outline: none;
   }
   .log-toolbar input:focus { border-color: var(--running); }
   .search-count { font-size: 11px; color: var(--text-muted); flex-shrink: 0; min-width: 24px; text-align: right; }
+  .prompt-btn {
+    padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
+    background: rgba(122,162,247,0.15); color: var(--running); border: 1px solid var(--running);
+    border-radius: 4px; white-space: nowrap; transition: all 0.15s;
+  }
+  .prompt-btn:hover { background: rgba(122,162,247,0.25); }
+  .prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .prompt-btn.active { background: var(--running); color: #fff; }
 
   /* ── Log content — Claude Code exact style ── */
   .log-content {
-    flex: 1; overflow-y: auto; padding: 12px 16px;
-    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
-    font-size: 13px; line-height: 1.6; word-break: break-word;
-    /* tokyo-night token colors */
-    --cc-text:      #c0caf5;
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px; line-height: 1.65; word-break: break-word;
+    background: var(--bg); letter-spacing: -0.01em;
+    /* tokyo-night token colors - exact Claude Code palette */
+    --cc-text:      #a9b1d6;
     --cc-text-dim:  #565f89;
-    --cc-text-br:   #e0e6ff;
+    --cc-text-br:   #c0caf5;
     --cc-green:     #9ece6a;
     --cc-blue:      #7aa2f7;
     --cc-cyan:      #7dcfff;
     --cc-orange:    #ff9e64;
     --cc-red:       #f7768e;
-    --cc-border:    #3b3d57;
-    --cc-tool-bg:   #1e1f33;
-    --cc-think-bg:  #1c1d2e;
+    --cc-yellow:    #e0af68;
+    --cc-purple:    #bb9af7;
+    --cc-border:    #414868;
+    --cc-tool-bg:   #1a1b26;
+    --cc-think-bg:  #1a1b26;
     color: var(--cc-text);
   }
 
   /* Assistant prose */
   .cc-text {
     color: var(--cc-text); white-space: pre-wrap; word-break: break-word;
-    margin: 4px 0; padding-left: 4px;
+    margin: 6px 0; line-height: 1.65;
   }
-  .cc-text.highlight { background: rgba(210,153,34,0.15); border-radius: 3px; }
+  .cc-text.highlight { background: rgba(224,175,104,0.2); border-radius: 2px; padding: 1px 2px; }
 
   /* Thinking block — left border, collapsible */
   .cc-thinking {
-    margin: 6px 0;
-    border-left: 2px solid var(--cc-text-dim);
-    padding-left: 10px;
+    margin: 10px 0;
+    border-left: 3px solid var(--cc-text-dim);
+    padding-left: 12px;
   }
   .cc-thinking-header {
     font-size: 11px; color: var(--cc-text-dim); cursor: pointer;
-    user-select: none; padding: 2px 0; display: flex; align-items: center; gap: 4px;
+    user-select: none; padding: 3px 0; display: flex; align-items: center; gap: 6px;
+    font-weight: 600; letter-spacing: 0.02em;
   }
-  .cc-thinking-chevron { font-size: 10px; transition: transform 0.2s; }
+  .cc-thinking-chevron {
+    font-size: 9px; transition: transform 0.15s ease;
+    display: inline-block; width: 8px;
+  }
   .cc-thinking.open .cc-thinking-chevron { transform: rotate(90deg); }
   .cc-thinking-body {
-    display: none; color: var(--cc-text-dim); font-size: 12px;
-    white-space: pre-wrap; padding: 4px 0; line-height: 1.5;
+    display: none; color: var(--cc-text-dim); font-size: 11.5px;
+    white-space: pre-wrap; padding: 6px 0 2px; line-height: 1.6;
+    opacity: 0.85;
   }
   .cc-thinking.open .cc-thinking-body { display: block; }
 
   /* Tool block — exact claude-replay/.cc-code structure */
   .cc-tool {
-    margin: 6px 0;
+    margin: 10px 0;
     border: 1px solid var(--cc-border);
-    border-radius: 6px;
+    border-radius: 7px;
     overflow: hidden;
     background: var(--cc-tool-bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
   .cc-tool-header {
-    display: flex; align-items: center; gap: 6px;
-    padding: 6px 10px; cursor: pointer; user-select: none;
-    transition: background 0.15s;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; cursor: pointer; user-select: none;
+    transition: background 0.12s ease;
+    border-bottom: 1px solid transparent;
   }
-  .cc-tool-header:hover { background: rgba(255,255,255,0.04); }
+  .cc-tool-header:hover { background: rgba(122,162,247,0.08); }
+  .cc-tool.open .cc-tool-header { border-bottom-color: var(--cc-border); }
   .cc-tool-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--cc-blue); flex-shrink: 0;
+    box-shadow: 0 0 3px var(--cc-blue);
   }
-  .cc-tool-dot.error { background: var(--cc-red); }
-  .cc-tool-name { color: var(--cc-cyan); font-weight: 600; flex-shrink: 0; }
+  .cc-tool-dot.error { background: var(--cc-red); box-shadow: 0 0 3px var(--cc-red); }
+  .cc-tool-name {
+    color: var(--cc-cyan); font-weight: 600; flex-shrink: 0;
+    font-size: 12px; letter-spacing: 0.01em;
+  }
   .cc-tool-preview {
     color: var(--cc-text-dim); overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; flex: 1; font-size: 12px;
+    white-space: nowrap; flex: 1; font-size: 11.5px;
   }
   .cc-tool-chevron {
-    color: var(--cc-text-dim); font-size: 10px;
-    transition: transform 0.2s; flex-shrink: 0;
+    color: var(--cc-text-dim); font-size: 9px;
+    transition: transform 0.15s ease; flex-shrink: 0;
+    display: inline-block; width: 8px;
   }
   .cc-tool.open .cc-tool-chevron { transform: rotate(90deg); }
-  .cc-tool-body { display: none; border-top: 1px solid var(--cc-border); }
+  .cc-tool-body { display: none; }
   .cc-tool.open .cc-tool-body { display: block; }
   .cc-tool-input, .cc-tool-result {
-    padding: 8px 10px; font-size: 12px;
+    padding: 10px 12px; font-size: 11.5px;
     white-space: pre-wrap; word-break: break-word;
-    max-height: 260px; overflow-y: auto;
+    max-height: 320px; overflow-y: auto; line-height: 1.6;
   }
-  .cc-tool-input { color: var(--cc-text-dim); background: var(--cc-tool-bg); }
+  .cc-tool-input {
+    color: var(--cc-text-dim); background: rgba(0,0,0,0.15);
+  }
   .cc-tool-result {
-    background: var(--bg); border-top: 1px solid var(--cc-border);
+    background: rgba(0,0,0,0.25); border-top: 1px solid var(--cc-border);
     color: var(--cc-green);
   }
   .cc-tool-result.error { color: var(--cc-red); }
   .cc-label {
-    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-    color: var(--cc-text-dim); margin-bottom: 4px; font-weight: 600;
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--cc-text-dim); margin-bottom: 6px; font-weight: 700;
+    opacity: 0.7;
   }
 
   /* Final result */
   .cc-result {
-    display: flex; align-items: center; gap: 8px;
-    margin: 10px 0 4px; padding: 7px 10px; border-radius: 6px;
-    font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+    margin: 14px 0 6px; padding: 9px 13px; border-radius: 7px;
+    font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
   }
-  .cc-result.success { background: rgba(158,206,106,0.1); color: var(--cc-green); border: 1px solid rgba(158,206,106,0.3); }
+  .cc-result.success {
+    background: rgba(158,206,106,0.12);
+    color: var(--cc-green);
+    border: 1px solid rgba(158,206,106,0.35);
+    box-shadow: 0 1px 3px rgba(158,206,106,0.1);
+  }
   .cc-result.error_during_execution,
   .cc-result.failed,
-  .cc-result.error  { background: rgba(247,118,142,0.1); color: var(--cc-red); border: 1px solid rgba(247,118,142,0.3); }
-  .cc-result .cc-cost { margin-left: auto; font-weight: 400; color: var(--cc-text-dim); font-size: 11px; }
+  .cc-result.error  {
+    background: rgba(247,118,142,0.12);
+    color: var(--cc-red);
+    border: 1px solid rgba(247,118,142,0.35);
+    box-shadow: 0 1px 3px rgba(247,118,142,0.1);
+  }
+  .cc-result .cc-cost {
+    margin-left: auto; font-weight: 500;
+    color: var(--cc-text-dim); font-size: 10.5px;
+    opacity: 0.8;
+  }
 
   /* Segment complete divider */
-  .cc-divider { color: var(--cc-text-dim); font-size: 11px; margin: 10px 0 4px; border-top: 1px solid var(--cc-border); padding-top: 6px; }
+  .cc-divider {
+    color: var(--cc-text-dim); font-size: 11px; margin: 16px 0 12px;
+    border-top: 1px solid var(--cc-border); padding-top: 10px;
+    text-align: center; font-weight: 600; letter-spacing: 0.05em;
+  }
+
+  /* Custom scrollbar for log content */
+  .log-content::-webkit-scrollbar { width: 10px; }
+  .log-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 5px; }
+  .log-content::-webkit-scrollbar-thumb {
+    background: var(--cc-border); border-radius: 5px;
+    border: 2px solid transparent; background-clip: padding-box;
+  }
+  .log-content::-webkit-scrollbar-thumb:hover { background: #565f89; background-clip: padding-box; }
+
+  .cc-tool-input::-webkit-scrollbar, .cc-tool-result::-webkit-scrollbar { width: 8px; height: 8px; }
+  .cc-tool-input::-webkit-scrollbar-track, .cc-tool-result::-webkit-scrollbar-track { background: transparent; }
+  .cc-tool-input::-webkit-scrollbar-thumb, .cc-tool-result::-webkit-scrollbar-thumb {
+    background: var(--cc-border); border-radius: 4px;
+  }
+
 
   /* ── Event Feed (bottom full width) ── */
   .events {
@@ -352,19 +416,9 @@
 
 <div class="layout">
   <div class="timeline" id="timeline">
-    <div class="timeline-toolbar">
-      <label for="status-filter">Filter:</label>
-      <select id="status-filter" onchange="applyStatusFilter()">
-        <option value="all">All</option>
-        <option value="running">Running</option>
-        <option value="fail">Failed/Blocked</option>
-        <option value="pending">Pending</option>
-        <option value="pass">Passed</option>
-      </select>
-    </div>
     <div id="timeline-content"></div>
     <div class="kbd-hint">
-      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log &nbsp; <kbd>f</kbd> filter &nbsp; <kbd>/</kbd> search
+      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log &nbsp; <kbd>/</kbd> search
     </div>
   </div>
 
@@ -376,6 +430,7 @@
     <div class="log-toolbar">
       <input id="log-search" type="text" placeholder="/ search..." autocomplete="off" spellcheck="false">
       <span id="search-count" class="search-count"></span>
+      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
     </div>
     <div class="log-content" id="log-content"></div>
   </div>
@@ -396,13 +451,10 @@
 
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="timeline" onclick="switchTab('timeline')">
-    <span>☰</span><span>Timeline</span>
-  </button>
-  <button class="tab-btn" data-tab="log" onclick="switchTab('log')">
-    <span>📄</span><span>Log</span>
+    <i class="fa-solid fa-list"></i><span>Timeline</span>
   </button>
   <button class="tab-btn" data-tab="events" onclick="switchTab('events')">
-    <span>📡</span><span>Events</span>
+    <i class="fa-solid fa-bell"></i><span>Events</span>
   </button>
 </div>
 
@@ -414,6 +466,10 @@
   let startedAt = null;
   let lastSegments = null;
   let activeSegList = [];
+
+  // Prompt view state
+  let showingPrompt = false;
+  let currentPromptText = null;
 
   // Restore from localStorage
   const savedSeg = parseInt(localStorage.getItem('orchestrate_activeSeg'));
@@ -443,7 +499,8 @@
         return ev.detail.includes('PASS') ? 'pass' : 'fail';
       }
     }
-    if (waveIsDone && parseInt(currentWave) >= waveNum) return 'running';
+    // Only show running if this wave is done AND we're still on this wave (not moved to next)
+    if (waveIsDone && parseInt(currentWave) === waveNum) return 'running';
     return 'pending';
   }
 
@@ -467,6 +524,57 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  function _renderMarkdown(text) {
+    // Improved markdown renderer for prompts
+    let html = _esc(text);
+
+    // YAML frontmatter (---...---)
+    html = html.replace(/^---\n([\s\S]*?)\n---\n/m, '<div style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--cc-blue); padding: 10px 12px; margin: 0 0 20px; font-size: 11.5px; color: var(--cc-text-dim);">$1</div>');
+
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr style="border: none; border-top: 1px solid var(--cc-border); margin: 16px 0;">');
+
+    // Code blocks with optional language (```lang\ncode\n```)
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre style="background: rgba(0,0,0,0.4); padding: 10px 12px; border-radius: 5px; overflow-x: auto; margin: 10px 0; border: 1px solid var(--cc-border); font-size: 12px; line-height: 1.5;">$2</pre>');
+
+    // Inline code (`code`)
+    html = html.replace(/`([^`\n]+)`/g, '<code style="background: rgba(122,162,247,0.15); padding: 2px 6px; border-radius: 3px; color: var(--cc-cyan); font-size: 12px; border: 1px solid rgba(122,162,247,0.25); font-family: monospace;">$1</code>');
+
+    // Bold (**text** or __text__)
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong style="color: var(--text); font-weight: 700;">$1</strong>');
+    html = html.replace(/__([^_]+)__/g, '<strong style="color: var(--text); font-weight: 700;">$1</strong>');
+
+    // Italic (*text* or _text_) - avoid matching in file paths
+    html = html.replace(/(?<![/\w])\*([^*\n]+)\*/g, '<em style="font-style: italic; color: var(--cc-blue);">$1</em>');
+    html = html.replace(/(?<![/\w])_([^_\n]+)_/g, '<em style="font-style: italic; color: var(--cc-blue);">$1</em>');
+
+    // Headers - process from smallest to largest to avoid conflicts
+    html = html.replace(/^#### (.+)$/gm, '<h4 style="color: var(--cc-cyan); font-size: 12.5px; font-weight: 600; margin: 12px 0 6px;">$1</h4>');
+    html = html.replace(/^### (.+)$/gm, '<h3 style="color: var(--cc-cyan); font-size: 13.5px; font-weight: 600; margin: 14px 0 7px;">$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2 style="color: var(--cc-blue); font-size: 15px; font-weight: 600; margin: 16px 0 8px;">$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1 style="color: var(--cc-orange); font-size: 16px; font-weight: 700; margin: 18px 0 10px;">$1</h1>');
+
+    // Checkboxes
+    html = html.replace(/^\s*-\s+\[\s*x\s*\]\s+(.+)$/gm, '<div style="margin-left: 20px; padding: 2px 0;"><span style="color: var(--pass);">☑</span> $1</div>');
+    html = html.replace(/^\s*-\s+\[\s*\]\s+(.+)$/gm, '<div style="margin-left: 20px; padding: 2px 0;"><span style="color: var(--text-dim);">☐</span> $1</div>');
+
+    // Nested lists (handle 2 levels of indentation)
+    html = html.replace(/^  [\-\*] (.+)$/gm, '<div style="margin-left: 36px; padding: 1px 0;">• $1</div>');
+    html = html.replace(/^[\-\*] (.+)$/gm, '<div style="margin-left: 20px; padding: 1px 0;">• $1</div>');
+
+    // Numbered lists (handle nested)
+    html = html.replace(/^  (\d+)\. (.+)$/gm, '<div style="margin-left: 36px; padding: 1px 0;">$1. $2</div>');
+    html = html.replace(/^(\d+)\. (.+)$/gm, '<div style="margin-left: 20px; padding: 1px 0;">$1. $2</div>');
+
+    // Links ([text](url))
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: var(--cc-blue); text-decoration: underline; text-decoration-color: rgba(122,162,247,0.4);" target="_blank">$1</a>');
+
+    // Paragraphs (double newlines)
+    html = html.replace(/\n\n/g, '<br><br>');
+
+    return html;
+  }
+
   function _flushTextDelta(logEl) {
     if (!_textDeltaBuf) return;
     _appendTextNode(logEl, _textDeltaBuf);
@@ -484,7 +592,7 @@
     if (!text.trim()) return;
     const div = document.createElement('div');
     div.className = 'cc-text';
-    div.textContent = text;
+    div.innerHTML = _renderMarkdown(text);
     const term = document.getElementById('log-search').value.toLowerCase();
     if (term) {
       if (!text.toLowerCase().includes(term)) div.style.display = 'none';
@@ -638,31 +746,9 @@
   function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelector('.timeline').classList.toggle('tab-active', tab === 'timeline');
-    document.querySelector('.log-panel').classList.toggle('tab-active', tab === 'log');
     document.querySelector('.events').classList.toggle('tab-active', tab === 'events');
   }
 
-  // ── Status filter ──
-  function applyStatusFilter() {
-    const val = document.getElementById('status-filter').value;
-    document.querySelectorAll('.seg-row[data-status]').forEach(row => {
-      const st = row.dataset.status;
-      let vis = true;
-      if (val === 'running') vis = st === 'running';
-      else if (val === 'fail') vis = st === 'failed' || st === 'blocked';
-      else if (val === 'pending') vis = st === 'pending';
-      else if (val === 'pass') vis = st === 'pass' || st === 'partial';
-      row.style.display = vis ? '' : 'none';
-    });
-  }
-
-  function cycleStatusFilter() {
-    const sel = document.getElementById('status-filter');
-    const opts = Array.from(sel.options).map(o => o.value);
-    const idx = opts.indexOf(sel.value);
-    sel.value = opts[(idx + 1) % opts.length];
-    applyStatusFilter();
-  }
 
   // ── Segment navigation ──
   function selectNext() {
@@ -702,11 +788,13 @@
       document.getElementById('log-search').value = '';
       document.getElementById('log-search').dispatchEvent(new Event('input'));
     }
-    if (e.key === 'f') cycleStatusFilter();
   });
 
   // ── Log search ──
   document.getElementById('log-search').addEventListener('input', function() {
+    // Disable search when viewing prompt
+    if (showingPrompt) return;
+
     const term = this.value.toLowerCase();
     const lines = document.querySelectorAll('.log-line');
     let matches = 0;
@@ -725,7 +813,7 @@
     if (!el || !notifs || !notifs.length) return;
     let html = '';
     notifs.forEach(n => {
-      const icon = n.sent_at ? '✅' : (n.attempts >= 3 ? '❌' : '⏳');
+      const icon = n.sent_at ? '<i class="fa-solid fa-check" style="color: var(--pass)"></i>' : (n.attempts >= 3 ? '<i class="fa-solid fa-xmark" style="color: var(--fail)"></i>' : '<i class="fa-solid fa-clock" style="color: var(--text-dim)"></i>');
       const ts = n.sent_at ? formatTs(n.sent_at) : `${n.attempts} att.`;
       const preview = (n.message || '').split('\n')[0].slice(0, 60);
       html += `<div class="notif-line">${icon} <span class="ts">${ts}</span><span class="kind">${n.kind}</span> ${preview}</div>`;
@@ -767,17 +855,32 @@
       .catch(() => {});
   }
 
+  function statusIcon(status) {
+    const icons = {
+      'pass': '<i class="fa-solid fa-check-circle"></i>',
+      'running': '<i class="fa-solid fa-spinner fa-spin"></i>',
+      'pending': '<i class="fa-regular fa-circle"></i>',
+      'failed': '<i class="fa-solid fa-times-circle"></i>',
+      'partial': '<i class="fa-solid fa-exclamation-triangle"></i>',
+      'blocked': '<i class="fa-solid fa-ban"></i>',
+      'timeout': '<i class="fa-solid fa-clock"></i>',
+      'skipped': '<i class="fa-solid fa-forward"></i>',
+      'unknown': '<i class="fa-solid fa-question-circle"></i>'
+    };
+    return icons[status] || icons['unknown'];
+  }
+
   function actionButtons(seg) {
     const btns = [];
     if (seg.status === 'running') {
-      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process">✕</button>`);
+      btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i> Kill</button>`);
     }
     if (['failed','blocked','partial','timeout'].includes(seg.status)) {
-      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry">↺</button>`);
-      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip">⏭</button>`);
+      btns.push(`<button class="act-btn act-retry" onclick="event.stopPropagation();controlSeg(${seg.num},'retry')" title="Retry"><i class="fa-solid fa-rotate-right"></i> Retry</button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
     }
     if (seg.status === 'pending') {
-      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip">⏭</button>`);
+      btns.push(`<button class="act-btn act-skip" onclick="event.stopPropagation();controlSeg(${seg.num},'skip')" title="Skip"><i class="fa-solid fa-forward"></i> Skip</button>`);
     }
     return btns.length ? `<span class="act-btns">${btns.join('')}</span>` : '';
   }
@@ -900,13 +1003,13 @@
         const gs = gateStatus(events, w, currentWave, wDone);
         let inner = '';
         if (gs === 'pass') {
-          inner = `<span class="gate-icon">✓</span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
+          inner = `<span class="gate-icon"><i class="fa-solid fa-check-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
         } else if (gs === 'fail') {
-          inner = `<span class="gate-icon">✕</span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
+          inner = `<span class="gate-icon"><i class="fa-solid fa-times-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
         } else if (gs === 'running') {
-          inner = `<span class="gate-icon">⟳</span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
+          inner = `<span class="gate-icon"><i class="fa-solid fa-spinner fa-spin"></i></span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
         } else {
-          inner = `<span class="gate-icon">○</span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
+          inner = `<span class="gate-icon"><i class="fa-regular fa-circle"></i></span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
         }
         const clickable = (gs === 'running' || gs === 'pass' || gs === 'fail') ? ` onclick="window._selectGate(${w},'${gs}')" style="cursor:pointer"` : '';
         html += `<div class="gate-bar gate-${gs}"${clickable}>${inner}</div>`;
@@ -915,9 +1018,6 @@
       html += `</div>`;
     }
     el.innerHTML = html;
-
-    // Re-apply status filter after re-render
-    applyStatusFilter();
   }
 
   function _resetLogDeltaBufs() {
@@ -930,6 +1030,7 @@
   function _openLogStream(url, logEl, isLive) {
     if (logSource) logSource.close();
     _resetLogDeltaBufs();
+    logEl.innerHTML = '';
     const badge = document.getElementById('live-badge');
     badge.textContent = isLive ? '● LIVE' : '';
     logSource = new EventSource(url);
@@ -947,7 +1048,74 @@
     document.getElementById('log-seg-label').textContent = `Gate — Wave ${wave}`;
     document.getElementById('log-content').innerHTML = '';
     document.querySelectorAll('.seg-row').forEach(r => r.classList.remove('active'));
+
+    // Reset prompt view state
+    showingPrompt = false;
+    currentPromptText = null;
+
+    // Disable and reset prompt button for gates
+    const promptBtn = document.getElementById('prompt-btn');
+    if (promptBtn) {
+      promptBtn.disabled = true;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+    }
+
     _openLogStream(`/api/logs/gate-W${wave}`, document.getElementById('log-content'), status === 'running');
+  };
+
+  window.showPrompt = async function() {
+    if (activeSeg == null) return;
+
+    const promptBtn = document.getElementById('prompt-btn');
+    const logContent = document.getElementById('log-content');
+    const badge = document.getElementById('live-badge');
+    const searchInput = document.getElementById('log-search');
+
+    if (showingPrompt) {
+      // Switch back to log view
+      showingPrompt = false;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+
+      // Resume log stream
+      const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
+      if (seg) {
+        const status = seg.status;
+        _openLogStream(`/api/logs/S${pad(activeSeg)}`, logContent, status === 'running');
+      }
+    } else {
+      // Switch to prompt view
+      showingPrompt = true;
+      promptBtn.textContent = 'Log';
+      promptBtn.classList.add('active');
+
+      // Clear search
+      searchInput.value = '';
+      document.getElementById('search-count').textContent = '';
+
+      // Stop log stream
+      if (logSource) {
+        logSource.close();
+        logSource = null;
+      }
+      badge.textContent = '';
+
+      // Show loading state
+      logContent.innerHTML = '<div style="color: var(--cc-text-dim); padding: 20px;">Loading prompt...</div>';
+
+      // Fetch and display prompt
+      try {
+        const response = await fetch(`/api/prompt/S${pad(activeSeg)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const text = await response.text();
+        currentPromptText = text;
+        logContent.innerHTML = `<div style="padding: 20px; color: var(--cc-text); line-height: 1.65; max-width: 900px;">${_renderMarkdown(text)}</div>`;
+      } catch (e) {
+        logContent.innerHTML = `<div style="color: var(--cc-red); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
+      }
+    }
   };
 
   window._selectSeg = function(num, title, status) {
@@ -956,6 +1124,19 @@
     document.getElementById('log-seg-label').textContent = `S${pad(num)} — ${title}`;
     document.getElementById('log-content').innerHTML = '';
     document.querySelectorAll('.seg-row').forEach(r => r.classList.toggle('active', parseInt(r.dataset.num) === num));
+
+    // Reset prompt view state
+    showingPrompt = false;
+    currentPromptText = null;
+
+    // Enable and reset prompt button
+    const promptBtn = document.getElementById('prompt-btn');
+    if (promptBtn) {
+      promptBtn.disabled = false;
+      promptBtn.textContent = 'Prompt';
+      promptBtn.classList.remove('active');
+    }
+
     _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
   };
 

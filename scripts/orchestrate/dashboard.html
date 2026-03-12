@@ -244,13 +244,13 @@
         const gs = gateStatus(events, w, currentWave, wDone);
         let inner = '';
         if (gs === 'pass') {
-          inner = `<span class="gate-icon">✓</span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
+          inner = `<span class="gate-icon">OK</span><span class="gate-label">Gate</span><span class="gate-badge">passed</span>`;
         } else if (gs === 'fail') {
-          inner = `<span class="gate-icon">✕</span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
+          inner = `<span class="gate-icon">X</span><span class="gate-label">Gate</span><span class="gate-badge">failed</span>`;
         } else if (gs === 'running') {
-          inner = `<span class="gate-icon">⟳</span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
+          inner = `<span class="gate-icon">ACTIVE</span><span class="gate-label">Gate running...</span><div class="gate-progress"><div class="gate-progress-fill"></div></div><span class="gate-badge">building</span>`;
         } else {
-          inner = `<span class="gate-icon">○</span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
+          inner = `<span class="gate-icon">WAIT</span><span class="gate-label">Gate</span><span class="gate-badge">waiting</span>`;
         }
         const clickable = (gs === 'running' || gs === 'pass' || gs === 'fail') ? ` onclick="window._selectGate(${w},'${gs}')" style="cursor:pointer"` : '';
         html += `<div class="gate-bar gate-${gs}"${clickable}>${inner}</div>`;

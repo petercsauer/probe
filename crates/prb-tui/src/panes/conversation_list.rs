@@ -141,11 +141,11 @@ impl ConversationListPane {
 
     fn get_status_str(conv: &Conversation) -> &str {
         match conv.state {
-            prb_core::conversation::ConversationState::Complete => "✓ OK",
-            prb_core::conversation::ConversationState::Error => "✗ ERROR",
+            prb_core::conversation::ConversationState::Complete => "[OK] OK",
+            prb_core::conversation::ConversationState::Error => "[X] ERROR",
             prb_core::conversation::ConversationState::Timeout => "⏱ TIMEOUT",
             prb_core::conversation::ConversationState::Active => "→ ACTIVE",
-            prb_core::conversation::ConversationState::Incomplete => "⚠ INCOMPL",
+            prb_core::conversation::ConversationState::Incomplete => "[!] INCOMPL",
         }
     }
 

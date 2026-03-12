@@ -58,7 +58,7 @@ class Notifier:
 
     async def started(self, plan_title: str, total_segments: int, total_waves: int) -> None:
         await self.send(
-            f"🚀 Orchestration started\n"
+            f"START Orchestration started\n"
             f"Plan: {plan_title}\n"
             f"{total_segments} segments in {total_waves} waves"
         )
@@ -72,15 +72,15 @@ class Notifier:
     async def segment_complete(
         self, num: int, title: str, status: str, summary: str
     ) -> None:
-        icon = {"pass": "✅", "partial": "⚠️", "blocked": "❌", "failed": "❌"}.get(
-            status.lower(), "❓"
+        icon = {"pass": "PASS", "partial": "[!]", "blocked": "FAIL", "failed": "FAIL"}.get(
+            status.lower(), "UNKNOWN"
         )
         await self.send(
             f"{icon} S{num:02d} {status.upper()}: {title}\n{summary}"
         )
 
     async def gate_result(self, wave: int, passed: bool, detail: str) -> None:
-        icon = "✅" if passed else "🚫"
+        icon = "PASS" if passed else "BLOCK"
         status = "PASSED" if passed else "FAILED"
         msg = f"{icon} Gate after Wave {wave}: {status}"
         if not passed:
@@ -89,7 +89,7 @@ class Notifier:
         await self.send(msg)
 
     async def heartbeat(self, summary: str) -> None:
-        await self.send(f"💓 Heartbeat\n{summary}")
+        await self.send(f"BEAT Heartbeat\n{summary}")
 
     async def finished(self, plan_title: str, progress: dict[str, int]) -> None:
         total = sum(progress.values())
@@ -102,4 +102,4 @@ class Notifier:
         )
 
     async def error(self, message: str) -> None:
-        await self.send(f"🔥 Orchestrator Error\n{message}")
+        await self.send(f"ERROR Orchestrator Error\n{message}")

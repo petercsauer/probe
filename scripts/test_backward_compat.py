@@ -24,7 +24,7 @@ async def test_backward_compat():
         max_parallel=2,
         isolation_strategy="none",
     )
-    print(f"✓ Config created with isolation_strategy='{config.isolation_strategy}'")
+    print(f"[OK] Config created with isolation_strategy='{config.isolation_strategy}'")
 
     # Create a fake segment
     segments = [
@@ -51,14 +51,14 @@ async def test_backward_compat():
         try:
             # This should not fail, but we can't actually run segments
             # Just verify the function signature accepts pool=None
-            print("✓ _run_wave accepts pool=None parameter")
+            print("[OK] _run_wave accepts pool=None parameter")
         except Exception as e:
-            print(f"✗ Error: {e}")
+            print(f"[X] Error: {e}")
             return False
 
         await state.close()
 
-    print("\n✅ Backward compatibility test passed!")
+    print("\nPASS Backward compatibility test passed!")
     return True
 
 

@@ -485,11 +485,11 @@ async def _pre_wave_health_check(
         healthy, errors = await recovery.check_workspace_health()
 
         if healthy:
-            log.info(f"✓ Pre-flight check passed for wave {wave}")
+            log.info(f"[PASS] Pre-flight check passed for wave {wave}")
             await state.log_event("preflight_pass", f"Wave {wave} pre-flight check passed")
         else:
             log.error(
-                f"✗ Pre-flight check failed for wave {wave}: "
+                f"[FAIL] Pre-flight check failed for wave {wave}: "
                 f"{len(errors)} errors detected"
             )
             # Log first 5 errors for context
@@ -898,7 +898,7 @@ async def _orchestrate_inner(
     await state.log_event("run_start", f"{len(segments)} segments, {max_wave} waves")
 
     notifier = Notifier(config, state)
-    monitor = MonitorServer(state, log_dir, config.monitor_port, running_pids=_running_pids)
+    monitor = MonitorServer(state, log_dir, config.monitor_port, plan_root=plan_dir, running_pids=_running_pids)
 
     # NEW: Create worktree pool if isolation strategy requires it
     pool: WorktreePool | None = None
@@ -1156,8 +1156,8 @@ async def _cmd_status_async(plan_dir: Path) -> None:
     print(f"Progress: {data['progress']}\n")
     for seg in data["segments"]:
         status = seg["status"].upper()
-        icon = {"PASS": "✅", "RUNNING": "🔄", "PENDING": "⏳", "FAILED": "❌",
-                "BLOCKED": "🚫", "PARTIAL": "⚠️", "TIMEOUT": "⏰"}.get(status, "❓")
+        icon = {"PASS": "[OK]", "RUNNING": "[>]", "PENDING": "[ ]", "FAILED": "[X]",
+                "BLOCKED": "[!]", "PARTIAL": "[~]", "TIMEOUT": "[T]"}.get(status, "[?]")
         print(f"  {icon} S{seg['num']:02d} [{status:8s}] {seg['title']}")
         if seg.get("last_seen_at") and seg["status"] == "running":
             age = int(time.time() - seg["last_seen_at"])

@@ -46,7 +46,7 @@ def test_topological_sort():
     assert s1_idx < s3_idx, f"S1 ({s1_idx}) should come before S3 ({s3_idx})"
     assert s2_idx < s3_idx, f"S2 ({s2_idx}) should come before S3 ({s3_idx})"
 
-    print("✓ test_topological_sort: PASS")
+    print("[OK] test_topological_sort: PASS")
 
 
 def test_merge_functions_exist():
@@ -57,7 +57,7 @@ def test_merge_functions_exist():
     assert callable(_merge_worktree_changes)
     assert callable(_rebase_worktree_on_head)
 
-    print("✓ test_merge_functions_exist: PASS")
+    print("[OK] test_merge_functions_exist: PASS")
 
 
 def test_complex_dependency_merge_order():
@@ -97,7 +97,7 @@ def test_complex_dependency_merge_order():
     assert positions[3] < positions[5], "S3 must come before S5"
     assert positions[4] < positions[5], "S4 must come before S5"
 
-    print("✓ test_complex_dependency_merge_order: PASS")
+    print("[OK] test_complex_dependency_merge_order: PASS")
 
 
 if __name__ == "__main__":

@@ -369,10 +369,10 @@ impl WaterfallPane {
 
         // Line 3: Request/Response counts, bytes, and status
         let status_str = match conv.state {
-            ConversationState::Complete => "✓ Complete",
-            ConversationState::Error => "✗ Error",
+            ConversationState::Complete => "[OK] Complete",
+            ConversationState::Error => "[X] Error",
             ConversationState::Timeout => "⏱ Timeout",
-            ConversationState::Active => "⟳ Active",
+            ConversationState::Active => "[>] Active",
             ConversationState::Incomplete => "◐ Incomplete",
         };
 

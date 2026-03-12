@@ -108,12 +108,12 @@ class OrchestrateConfig:
     segment_timeout: int = 3600
     max_retries: int = 2
     heartbeat_interval: int = 300
-    isolation_strategy: str = "none"
+    isolation_strategy: str = "worktree"  # Default to worktree isolation for safety
     isolation_env: dict[str, str] = field(default_factory=dict)
     gate_command: str = ""
     auth_env: dict[str, str] = field(default_factory=dict)
-    notify_enabled: bool = False
-    ntfy_topic: str = ""
+    notify_enabled: bool = True  # Enabled by default
+    ntfy_topic: str = ""  # Auto-generated from project name in load()
     notify_verbosity: str = "all"
     notify_max_attempts: int = 3
     notify_retry_delays: list[int] = field(default_factory=lambda: [10, 60, 300])
@@ -128,14 +128,55 @@ class OrchestrateConfig:
     preflight_timeout: int = 120
 
     @classmethod
-    def load(cls, plan_dir: Path) -> OrchestrateConfig:
-        """Load config from orchestrate.toml in plan_dir, falling back to defaults."""
-        toml_path = plan_dir / "orchestrate.toml"
-        if not toml_path.exists():
-            return cls()
+    def _load_toml(cls, path: Path) -> dict:
+        """Load a TOML config file, returning empty dict if not found."""
+        if not path.exists():
+            return {}
+        with open(path, "rb") as f:
+            return tomllib.load(f)
 
-        with open(toml_path, "rb") as f:
-            raw = tomllib.load(f)
+    @classmethod
+    def _merge_dicts(cls, base: dict, override: dict) -> dict:
+        """Deep merge two dicts, with override values taking precedence."""
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = cls._merge_dicts(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    @classmethod
+    def load(cls, plan_dir: Path) -> OrchestrateConfig:
+        """Load config from project-level and task-level orchestrate.toml files.
+
+        Loads in order:
+        1. Project-level: .claude/orchestrate.toml (in workspace root)
+        2. Task-level: orchestrate.toml (in plan_dir)
+
+        Task-level settings override project-level settings.
+        """
+        # Find workspace root from plan_dir (look for .git or .claude)
+        workspace_root = plan_dir
+        while workspace_root.parent != workspace_root:
+            if (workspace_root / ".git").exists() or (workspace_root / ".claude").exists():
+                break
+            workspace_root = workspace_root.parent
+
+        # Load project-level config
+        project_config_path = workspace_root / ".claude" / "orchestrate.toml"
+        project_raw = cls._load_toml(project_config_path)
+
+        # Load task-level config
+        task_config_path = plan_dir / "orchestrate.toml"
+        task_raw = cls._load_toml(task_config_path)
+
+        # Merge configs (task overrides project)
+        raw = cls._merge_dicts(project_raw, task_raw)
+
+        # If neither config exists, return defaults
+        if not raw:
+            return cls()
 
         plan = raw.get("plan", {})
         execution = raw.get("execution", {})
@@ -146,6 +187,10 @@ class OrchestrateConfig:
         monitor = raw.get("monitor", {})
         recovery = raw.get("recovery", {})
         retry_config = raw.get("retry_policy", {})
+
+        # Auto-generate ntfy topic from project directory name if not specified
+        project_name = workspace_root.name if workspace_root else "orchestrate"
+        default_topic = f"{project_name}-psauer"
 
         # Isolation env vars: nested table under [isolation]
         iso_env: dict[str, str] = {}
@@ -178,12 +223,12 @@ class OrchestrateConfig:
             segment_timeout=execution.get("segment_timeout", 3600),
             max_retries=execution.get("max_retries", 2),
             heartbeat_interval=execution.get("heartbeat_interval", 900),
-            isolation_strategy=isolation.get("strategy", "none"),
+            isolation_strategy=isolation.get("strategy", "worktree"),  # Default to worktree isolation
             isolation_env=iso_env,
             gate_command=gate.get("command", ""),
             auth_env=auth_env,
-            notify_enabled=notifications.get("enabled", False),
-            ntfy_topic=notifications.get("ntfy_topic", ""),
+            notify_enabled=notifications.get("enabled", True),  # Enabled by default
+            ntfy_topic=notifications.get("ntfy_topic", default_topic),  # Auto-generated from project name
             notify_verbosity=notifications.get("verbosity", "all"),
             notify_max_attempts=notifications.get("max_attempts", 3),
             notify_retry_delays=notifications.get("retry_delays", [10, 60, 300]),

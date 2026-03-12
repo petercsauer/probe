@@ -112,18 +112,18 @@ if __name__ == "__main__":
     print("Running circuit breaker tests...\n")
 
     test_circuit_breaker_permanent_patterns()
-    print("✓ test_circuit_breaker_permanent_patterns: PASS")
+    print("[OK] test_circuit_breaker_permanent_patterns: PASS")
 
     test_circuit_breaker_transient_allowed()
-    print("✓ test_circuit_breaker_transient_allowed: PASS")
+    print("[OK] test_circuit_breaker_transient_allowed: PASS")
 
     test_circuit_breaker_reason()
-    print("✓ test_circuit_breaker_reason: PASS")
+    print("[OK] test_circuit_breaker_reason: PASS")
 
     test_circuit_breaker_case_insensitive()
-    print("✓ test_circuit_breaker_case_insensitive: PASS")
+    print("[OK] test_circuit_breaker_case_insensitive: PASS")
 
     test_circuit_breaker_custom_pattern()
-    print("✓ test_circuit_breaker_custom_pattern: PASS")
+    print("[OK] test_circuit_breaker_custom_pattern: PASS")
 
     print("\nAll 5 tests passed!")

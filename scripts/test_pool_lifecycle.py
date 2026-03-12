@@ -24,23 +24,23 @@ async def test_pool_lifecycle():
 
     print("Creating pool...")
     await pool.create()
-    print(f"✓ Created pool with {len(pool._worktrees)} worktrees")
+    print(f"[OK] Created pool with {len(pool._worktrees)} worktrees")
 
     # Test acquire/release
     print("Testing acquire/release...")
     async with pool.acquire(seg_num=1) as wt:
-        print(f"✓ Acquired worktree: {wt.path} (branch: {wt.branch})")
+        print(f"[OK] Acquired worktree: {wt.path} (branch: {wt.branch})")
         assert wt.path.exists()
         assert wt.current_segment == 1
 
-    print("✓ Released worktree")
+    print("[OK] Released worktree")
 
     # Cleanup
     print("Cleaning up pool...")
     await pool.cleanup()
-    print("✓ Pool cleaned up")
+    print("[OK] Pool cleaned up")
 
-    print("\n✅ All tests passed!")
+    print("\nPASS All tests passed!")
 
 
 if __name__ == "__main__":
