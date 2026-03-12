@@ -1943,39 +1943,160 @@ impl App {
     }
 
     fn handle_plugin_manager_key(&mut self, key: KeyEvent) -> bool {
-        // Check if key is Esc or configured quit key
-        let is_exit_key = key.code == KeyCode::Esc
-            || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
+        use crate::overlays::PluginManagerView;
 
-        if is_exit_key {
-            self.input_mode = InputMode::Normal;
-            return false;
-        }
-
+        // Ctrl+P always closes the plugin manager
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('p') {
-            // Toggle close with Ctrl+P
             self.input_mode = InputMode::Normal;
             return false;
         }
 
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.plugin_manager.move_down();
+        match self.plugin_manager.view {
+            PluginManagerView::List => {
+                // Check if key is Esc or configured quit key
+                let is_exit_key = key.code == KeyCode::Esc
+                    || (self.config.tui.keybindings.quit_keycode() == Some(key.code));
+
+                if is_exit_key {
+                    self.input_mode = InputMode::Normal;
+                    return false;
+                }
+
+                match key.code {
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.plugin_manager.move_down();
+                        false
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.plugin_manager.move_up();
+                        false
+                    }
+                    KeyCode::Char(' ') => {
+                        self.plugin_manager.toggle_enabled();
+                        false
+                    }
+                    KeyCode::Char('i') => {
+                        // Start install mode
+                        self.plugin_manager.start_install();
+                        false
+                    }
+                    KeyCode::Char('v') => {
+                        // Toggle info view
+                        self.plugin_manager.toggle_info();
+                        false
+                    }
+                    KeyCode::Char('r') => {
+                        // Reload plugins
+                        self.reload_plugins();
+                        self.plugin_manager.set_status("Plugins reloaded".to_string());
+                        false
+                    }
+                    KeyCode::Char('c') => {
+                        // Start configure mode
+                        self.plugin_manager.start_configure();
+                        false
+                    }
+                    KeyCode::Char('u') => {
+                        // Uninstall selected plugin (remove from list)
+                        if !self.plugin_manager.plugins.is_empty() {
+                            let selected = self.plugin_manager.selected;
+                            self.plugin_manager.remove_plugin(selected);
+                            self.plugin_manager.set_status("Plugin removed from list".to_string());
+                        }
+                        false
+                    }
+                    _ => false,
+                }
+            }
+            PluginManagerView::Info => {
+                // Info view: Esc or 'i' or 'v' to go back
+                if key.code == KeyCode::Esc
+                    || key.code == KeyCode::Char('i')
+                    || key.code == KeyCode::Char('v') {
+                    self.plugin_manager.show_list();
+                }
                 false
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.plugin_manager.move_up();
+            PluginManagerView::Install => {
+                // Install view: text input
+                match key.code {
+                    KeyCode::Esc => {
+                        self.plugin_manager.show_list();
+                        false
+                    }
+                    KeyCode::Enter => {
+                        // Attempt to install plugin
+                        let path = self.plugin_manager.get_install_path();
+                        if !path.is_empty() {
+                            if let Err(e) = self.install_plugin(&path) {
+                                self.plugin_manager.set_status(format!("Install failed: {}", e));
+                            } else {
+                                self.plugin_manager.set_status("Plugin installed successfully".to_string());
+                                self.plugin_manager.show_list();
+                            }
+                        }
+                        false
+                    }
+                    _ => {
+                        // Pass input to the text field
+                        self.plugin_manager.install_input.handle_event(&Event::Key(key));
+                        false
+                    }
+                }
+            }
+            PluginManagerView::Configure => {
+                // Configure view: Esc to go back
+                if key.code == KeyCode::Esc {
+                    self.plugin_manager.show_list();
+                }
                 false
             }
-            KeyCode::Char(' ') => {
-                self.plugin_manager.toggle_enabled();
-                false
+        }
+    }
+
+    /// Reload all plugins from the plugin directory.
+    fn reload_plugins(&mut self) {
+        self.plugin_manager = Self::load_plugins();
+    }
+
+    /// Install a plugin from the given path.
+    fn install_plugin(&mut self, path: &str) -> Result<(), String> {
+        use std::path::Path;
+        let path_obj = Path::new(path);
+
+        if !path_obj.exists() {
+            return Err(format!("File not found: {}", path));
+        }
+
+        let extension = path_obj.extension()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| "No file extension".to_string())?;
+
+        match extension {
+            "dylib" | "so" | "dll" => {
+                // Native plugin
+                let mut loader = NativePluginLoader::new();
+                match loader.load(path_obj) {
+                    Ok(plugin) => {
+                        let metadata = plugin.metadata().clone();
+                        self.plugin_manager.add_plugin(metadata, PluginType::Native, true);
+                        Ok(())
+                    }
+                    Err(e) => Err(format!("Failed to load native plugin: {}", e)),
+                }
             }
-            KeyCode::Char('i') => {
-                self.plugin_manager.show_info = !self.plugin_manager.show_info;
-                false
+            "wasm" => {
+                // WASM plugin
+                let mut loader = WasmPluginLoader::new();
+                match loader.load(path_obj) {
+                    Ok(metadata) => {
+                        self.plugin_manager.add_plugin(metadata, PluginType::Wasm, true);
+                        Ok(())
+                    }
+                    Err(e) => Err(format!("Failed to load WASM plugin: {}", e)),
+                }
             }
-            _ => false,
+            _ => Err(format!("Unsupported file extension: {}", extension)),
         }
     }
 
