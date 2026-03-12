@@ -156,3 +156,167 @@ fn test_export_dialog_format_extensions() {
     let html_format = dialog.formats.iter().find(|f| f.format == "html").unwrap();
     assert_eq!(html_format.extension, "html");
 }
+
+#[test]
+fn test_export_dialog_path_not_updated_when_editing() {
+    let mut dialog = ExportDialogOverlay::new(5);
+
+    // Start editing path
+    dialog.toggle_path_editing();
+    assert!(dialog.editing_path);
+
+    // Modify the path manually
+    dialog.output_path_input =
+        tui_input::Input::default().with_value("/custom/path.json".to_string());
+
+    // Move selection - path should NOT update because we're editing
+    let original_path = dialog.output_path_input.value().to_string();
+    dialog.move_selection(1);
+    assert_eq!(
+        dialog.output_path_input.value(),
+        original_path,
+        "Path should not change when editing"
+    );
+
+    // Move to CSV format
+    dialog.move_selection(1);
+    assert_eq!(
+        dialog.output_path_input.value(),
+        original_path,
+        "Path should still not change when editing"
+    );
+
+    // Stop editing
+    dialog.toggle_path_editing();
+    assert!(!dialog.editing_path);
+
+    // Now path should update on format change
+    dialog.move_selection(1);
+    assert_ne!(
+        dialog.output_path_input.value(),
+        original_path,
+        "Path should change after editing stops"
+    );
+}
+
+#[test]
+fn test_export_dialog_default() {
+    let dialog = ExportDialogOverlay::default();
+
+    assert_eq!(dialog.filtered_count, 0);
+    assert_eq!(dialog.selected, 0);
+    assert!(!dialog.editing_path);
+    assert!(dialog.formats.len() >= 6);
+}
+
+#[test]
+fn test_export_dialog_selected_format_out_of_bounds() {
+    let mut dialog = ExportDialogOverlay::new(5);
+
+    // Manually set selected to out of bounds
+    dialog.selected = 999;
+
+    // selected_format should return None
+    assert!(dialog.selected_format().is_none());
+}
+
+#[test]
+fn test_export_dialog_move_selection_with_empty_formats() {
+    let mut dialog = ExportDialogOverlay::new(5);
+
+    // Manually clear formats to test edge case
+    dialog.formats.clear();
+
+    // Should not panic or change selection
+    let original_selected = dialog.selected;
+    dialog.move_selection(1);
+    assert_eq!(dialog.selected, original_selected);
+
+    dialog.move_selection(-1);
+    assert_eq!(dialog.selected, original_selected);
+}
+
+#[test]
+fn test_export_dialog_wrap_around_boundary_conditions() {
+    let mut dialog = ExportDialogOverlay::new(5);
+    let num_formats = dialog.formats.len();
+
+    // Start at 0, move backwards - should wrap to end
+    dialog.selected = 0;
+    dialog.move_selection(-1);
+    assert_eq!(dialog.selected, num_formats - 1);
+
+    // Move forward from end - should wrap to start
+    dialog.selected = num_formats - 1;
+    dialog.move_selection(1);
+    assert_eq!(dialog.selected, 0);
+
+    // Large positive delta
+    dialog.selected = 0;
+    dialog.move_selection(num_formats as isize + 2);
+    assert_eq!(dialog.selected, 2);
+
+    // Large negative delta
+    dialog.selected = 2;
+    dialog.move_selection(-(num_formats as isize + 1));
+    assert_eq!(dialog.selected, 1);
+}
+
+#[test]
+fn test_export_dialog_multiple_filtered_counts() {
+    let dialog_zero = ExportDialogOverlay::new(0);
+    let dialog_one = ExportDialogOverlay::new(1);
+    let dialog_large = ExportDialogOverlay::new(9999);
+
+    // Check that filtered count is reflected in descriptions
+    let json_all_zero = dialog_zero
+        .formats
+        .iter()
+        .find(|f| f.format == "json-all")
+        .unwrap();
+    assert!(json_all_zero.description.contains("0"));
+
+    let json_all_one = dialog_one
+        .formats
+        .iter()
+        .find(|f| f.format == "json-all")
+        .unwrap();
+    assert!(json_all_one.description.contains("1"));
+
+    let json_all_large = dialog_large
+        .formats
+        .iter()
+        .find(|f| f.format == "json-all")
+        .unwrap();
+    assert!(json_all_large.description.contains("9999"));
+}
+
+#[test]
+fn test_export_dialog_input_value_persistence() {
+    let mut dialog = ExportDialogOverlay::new(5);
+
+    // Initially should have default path
+    assert_eq!(dialog.output_path_input.value(), "./export.json");
+
+    // Manually set custom value
+    dialog.output_path_input =
+        tui_input::Input::default().with_value("/tmp/custom.json".to_string());
+    assert_eq!(dialog.output_path_input.value(), "/tmp/custom.json");
+
+    // Without editing mode, format change should reset it
+    dialog.move_selection(2); // to CSV
+    assert_eq!(dialog.output_path_input.value(), "./export.csv");
+}
+
+#[test]
+fn test_export_dialog_consecutive_toggles() {
+    let mut dialog = ExportDialogOverlay::new(5);
+
+    assert!(!dialog.editing_path);
+
+    // Multiple toggles
+    for i in 0..10 {
+        dialog.toggle_path_editing();
+        assert_eq!(dialog.editing_path, i % 2 == 0);
+    }
+}
