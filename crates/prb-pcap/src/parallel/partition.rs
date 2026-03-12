@@ -249,6 +249,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "need at least 1 shard")]
     fn test_partition_zero_shards() {
-        FlowPartitioner::new(0);
+        let _ = FlowPartitioner::new(0);
     }
 }

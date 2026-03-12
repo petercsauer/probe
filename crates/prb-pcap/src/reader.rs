@@ -2,7 +2,7 @@
 
 use crate::error::PcapError;
 use pcap_parser::traits::PcapReaderIterator;
-use pcap_parser::{Capture, PcapNGReader, LegacyPcapReader, PcapBlockOwned, Block, DecryptionSecretsBlock, SecretsType};
+use pcap_parser::{PcapNGReader, LegacyPcapReader, PcapBlockOwned, Block, DecryptionSecretsBlock, SecretsType};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
