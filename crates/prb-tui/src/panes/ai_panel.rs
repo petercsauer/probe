@@ -12,6 +12,7 @@ use crate::theme::ThemeConfig;
 use prb_core::{DebugEvent, EventId};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum PanelMode {
     Explanation,
     Anomalies(Vec<Anomaly>),

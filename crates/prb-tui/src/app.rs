@@ -801,53 +801,53 @@ impl App {
             }
 
         // Poll AI filter generation result
-        if let Some(ref mut rx) = self.ai_filter_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(filter_expr) => {
-                        self.ai_filter_generated = Some(filter_expr.clone());
-                        self.ai_filter_generating = false;
-                        self.set_status_message(&format!("Filter generated: {}", filter_expr));
-                    }
-                    Err(e) => {
-                        self.ai_filter_generating = false;
-                        self.set_status_message(&format!("AI filter error: {}", e));
-                    }
+        if let Some(ref mut rx) = self.ai_filter_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(filter_expr) => {
+                    self.ai_filter_generated = Some(filter_expr.clone());
+                    self.ai_filter_generating = false;
+                    self.set_status_message(&format!("Filter generated: {}", filter_expr));
                 }
-                self.ai_filter_rx = None;
+                Err(e) => {
+                    self.ai_filter_generating = false;
+                    self.set_status_message(&format!("AI filter error: {}", e));
+                }
             }
+            self.ai_filter_rx = None;
         }
 
         // Poll anomaly detection result
-        if let Some(ref mut rx) = self.anomaly_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(anomalies) => {
-                        self.ai_panel.show_anomalies(anomalies.clone());
-                        self.set_status_message(&format!("Found {} anomalies", anomalies.len()));
-                    }
-                    Err(e) => {
-                        self.set_status_message(&format!("Anomaly detection error: {}", e));
-                    }
+        if let Some(ref mut rx) = self.anomaly_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(anomalies) => {
+                    self.ai_panel.show_anomalies(anomalies.clone());
+                    self.set_status_message(&format!("Found {} anomalies", anomalies.len()));
                 }
-                self.anomaly_rx = None;
+                Err(e) => {
+                    self.set_status_message(&format!("Anomaly detection error: {}", e));
+                }
             }
+            self.anomaly_rx = None;
         }
 
         // Poll protocol identification result
-        if let Some(ref mut rx) = self.protocol_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(hints) => {
-                        self.ai_panel.show_protocol_hints(hints.clone());
-                        self.set_status_message(&format!("Found {} protocol hints", hints.len()));
-                    }
-                    Err(e) => {
-                        self.set_status_message(&format!("Protocol identification error: {}", e));
-                    }
+        if let Some(ref mut rx) = self.protocol_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(hints) => {
+                    self.ai_panel.show_protocol_hints(hints.clone());
+                    self.set_status_message(&format!("Found {} protocol hints", hints.len()));
                 }
-                self.protocol_rx = None;
+                Err(e) => {
+                    self.set_status_message(&format!("Protocol identification error: {}", e));
+                }
             }
+            self.protocol_rx = None;
         }
 
         terminal.draw(|frame| {
