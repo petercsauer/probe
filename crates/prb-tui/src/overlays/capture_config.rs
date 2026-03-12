@@ -400,14 +400,14 @@ impl CaptureConfigOverlay {
         }
 
         // Show validation error if present (on second line)
-        if let Some(ref error) = self.bpf_validation_error {
-            if inner.height > 1 {
-                let error_line = Line::from(Span::styled(
-                    format!("⚠ {}", error),
-                    Style::default().fg(Color::Red),
-                ));
-                buf.set_line(inner.x, inner.y + 1, &error_line, inner.width);
-            }
+        if let Some(ref error) = self.bpf_validation_error
+            && inner.height > 1
+        {
+            let error_line = Line::from(Span::styled(
+                format!("⚠ {}", error),
+                Style::default().fg(Color::Red),
+            ));
+            buf.set_line(inner.x, inner.y + 1, &error_line, inner.width);
         }
     }
 
