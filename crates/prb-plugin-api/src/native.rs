@@ -230,7 +230,7 @@ macro_rules! prb_export_plugin {
             }
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_info() -> $crate::native::PluginInfo {
             init_plugin_strings();
 
@@ -260,7 +260,7 @@ macro_rules! prb_export_plugin {
             }
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_detect(
             data: $crate::native::ByteBuffer,
             src_port: u16,
@@ -301,7 +301,7 @@ macro_rules! prb_export_plugin {
             }
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_decoder_create() -> *mut c_void {
             use $crate::native::PluginDecoder;
 
@@ -313,7 +313,7 @@ macro_rules! prb_export_plugin {
             result.unwrap_or(std::ptr::null_mut())
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_decode(
             handle: *mut c_void,
             data: $crate::native::ByteBuffer,
@@ -354,7 +354,7 @@ macro_rules! prb_export_plugin {
             result.unwrap_or_else(|_| $crate::native::OwnedBuffer::empty())
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_buffer_free(buf: $crate::native::OwnedBuffer) {
             if !buf.ptr.is_null() {
                 let _ = catch_unwind(AssertUnwindSafe(|| {
@@ -364,7 +364,7 @@ macro_rules! prb_export_plugin {
             }
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn prb_plugin_decoder_destroy(handle: *mut c_void) {
             if !handle.is_null() {
                 let _ = catch_unwind(AssertUnwindSafe(|| {
