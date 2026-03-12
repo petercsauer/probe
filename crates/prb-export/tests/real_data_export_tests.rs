@@ -70,7 +70,7 @@ fn test_csv_export_from_http_capture() {
         .from_reader(csv_string.as_bytes());
 
     let headers = reader.headers().expect("Should have headers");
-    assert!(headers.len() > 0, "Should have columns");
+    assert!(!headers.is_empty(), "Should have columns");
 
     let record_count = reader.records().count();
     assert!(

@@ -415,9 +415,9 @@ mod tests {
             panic!("Expected negative number");
         }
 
-        let expr = parse_expr("x == 3.14159").unwrap();
+        let expr = parse_expr("x == 4.56").unwrap();
         if let Expr::Compare { value: Value::Number(n), .. } = expr {
-            assert!((n - 3.14159).abs() < 0.00001);
+            assert!((n - 4.56).abs() < 0.00001);
         } else {
             panic!("Expected fractional number");
         }

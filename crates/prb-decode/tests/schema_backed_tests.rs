@@ -499,11 +499,11 @@ fn test_decode_float_double() {
 
     // float_field = 3.14 (field 6, fixed32)
     payload.push(0x35); // tag (6 << 3) | 5 = 53 = 0x35
-    payload.extend_from_slice(&3.14f32.to_le_bytes());
+    payload.extend_from_slice(&std::f32::consts::PI.to_le_bytes());
 
     // double_field = 2.718 (field 7, fixed64)
     payload.push(0x39); // tag (7 << 3) | 1 = 57 = 0x39
-    payload.extend_from_slice(&2.718f64.to_le_bytes());
+    payload.extend_from_slice(&std::f64::consts::E.to_le_bytes());
 
     let result = decode_with_schema(&payload, &descriptor);
     assert!(result.is_ok(), "Should decode float/double");
@@ -718,15 +718,14 @@ fn test_decode_trailing_data() {
 
     // prost-reflect may decode this successfully or fail depending on the trailing bytes
     // The function checks for remaining bytes after decode
-    if result.is_ok() {
+    if let Ok(decoded) = result {
         // If it decoded, there should be no trailing bytes
-        let decoded = result.unwrap();
         let json = decoded.to_json();
         assert_eq!(json["id"], 42);
-    } else {
+    } else if let Err(err) = result {
         // If it failed, should be a decode or schema mismatch error
         assert!(matches!(
-            result.unwrap_err(),
+            err,
             DecodeError::DecodeFailed(_) | DecodeError::SchemaMismatch(_)
         ));
     }

@@ -17,7 +17,7 @@ fn test_keylog_comments_only() {
     let mut tmpfile = NamedTempFile::new().unwrap();
     writeln!(tmpfile, "# This is a comment").unwrap();
     writeln!(tmpfile, "# Another comment").unwrap();
-    writeln!(tmpfile, "").unwrap();
+    writeln!(tmpfile).unwrap();
     writeln!(tmpfile, "   # Comment with leading spaces").unwrap();
 
     let keylog = TlsKeyLog::from_file(tmpfile.path()).unwrap();

@@ -42,8 +42,7 @@ fn test_invalid_file_format_rejected() {
         }
     }
 
-    // Main assertion: we reached here without panic
-    assert!(true, "Invalid file format handled gracefully");
+    // Main assertion: we reached here without panic - test passes by not crashing
 }
 
 #[test]
@@ -165,8 +164,7 @@ fn test_nanosecond_timestamp_edge_case() {
         }
     }
 
-    // Main assertion: we reached here without panic
-    assert!(true, "Nanosecond timestamp format handled gracefully");
+    // Main assertion: we reached here without panic - test passes by not crashing
 }
 
 #[test]
@@ -184,9 +182,8 @@ fn test_vlan_tagged_adversarial() {
 
     for pkt in packets.iter() {
         // VLAN processing should not panic
-        match normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
-            Ok(Some(_)) => processed += 1,
-            Ok(None) | Err(_) => {}
+        if let Ok(Some(_)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data) {
+            processed += 1;
         }
     }
 
@@ -209,10 +206,9 @@ fn test_ipv6_adversarial_patterns() {
     for pkt in packets.iter() {
         // IPv6 processing should not panic
         if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+            && normalized.src_ip.is_ipv6()
         {
-            if normalized.src_ip.is_ipv6() {
-                ipv6_count += 1;
-            }
+            ipv6_count += 1;
         }
     }
 
@@ -238,12 +234,11 @@ fn test_tcp_edge_cases_no_panic() {
 
     for pkt in packets.iter() {
         if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+            && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
-            if let prb_pcap::TransportInfo::Tcp(_) = normalized.transport {
-                tcp_packets += 1;
-                // Reassembler should handle ECN and edge case flags gracefully
-                let _ = reassembler.process_segment(&normalized);
-            }
+            tcp_packets += 1;
+            // Reassembler should handle ECN and edge case flags gracefully
+            let _ = reassembler.process_segment(&normalized);
         }
     }
 
@@ -327,19 +322,18 @@ fn test_performance_bounded_adversarial() {
         let start = Instant::now();
 
         let open_result = PcapFileReader::open(&path);
-        if let Ok(mut reader) = open_result {
-            if let Ok(packets) = reader.read_all_packets() {
-                let mut normalizer = PacketNormalizer::new();
-                let mut reassembler = TcpReassembler::new();
+        if let Ok(mut reader) = open_result
+            && let Ok(packets) = reader.read_all_packets()
+        {
+            let mut normalizer = PacketNormalizer::new();
+            let mut reassembler = TcpReassembler::new();
 
-                for pkt in packets.iter() {
-                    if let Ok(Some(normalized)) =
-                        normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
-                    {
-                        if let prb_pcap::TransportInfo::Tcp(_) = normalized.transport {
-                            let _ = reassembler.process_segment(&normalized);
-                        }
-                    }
+            for pkt in packets.iter() {
+                if let Ok(Some(normalized)) =
+                    normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+                    && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
+                {
+                    let _ = reassembler.process_segment(&normalized);
                 }
             }
         }
@@ -372,10 +366,9 @@ fn test_memory_bounded_adversarial() {
         for pkt in packets.iter() {
             if let Ok(Some(normalized)) =
                 normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+                && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
             {
-                if let prb_pcap::TransportInfo::Tcp(_) = normalized.transport {
-                    let _ = reassembler.process_segment(&normalized);
-                }
+                let _ = reassembler.process_segment(&normalized);
             }
         }
     }

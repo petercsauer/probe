@@ -11,7 +11,7 @@ use prb_pcap::PcapCaptureAdapter;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Fixture metadata from manifest.json
@@ -69,8 +69,8 @@ fn keylog_path(fixture: &Fixture) -> Option<PathBuf> {
 }
 
 /// Run pipeline on a capture file.
-fn run_pipeline(path: &PathBuf, keylog: Option<PathBuf>) -> Vec<prb_core::DebugEvent> {
-    let mut adapter = PcapCaptureAdapter::new(path.clone(), keylog);
+fn run_pipeline(path: &Path, keylog: Option<PathBuf>) -> Vec<prb_core::DebugEvent> {
+    let mut adapter = PcapCaptureAdapter::new(path.to_path_buf(), keylog);
     adapter.ingest().filter_map(|e| e.ok()).collect()
 }
 
@@ -170,10 +170,10 @@ fn test_all_fixtures_detect_expected_protocols() {
         // Collect detected protocols from events
         let detected: HashSet<String> = events
             .iter()
-            .filter_map(|e| {
+            .map(|e| {
                 // Extract protocol from event metadata or frame type
                 // For now, just collect unique frame types as proxy for protocol detection
-                Some(format!("{:?}", e.transport).to_lowercase())
+                format!("{:?}", e.transport).to_lowercase()
             })
             .collect();
 

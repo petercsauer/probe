@@ -8,7 +8,7 @@ workspace_root = "/Users/psauer/probe"
 plan_root = "/Users/psauer/probe/.claude/plans/phase3-tui-v2"
 
 [execution]
-max_concurrent = 4
+max_concurrent = 8
 cycle_timeout_minutes = 30
 max_retries = 2
 persist_state = true

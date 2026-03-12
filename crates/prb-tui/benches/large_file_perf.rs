@@ -164,7 +164,7 @@ fn benchmark_render_100k() {
 
         println!("  Render at position {}: {:?}", pos, duration);
         assert!(duration < Duration::from_millis(16), "Frame render should complete in <16ms (60fps), took {:?}", duration);
-        assert!(sorted.len() > 0);
+        assert!(!sorted.is_empty());
     }
 }
 

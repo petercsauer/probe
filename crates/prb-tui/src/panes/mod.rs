@@ -1,6 +1,6 @@
 // WIP modules commented out to fix build
 pub mod ai_panel;
-// pub mod conversation_list;
+pub mod conversation_list;
 pub mod decode_tree;
 pub mod event_list;
 pub mod hex_dump;

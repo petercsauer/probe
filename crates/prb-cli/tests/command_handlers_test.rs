@@ -131,6 +131,8 @@ fn test_tui_command_struct() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        diff: false,
+        diff_file: None,
         tls_keylog: None,
     };
 
@@ -148,6 +150,8 @@ fn test_tui_args_no_filter() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        diff: false,
+        diff_file: None,
         tls_keylog: None,
     };
 
@@ -680,6 +684,8 @@ fn test_tui_with_filter_syntax() {
             demo: false,
             interface: None,
             bpf_filter: None,
+            diff: false,
+            diff_file: None,
             tls_keylog: None,
         };
         assert_eq!(args.where_clause.as_ref().unwrap(), filter);
@@ -1433,6 +1439,8 @@ fn test_tui_with_long_path() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        diff: false,
+        diff_file: None,
         tls_keylog: None,
     };
 

@@ -8,6 +8,8 @@ use std::path::PathBuf;
 pub struct Config {
     #[serde(default)]
     pub tui: TuiConfig,
+    #[serde(default)]
+    pub ai: prb_ai::AiConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

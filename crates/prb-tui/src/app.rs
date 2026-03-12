@@ -23,6 +23,7 @@ use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
 use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
+use crate::panes::conversation_list::ConversationListPane;
 use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
@@ -121,9 +122,7 @@ pub struct App {
     hex_dump: HexDumpPane,
     timeline: TimelinePane,
     waterfall: WaterfallPane,
-    #[allow(dead_code)]
     ai_panel: AiPanel,
-    #[allow(dead_code)]
     ai_panel_visible: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
@@ -156,7 +155,7 @@ pub struct App {
     copy_mode_active: bool,
     showing_conversations: bool,
     showing_waterfall: bool,
-    // conversation_list: crate::panes::conversation_list::ConversationListPane,
+    conversation_list: ConversationListPane,
     follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
     metrics_overlay: bool,
     diff_view_overlay: Option<crate::overlays::DiffViewOverlay>,
@@ -250,7 +249,7 @@ impl App {
             copy_mode_active: false,
             showing_conversations: false,
             showing_waterfall: false,
-            // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            conversation_list: ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: None,
@@ -402,7 +401,7 @@ impl App {
             copy_mode_active: false,
             showing_conversations: false,
             showing_waterfall: false,
-            // conversation_list: crate::panes::conversation_list::ConversationListPane::new(),
+            conversation_list: ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: None,
@@ -492,6 +491,7 @@ impl App {
             copy_mode_active: false,
             showing_conversations: false,
             showing_waterfall: false,
+            conversation_list: ConversationListPane::new(),
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: Some(diff_view),
@@ -730,6 +730,17 @@ impl App {
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<()> {
+        // Poll AI panel stream if active
+        if self.ai_panel_visible && self.ai_panel.is_streaming() {
+            if let Some(selected_idx) = self.state.selected_event {
+                if let Some(&event_idx) = self.state.filtered_indices.get(selected_idx) {
+                    if let Some(event) = self.state.store.get(event_idx) {
+                        self.ai_panel.poll_stream(event.id);
+                    }
+                }
+            }
+        }
+
         terminal.draw(|frame| {
             let area = frame.area();
             let buf = frame.buffer_mut();
@@ -1247,6 +1258,11 @@ impl App {
                 self.showing_waterfall = !self.showing_waterfall;
                 return false;
             }
+            KeyCode::Char('v') => {
+                // Toggle conversation view
+                self.showing_conversations = !self.showing_conversations;
+                return false;
+            }
             KeyCode::Char('w') => {
                 // Quick save filtered view
                 self.save_filtered_view();
@@ -1255,6 +1271,33 @@ impl App {
             KeyCode::Char('m') => {
                 // Toggle metrics dashboard
                 self.metrics_overlay = !self.metrics_overlay;
+                return false;
+            }
+            KeyCode::Char('a') => {
+                // Toggle AI explain panel
+                if self.ai_panel_visible {
+                    self.ai_panel_visible = false;
+                    self.ai_panel.clear();
+                } else {
+                    // Show AI panel and start explaining selected event
+                    if let Some(selected_idx) = self.state.selected_event {
+                        if let Some(&event_idx) = self.state.filtered_indices.get(selected_idx) {
+                            if let Some(event) = self.state.store.get(event_idx) {
+                                let all_events: Vec<_> = self.state.filtered_indices.iter()
+                                    .filter_map(|&idx| self.state.store.get(idx).cloned())
+                                    .collect();
+                                self.ai_panel_visible = true;
+                                self.ai_panel.start_explain(event, &all_events, &self.config.ai);
+                            } else {
+                                self.set_status_message("No event selected");
+                            }
+                        } else {
+                            self.set_status_message("No event selected");
+                        }
+                    } else {
+                        self.set_status_message("No event selected");
+                    }
+                }
                 return false;
             }
             KeyCode::Char('f') => {
@@ -1307,8 +1350,7 @@ impl App {
                 if self.showing_waterfall {
                     self.waterfall.handle_key(key, &self.state)
                 } else if self.showing_conversations {
-                    // self.conversation_list.handle_key(key, &self.state)
-                    Action::None
+                    self.conversation_list.handle_key(key, &self.state)
                 } else {
                     self.event_list.handle_key(key, &self.state)
                 }
@@ -2125,6 +2167,19 @@ impl App {
             ));
         }
 
+        // View mode indicator
+        if self.showing_conversations {
+            spans.push(Span::styled(
+                " [CONVERSATIONS] ",
+                Style::default().fg(Color::Cyan).bg(Color::DarkGray),
+            ));
+        } else if self.showing_waterfall {
+            spans.push(Span::styled(
+                " [WATERFALL] ",
+                Style::default().fg(Color::Cyan).bg(Color::DarkGray),
+            ));
+        }
+
         spans.push(Span::styled(" │ ", self.theme.status_bar()));
 
         // Event counts
@@ -2292,8 +2347,7 @@ impl App {
                     if self.showing_waterfall {
                         self.waterfall.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
                     } else if self.showing_conversations {
-                        // self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
-                        self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
+                        self.conversation_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
                     } else {
                         self.event_list.render(area, buf, &self.state, &self.theme, focus == PaneId::EventList)
                     }
@@ -2330,8 +2384,7 @@ impl App {
         if self.showing_waterfall {
             self.waterfall.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         } else if self.showing_conversations {
-            // self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
-            self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
+            self.conversation_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         } else {
             self.event_list.render(vert_layout[0], buf, &self.state, &self.theme, focus == PaneId::EventList);
         }
@@ -2360,7 +2413,7 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme);
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme, self.showing_conversations, self.showing_waterfall, self.ai_panel_visible);
         }
 
         if self.input_mode == InputMode::Help {
@@ -2528,6 +2581,19 @@ impl App {
                 metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
             }
 
+        // Render AI panel overlay
+        if self.ai_panel_visible {
+            // Create a centered overlay for the AI panel
+            let width = 80u16.min(area.width.saturating_sub(4));
+            let height = 20u16.min(area.height.saturating_sub(4));
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+
+            Clear.render(overlay_area, buf);
+            self.ai_panel.render(overlay_area, buf, &self.state, &self.theme, true);
+        }
+
         // Render diff view overlay if active
         if let Some(ref diff_view) = self.diff_view_overlay {
             diff_view.render(area, buf, &self.theme);
@@ -2678,7 +2744,7 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig, showing_conversations: bool, showing_waterfall: bool, ai_panel_visible: bool) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -2719,6 +2785,30 @@ impl App {
 
         // Only add detailed status info if not showing a status message
         if !show_status_msg {
+            // Show AI EXPLAIN mode indicator
+            if ai_panel_visible {
+                spans.push(Span::styled(
+                    " [AI EXPLAIN] ",
+                    Style::default()
+                        .fg(ratatui::style::Color::Black)
+                        .bg(ratatui::style::Color::Cyan)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                ));
+            }
+
+            // View mode indicator
+            if showing_conversations {
+                spans.push(Span::styled(
+                    " [CONVERSATIONS] ",
+                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                ));
+            } else if showing_waterfall {
+                spans.push(Span::styled(
+                    " [WATERFALL] ",
+                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                ));
+            }
+
             if state.filter.is_some() {
                 if !zoom_indicator.is_empty() {
                     spans.push(Span::styled(zoom_indicator, Style::default().fg(ratatui::style::Color::Yellow)));

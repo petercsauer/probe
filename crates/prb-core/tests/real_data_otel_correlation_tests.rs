@@ -167,12 +167,10 @@ fn test_correlate_network_events_to_spans() {
     // Verify trace_id matches across events
     if let Some(CorrelationKey::TraceContext { trace_id: tid1, .. }) =
         event1.correlation_keys.first()
-    {
-        if let Some(CorrelationKey::TraceContext { trace_id: tid2, .. }) =
+        && let Some(CorrelationKey::TraceContext { trace_id: tid2, .. }) =
             event2.correlation_keys.first()
-        {
-            assert_eq!(tid1, tid2, "Same trace_id should link events");
-        }
+    {
+        assert_eq!(tid1, tid2, "Same trace_id should link events");
     }
 
     // If spans exist, verify correlation

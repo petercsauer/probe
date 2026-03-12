@@ -84,17 +84,16 @@ fn test_tcp_anon_session() {
 
     for pkt in packets.iter() {
         if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+            && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
-            if let prb_pcap::TransportInfo::Tcp(_) = normalized.transport {
-                let events = reassembler
-                    .process_segment(&normalized)
-                    .expect("TCP reassembly failed");
+            let events = reassembler
+                .process_segment(&normalized)
+                .expect("TCP reassembly failed");
 
-                // Count data events
-                for event in events {
-                    if let prb_pcap::StreamEvent::Data(_) = event {
-                        stream_data_events += 1;
-                    }
+            // Count data events
+            for event in events {
+                if let prb_pcap::StreamEvent::Data(_) = event {
+                    stream_data_events += 1;
                 }
             }
         }
@@ -127,15 +126,14 @@ fn test_dns_remoteshell_tcp_reassembly() {
     for pkt in packets.iter() {
         // Skip packets that can't be normalized (e.g., ARP)
         if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+            && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
-            if let prb_pcap::TransportInfo::Tcp(_) = normalized.transport {
-                tcp_segments += 1;
-                total_tcp_payload += normalized.payload.len();
+            tcp_segments += 1;
+            total_tcp_payload += normalized.payload.len();
 
-                let _events = reassembler
-                    .process_segment(&normalized)
-                    .expect("TCP reassembly failed");
-            }
+            let _events = reassembler
+                .process_segment(&normalized)
+                .expect("TCP reassembly failed");
         }
     }
 

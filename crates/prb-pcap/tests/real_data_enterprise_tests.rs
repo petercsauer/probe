@@ -254,11 +254,8 @@ fn test_real_data_enterprise_snmp() {
 
     // Should not crash when processing - packets_read will be 0 if unsupported
     // This tests graceful handling of unsupported link-layer types
-    assert!(
-        true,
-        "Should gracefully handle SNMP capture with NULL encapsulation (read {} packets)",
-        stats.packets_read
-    );
+    // Successfully completed without panic (read {} packets)
+    let _ = stats.packets_read;
 }
 
 #[test]

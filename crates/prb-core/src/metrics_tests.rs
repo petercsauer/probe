@@ -78,7 +78,7 @@ fn test_compute_metrics_request_response() {
 
 #[test]
 fn test_compute_metrics_multiple_requests_responses() {
-    let events_data = vec![
+    let events_data = [
         (1000000000, Direction::Outbound, 100),
         (1010000000, Direction::Outbound, 150),
         (1020000000, Direction::Inbound, 200),
@@ -171,7 +171,7 @@ fn test_extract_error_timeout_no_response() {
 
 #[test]
 fn test_extract_error_dds_sequence_gaps() {
-    let mut events_data = vec![
+    let mut events_data = [
         create_test_event(1000000000, Direction::Inbound, 100),
         create_test_event(1010000000, Direction::Inbound, 100),
         create_test_event(1020000000, Direction::Inbound, 100),
@@ -193,7 +193,7 @@ fn test_extract_error_dds_sequence_gaps() {
 
 #[test]
 fn test_check_dds_sequence_gaps_none() {
-    let mut events_data = vec![
+    let mut events_data = [
         create_test_event(1000000000, Direction::Inbound, 100),
         create_test_event(1010000000, Direction::Inbound, 100),
         create_test_event(1020000000, Direction::Inbound, 100),
@@ -266,11 +266,13 @@ fn test_compute_aggregate_metrics_single_conversation() {
         ConversationState::Complete,
     );
 
-    let mut metrics = ConversationMetrics::default();
-    metrics.start_time = Some(Timestamp::from_nanos(1000000000));
-    metrics.end_time = Some(Timestamp::from_nanos(1050000000));
-    metrics.duration_ns = 50000000;
-    metrics.total_bytes = 1024;
+    let metrics = ConversationMetrics {
+        start_time: Some(Timestamp::from_nanos(1000000000)),
+        end_time: Some(Timestamp::from_nanos(1050000000)),
+        duration_ns: 50000000,
+        total_bytes: 1024,
+        ..Default::default()
+    };
     conv.set_metrics(metrics);
 
     let conversations = vec![&conv];

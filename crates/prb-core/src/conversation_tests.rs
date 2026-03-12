@@ -122,15 +122,16 @@ fn test_conversation_metrics_default() {
 
 #[test]
 fn test_conversation_metrics_serde_roundtrip() {
-    let mut metrics = ConversationMetrics::default();
-    metrics.start_time = Some(Timestamp::from_nanos(1000000000));
-    metrics.end_time = Some(Timestamp::from_nanos(2000000000));
-    metrics.duration_ns = 1000000000;
-    metrics.time_to_first_response_ns = Some(500000000);
-    metrics.request_count = 5;
-    metrics.response_count = 3;
-    metrics.total_bytes = 4096;
-    metrics.error = Some(ConversationError::new("timeout", "No response"));
+    let metrics = ConversationMetrics {
+        start_time: Some(Timestamp::from_nanos(1000000000)),
+        end_time: Some(Timestamp::from_nanos(2000000000)),
+        duration_ns: 1000000000,
+        time_to_first_response_ns: Some(500000000),
+        request_count: 5,
+        response_count: 3,
+        total_bytes: 4096,
+        error: Some(ConversationError::new("timeout", "No response")),
+    };
 
     let json = serde_json::to_string(&metrics).expect("failed to serialize");
     let deserialized: ConversationMetrics = serde_json::from_str(&json).expect("failed to deserialize");
@@ -237,10 +238,12 @@ fn test_conversation_set_metrics() {
         ConversationState::Complete,
     );
 
-    let mut metrics = ConversationMetrics::default();
-    metrics.duration_ns = 45000000;
-    metrics.request_count = 1;
-    metrics.response_count = 1;
+    let metrics = ConversationMetrics {
+        duration_ns: 45000000,
+        request_count: 1,
+        response_count: 1,
+        ..Default::default()
+    };
 
     conv.set_metrics(metrics.clone());
     assert_eq!(conv.metrics.duration_ns, 45000000);

@@ -108,18 +108,18 @@ fn test_real_data_http_no_panic_comprehensive() {
     let mut tested = 0;
 
     let http_dir = fixtures_dir().join("http");
-    if http_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(http_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) == Some("pcap")
-                    || path.extension().and_then(|s| s.to_str()) == Some("cap")
-                    || path.extension().and_then(|s| s.to_str()) == Some("pcapng")
-                {
-                    let mut adapter = PcapCaptureAdapter::new(path.clone(), None);
-                    let _events: Vec<_> = adapter.ingest().collect();
-                    tested += 1;
-                }
+    if http_dir.exists()
+        && let Ok(entries) = std::fs::read_dir(http_dir)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("pcap")
+                || path.extension().and_then(|s| s.to_str()) == Some("cap")
+                || path.extension().and_then(|s| s.to_str()) == Some("pcapng")
+            {
+                let mut adapter = PcapCaptureAdapter::new(path.clone(), None);
+                let _events: Vec<_> = adapter.ingest().collect();
+                tested += 1;
             }
         }
     }

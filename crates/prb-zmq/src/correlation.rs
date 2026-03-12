@@ -447,7 +447,7 @@ mod tests {
         let flows = strategy.correlate(&events).unwrap();
 
         // DEALER/ROUTER should be correlated by connection
-        assert!(flows.len() > 0);
+        assert!(!flows.is_empty());
     }
 
     #[test]
@@ -472,7 +472,7 @@ mod tests {
         let strategy = ZmqCorrelationStrategy;
         let flows = strategy.correlate(&events).unwrap();
 
-        assert!(flows.len() > 0);
+        assert!(!flows.is_empty());
     }
 
     #[test]

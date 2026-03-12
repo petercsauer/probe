@@ -368,7 +368,7 @@ mod tests {
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
-        assert!(events[0].metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).is_none());
+        assert!(!events[0].metadata.contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID));
 
         assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_SPAN_ID).unwrap(), "cccccccccccccccc");
         assert_eq!(events[1].metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).unwrap(), "bbbbbbbbbbbbbbbb");
@@ -406,7 +406,7 @@ mod tests {
         // Should default to Unknown direction when kind is 0
         assert_eq!(event.direction, Direction::Unknown);
         // Should have no parent span ID
-        assert!(event.metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).is_none());
+        assert!(!event.metadata.contains_key(METADATA_KEY_OTEL_PARENT_SPAN_ID));
     }
 
     #[test]

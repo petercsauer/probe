@@ -592,13 +592,8 @@ fn integration_detection_unknown_protocol() {
         tls_decrypted: false,
     };
 
-    let result = engine.detect(&context);
-
-    // Should return Unknown or make a guess
-    assert!(
-        result.protocol.0 == ProtocolId::UNKNOWN || result.protocol.0 != ProtocolId::UNKNOWN,
-        "Should handle unknown protocols"
-    );
+    let _result = engine.detect(&context);
+    // Detection completed without panic - test passes
 }
 
 // ============================================================================
@@ -836,7 +831,7 @@ fn integration_schema_multiple_messages() {
         .expect("Should find TestMessage");
 
     // Decode multiple messages with same schema
-    let messages = vec![
+    let messages = [
         encode_test_message(1, "first"),
         encode_test_message(2, "second"),
         encode_test_message(3, "third"),

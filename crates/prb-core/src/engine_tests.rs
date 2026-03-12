@@ -391,7 +391,7 @@ fn test_flow_to_conversation_grpc() {
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
     event2.metadata.insert("grpc.status".to_string(), "0".to_string());
 
-    let events = vec![event1, event2];
+    let events = [event1, event2];
     let event_refs: Vec<&DebugEvent> = events.iter().collect();
 
     let mut flow = Flow::new("grpc:test");

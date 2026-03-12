@@ -151,7 +151,7 @@ fn test_fixed32_all_interpretations() {
             assert!(v.as_f32.is_some());
             // Verify it's close to pi
             let f = v.as_f32.unwrap();
-            assert!(f > 3.14 && f < 3.15);
+            assert!((f - std::f32::consts::PI).abs() < 0.01);
         }
         _ => panic!("Expected fixed32"),
     }
@@ -176,7 +176,7 @@ fn test_fixed64_all_interpretations() {
             assert!(v.as_f64.is_some());
             // Verify it's close to pi
             let f = v.as_f64.unwrap();
-            assert!(f > 3.14 && f < 3.15);
+            assert!((f - std::f64::consts::PI).abs() < 0.01);
         }
         _ => panic!("Expected fixed64"),
     }
@@ -342,12 +342,9 @@ fn test_nested_submessage_empty() {
     assert!(result.is_ok());
 
     let msg = result.unwrap();
-    match &msg.fields[0].value {
-        WireValue::LengthDelimited(LenValue::String(s)) => {
-            // Empty submessage falls back to empty string
-            assert_eq!(s, "");
-        }
-        _ => {}
+    if let WireValue::LengthDelimited(LenValue::String(s)) = &msg.fields[0].value {
+        // Empty submessage falls back to empty string
+        assert_eq!(s, "");
     }
 }
 
@@ -448,7 +445,7 @@ fn test_truncated_length_delimited() {
 fn test_large_field_number() {
     // Test field number > 15 (requires multi-byte tag)
     let field_num = 1000u32;
-    let tag = (field_num << 3) | 0; // wire type 0 (varint)
+    let tag = field_num << 3; // wire type 0 (varint)
 
     let mut bytes = vec![];
     // Encode tag as varint
