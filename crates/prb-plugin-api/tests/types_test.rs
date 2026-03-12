@@ -115,3 +115,183 @@ fn test_wasm_decode_request_serde() {
     );
     assert_eq!(deserialized.ctx.timestamp_nanos, Some(1000));
 }
+
+#[test]
+fn test_plugin_metadata_default_api_version() {
+    let json = r#"{
+        "name": "test-plugin",
+        "version": "1.0.0",
+        "description": "Test plugin",
+        "protocol_id": "test-proto"
+    }"#;
+
+    let deserialized: PluginMetadata = serde_json::from_str(json).expect("deserialize");
+
+    // Should use default API version when not specified
+    assert_eq!(deserialized.api_version, prb_plugin_api::API_VERSION);
+}
+
+#[test]
+fn test_plugin_metadata_clone() {
+    let metadata = PluginMetadata {
+        name: "test".to_string(),
+        version: "1.0.0".to_string(),
+        description: "desc".to_string(),
+        protocol_id: "proto".to_string(),
+        api_version: "0.1.0".to_string(),
+    };
+
+    let cloned = metadata.clone();
+    assert_eq!(cloned.name, metadata.name);
+    assert_eq!(cloned.api_version, metadata.api_version);
+}
+
+#[test]
+fn test_plugin_metadata_debug() {
+    let metadata = PluginMetadata {
+        name: "test-plugin".to_string(),
+        version: "1.0.0".to_string(),
+        description: "Test".to_string(),
+        protocol_id: "test".to_string(),
+        api_version: "0.1.0".to_string(),
+    };
+
+    let debug_str = format!("{:?}", metadata);
+    assert!(debug_str.contains("PluginMetadata"));
+    assert!(debug_str.contains("test-plugin"));
+}
+
+#[test]
+fn test_transport_layer_equality() {
+    assert_eq!(TransportLayer::Tcp, TransportLayer::Tcp);
+    assert_eq!(TransportLayer::Udp, TransportLayer::Udp);
+    assert_ne!(TransportLayer::Tcp, TransportLayer::Udp);
+}
+
+#[test]
+fn test_transport_layer_hash() {
+    use std::collections::HashSet;
+
+    let mut set = HashSet::new();
+    set.insert(TransportLayer::Tcp);
+    set.insert(TransportLayer::Udp);
+    set.insert(TransportLayer::Tcp); // Duplicate
+
+    assert_eq!(set.len(), 2);
+    assert!(set.contains(&TransportLayer::Tcp));
+    assert!(set.contains(&TransportLayer::Udp));
+}
+
+#[test]
+fn test_transport_layer_copy() {
+    let tcp = TransportLayer::Tcp;
+    let tcp_copy = tcp;
+
+    assert_eq!(tcp, tcp_copy);
+}
+
+#[test]
+fn test_transport_layer_clone() {
+    let udp = TransportLayer::Udp;
+    let cloned = udp.clone();
+
+    assert_eq!(udp, cloned);
+}
+
+#[test]
+fn test_transport_layer_debug() {
+    let tcp = TransportLayer::Tcp;
+    let debug_str = format!("{:?}", tcp);
+
+    assert!(debug_str.contains("Tcp"));
+}
+
+#[test]
+fn test_detect_context_clone() {
+    let ctx = DecodeCtx {
+        src_addr: Some("1.1.1.1:80".to_string()),
+        dst_addr: None,
+        timestamp_nanos: Some(1000),
+        metadata: HashMap::new(),
+    };
+
+    let cloned = ctx.clone();
+    assert_eq!(cloned.src_addr, ctx.src_addr);
+    assert_eq!(cloned.timestamp_nanos, ctx.timestamp_nanos);
+}
+
+#[test]
+fn test_detect_context_debug() {
+    let ctx = DecodeCtx {
+        src_addr: Some("127.0.0.1:8080".to_string()),
+        dst_addr: None,
+        timestamp_nanos: None,
+        metadata: HashMap::new(),
+    };
+
+    let debug_str = format!("{:?}", ctx);
+    assert!(debug_str.contains("DecodeCtx"));
+    assert!(debug_str.contains("127.0.0.1"));
+}
+
+#[test]
+fn test_wasm_decode_request_clone() {
+    let request = WasmDecodeRequest {
+        data_b64: "AQIDBA==".to_string(),
+        ctx: DecodeCtx {
+            src_addr: None,
+            dst_addr: None,
+            timestamp_nanos: None,
+            metadata: HashMap::new(),
+        },
+    };
+
+    let cloned = request.clone();
+    assert_eq!(cloned.data_b64, request.data_b64);
+}
+
+#[test]
+fn test_wasm_decode_request_debug() {
+    let request = WasmDecodeRequest {
+        data_b64: "test".to_string(),
+        ctx: DecodeCtx {
+            src_addr: None,
+            dst_addr: None,
+            timestamp_nanos: None,
+            metadata: HashMap::new(),
+        },
+    };
+
+    let debug_str = format!("{:?}", request);
+    assert!(debug_str.contains("WasmDecodeRequest"));
+}
+
+#[cfg(not(feature = "wasm-pdk"))]
+#[test]
+fn test_detect_context_clone_native() {
+    let ctx = DetectContext {
+        initial_bytes: vec![1, 2, 3],
+        src_port: 8080,
+        dst_port: 9090,
+        transport: TransportLayer::Tcp,
+    };
+
+    let cloned = ctx.clone();
+    assert_eq!(cloned.initial_bytes, ctx.initial_bytes);
+    assert_eq!(cloned.src_port, ctx.src_port);
+}
+
+#[cfg(not(feature = "wasm-pdk"))]
+#[test]
+fn test_detect_context_debug_native() {
+    let ctx = DetectContext {
+        initial_bytes: vec![0xDE, 0xAD],
+        src_port: 443,
+        dst_port: 8443,
+        transport: TransportLayer::Udp,
+    };
+
+    let debug_str = format!("{:?}", ctx);
+    assert!(debug_str.contains("DetectContext"));
+    assert!(debug_str.contains("443"));
+}

@@ -153,3 +153,105 @@ fn test_correlation_keys_various_kinds() {
     assert_eq!(deserialized[3].kind, "trace_context");
     assert_eq!(deserialized[4].value, "custom_value");
 }
+
+#[test]
+fn test_correlation_key_dto_clone() {
+    let key = CorrelationKeyDto {
+        kind: "stream_id".to_string(),
+        value: "12345".to_string(),
+    };
+
+    let cloned = key.clone();
+    assert_eq!(cloned.kind, key.kind);
+    assert_eq!(cloned.value, key.value);
+}
+
+#[test]
+fn test_correlation_key_dto_debug() {
+    let key = CorrelationKeyDto {
+        kind: "test".to_string(),
+        value: "value".to_string(),
+    };
+
+    let debug_str = format!("{:?}", key);
+    assert!(debug_str.contains("CorrelationKeyDto"));
+    assert!(debug_str.contains("test"));
+    assert!(debug_str.contains("value"));
+}
+
+#[test]
+fn test_debug_event_dto_clone() {
+    let dto = DebugEventDto::minimal("grpc", "request");
+    let cloned = dto.clone();
+
+    assert_eq!(cloned.transport, dto.transport);
+    assert_eq!(cloned.direction, dto.direction);
+    assert_eq!(cloned.timestamp_nanos, dto.timestamp_nanos);
+}
+
+#[test]
+fn test_debug_event_dto_debug() {
+    let dto = DebugEventDto::minimal("zmtp", "publish");
+    let debug_str = format!("{:?}", dto);
+
+    assert!(debug_str.contains("DebugEventDto"));
+    assert!(debug_str.contains("zmtp"));
+    assert!(debug_str.contains("publish"));
+}
+
+#[test]
+fn test_debug_event_dto_empty_strings() {
+    let dto = DebugEventDto::minimal("", "");
+
+    assert_eq!(dto.transport, "");
+    assert_eq!(dto.direction, "");
+
+    let json = serde_json::to_string(&dto).expect("serialize");
+    let deserialized: DebugEventDto = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(deserialized.transport, "");
+    assert_eq!(deserialized.direction, "");
+}
+
+#[test]
+fn test_debug_event_dto_with_warnings() {
+    let mut dto = DebugEventDto::minimal("rtps", "subscribe");
+    dto.warnings = vec![
+        "Warning 1".to_string(),
+        "Warning 2".to_string(),
+        "Warning 3".to_string(),
+    ];
+
+    let json = serde_json::to_string(&dto).expect("serialize");
+    let deserialized: DebugEventDto = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(deserialized.warnings.len(), 3);
+    assert_eq!(deserialized.warnings[0], "Warning 1");
+    assert_eq!(deserialized.warnings[2], "Warning 3");
+}
+
+#[test]
+fn test_debug_event_dto_large_payload() {
+    let large_payload = vec![0u8; 10000];
+    let mut dto = DebugEventDto::minimal("grpc", "request");
+    dto.payload_raw = Some(large_payload.clone());
+
+    let json = serde_json::to_string(&dto).expect("serialize");
+    let deserialized: DebugEventDto = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(deserialized.payload_raw.unwrap().len(), 10000);
+}
+
+#[test]
+fn test_correlation_key_dto_special_characters() {
+    let key = CorrelationKeyDto {
+        kind: "test-key_with.special/chars".to_string(),
+        value: "value:with=special&chars".to_string(),
+    };
+
+    let json = serde_json::to_string(&key).expect("serialize");
+    let deserialized: CorrelationKeyDto = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(deserialized.kind, "test-key_with.special/chars");
+    assert_eq!(deserialized.value, "value:with=special&chars");
+}
