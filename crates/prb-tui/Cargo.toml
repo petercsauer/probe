@@ -39,7 +39,7 @@ unicode-width = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }
-async-openai = "0.20"
+async-openai = "0.33"
 lazy_static = "1.5"
 
 anyhow = { workspace = true }
