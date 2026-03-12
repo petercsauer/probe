@@ -158,6 +158,15 @@ def load_plan(plan_dir: Path) -> tuple[PlanMeta, list[Segment]]:
     if not segments:
         raise ValueError(f"No segments found in {segments_dir}")
 
+    # Validate segment numbers are integers (not strings like "10a")
+    for seg in segments:
+        if not isinstance(seg.num, int):
+            raise ValueError(
+                f"Invalid segment number in {seg.file_path.name}: {seg.num!r} (type: {type(seg.num).__name__})\n"
+                f"Segment numbers must be integers (1, 2, 3...), not strings like '10a' or '10b'.\n"
+                f"Use sequential integer numbering instead."
+            )
+
     _assign_waves(segments)
     _compute_transitive_dependents(segments)
     return meta, segments

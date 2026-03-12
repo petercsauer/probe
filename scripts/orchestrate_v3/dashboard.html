@@ -436,7 +436,7 @@
         document.getElementById('wave-info').textContent = `Wave ${data.current_wave}/${data.max_wave}`;
 
         const total = data.segments.length;
-        const doneCount = data.segments.filter(s => ['pass','partial','blocked','failed','timeout'].includes(s.status)).length;
+        const doneCount = data.segments.filter(s => ['pass','merged','partial','blocked','failed','timeout'].includes(s.status)).length;
         const runningCount = data.segments.filter(s => s.status === 'running').length;
         document.getElementById('progress-text').textContent = `${doneCount}/${total} done` + (runningCount ? ` · ${runningCount} running` : '');
         document.getElementById('progress-fill').style.width = total ? `${(doneCount/total*100).toFixed(1)}%` : '0%';
@@ -650,7 +650,7 @@
     // Close any open dropdowns
     document.querySelectorAll('.status-dropdown').forEach(d => d.remove());
 
-    const statuses = ['pending', 'running', 'pass', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
+    const statuses = ['pending', 'running', 'pass', 'merged', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
     const dropdown = document.createElement('div');
     dropdown.className = 'status-dropdown show';
 

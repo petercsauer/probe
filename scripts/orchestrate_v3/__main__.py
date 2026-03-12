@@ -605,11 +605,17 @@ async def _run_wave(
                             if attempts > config.max_retries:
                                 break
 
-                            # Exponential backoff before retry
-                            delay = config.retry_policy.get_delay(attempts - 1)
-                            log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
-                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
-                            await asyncio.sleep(delay)
+                            # For PARTIAL and UNKNOWN status, retry immediately without delay
+                            # PARTIAL = work in progress, UNKNOWN = couldn't parse status (likely completed but format issue)
+                            # For other retryable statuses (failed, timeout), use exponential backoff
+                            if status in ("partial", "unknown"):
+                                log.info("S%02d %s status - continuing immediately (attempt %d/%d)", seg.num, status.upper(), attempts + 1, config.max_retries)
+                                await state.log_event("segment_continue", f"S{seg.num:02d} continuing from {status} (attempt {attempts + 1})")
+                            else:
+                                delay = config.retry_policy.get_delay(attempts - 1)
+                                log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                                await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                                await asyncio.sleep(delay)
 
                         # Check if operator reset us to pending while we were running or
                         # immediately after — if so, re-run without requiring an orchestrator restart.
@@ -626,6 +632,9 @@ async def _run_wave(
                         if not merge_ok:
                             log.warning("S%02d passed but merge failed - manual intervention needed", seg.num)
                             return seg.num, "pass-merge-conflict"
+                        # Mark as merged in database
+                        await state.mark_merged(seg.num)
+                        return seg.num, "merged"
 
                     return seg.num, status
             else:
@@ -664,11 +673,17 @@ async def _run_wave(
                         if attempts > config.max_retries:
                             break
 
-                        # Exponential backoff before retry
-                        delay = config.retry_policy.get_delay(attempts - 1)
-                        log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
-                        await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
-                        await asyncio.sleep(delay)
+                        # For PARTIAL and UNKNOWN status, retry immediately without delay
+                        # PARTIAL = work in progress, UNKNOWN = couldn't parse status (likely completed but format issue)
+                        # For other retryable statuses (failed, timeout), use exponential backoff
+                        if status in ("partial", "unknown"):
+                            log.info("S%02d %s status - continuing immediately (attempt %d/%d)", seg.num, status.upper(), attempts + 1, config.max_retries)
+                            await state.log_event("segment_continue", f"S{seg.num:02d} continuing from {status} (attempt {attempts + 1})")
+                        else:
+                            delay = config.retry_policy.get_delay(attempts - 1)
+                            log.info("S%02d retrying in %ds (attempt %d/%d)", seg.num, delay, attempts + 1, config.max_retries)
+                            await state.log_event("segment_retry", f"S{seg.num:02d} attempt {attempts + 1} after {delay}s")
+                            await asyncio.sleep(delay)
 
                     # Check if operator reset us to pending while we were running or
                     # immediately after — if so, re-run without requiring an orchestrator restart.
@@ -953,7 +968,7 @@ async def _orchestrate_inner(
             pending = []
             for s in wave_segs:
                 seg = await state.get_segment(s.num)
-                if seg and seg.status not in ("pass", "skipped"):
+                if seg and seg.status not in ("pass", "merged", "skipped"):
                     pending.append(s)
 
             if not pending:
@@ -998,13 +1013,13 @@ async def _orchestrate_inner(
             await notifier.wave_complete(wave_num, max_wave, results)
             # Individual notifications for non-passing segments
             for seg_num, status in results:
-                if status not in ("pass", "skipped"):
+                if status not in ("pass", "merged", "skipped"):
                     seg = next((s for s in pending if s.num == seg_num), None)
                     if seg:
                         await notifier.segment_complete(seg_num, seg.title, status, "")
 
             # Wave summary
-            passed = sum(1 for _, s in results if s == "pass")
+            passed = sum(1 for _, s in results if s in ("pass", "merged"))
             failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
             print(f"  Wave {wave_num} complete: {passed} passed, {failed} failed")
 

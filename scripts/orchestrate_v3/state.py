@@ -207,6 +207,11 @@ class StateDB:
         row = await self.get_segment(num)
         return row.attempts if row else 0
 
+    async def mark_merged(self, num: int) -> None:
+        """Mark a segment as merged to main."""
+        await self.set_status(num, "merged", finished_at=time.time())
+        await self.log_event("segment_merged", f"S{num:02d} merged to main")
+
     async def update_heartbeat(
         self, num: int, last_seen_at: float, last_activity: str
     ) -> None:

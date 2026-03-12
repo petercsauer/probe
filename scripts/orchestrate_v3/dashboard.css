@@ -150,6 +150,7 @@ body {
 }
 .seg-status:hover { opacity: 0.8; }
 .seg-status.pass    { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); }
+.seg-status.merged  { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); font-weight: 700; }
 .seg-status.running { background: var(--running-bg); color: var(--running); border: 1px solid var(--running); animation: pulse 2s infinite; }
 .seg-status.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
 .seg-status.failed  { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail); }

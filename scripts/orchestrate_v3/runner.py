@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .fileops import FileOps
 from .streamparse import _extract_text_from_stream_line
 
 if TYPE_CHECKING:
@@ -220,6 +221,8 @@ def _extract_status(log_text: str) -> str:
     markers = [
         ("**Status:** PASS", "pass"),
         ("Status: PASS", "pass"),
+        ("**Status:** ✅ PASS", "pass"),  # With checkmark emoji
+        ("Status: ✅ PASS", "pass"),
         ("**Status:** PARTIAL", "partial"),
         ("Status: PARTIAL", "partial"),
         ("**Status:** BLOCKED", "blocked"),
@@ -238,11 +241,24 @@ def _extract_status(log_text: str) -> str:
     # Lenient patterns for common variations
     # Patterns accept both emoji and text formats
     patterns = [
-        (r"\*\*Status:\*\*\s+(COMPLETE|SUCCESS|DONE)", "pass"),
-        (r"Status:\s+(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"\*\*Status:\*\*\s+(?:✅\s+)?(COMPLETE|SUCCESS|DONE|PASS)", "pass"),  # With optional emoji
+        (r"Status:\s+(?:✅\s+)?(COMPLETE|SUCCESS|DONE|PASS)", "pass"),
         (r"\*\*Segment Status:\*\*\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"Segment Status:\s*(?:\[OK\]|\[PASS\])?\s*(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"COMPLETE\s*-\s*No further work required", "pass"),
+        # Recognize various iterative-builder completion formats
+        (r"##\s+Segment\s+\d+\s+Complete:", "pass"),  # "## Segment 2 Complete:" (most common)
+        (r"##\s+✅\s+Segment\s+\d+\s+Complete:", "pass"),  # "## ✅ Segment 4 Complete:"
+        (r"Segment\s+\d+\s+Complete:", "pass"),  # "Segment 2 Complete:"
+        (r"##\s+Segment\s+\d+\s+Complete[:\s]+.*?✓", "pass"),  # With checkmark at end
+        (r"Segment\s+\d+\s+Complete[:\s]+.*?✓", "pass"),
+        (r"Segment\s+\d+\s+completed successfully", "pass"),  # "Segment 1 completed successfully"
+        (r"##.*Segment\s+\d+.*-\s*(COMPLETE|SUCCESS)", "pass"),  # "## ✅ Segment 1: ... - COMPLETE"
+        (r"##.*Segment\s+\d+.*Report.*SUCCESS", "pass"),  # "## 🎯 Segment 1 Build Report - SUCCESS"
+        # Generic completion indicators (when builder doesn't format properly)
+        (r"Ready for commit with message:", "pass"),  # "Ready for commit with message: ..."
+        (r"test suite is ready for use", "pass"),  # "The test suite is ready for use"
+        (r"All.*tests (?:pass|passing)", "pass"),  # "All tests passing"
         (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
         (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
     ]
@@ -252,7 +268,7 @@ def _extract_status(log_text: str) -> str:
         if match:
             log.warning(
                 "Non-standard status format detected: '%s' (mapped to %s)",
-                match.group(1), status
+                match.group(0)[:50], status
             )
             return status
 
@@ -371,12 +387,12 @@ async def run_segment(
     human_log = log_dir / f"S{seg.num:02d}.log"
     prompt_file = log_dir / f"S{seg.num:02d}.prompt.txt"
 
-    prompt_file.write_text(prompt, encoding="utf-8")
+    FileOps.write_text_atomic(prompt_file, prompt)
     # Clear stale files from prior runs. Do NOT create human_log yet — its
     # presence signals to the SSE handler that the segment is finished, which
     # would prevent real-time stream.jsonl content from being shown.
-    raw_log.write_text("", encoding="utf-8")
-    human_log.unlink(missing_ok=True)
+    FileOps.write_text_atomic(raw_log, "")
+    FileOps.remove_safe(human_log)
 
     started_at = time.time()
     await state.set_status(seg.num, "running", started_at=started_at)
@@ -482,7 +498,7 @@ async def run_segment(
 
     # Parse the stream output
     full_text, _result = _parse_stream_jsonl(raw_log)
-    human_log.write_text(full_text, encoding="utf-8")
+    FileOps.write_text_atomic(human_log, full_text)
 
     status = _extract_status(full_text)
     summary = _extract_summary(full_text)

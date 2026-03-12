@@ -16,6 +16,7 @@ import aiofiles
 import aiofiles.os
 from aiohttp import web
 
+from .fileops import FileOps, FileOpsError
 from .streamparse import _parse_stream_line_rich
 
 if TYPE_CHECKING:
@@ -44,8 +45,8 @@ def _create_app(state: "StateDB", log_dir: Path, plan_root: Path | None = None, 
 
 async def _handle_dashboard(request: web.Request) -> web.Response:
     try:
-        html = _DASHBOARD_PATH.read_text(encoding="utf-8")
-    except FileNotFoundError:
+        html = FileOps.read_text(_DASHBOARD_PATH)
+    except FileOpsError:
         html = "<html><body><h1>Dashboard not found</h1></body></html>"
     return web.Response(text=html, content_type="text/html")
 
@@ -57,13 +58,13 @@ async def _handle_static(request: web.Request) -> web.Response:
         return web.Response(status=404)
     css_path = Path(__file__).parent / "dashboard.css"
     try:
-        content = css_path.read_text(encoding="utf-8")
+        content = FileOps.read_text(css_path)
         return web.Response(
             text=content,
             content_type="text/css",
             headers={"Cache-Control": "public, max-age=3600"}
         )
-    except FileNotFoundError:
+    except FileOpsError:
         return web.Response(status=404)
 
 
@@ -210,18 +211,18 @@ async def _handle_prompt(request: web.Request) -> web.Response:
     if segments_dir.exists():
         for seg_file in segments_dir.glob(f"{seg_num:02d}-*.md"):
             try:
-                content = seg_file.read_text(encoding="utf-8")
+                content = FileOps.read_text(seg_file)
                 return web.Response(text=content, content_type="text/plain")
-            except Exception as e:
+            except FileOpsError as e:
                 return web.Response(text=f"Error reading segment file: {e}", status=500)
 
     # Try handoff directory
     if handoff_dir.exists():
         for seg_file in handoff_dir.glob(f"S{seg_num:02d}-*.md"):
             try:
-                content = seg_file.read_text(encoding="utf-8")
+                content = FileOps.read_text(seg_file)
                 return web.Response(text=content, content_type="text/plain")
-            except Exception as e:
+            except FileOpsError as e:
                 return web.Response(text=f"Error reading segment file: {e}", status=500)
 
     return web.Response(text=f"Segment file not found for {seg_id}", status=404)
