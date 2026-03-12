@@ -136,6 +136,8 @@
   .act-kill  { background: rgba(209,77,65,0.15); color: var(--fail); border: 1px solid var(--fail); }
   .act-retry { background: rgba(56,189,248,0.15); color: var(--running); border: 1px solid var(--running); }
   .act-skip  { background: rgba(100,100,100,0.1); color: var(--text-muted); border: 1px solid var(--border); }
+  .act-interject { background: var(--running); color: white; border: 1px solid var(--running); }
+  .act-interject:hover { background: #1a5fbf; opacity: 0.9; }
 
   /* Gate bar between waves */
   .gate-bar {
@@ -873,6 +875,7 @@
   function actionButtons(seg) {
     const btns = [];
     if (seg.status === 'running') {
+      btns.push(`<button class="act-btn act-interject" onclick="event.stopPropagation();interjectSeg(${seg.num})" title="Interject with message">✏️ Interject</button>`);
       btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i> Kill</button>`);
     }
     if (['failed','blocked','partial','timeout'].includes(seg.status)) {
@@ -902,6 +905,57 @@
       if (!data.ok) {
         alert(`Failed: ${data.error || 'unknown error'}`);
       } else {
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.interjectSeg = async function(num) {
+    // Prompt for message
+    const message = prompt(
+      `Enter message for S${String(num).padStart(2,'0')}:\n\n` +
+      `This will pause the segment and send your message to the agent.\n` +
+      `Max 2000 characters.`
+    );
+
+    // Validate
+    if (message === null) return; // User cancelled
+
+    const trimmed = message.trim();
+    if (!trimmed) {
+      alert('Message cannot be empty.');
+      return;
+    }
+
+    if (trimmed.length > 2000) {
+      alert(`Message too long: ${trimmed.length} chars (max 2000)`);
+      return;
+    }
+
+    // Confirm with preview
+    const preview = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
+    const confirmed = confirm(
+      `Send interject message to S${String(num).padStart(2,'0')}?\n\n` +
+      `Preview: "${preview}"\n\n` +
+      `This will pause the segment execution.`
+    );
+
+    if (!confirmed) return;
+
+    // Send request
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'interject', seg_num: num, message: trimmed}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed to interject: ${data.error || 'unknown error'}`);
+      } else {
+        alert(`Interject message sent to S${String(num).padStart(2,'0')}`);
         refreshState();
       }
     } catch (e) {
