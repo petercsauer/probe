@@ -77,4 +77,46 @@ mod tests {
         let result = validate_api_version("not-a-version");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_validate_api_version_empty_string() {
+        let result = validate_api_version("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid plugin API version"));
+    }
+
+    #[test]
+    fn test_validate_api_version_patch_difference() {
+        // Patch version differences should be OK
+        assert!(validate_api_version("0.1.1").is_ok());
+        assert!(validate_api_version("0.1.99").is_ok());
+    }
+
+    #[test]
+    fn test_validate_api_version_prerelease() {
+        // Prerelease versions should parse correctly
+        let result = validate_api_version("0.1.0-alpha");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_api_version_major_zero_minor_zero() {
+        // Exact match at 0.0.x should work
+        let result = validate_api_version("0.0.1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_api_version_constant() {
+        // Ensure API_VERSION is a valid semver
+        assert!(semver::Version::parse(API_VERSION).is_ok());
+        assert!(API_VERSION.starts_with("0."));
+    }
+
+    #[test]
+    fn test_validate_api_version_build_metadata() {
+        // Build metadata should be ignored
+        let result = validate_api_version("0.1.0+build123");
+        assert!(result.is_ok());
+    }
 }
