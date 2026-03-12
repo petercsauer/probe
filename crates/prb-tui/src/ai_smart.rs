@@ -343,7 +343,7 @@ If no anomalies found, return empty array: []
 }
 
 /// Build a summary of events for anomaly detection.
-fn build_anomaly_summary(events: &[DebugEvent], context: &CaptureContext) -> String {
+pub fn build_anomaly_summary(events: &[DebugEvent], context: &CaptureContext) -> String {
     let mut summary = Vec::new();
 
     summary.push(format!("Total events: {}", context.total_events));
@@ -396,7 +396,10 @@ fn build_anomaly_summary(events: &[DebugEvent], context: &CaptureContext) -> Str
 }
 
 /// Parse anomaly detection response from AI.
-fn parse_anomaly_response(content: &str, events: &[DebugEvent]) -> Result<Vec<Anomaly>, String> {
+pub fn parse_anomaly_response(
+    content: &str,
+    events: &[DebugEvent],
+) -> Result<Vec<Anomaly>, String> {
     // Try to extract JSON from response
     let json_str = if let Some(start) = content.find('[') {
         if let Some(end) = content.rfind(']') {
@@ -572,7 +575,7 @@ Order by confidence (highest first). Return up to 3 suggestions.
 }
 
 /// Parse protocol identification response.
-fn parse_protocol_response(content: &str) -> Result<Vec<ProtocolHint>, String> {
+pub fn parse_protocol_response(content: &str) -> Result<Vec<ProtocolHint>, String> {
     // Try to extract JSON from response
     let json_str = if let Some(start) = content.find('[') {
         if let Some(end) = content.rfind(']') {
