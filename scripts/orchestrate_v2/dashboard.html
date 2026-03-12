@@ -191,35 +191,13 @@
   }
   .log-header .live-badge { color: var(--running); font-size: 11px; font-weight: 700; animation: pulse 2s infinite; }
 
-  /* ── Log toolbar ── */
-  .log-toolbar {
-    padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg);
-    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  }
-  .log-toolbar input {
-    flex: 1; background: rgba(0,0,0,0.2); color: var(--text); border: 1px solid var(--border);
-    border-radius: 4px; padding: 4px 10px; font-size: 12px; font-family: 'SF Mono', monospace;
-    outline: none;
-  }
-  .log-toolbar input:focus { border-color: var(--running); }
-  .search-count { font-size: 11px; color: var(--text-muted); flex-shrink: 0; min-width: 24px; text-align: right; }
-  .prompt-btn {
-    padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
-    background: rgba(122,162,247,0.15); color: var(--running); border: 1px solid var(--running);
-    border-radius: 4px; white-space: nowrap; transition: all 0.15s;
-  }
-  .prompt-btn:hover { background: rgba(122,162,247,0.25); }
-  .prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .prompt-btn.active { background: var(--running); color: #fff; }
-
   /* ── Log bottom toolbar ── */
   .log-bottom-toolbar {
     padding: 8px 12px; border-top: 1px solid var(--border); background: var(--surface);
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
-  .log-bottom-toolbar .spacer { flex: 1; }
   .toolbar-interject-input {
-    flex: 1; max-width: 600px; background: rgba(0,0,0,0.3); color: var(--text);
+    flex: 1; background: rgba(0,0,0,0.3); color: var(--text);
     border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px;
     font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     outline: none; transition: border-color 0.15s;
@@ -227,6 +205,14 @@
   .toolbar-interject-input:focus { border-color: var(--running); background: rgba(0,0,0,0.4); }
   .toolbar-interject-input:disabled { opacity: 0.4; cursor: not-allowed; }
   .toolbar-interject-input::placeholder { color: var(--text-muted); }
+  .prompt-btn {
+    padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: rgba(122,162,247,0.15); color: var(--running); border: 1px solid var(--running);
+    border-radius: 4px; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+  }
+  .prompt-btn:hover { background: rgba(122,162,247,0.25); }
+  .prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .prompt-btn.active { background: var(--running); color: #fff; }
   .toolbar-interject-btn {
     padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
     background: var(--running); color: white; border: 1px solid var(--running);
@@ -451,11 +437,6 @@
       <span>LOG: <span id="log-seg-label">select a segment</span></span>
       <span class="live-badge" id="live-badge"></span>
     </div>
-    <div class="log-toolbar">
-      <input id="log-search" type="text" placeholder="/ search..." autocomplete="off" spellcheck="false">
-      <span id="search-count" class="search-count"></span>
-      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
-    </div>
     <div class="log-content" id="log-content"></div>
     <div class="log-bottom-toolbar">
       <input
@@ -467,6 +448,7 @@
         disabled
         onkeydown="if(event.key==='Enter' && !this.disabled) interjectCurrentSeg()"
       >
+      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
       <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
         <i class="fa-solid fa-message"></i> Send
       </button>
