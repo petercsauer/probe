@@ -48,9 +48,9 @@ All segments are sequential - each depends on the previous.
 | # | Slug | Title | Status | Risk | Complexity | LOC | Notes |
 |---|------|-------|--------|------|------------|-----|-------|
 | 1 | database-schema | Database Schema for Interjections | ✅ complete | 2/10 | Low | 64 | Commit: 1f73c65 |
-| 2 | prompt-augmentation | Prompt Augmentation Logic | in-progress | 3/10 | Low | 35 | Core logic |
-| 3 | api-endpoint | Kill-and-Interject API Endpoint | pending | 4/10 | Low | 30 | Integration |
-| 4 | dashboard-ui | Dashboard Interject UI | pending | 2/10 | Low | 80 | User interface |
+| 2 | prompt-augmentation | Prompt Augmentation Logic | ✅ complete | 3/10 | Low | 38 | Commit: ec1e817 |
+| 3 | api-endpoint | Kill-and-Interject API Endpoint | ✅ complete | 4/10 | Low | 47 | Commit: cd16075 |
+| 4 | dashboard-ui | Dashboard Interject UI | ✅ complete | 2/10 | Low | 64 | Commit: dddf0d7 |
 
 **Total Estimated Lines:** ~244 lines across 4 files
 
@@ -71,13 +71,15 @@ No parallelization possible - linear dependency chain.
 
 After all segments complete:
 
-1. [ ] Database has segment_interjections table with proper schema
-2. [ ] Prompts include pending interject messages before "Begin now."
-3. [ ] POST /api/control with action="interject" kills process and stores message
-4. [ ] Dashboard shows "Interject" button for running segments only
-5. [ ] Full flow works: Click interject → Enter message → Segment restarts → Message in prompt
-6. [ ] No regressions: Existing orchestrator functionality still works
-7. [ ] All segments committed with proper commit messages
+1. [x] Database has segment_interjections table with proper schema
+2. [x] Prompts include pending interject messages before "Begin now."
+3. [x] POST /api/control with action="interject" kills process and stores message
+4. [x] Dashboard shows "Interject" button for running segments only
+5. [x] Full flow works: Click interject → Enter message → Segment restarts → Message in prompt
+6. [x] No regressions: Existing orchestrator functionality still works
+7. [x] All segments committed with proper commit messages
+
+**Status:** ✅ ALL CRITERIA MET - Plan complete!
 
 ---
 
