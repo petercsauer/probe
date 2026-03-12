@@ -24,7 +24,7 @@ impl ProtocolId {
     pub const UNKNOWN: &str = "unknown";
 
     /// Create a new protocol ID from a string.
-    #[must_use] 
+    #[must_use]
     pub fn new(id: &str) -> Self {
         Self(id.to_string())
     }

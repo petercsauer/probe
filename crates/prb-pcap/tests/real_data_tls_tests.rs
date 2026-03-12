@@ -172,8 +172,7 @@ fn test_tls13_keylog_with_comments_and_blank_lines() {
     tmpfile.flush().unwrap();
 
     // Process pcap with enhanced keylog
-    let mut adapter =
-        PcapCaptureAdapter::new(pcap_path, Some(tmpfile.path().to_path_buf()));
+    let mut adapter = PcapCaptureAdapter::new(pcap_path, Some(tmpfile.path().to_path_buf()));
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should work the same as without comments

@@ -2,7 +2,9 @@
 
 use crate::error::PcapError;
 use pcap_parser::traits::PcapReaderIterator;
-use pcap_parser::{PcapNGReader, LegacyPcapReader, PcapBlockOwned, Block, DecryptionSecretsBlock, SecretsType};
+use pcap_parser::{
+    Block, DecryptionSecretsBlock, LegacyPcapReader, PcapBlockOwned, PcapNGReader, SecretsType,
+};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -21,7 +23,7 @@ pub struct TlsKeyStore {
 
 impl TlsKeyStore {
     /// Creates an empty key store.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -32,19 +34,19 @@ impl TlsKeyStore {
     }
 
     /// Looks up key material by `client_random`.
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, client_random: &[u8]) -> Option<&[u8]> {
         self.keys.get(client_random).map(std::vec::Vec::as_slice)
     }
 
     /// Returns the number of stored keys.
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.keys.len()
     }
 
     /// Returns true if no keys are stored.
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
@@ -131,13 +133,13 @@ impl PcapFileReader {
     }
 
     /// Returns a reference to the extracted TLS keys.
-    #[must_use] 
+    #[must_use]
     pub const fn tls_keys(&self) -> &TlsKeyStore {
         &self.tls_keys
     }
 
     /// Consumes the reader and returns the TLS key store.
-    #[must_use] 
+    #[must_use]
     pub fn into_tls_keys(self) -> TlsKeyStore {
         self.tls_keys
     }
@@ -267,12 +269,10 @@ impl PcapFileReader {
             }
 
             if parts[0] == "CLIENT_RANDOM" {
-                let client_random = hex::decode(parts[1]).map_err(|e| {
-                    PcapError::TlsKey(format!("invalid hex in client_random: {e}"))
-                })?;
-                let master_secret = hex::decode(parts[2]).map_err(|e| {
-                    PcapError::TlsKey(format!("invalid hex in master_secret: {e}"))
-                })?;
+                let client_random = hex::decode(parts[1])
+                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in client_random: {e}")))?;
+                let master_secret = hex::decode(parts[2])
+                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in master_secret: {e}")))?;
                 tls_keys.insert(client_random, master_secret);
             }
         }

@@ -5,7 +5,7 @@
 use ratatui::{buffer::Buffer, style::Color};
 
 /// Extract a full row from the buffer as a plain string.
-#[must_use] 
+#[must_use]
 pub fn row_text(buf: &Buffer, y: u16) -> String {
     (0..buf.area.width)
         .map(|x| buf[(x, y)].symbol().to_string())
@@ -13,7 +13,7 @@ pub fn row_text(buf: &Buffer, y: u16) -> String {
 }
 
 /// Extract a rectangular region as a vec of row strings.
-#[must_use] 
+#[must_use]
 pub fn region_text(buf: &Buffer, x: u16, y: u16, w: u16, h: u16) -> Vec<String> {
     (y..y + h)
         .map(|row| {
@@ -25,7 +25,7 @@ pub fn region_text(buf: &Buffer, x: u16, y: u16, w: u16, h: u16) -> Vec<String> 
 }
 
 /// Find the first (x, y) position where `text` appears on a single row.
-#[must_use] 
+#[must_use]
 pub fn find_text(buf: &Buffer, text: &str) -> Option<(u16, u16)> {
     for y in 0..buf.area.height {
         let row = row_text(buf, y);
@@ -37,7 +37,7 @@ pub fn find_text(buf: &Buffer, text: &str) -> Option<(u16, u16)> {
 }
 
 /// Return the foreground color of a specific cell.
-#[must_use] 
+#[must_use]
 pub fn cell_fg(buf: &Buffer, x: u16, y: u16) -> Color {
     buf[(x, y)].fg
 }

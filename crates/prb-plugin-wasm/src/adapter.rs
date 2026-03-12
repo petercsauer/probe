@@ -24,7 +24,7 @@ pub struct WasmDecoderFactory {
 }
 
 impl WasmDecoderFactory {
-    #[must_use] 
+    #[must_use]
     pub const fn new(plugin_path: PathBuf, info: PluginMetadata, limits: WasmLimits) -> Self {
         Self {
             plugin_path,
@@ -102,7 +102,7 @@ pub struct WasmProtocolDetector {
 }
 
 impl WasmProtocolDetector {
-    #[must_use] 
+    #[must_use]
     pub const fn new(plugin_path: PathBuf, info: PluginMetadata) -> Self {
         Self {
             plugin_path,

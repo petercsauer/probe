@@ -40,7 +40,7 @@ pub struct ZmqDecoder {
 
 impl ZmqDecoder {
     /// Create a new ZMQ decoder.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             parser: ZmtpParser::new(),
@@ -166,7 +166,8 @@ impl ZmqDecoder {
                 adapter: "pcap".to_string(),
                 origin: ctx
                     .metadata
-                    .get("origin").cloned()
+                    .get("origin")
+                    .cloned()
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
                     src: ctx
@@ -195,9 +196,7 @@ impl ZmqDecoder {
         if let Some(topic_str) = topic {
             event_builder = event_builder
                 .metadata(METADATA_KEY_ZMQ_TOPIC, &topic_str)
-                .correlation_key(CorrelationKey::Topic {
-                    name: topic_str,
-                });
+                .correlation_key(CorrelationKey::Topic { name: topic_str });
         } else if !identity.is_empty() {
             event_builder = event_builder.correlation_key(CorrelationKey::Custom {
                 key: "zmq-identity".to_string(),

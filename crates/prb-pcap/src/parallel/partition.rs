@@ -18,7 +18,7 @@ impl FlowPartitioner {
     /// # Panics
     ///
     /// Panics if `num_shards` is 0.
-    #[must_use] 
+    #[must_use]
     pub fn new(num_shards: usize) -> Self {
         assert!(num_shards > 0, "need at least 1 shard");
         Self { num_shards }
@@ -38,7 +38,7 @@ impl FlowPartitioner {
     ///
     /// A vector of packet vectors, one per shard. Some shards may be empty
     /// if no packets map to them.
-    #[must_use] 
+    #[must_use]
     pub fn partition(
         &self,
         packets: Vec<OwnedNormalizedPacket>,
@@ -47,8 +47,8 @@ impl FlowPartitioner {
             (0..self.num_shards).map(|_| Vec::new()).collect();
 
         for packet in packets {
-            let shard_idx = FlowKey::from_packet(&packet)
-                .map_or(0, |k| k.shard_index(self.num_shards));
+            let shard_idx =
+                FlowKey::from_packet(&packet).map_or(0, |k| k.shard_index(self.num_shards));
             shards[shard_idx].push(packet);
         }
 

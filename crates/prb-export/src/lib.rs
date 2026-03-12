@@ -59,7 +59,7 @@ pub fn create_exporter(format: &str) -> Result<Box<dyn Exporter>, ExportError> {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn supported_formats() -> Vec<&'static str> {
     #[allow(unused_mut)]
     let mut formats = vec!["csv", "har", "otlp", "html"];

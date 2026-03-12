@@ -17,7 +17,7 @@ pub struct NativeDecoderFactory {
 
 impl NativeDecoderFactory {
     /// Create a new factory from a loaded plugin.
-    #[must_use] 
+    #[must_use]
     pub const fn new(plugin: Arc<LoadedPlugin>) -> Self {
         Self { plugin }
     }
@@ -134,7 +134,7 @@ impl NativeProtocolDetector {
     ///
     /// The `transport` parameter specifies which transport layer this detector
     /// applies to.
-    #[must_use] 
+    #[must_use]
     pub const fn new(plugin: Arc<LoadedPlugin>, transport: TransportLayer) -> Self {
         Self { plugin, transport }
     }

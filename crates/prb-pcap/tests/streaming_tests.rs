@@ -300,10 +300,8 @@ fn test_streaming_interleaved_flows() {
     // Create 5 flows, interleaving packets
     for round in 0..20 {
         for flow in 0..5 {
-            let pkt = create_synthetic_packet(
-                1000 + round * 5 + flow,
-                format!("flow{flow}").as_bytes(),
-            );
+            let pkt =
+                create_synthetic_packet(1000 + round * 5 + flow, format!("flow{flow}").as_bytes());
             tx.send(pkt).unwrap();
         }
     }

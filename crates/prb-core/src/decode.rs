@@ -17,7 +17,7 @@ pub struct DecodeContext {
 
 impl DecodeContext {
     /// Create a new empty context.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             src_addr: None,
@@ -49,7 +49,7 @@ impl DecodeContext {
     }
 
     /// Set timestamp.
-    #[must_use] 
+    #[must_use]
     pub const fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self

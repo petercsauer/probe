@@ -24,7 +24,7 @@ impl ShardProcessor {
     ///
     /// * `tls_keylog` - Shared TLS keylog for decryption
     /// * `capture_path` - Path to the capture file for event metadata
-    #[must_use] 
+    #[must_use]
     pub const fn new(tls_keylog: Arc<TlsKeyLog>, capture_path: PathBuf) -> Self {
         Self {
             tls_keylog,
@@ -45,7 +45,7 @@ impl ShardProcessor {
     ///
     /// A vector of event vectors, one per shard. Events maintain their
     /// relative order within each shard.
-    #[must_use] 
+    #[must_use]
     pub fn process_shards(&self, shards: Vec<Vec<OwnedNormalizedPacket>>) -> Vec<Vec<DebugEvent>> {
         shards
             .into_par_iter()

@@ -266,9 +266,7 @@ fn run_install(
             (backend, info)
         }
         _ => {
-            anyhow::bail!(
-                "Unknown plugin file type: .{ext}. Expected .so, .dylib, .dll, or .wasm"
-            );
+            anyhow::bail!("Unknown plugin file type: .{ext}. Expected .so, .dylib, .dll, or .wasm");
         }
     };
 

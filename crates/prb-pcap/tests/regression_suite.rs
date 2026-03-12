@@ -50,8 +50,7 @@ fn load_manifest() -> FixtureManifest {
     let manifest_path = fixture_dir().join("manifest.json");
     let content = fs::read_to_string(&manifest_path)
         .unwrap_or_else(|_| panic!("Failed to read manifest at {manifest_path:?}"));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
 }
 
 /// Get full path to a fixture file.
@@ -71,7 +70,10 @@ fn keylog_path(fixture: &Fixture) -> Option<PathBuf> {
 /// Run pipeline on a capture file.
 fn run_pipeline(path: &Path, keylog: Option<PathBuf>) -> Vec<prb_core::DebugEvent> {
     let mut adapter = PcapCaptureAdapter::new(path.to_path_buf(), keylog);
-    adapter.ingest().filter_map(std::result::Result::ok).collect()
+    adapter
+        .ingest()
+        .filter_map(std::result::Result::ok)
+        .collect()
 }
 
 #[test]
@@ -143,7 +145,8 @@ fn test_all_fixtures_produce_minimum_events() {
         }
     }
 
-    assert!(failures.is_empty(), 
+    assert!(
+        failures.is_empty(),
         "Fixtures failed minimum event count:\n{}",
         failures.join("\n")
     )
@@ -265,9 +268,7 @@ fn test_performance_baseline_all_fixtures() {
     );
     eprintln!("{}", "-".repeat(80));
     for (path, events, duration, eps) in results {
-        eprintln!(
-            "{path:<40} {events:>10} {duration:>12?} {eps:>15.0}"
-        );
+        eprintln!("{path:<40} {events:>10} {duration:>12?} {eps:>15.0}");
     }
 }
 

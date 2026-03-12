@@ -24,7 +24,7 @@ pub struct StreamKey {
 
 impl StreamKey {
     /// Create a new stream key.
-    #[must_use] 
+    #[must_use]
     pub const fn new(src_addr: String, dst_addr: String, transport: TransportLayer) -> Self {
         Self {
             src_addr,
@@ -34,7 +34,7 @@ impl StreamKey {
     }
 
     /// Create a stream key from `DecodeContext`.
-    #[must_use] 
+    #[must_use]
     pub fn from_decode_context(ctx: &DecodeContext, transport: TransportLayer) -> Option<Self> {
         let src_addr = ctx.src_addr.clone()?;
         let dst_addr = ctx.dst_addr.clone()?;
@@ -74,7 +74,7 @@ pub struct DecoderRegistry {
 
 impl DecoderRegistry {
     /// Create a new registry with default detection engine.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             detection_engine: DetectionEngine::with_defaults(),
@@ -85,7 +85,7 @@ impl DecoderRegistry {
     }
 
     /// Create a registry with a custom detection engine.
-    #[must_use] 
+    #[must_use]
     pub fn with_engine(engine: DetectionEngine) -> Self {
         Self {
             detection_engine: engine,
@@ -259,7 +259,7 @@ impl DecoderRegistry {
     }
 
     /// Get the number of active decoder instances.
-    #[must_use] 
+    #[must_use]
     pub fn active_decoder_count(&self) -> usize {
         self.active_decoders.len()
     }

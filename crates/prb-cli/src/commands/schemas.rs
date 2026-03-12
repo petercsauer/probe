@@ -41,9 +41,7 @@ fn run_load(args: SchemaLoadArgs) -> Result<()> {
                 .context("Failed to compile proto file")?;
         }
         _ => {
-            anyhow::bail!(
-                "Unsupported file extension: {extension}. Expected .proto or .desc"
-            );
+            anyhow::bail!("Unsupported file extension: {extension}. Expected .proto or .desc");
         }
     }
 

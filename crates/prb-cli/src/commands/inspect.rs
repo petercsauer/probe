@@ -22,8 +22,7 @@ pub fn run_inspect(args: InspectArgs) -> Result<()> {
         .filter
         .as_ref()
         .map(|s| {
-            TransportKind::from_str(s)
-                .map_err(|e| anyhow::anyhow!("Invalid transport filter: {e}"))
+            TransportKind::from_str(s).map_err(|e| anyhow::anyhow!("Invalid transport filter: {e}"))
         })
         .transpose()?;
 

@@ -128,9 +128,7 @@ fn benchmark_sort_100k() {
     let sorted_len = pane.sorted_indices(&state).len();
     let duration = start.elapsed();
 
-    println!(
-        "  Initial sort time: {duration:?} ({sorted_len} events)"
-    );
+    println!("  Initial sort time: {duration:?} ({sorted_len} events)");
     assert!(
         duration < Duration::from_millis(500),
         "Sort should complete in <500ms, took {duration:?}"

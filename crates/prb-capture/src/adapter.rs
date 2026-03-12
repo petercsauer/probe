@@ -109,7 +109,7 @@ impl LiveCaptureAdapter {
     }
 
     /// Returns a reference to the current pipeline statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn pipeline_stats(&self) -> &prb_pcap::PipelineStats {
         self.core.stats()
     }

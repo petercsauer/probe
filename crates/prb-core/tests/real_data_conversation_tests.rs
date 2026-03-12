@@ -16,7 +16,10 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn collect_ok_events(adapter: &mut PcapCaptureAdapter) -> Vec<DebugEvent> {
-    adapter.ingest().filter_map(std::result::Result::ok).collect()
+    adapter
+        .ingest()
+        .filter_map(std::result::Result::ok)
+        .collect()
 }
 
 #[test]

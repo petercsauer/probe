@@ -67,7 +67,7 @@ impl Default for AiConfig {
 }
 
 impl AiConfig {
-    #[must_use] 
+    #[must_use]
     pub fn for_provider(provider: AiProvider) -> Self {
         match provider {
             AiProvider::Ollama => Self::default(),
@@ -101,25 +101,25 @@ impl AiConfig {
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_temperature(mut self, temp: f32) -> Self {
         self.temperature = temp;
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_max_tokens(mut self, tokens: u32) -> Self {
         self.max_tokens = tokens;
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_stream(mut self, stream: bool) -> Self {
         self.stream = stream;
         self
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn with_context_window(mut self, n: usize) -> Self {
         self.context_window = n;
         self
@@ -167,8 +167,7 @@ mod tests {
     #[test]
     fn test_config_from_env() {
         // Test that config builder allows setting API key directly
-        let config = AiConfig::for_provider(AiProvider::OpenAi)
-            .with_api_key("test-key-123");
+        let config = AiConfig::for_provider(AiProvider::OpenAi).with_api_key("test-key-123");
         assert_eq!(config.resolve_api_key().unwrap(), "test-key-123");
 
         // Also test environment variable fallback with a unique var name to avoid test interference

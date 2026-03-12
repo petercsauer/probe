@@ -271,7 +271,10 @@ fn test_grpc_streaming() {
     // Verify all events are for the correct stream
     for event in &events {
         assert_eq!(
-            event.metadata.get("h2.stream_id").map(std::string::String::as_str),
+            event
+                .metadata
+                .get("h2.stream_id")
+                .map(std::string::String::as_str),
             Some("1")
         );
     }

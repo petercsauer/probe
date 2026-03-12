@@ -35,9 +35,7 @@ pub fn format_table(events: &[DebugEvent]) {
             String::from("-")
         };
 
-        println!(
-            "{timestamp:<20} {transport:<10} {direction:<5} {source:<25} {metadata}"
-        );
+        println!("{timestamp:<20} {transport:<10} {direction:<5} {source:<25} {metadata}");
     }
 }
 

@@ -56,7 +56,7 @@ pub struct TlsStreamProcessor {
 
 impl TlsStreamProcessor {
     /// Creates a new TLS stream processor with an empty key log.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             keylog: Arc::new(TlsKeyLog::new()),
@@ -64,7 +64,7 @@ impl TlsStreamProcessor {
     }
 
     /// Creates a new TLS stream processor with an existing key log.
-    #[must_use] 
+    #[must_use]
     pub fn with_keylog(keylog: TlsKeyLog) -> Self {
         Self {
             keylog: Arc::new(keylog),
@@ -75,7 +75,7 @@ impl TlsStreamProcessor {
     ///
     /// This is useful for parallel processing where multiple shards need to
     /// share the same keylog.
-    #[must_use] 
+    #[must_use]
     pub const fn with_keylog_ref(keylog: Arc<TlsKeyLog>) -> Self {
         Self { keylog }
     }

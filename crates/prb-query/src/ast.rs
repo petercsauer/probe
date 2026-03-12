@@ -23,7 +23,7 @@ pub enum Expr {
 pub struct FieldPath(pub Vec<String>);
 
 impl FieldPath {
-    #[must_use] 
+    #[must_use]
     pub fn dotted(&self) -> String {
         self.0.join(".")
     }

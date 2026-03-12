@@ -45,8 +45,7 @@ fn load_manifest() -> FixtureManifest {
     let manifest_path = fixtures_dir().join("manifest.json");
     let content = fs::read_to_string(&manifest_path)
         .unwrap_or_else(|_| panic!("Failed to read manifest at {manifest_path:?}"));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
 }
 
 #[test]
@@ -93,9 +92,7 @@ fn test_all_fixtures_exist_in_manifest() {
         }
     }
 
-    eprintln!(
-        "Fixtures: {present} present, {missing} missing from filesystem"
-    );
+    eprintln!("Fixtures: {present} present, {missing} missing from filesystem");
 
     assert!(present > 0, "At least some fixtures should be present");
 }

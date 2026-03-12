@@ -31,7 +31,11 @@ impl CorrelationStrategy for ZmqCorrelationStrategy {
         let mut other_events = Vec::new();
 
         for event in events {
-            match event.metadata.get("zmq.socket_type").map(std::string::String::as_str) {
+            match event
+                .metadata
+                .get("zmq.socket_type")
+                .map(std::string::String::as_str)
+            {
                 Some("PUB" | "SUB") => pub_sub_events.push(event),
                 Some("REQ" | "REP" | "DEALER" | "ROUTER") => {
                     req_rep_events.push(event);

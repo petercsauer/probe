@@ -31,7 +31,7 @@ impl Default for PipelineConfig {
 
 impl PipelineConfig {
     /// Returns the effective number of jobs, auto-detecting if configured as 0.
-    #[must_use] 
+    #[must_use]
     pub fn effective_jobs(&self) -> usize {
         if self.jobs == 0 {
             std::thread::available_parallelism()
@@ -43,7 +43,7 @@ impl PipelineConfig {
     }
 
     /// Returns the effective shard count, auto-detecting if configured as 0.
-    #[must_use] 
+    #[must_use]
     pub fn effective_shard_count(&self) -> usize {
         if self.shard_count == 0 {
             self.effective_jobs() * 2
@@ -76,7 +76,7 @@ impl ParallelPipeline {
     const PARALLEL_THRESHOLD: usize = 10_000;
 
     /// Creates a new parallel pipeline with the given configuration.
-    #[must_use] 
+    #[must_use]
     pub fn new(config: PipelineConfig, capture_path: PathBuf, tls_keylog: Arc<TlsKeyLog>) -> Self {
         let num_shards = if config.shard_count == 0 {
             std::thread::available_parallelism()
@@ -95,13 +95,13 @@ impl ParallelPipeline {
     }
 
     /// Returns the number of shards used for flow partitioning.
-    #[must_use] 
+    #[must_use]
     pub const fn num_shards(&self) -> usize {
         self.num_shards
     }
 
     /// Returns the capture path.
-    #[must_use] 
+    #[must_use]
     pub const fn capture_path(&self) -> &PathBuf {
         &self.capture_path
     }

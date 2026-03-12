@@ -278,10 +278,12 @@ fn test_ai_panel_escape_priority_over_other_overlays() {
 #[test]
 fn test_ai_panel_with_different_event_types() {
     // Test AI panel with different protocol types
-    let transports = [TransportKind::Grpc,
+    let transports = [
+        TransportKind::Grpc,
         TransportKind::Zmq,
         TransportKind::DdsRtps,
-        TransportKind::RawTcp];
+        TransportKind::RawTcp,
+    ];
 
     for (i, transport) in transports.iter().enumerate() {
         let events = vec![make_test_event(

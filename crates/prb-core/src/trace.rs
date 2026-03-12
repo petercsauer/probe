@@ -20,7 +20,7 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// Check if the trace is sampled (`trace_flags` bit 0 set).
-    #[must_use] 
+    #[must_use]
     pub const fn is_sampled(&self) -> bool {
         self.trace_flags & 0x01 != 0
     }
@@ -32,7 +32,7 @@ impl TraceContext {
 /// Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
 ///
 /// Spec: <https://www.w3.org/TR/trace-context/>
-#[must_use] 
+#[must_use]
 pub fn parse_w3c_traceparent(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split('-').collect();
     if parts.len() != 4 {
@@ -92,7 +92,7 @@ pub fn parse_w3c_traceparent(header: &str) -> Option<TraceContext> {
 /// Example: `4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1`
 ///
 /// Spec: <https://github.com/openzipkin/b3-propagation>
-#[must_use] 
+#[must_use]
 pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split('-').collect();
     if parts.len() < 2 || parts.len() > 4 {
@@ -188,7 +188,7 @@ pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext>
 /// Example: `4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b7:0:1`
 ///
 /// Spec: <https://www.jaegertracing.io/docs/1.21/client-libraries/#propagation-format>
-#[must_use] 
+#[must_use]
 pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
     let parts: Vec<&str> = header.split(':').collect();
     if parts.len() != 4 {

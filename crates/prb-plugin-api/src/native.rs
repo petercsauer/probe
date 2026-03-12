@@ -48,7 +48,7 @@ impl ByteBuffer {
     ///
     /// # Safety
     /// The returned buffer is only valid as long as the slice remains valid.
-    #[must_use] 
+    #[must_use]
     pub const fn from_slice(data: &[u8]) -> Self {
         Self {
             ptr: data.as_ptr(),
@@ -60,7 +60,7 @@ impl ByteBuffer {
     ///
     /// # Safety
     /// The caller must ensure the pointer is valid and the length is correct.
-    #[must_use] 
+    #[must_use]
     pub const unsafe fn as_slice<'a>(&self) -> &'a [u8] {
         if self.ptr.is_null() {
             &[]
@@ -89,7 +89,7 @@ impl OwnedBuffer {
     ///
     /// # Safety
     /// The caller must ensure the buffer is freed using `prb_plugin_buffer_free()`.
-    #[must_use] 
+    #[must_use]
     pub const fn from_vec(mut vec: Vec<u8>) -> Self {
         let ptr = vec.as_mut_ptr();
         let len = vec.len();
@@ -103,13 +103,13 @@ impl OwnedBuffer {
     /// # Safety
     /// The caller must ensure the buffer was allocated via `Vec::into_raw_parts()`
     /// or `OwnedBuffer::from_vec()`, and this must only be called once.
-    #[must_use] 
+    #[must_use]
     pub unsafe fn into_vec(self) -> Vec<u8> {
         unsafe { Vec::from_raw_parts(self.ptr, self.len, self.capacity) }
     }
 
     /// Create an empty owned buffer.
-    #[must_use] 
+    #[must_use]
     pub const fn empty() -> Self {
         Self {
             ptr: std::ptr::null_mut(),

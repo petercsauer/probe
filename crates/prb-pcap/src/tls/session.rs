@@ -24,7 +24,7 @@ pub struct SessionInfo {
 
 impl SessionInfo {
     /// Returns the key length in bytes for the cipher suite.
-    #[must_use] 
+    #[must_use]
     pub const fn key_len(&self) -> usize {
         match self.cipher_suite_id {
             // AES-128-GCM (16 bytes)
@@ -41,7 +41,7 @@ impl SessionInfo {
     ///
     /// TLS 1.2 uses 4-byte implicit IV (fixed IV).
     /// TLS 1.3 uses 12-byte IV derived via HKDF.
-    #[must_use] 
+    #[must_use]
     pub const fn iv_len(&self) -> usize {
         match self.version {
             TlsVersion::Tls12 => 4,  // TLS 1.2 uses 4-byte fixed IV
@@ -51,14 +51,14 @@ impl SessionInfo {
     }
 
     /// Returns true if this is a TLS 1.3 cipher suite.
-    #[must_use] 
+    #[must_use]
     pub fn is_tls13(&self) -> bool {
         // TLS 1.3 cipher suites: 0x1301-0x1305
         (0x1301..=0x1305).contains(&self.cipher_suite_id)
     }
 
     /// Returns true if the cipher suite uses SHA384 (for TLS 1.3 HKDF selection).
-    #[must_use] 
+    #[must_use]
     pub const fn uses_sha384(&self) -> bool {
         matches!(
             self.cipher_suite_id,
@@ -67,7 +67,7 @@ impl SessionInfo {
     }
 
     /// Returns true if this cipher suite is supported for decryption.
-    #[must_use] 
+    #[must_use]
     pub const fn is_supported(&self) -> bool {
         self.key_len() > 0
     }

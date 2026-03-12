@@ -30,7 +30,7 @@ pub struct GrpcDecoder {
 
 impl GrpcDecoder {
     /// Create a new gRPC decoder.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             h2_codec: H2Codec::new(),
@@ -162,7 +162,9 @@ impl GrpcDecoder {
                             .request_headers
                             .get("grpc-encoding")
                             .or_else(|| stream.response_headers.get("grpc-encoding"))
-                            .map_or(CompressionAlgorithm::Identity, |s| CompressionAlgorithm::from_header(s))
+                            .map_or(CompressionAlgorithm::Identity, |s| {
+                                CompressionAlgorithm::from_header(s)
+                            })
                     };
 
                     // Get or create LPM parser
@@ -257,7 +259,8 @@ impl GrpcDecoder {
                 adapter: "pcap".to_string(),
                 origin: ctx
                     .metadata
-                    .get("origin").cloned()
+                    .get("origin")
+                    .cloned()
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
                     src: ctx

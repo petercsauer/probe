@@ -36,7 +36,7 @@ pub struct DecodedMessage {
 
 impl DecodedMessage {
     /// Create a new decoded message.
-    #[must_use] 
+    #[must_use]
     pub const fn new(message: DynamicMessage, descriptor: MessageDescriptor) -> Self {
         Self {
             message,
@@ -45,25 +45,25 @@ impl DecodedMessage {
     }
 
     /// Get the message type name.
-    #[must_use] 
+    #[must_use]
     pub fn type_name(&self) -> &str {
         self.descriptor.full_name()
     }
 
     /// Get the underlying `DynamicMessage`.
-    #[must_use] 
+    #[must_use]
     pub const fn message(&self) -> &DynamicMessage {
         &self.message
     }
 
     /// Get the message descriptor.
-    #[must_use] 
+    #[must_use]
     pub const fn descriptor(&self) -> &MessageDescriptor {
         &self.descriptor
     }
 
     /// Convert to JSON value.
-    #[must_use] 
+    #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
         message_to_json(&self.message)
     }

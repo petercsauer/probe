@@ -18,7 +18,7 @@ pub struct JsonFixtureAdapter {
 
 impl JsonFixtureAdapter {
     /// Create a new JSON fixture adapter from a file path.
-    #[must_use] 
+    #[must_use]
     pub const fn new(path: Utf8PathBuf) -> Self {
         Self { path, events: None }
     }
@@ -123,9 +123,7 @@ impl JsonFixtureAdapter {
                 CoreError::PayloadDecode(format!("invalid format: {msg}"))
             }
             FixtureError::Parse { source } => CoreError::from(source),
-            FixtureError::Io { source } => {
-                CoreError::PayloadDecode(format!("I/O error: {source}"))
-            }
+            FixtureError::Io { source } => CoreError::PayloadDecode(format!("I/O error: {source}")),
             FixtureError::UnsupportedVersion(v) => {
                 CoreError::PayloadDecode(format!("unsupported version: {v}"))
             }

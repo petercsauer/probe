@@ -191,7 +191,11 @@ fn event_to_span(event: &DebugEvent) -> Span {
         attributes.push(string_attr("probe.warning", warning));
     }
 
-    let status = match event.metadata.get("grpc.status").map(std::string::String::as_str) {
+    let status = match event
+        .metadata
+        .get("grpc.status")
+        .map(std::string::String::as_str)
+    {
         Some("0") => SpanStatus {
             code: STATUS_CODE_OK,
             message: None,

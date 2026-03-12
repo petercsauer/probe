@@ -163,13 +163,13 @@ pub struct TcpReassembler {
 
 impl TcpReassembler {
     /// Creates a new TCP reassembler with default timeout (30 seconds).
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::with_timeout(DEFAULT_TIMEOUT_US)
     }
 
     /// Creates a new TCP reassembler with a custom timeout in microseconds.
-    #[must_use] 
+    #[must_use]
     pub fn with_timeout(timeout_us: u64) -> Self {
         Self {
             connections: HashMap::new(),
@@ -513,7 +513,7 @@ impl TcpReassembler {
     }
 
     /// Returns the number of active connections.
-    #[must_use] 
+    #[must_use]
     pub fn active_connections(&self) -> usize {
         self.connections.len()
     }

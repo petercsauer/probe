@@ -48,7 +48,7 @@ impl PrivilegeCheck {
     }
 
     /// Get a human-readable privilege status message.
-    #[must_use] 
+    #[must_use]
     pub fn status() -> String {
         #[cfg(target_os = "linux")]
         {

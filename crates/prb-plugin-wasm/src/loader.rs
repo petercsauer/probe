@@ -22,7 +22,7 @@ pub struct WasmPlugin {
 
 impl WasmPluginLoader {
     /// Create a new empty loader.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             plugins: Vec::new(),
@@ -60,9 +60,7 @@ impl WasmPluginLoader {
         // Call prb_plugin_info to get metadata
         let info_json = plugin
             .call::<&str, String>("prb_plugin_info", "")
-            .map_err(|e| {
-                PluginError::Execution(format!("Failed to call prb_plugin_info: {e}"))
-            })?;
+            .map_err(|e| PluginError::Execution(format!("Failed to call prb_plugin_info: {e}")))?;
 
         let info: PluginMetadata = serde_json::from_str(&info_json).map_err(|e| {
             PluginError::Load(format!("Invalid metadata from prb_plugin_info: {e}"))
@@ -110,7 +108,7 @@ impl WasmPluginLoader {
     }
 
     /// Get all loaded plugins.
-    #[must_use] 
+    #[must_use]
     pub fn plugins(&self) -> &[WasmPlugin] {
         &self.plugins
     }

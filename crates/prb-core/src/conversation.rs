@@ -21,7 +21,7 @@ impl ConversationId {
     }
 
     /// Get the string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -177,7 +177,7 @@ pub struct Conversation {
 
 impl Conversation {
     /// Create a new conversation.
-    #[must_use] 
+    #[must_use]
     pub fn new(
         id: ConversationId,
         kind: ConversationKind,

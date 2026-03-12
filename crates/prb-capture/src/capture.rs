@@ -25,7 +25,7 @@ pub struct OwnedPacket {
 
 impl OwnedPacket {
     /// Convert from a pcap packet reference to owned data.
-    #[must_use] 
+    #[must_use]
     pub fn from_pcap(packet: &pcap::Packet<'_>) -> Self {
         let ts = packet.header.ts;
         let timestamp_us = ts.tv_sec as u64 * 1_000_000 + ts.tv_usec as u64;
@@ -53,7 +53,7 @@ pub struct CaptureEngine {
 
 impl CaptureEngine {
     /// Create a new capture engine with the given configuration.
-    #[must_use] 
+    #[must_use]
     pub fn new(config: CaptureConfig) -> Self {
         Self {
             config,
@@ -155,13 +155,13 @@ impl CaptureEngine {
     /// Get the receiver for captured packets.
     ///
     /// Returns None if the engine hasn't been started yet.
-    #[must_use] 
+    #[must_use]
     pub const fn receiver(&self) -> Option<&Receiver<OwnedPacket>> {
         self.rx.as_ref()
     }
 
     /// Get a snapshot of current capture statistics.
-    #[must_use] 
+    #[must_use]
     pub fn stats(&self) -> CaptureStats {
         self.stats.snapshot(self.start_time)
     }

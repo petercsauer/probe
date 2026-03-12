@@ -303,7 +303,8 @@ impl H2Codec {
                     name
                 } else {
                     // Indexed name from static table
-                    self.static_table_lookup(name_index).map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
+                    self.static_table_lookup(name_index)
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 // Parse value (always literal)
@@ -346,7 +347,8 @@ impl H2Codec {
                     offset += name_len;
                     name
                 } else {
-                    self.static_table_lookup(name_index).map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
+                    self.static_table_lookup(name_index)
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 if offset >= data.len() {
@@ -381,7 +383,8 @@ impl H2Codec {
                     offset += name_len;
                     name
                 } else {
-                    self.static_table_lookup(name_index).map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
+                    self.static_table_lookup(name_index)
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 if offset >= data.len() {

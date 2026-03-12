@@ -66,7 +66,7 @@ impl PcapCaptureAdapter {
     /// # Arguments
     /// * `capture_path` - Path to the PCAP/pcapng file
     /// * `tls_keylog_path` - Optional path to TLS keylog file for decryption
-    #[must_use] 
+    #[must_use]
     pub fn new(capture_path: PathBuf, tls_keylog_path: Option<PathBuf>) -> Self {
         Self::with_registry(
             capture_path,
@@ -81,7 +81,7 @@ impl PcapCaptureAdapter {
     /// * `capture_path` - Path to the PCAP/pcapng file
     /// * `tls_keylog_path` - Optional path to TLS keylog file for decryption
     /// * `decoder_registry` - Custom decoder registry for protocol detection
-    #[must_use] 
+    #[must_use]
     pub fn with_registry(
         capture_path: PathBuf,
         tls_keylog_path: Option<PathBuf>,
@@ -109,7 +109,7 @@ impl PcapCaptureAdapter {
     }
 
     /// Returns a reference to the processing statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn stats(&self) -> &PipelineStats {
         &self.stats
     }

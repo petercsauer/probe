@@ -26,14 +26,10 @@ fn test_keylog_parse() {
     let cr = "aa".repeat(32);
     let secret = "bb".repeat(32);
     keylog2
-        .parse_line(&format!(
-            "CLIENT_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"
-        ))
+        .parse_line(&format!("CLIENT_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"))
         .unwrap();
     keylog2
-        .parse_line(&format!(
-            "SERVER_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"
-        ))
+        .parse_line(&format!("SERVER_HANDSHAKE_TRAFFIC_SECRET {cr} {secret}"))
         .unwrap();
     keylog2
         .parse_line(&format!("CLIENT_TRAFFIC_SECRET_0 {cr} {secret}"))

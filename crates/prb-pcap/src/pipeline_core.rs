@@ -47,7 +47,7 @@ pub struct PipelineCore {
 
 impl PipelineCore {
     /// Creates a new pipeline with the given TLS processor and decoder registry.
-    #[must_use] 
+    #[must_use]
     pub fn new(tls_processor: TlsStreamProcessor, decoder_registry: DecoderRegistry) -> Self {
         Self {
             normalizer: PacketNormalizer::new(),
@@ -312,7 +312,7 @@ impl PipelineCore {
     }
 
     /// Returns a reference to the processing statistics.
-    #[must_use] 
+    #[must_use]
     pub const fn stats(&self) -> &PipelineStats {
         &self.stats
     }

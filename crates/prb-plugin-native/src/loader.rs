@@ -35,13 +35,13 @@ pub struct LoadedPlugin {
 
 impl LoadedPlugin {
     /// Get plugin metadata.
-    #[must_use] 
+    #[must_use]
     pub const fn metadata(&self) -> &PluginMetadata {
         &self.metadata
     }
 
     /// Call the plugin's detect function.
-    #[must_use] 
+    #[must_use]
     pub fn detect(
         &self,
         data: &[u8],
@@ -54,7 +54,7 @@ impl LoadedPlugin {
     }
 
     /// Create a new decoder instance.
-    #[must_use] 
+    #[must_use]
     pub fn create_decoder(&self) -> DecoderHandle {
         (self.create_fn)()
     }
@@ -77,7 +77,7 @@ impl LoadedPlugin {
     }
 
     /// Get the shared library handle (for keeping the library alive).
-    #[must_use] 
+    #[must_use]
     pub fn library(&self) -> Arc<Library> {
         Arc::clone(&self.library)
     }
@@ -90,7 +90,7 @@ pub struct NativePluginLoader {
 
 impl NativePluginLoader {
     /// Create a new plugin loader.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             loaded_plugins: Vec::new(),
@@ -268,7 +268,7 @@ impl NativePluginLoader {
     }
 
     /// Get all loaded plugins.
-    #[must_use] 
+    #[must_use]
     pub fn plugins(&self) -> &[Arc<LoadedPlugin>] {
         &self.loaded_plugins
     }

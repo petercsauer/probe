@@ -68,7 +68,7 @@ pub fn create_registry_with_builtins() -> prb_detect::DecoderRegistry {
 
 /// Creates an empty `DecoderRegistry` when builtin-decoders feature is disabled.
 #[cfg(not(feature = "builtin-decoders"))]
-#[must_use] 
+#[must_use]
 pub fn create_registry_with_builtins() -> prb_detect::DecoderRegistry {
     prb_detect::DecoderRegistry::new()
 }

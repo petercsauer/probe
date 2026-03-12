@@ -9,7 +9,10 @@ fn timestamp_to_iso8601(ts: Timestamp) -> String {
     let nanos = ts.as_nanos();
     let secs = (nanos / 1_000_000_000) as i64;
     let subsec_nanos = (nanos % 1_000_000_000) as u32;
-    chrono::DateTime::from_timestamp(secs, subsec_nanos).map_or_else(|| "1970-01-01T00:00:00.000Z".into(), |dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    chrono::DateTime::from_timestamp(secs, subsec_nanos).map_or_else(
+        || "1970-01-01T00:00:00.000Z".into(),
+        |dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    )
 }
 
 const fn payload_size(event: &DebugEvent) -> i64 {
@@ -132,7 +135,11 @@ fn event_to_har_entry(event: &DebugEvent) -> v1_2::Entries {
 }
 
 fn grpc_status_to_http(event: &DebugEvent) -> i64 {
-    match event.metadata.get("grpc.status").map(std::string::String::as_str) {
+    match event
+        .metadata
+        .get("grpc.status")
+        .map(std::string::String::as_str)
+    {
         Some("0") | None => 200,
         Some("1") => 499,  // CANCELLED
         Some("3") => 400,  // INVALID_ARGUMENT
@@ -148,7 +155,11 @@ fn grpc_status_to_http(event: &DebugEvent) -> i64 {
 }
 
 fn grpc_status_text(event: &DebugEvent) -> String {
-    match event.metadata.get("grpc.status").map(std::string::String::as_str) {
+    match event
+        .metadata
+        .get("grpc.status")
+        .map(std::string::String::as_str)
+    {
         Some("0") | None => "OK".into(),
         Some("1") => "Cancelled".into(),
         Some("2") => "Unknown".into(),

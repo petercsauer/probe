@@ -89,13 +89,13 @@ impl MmapPcapReader {
     }
 
     /// Returns the number of indexed packets.
-    #[must_use] 
+    #[must_use]
     pub const fn packet_count(&self) -> usize {
         self.index.len()
     }
 
     /// Returns the capture file format.
-    #[must_use] 
+    #[must_use]
     pub const fn format(&self) -> &str {
         match self.format {
             CaptureFormat::LegacyPcap => "pcap",
@@ -104,7 +104,7 @@ impl MmapPcapReader {
     }
 
     /// Returns a slice of all packet locations.
-    #[must_use] 
+    #[must_use]
     pub fn packet_locations(&self) -> &[PacketLocation] {
         &self.index
     }
@@ -221,7 +221,8 @@ impl MmapPcapReader {
                 0x00000001 => {
                     // Interface Description Block (IDB)
                     if pos + 16 <= data.len() {
-                        let linktype = u32::from(u16::from_le_bytes([data[pos + 8], data[pos + 9]]));
+                        let linktype =
+                            u32::from(u16::from_le_bytes([data[pos + 8], data[pos + 9]]));
                         interfaces.push(linktype);
                         if interfaces.len() == 1 {
                             default_linktype = linktype;

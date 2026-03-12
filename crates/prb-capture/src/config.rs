@@ -61,21 +61,21 @@ impl CaptureConfig {
     }
 
     /// Set the snapshot length.
-    #[must_use] 
+    #[must_use]
     pub const fn with_snaplen(mut self, snaplen: u32) -> Self {
         self.snaplen = snaplen;
         self
     }
 
     /// Set promiscuous mode.
-    #[must_use] 
+    #[must_use]
     pub const fn with_promisc(mut self, promisc: bool) -> Self {
         self.promisc = promisc;
         self
     }
 
     /// Set the kernel buffer size.
-    #[must_use] 
+    #[must_use]
     pub const fn with_buffer_size(mut self, size: u32) -> Self {
         self.buffer_size = size;
         self

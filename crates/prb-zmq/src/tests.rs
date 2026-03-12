@@ -189,11 +189,17 @@ fn test_zmtp_pubsub_topic() {
 
     let event = &events[0];
     assert_eq!(
-        event.metadata.get("zmq.topic").map(std::string::String::as_str),
+        event
+            .metadata
+            .get("zmq.topic")
+            .map(std::string::String::as_str),
         Some("sensor.temp")
     );
     assert_eq!(
-        event.metadata.get("zmq.socket_type").map(std::string::String::as_str),
+        event
+            .metadata
+            .get("zmq.socket_type")
+            .map(std::string::String::as_str),
         Some("PUB")
     );
 }

@@ -91,8 +91,8 @@ fn load_otlp_trace_events(path: &camino::Utf8Path) -> Result<Vec<DebugEvent>> {
     let data =
         std::fs::read(path).with_context(|| format!("Failed to read OTLP trace file: {path}"))?;
 
-    let request = parse_otlp_json(&data)
-        .with_context(|| format!("Failed to parse OTLP JSON from {path}"))?;
+    let request =
+        parse_otlp_json(&data).with_context(|| format!("Failed to parse OTLP JSON from {path}"))?;
 
     let events = otlp_to_events(&request);
     Ok(events)

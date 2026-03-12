@@ -97,15 +97,16 @@ fn extract_span_summary(event: &DebugEvent) -> SpanSummary {
     // Duration is not stored in DebugEvent (events are point-in-time), so we default to 0
     let duration_us = 0;
 
-    let status = event
-        .metadata
-        .get("grpc.status").map_or_else(|| "UNKNOWN".to_string(), |s| {
+    let status = event.metadata.get("grpc.status").map_or_else(
+        || "UNKNOWN".to_string(),
+        |s| {
             if s == "0" {
                 "OK".to_string()
             } else {
                 format!("ERROR ({s})")
             }
-        });
+        },
+    );
 
     SpanSummary {
         service_name,

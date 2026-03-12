@@ -50,13 +50,13 @@ impl EventId {
     }
 
     /// Create an event ID from a raw u64 (for testing/deserialization).
-    #[must_use] 
+    #[must_use]
     pub const fn from_raw(id: u64) -> Self {
         Self(id)
     }
 
     /// Get the raw u64 value.
-    #[must_use] 
+    #[must_use]
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
@@ -75,13 +75,13 @@ pub struct Timestamp(u64);
 
 impl Timestamp {
     /// Create a timestamp from nanoseconds since Unix epoch.
-    #[must_use] 
+    #[must_use]
     pub const fn from_nanos(nanos: u64) -> Self {
         Self(nanos)
     }
 
     /// Get the timestamp as nanoseconds since Unix epoch.
-    #[must_use] 
+    #[must_use]
     pub const fn as_nanos(&self) -> u64 {
         self.0
     }
@@ -322,7 +322,7 @@ pub struct DebugEvent {
 
 impl DebugEvent {
     /// Create a new debug event builder.
-    #[must_use] 
+    #[must_use]
     pub fn builder() -> DebugEventBuilder {
         DebugEventBuilder::default()
     }

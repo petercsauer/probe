@@ -21,7 +21,7 @@ pub struct SchemaRegistry {
 
 impl SchemaRegistry {
     /// Create a new empty schema registry.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pool: DescriptorPool::global(),
@@ -118,7 +118,7 @@ impl SchemaRegistry {
     ///
     /// # Returns
     /// `Some(descriptor)` if found, `None` otherwise.
-    #[must_use] 
+    #[must_use]
     pub fn get_message(&self, fqn: &str) -> Option<MessageDescriptor> {
         self.pool.get_message_by_name(fqn)
     }
@@ -126,7 +126,7 @@ impl SchemaRegistry {
     /// List all known message type names.
     ///
     /// Returns fully qualified names of all messages in the registry.
-    #[must_use] 
+    #[must_use]
     pub fn list_messages(&self) -> Vec<String> {
         self.pool
             .all_messages()
@@ -137,7 +137,7 @@ impl SchemaRegistry {
     /// List all known service names.
     ///
     /// Returns fully qualified names of all services in the registry.
-    #[must_use] 
+    #[must_use]
     pub fn list_services(&self) -> Vec<String> {
         self.pool
             .services()
@@ -148,7 +148,7 @@ impl SchemaRegistry {
     /// Get raw descriptor set bytes for MCAP embedding.
     ///
     /// Returns a slice of all loaded descriptor sets as raw bytes.
-    #[must_use] 
+    #[must_use]
     pub fn descriptor_sets(&self) -> &[Vec<u8>] {
         &self.loaded_sets
     }

@@ -31,9 +31,8 @@ impl SessionReader {
         let mapped = unsafe { memmap2::Mmap::map(&file)? };
 
         // Validate that it's a valid MCAP file
-        MessageStream::new(&mapped).map_err(|e| {
-            StorageError::InvalidSession(format!("Failed to parse MCAP file: {e}"))
-        })?;
+        MessageStream::new(&mapped)
+            .map_err(|e| StorageError::InvalidSession(format!("Failed to parse MCAP file: {e}")))?;
 
         Ok(Self { mapped })
     }
@@ -117,9 +116,7 @@ impl SessionReader {
                 // Only load protobuf schemas
                 if header.encoding == "protobuf" {
                     registry.load_descriptor_set(&data).map_err(|e| {
-                        StorageError::InvalidSession(format!(
-                            "Failed to load embedded schema: {e}"
-                        ))
+                        StorageError::InvalidSession(format!("Failed to load embedded schema: {e}"))
                     })?;
                 }
             }

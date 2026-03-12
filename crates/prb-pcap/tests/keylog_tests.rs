@@ -212,8 +212,16 @@ fn test_keylog_mixed_tls12_tls13() {
 
     let materials = keylog.lookup(&hex::decode(&cr).unwrap()).unwrap();
     assert_eq!(materials.len(), 2);
-    assert!(materials.iter().any(prb_pcap::tls::keylog::KeyMaterial::is_tls12));
-    assert!(materials.iter().any(prb_pcap::tls::keylog::KeyMaterial::is_tls13));
+    assert!(
+        materials
+            .iter()
+            .any(prb_pcap::tls::keylog::KeyMaterial::is_tls12)
+    );
+    assert!(
+        materials
+            .iter()
+            .any(prb_pcap::tls::keylog::KeyMaterial::is_tls13)
+    );
 }
 
 #[test]

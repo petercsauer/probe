@@ -30,7 +30,7 @@ pub struct TcpFlags {
 
 impl TcpFlags {
     /// Parse TCP flags from the flags byte (lower 6 bits).
-    #[must_use] 
+    #[must_use]
     pub const fn from_byte(flags: u8) -> Self {
         Self {
             fin: flags & 0x01 != 0,
@@ -94,7 +94,7 @@ impl OwnedNormalizedPacket {
     /// Creates an owned packet from a borrowed packet.
     ///
     /// This copies the payload bytes to create an owned variant.
-    #[must_use] 
+    #[must_use]
     pub fn from_borrowed(packet: &NormalizedPacket<'_>) -> Self {
         Self {
             timestamp_us: packet.timestamp_us,
@@ -107,7 +107,7 @@ impl OwnedNormalizedPacket {
     }
 
     /// Alias for `from_borrowed` for convenience.
-    #[must_use] 
+    #[must_use]
     pub fn from_normalized(packet: &NormalizedPacket<'_>) -> Self {
         Self::from_borrowed(packet)
     }
@@ -115,7 +115,7 @@ impl OwnedNormalizedPacket {
     /// Creates a borrowed `NormalizedPacket` from this owned packet.
     ///
     /// The returned packet borrows the payload from `self`.
-    #[must_use] 
+    #[must_use]
     pub fn as_normalized(&self) -> NormalizedPacket<'_> {
         NormalizedPacket {
             timestamp_us: self.timestamp_us,
@@ -143,7 +143,7 @@ pub struct PacketNormalizer {
 
 impl PacketNormalizer {
     /// Creates a new packet normalizer.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             defrag_pool: etherparse::defrag::IpDefragPool::new(),

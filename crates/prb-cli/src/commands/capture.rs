@@ -18,7 +18,9 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
     }
 
     // Resolve interface
-    let interface = if let Some(name) = &args.interface { name.clone() } else {
+    let interface = if let Some(name) = &args.interface {
+        name.clone()
+    } else {
         let default = InterfaceEnumerator::default_device()
             .context("failed to find default capture device")?;
         tracing::info!("Using default interface: {}", default.name);

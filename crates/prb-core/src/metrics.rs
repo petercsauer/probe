@@ -12,7 +12,11 @@ use crate::{
 ///
 /// # Errors
 /// Returns an error if metric computation fails due to invalid timestamp data.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, CoreError> {
     if events.is_empty() {
         return Ok(ConversationMetrics::default());
@@ -228,7 +232,11 @@ pub struct AggregateMetrics {
 }
 
 /// Calculate percentile from sorted values.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub(crate) fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;

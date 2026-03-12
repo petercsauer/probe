@@ -31,13 +31,13 @@ pub struct CaptureStats {
 
 impl CaptureStats {
     /// Total packets dropped (kernel + channel).
-    #[must_use] 
+    #[must_use]
     pub const fn total_drops(&self) -> u64 {
         self.packets_dropped_kernel + self.packets_dropped_channel
     }
 
     /// Packet drop rate as a fraction (0.0 to 1.0).
-    #[must_use] 
+    #[must_use]
     pub fn drop_rate(&self) -> f64 {
         if self.packets_received == 0 {
             0.0
@@ -47,7 +47,7 @@ impl CaptureStats {
     }
 
     /// Drop rate as a percentage.
-    #[must_use] 
+    #[must_use]
     pub fn drop_percentage(&self) -> f64 {
         self.drop_rate() * 100.0
     }

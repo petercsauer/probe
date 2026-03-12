@@ -30,7 +30,7 @@ pub enum KeyMaterial {
 
 impl KeyMaterial {
     /// Returns the raw key bytes.
-    #[must_use] 
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::MasterSecret(bytes) => bytes,
@@ -42,13 +42,13 @@ impl KeyMaterial {
     }
 
     /// Returns true if this is a TLS 1.2 master secret.
-    #[must_use] 
+    #[must_use]
     pub const fn is_tls12(&self) -> bool {
         matches!(self, Self::MasterSecret(_))
     }
 
     /// Returns true if this is a TLS 1.3 traffic secret.
-    #[must_use] 
+    #[must_use]
     pub const fn is_tls13(&self) -> bool {
         matches!(
             self,
@@ -71,7 +71,7 @@ pub struct TlsKeyLog {
 
 impl TlsKeyLog {
     /// Creates an empty key log.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -206,7 +206,7 @@ impl TlsKeyLog {
     }
 
     /// Looks up all key material by `client_random`.
-    #[must_use] 
+    #[must_use]
     pub fn lookup(&self, client_random: &[u8]) -> Option<&[KeyMaterial]> {
         self.keys.get(client_random).map(std::vec::Vec::as_slice)
     }
@@ -215,7 +215,7 @@ impl TlsKeyLog {
     ///
     /// For TLS 1.2, returns the master secret regardless of direction.
     /// For TLS 1.3, returns client or server traffic secret based on direction.
-    #[must_use] 
+    #[must_use]
     pub fn lookup_for_direction(
         &self,
         client_random: &[u8],
@@ -254,13 +254,13 @@ impl TlsKeyLog {
     }
 
     /// Returns the number of stored keys.
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.keys.len()
     }
 
     /// Returns true if no keys are stored.
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }

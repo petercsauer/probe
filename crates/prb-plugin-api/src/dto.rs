@@ -48,7 +48,7 @@ pub struct DebugEventDto {
 
 impl DebugEventDto {
     /// Create a minimal DTO for testing.
-    #[must_use] 
+    #[must_use]
     pub fn minimal(transport: &str, direction: &str) -> Self {
         Self {
             timestamp_nanos: 0,

@@ -43,14 +43,11 @@ impl InterfaceInfo {
         let is_wireless = device.name.contains("wlan")
             || device.name.contains("wifi")
             || device.name.contains("wireless")
-            || device
-                .desc
-                .as_ref()
-                .is_some_and(|d| {
-                    d.to_lowercase().contains("wireless")
-                        || d.to_lowercase().contains("wi-fi")
-                        || d.to_lowercase().contains("802.11")
-                });
+            || device.desc.as_ref().is_some_and(|d| {
+                d.to_lowercase().contains("wireless")
+                    || d.to_lowercase().contains("wi-fi")
+                    || d.to_lowercase().contains("802.11")
+            });
 
         Self {
             name: device.name,
@@ -64,7 +61,7 @@ impl InterfaceInfo {
     }
 
     /// Get a status string for display.
-    #[must_use] 
+    #[must_use]
     pub const fn status(&self) -> &str {
         if self.is_up && self.is_running {
             "UP"
@@ -76,7 +73,7 @@ impl InterfaceInfo {
     }
 
     /// Get a formatted address list for display.
-    #[must_use] 
+    #[must_use]
     pub fn addresses_display(&self) -> String {
         if self.addresses.is_empty() {
             "(no address)".to_string()
