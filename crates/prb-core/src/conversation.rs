@@ -76,7 +76,7 @@ impl std::fmt::Display for ConversationKind {
 }
 
 /// Lifecycle state of a conversation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ConversationState {
     /// Conversation is ongoing (e.g., streaming).

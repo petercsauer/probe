@@ -11,9 +11,36 @@ use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
 use prb_core::conversation::{Conversation, ConversationState};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortMode {
+    Duration,
+    StartTime,
+    Status,
+}
+
+impl SortMode {
+    fn next(self) -> Self {
+        match self {
+            SortMode::Duration => SortMode::StartTime,
+            SortMode::StartTime => SortMode::Status,
+            SortMode::Status => SortMode::Duration,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            SortMode::Duration => "Duration",
+            SortMode::StartTime => "Start Time",
+            SortMode::Status => "Status",
+        }
+    }
+}
+
 pub struct WaterfallPane {
     pub selected: usize,
     pub scroll_offset: usize,
+    pub sort_mode: SortMode,
+    pub sort_ascending: bool,
 }
 
 impl Default for WaterfallPane {
@@ -27,6 +54,8 @@ impl WaterfallPane {
         WaterfallPane {
             selected: 0,
             scroll_offset: 0,
+            sort_mode: SortMode::StartTime,
+            sort_ascending: true,
         }
     }
 
@@ -50,26 +79,85 @@ impl WaterfallPane {
         }
     }
 
-    /// Compute time range from all conversations
-    fn compute_time_range(conversations: &[Conversation]) -> Option<(u64, u64)> {
-        if conversations.is_empty() {
+    /// Filter conversations to only include those with events in the filtered set
+    fn filter_conversations(&self, conversations: &[Conversation], state: &AppState) -> Vec<usize> {
+        let filtered_event_ids: std::collections::HashSet<_> = state
+            .filtered_indices
+            .iter()
+            .filter_map(|&idx| state.store.get(idx).map(|e| e.id))
+            .collect();
+
+        conversations
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, conv)| {
+                // Include conversation if any of its events are in the filtered set
+                let has_filtered_event = conv
+                    .event_ids
+                    .iter()
+                    .any(|event_id| filtered_event_ids.contains(event_id));
+                if has_filtered_event {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Sort conversations according to current sort mode
+    fn sort_conversations(&self, conversations: &[Conversation], filtered_indices: &[usize]) -> Vec<usize> {
+        let mut indices = filtered_indices.to_vec();
+
+        indices.sort_by(|&a, &b| {
+            let conv_a = &conversations[a];
+            let conv_b = &conversations[b];
+
+            let ordering = match self.sort_mode {
+                SortMode::Duration => conv_a.metrics.duration_ns.cmp(&conv_b.metrics.duration_ns),
+                SortMode::StartTime => {
+                    match (conv_a.metrics.start_time, conv_b.metrics.start_time) {
+                        (Some(t_a), Some(t_b)) => t_a.cmp(&t_b),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    }
+                }
+                SortMode::Status => conv_a.state.cmp(&conv_b.state),
+            };
+
+            if self.sort_ascending {
+                ordering
+            } else {
+                ordering.reverse()
+            }
+        });
+
+        indices
+    }
+
+    /// Compute time range from conversations at given indices
+    fn compute_time_range_filtered(conversations: &[Conversation], indices: &[usize]) -> Option<(u64, u64)> {
+        if indices.is_empty() {
             return None;
         }
 
         let mut min_time = u64::MAX;
         let mut max_time = 0u64;
 
-        for conv in conversations {
-            if let Some(start) = conv.metrics.start_time {
-                let start_ns = start.as_nanos();
-                if start_ns < min_time {
-                    min_time = start_ns;
+        for &idx in indices {
+            if let Some(conv) = conversations.get(idx) {
+                if let Some(start) = conv.metrics.start_time {
+                    let start_ns = start.as_nanos();
+                    if start_ns < min_time {
+                        min_time = start_ns;
+                    }
                 }
-            }
-            if let Some(end) = conv.metrics.end_time {
-                let end_ns = end.as_nanos();
-                if end_ns > max_time {
-                    max_time = end_ns;
+                if let Some(end) = conv.metrics.end_time {
+                    let end_ns = end.as_nanos();
+                    if end_ns > max_time {
+                        max_time = end_ns;
+                    }
                 }
             }
         }
@@ -231,27 +319,47 @@ impl WaterfallPane {
         let style = theme.normal_row();
         let y = area.y;
 
-        // Line 1: Duration
+        // Line 1: Duration and breakdown
         let duration_str = format!(
             "Duration: {}",
             Self::format_duration(conv.metrics.duration_ns)
         );
         buf.set_string(area.x, y, &duration_str, style);
 
-        // Line 2: TTFR
+        // Line 2: TTFR and breakdown percentages
         if let Some(ttfr) = conv.metrics.time_to_first_response_ns {
             let ttfr_str = format!("TTFR: {}", Self::format_duration(ttfr));
-            buf.set_string(area.x, y + 1, &ttfr_str, style);
+            let ttfr_pct = if conv.metrics.duration_ns > 0 {
+                (ttfr as f64 / conv.metrics.duration_ns as f64 * 100.0) as u32
+            } else {
+                0
+            };
+            let response_pct = 100u32.saturating_sub(ttfr_pct);
+
+            let breakdown = format!(
+                "{}  |  Request: {}% (█)  Response: {}% (░)",
+                ttfr_str, ttfr_pct, response_pct
+            );
+            buf.set_string(area.x, y + 1, &breakdown, style);
         } else {
-            buf.set_string(area.x, y + 1, "TTFR: N/A", style);
+            buf.set_string(area.x, y + 1, "TTFR: N/A  |  No timing breakdown available", style);
         }
 
-        // Line 3: Request/Response counts and bytes
+        // Line 3: Request/Response counts, bytes, and status
+        let status_str = match conv.state {
+            ConversationState::Complete => "✓ Complete",
+            ConversationState::Error => "✗ Error",
+            ConversationState::Timeout => "⏱ Timeout",
+            ConversationState::Active => "⟳ Active",
+            ConversationState::Incomplete => "◐ Incomplete",
+        };
+
         let metrics_str = format!(
-            "Requests: {}  Responses: {}  Bytes: {}",
+            "Req: {}  Resp: {}  Bytes: {}  Status: {}",
             conv.metrics.request_count,
             conv.metrics.response_count,
-            conv.metrics.total_bytes
+            conv.metrics.total_bytes,
+            status_str
         );
         buf.set_string(area.x, y + 2, &metrics_str, style);
     }
@@ -268,7 +376,13 @@ impl PaneComponent for WaterfallPane {
             return Action::None;
         }
 
-        let max_idx = conversations.len().saturating_sub(1);
+        // Get filtered and sorted indices
+        let filtered_indices = self.filter_conversations(conversations, state);
+        if filtered_indices.is_empty() {
+            return Action::None;
+        }
+
+        let max_idx = filtered_indices.len().saturating_sub(1);
 
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
@@ -301,8 +415,10 @@ impl PaneComponent for WaterfallPane {
             }
             KeyCode::Enter => {
                 // Jump to first event of selected conversation
-                if self.selected < conversations.len() {
-                    let conv = &conversations[self.selected];
+                let sorted_indices = self.sort_conversations(conversations, &filtered_indices);
+                if self.selected < sorted_indices.len() {
+                    let conv_idx = sorted_indices[self.selected];
+                    let conv = &conversations[conv_idx];
                     if let Some(&first_event_id) = conv.event_ids.first() {
                         // Find the event index in the filtered indices
                         if let Some(pos) = state.filtered_indices.iter().position(|&idx| {
@@ -312,6 +428,18 @@ impl PaneComponent for WaterfallPane {
                         }
                     }
                 }
+                Action::None
+            }
+            KeyCode::Char('s') => {
+                // Cycle sort mode
+                self.sort_mode = self.sort_mode.next();
+                self.selected = 0;
+                self.scroll_offset = 0;
+                Action::None
+            }
+            KeyCode::Char('r') => {
+                // Reverse sort order
+                self.sort_ascending = !self.sort_ascending;
                 Action::None
             }
             _ => Action::None,
@@ -326,9 +454,11 @@ impl PaneComponent for WaterfallPane {
         theme: &ThemeConfig,
         focused: bool,
     ) {
+        let sort_indicator = if self.sort_ascending { "↑" } else { "↓" };
+        let title = format!(" Waterfall [Sort: {} {}] ", self.sort_mode.label(), sort_indicator);
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" Waterfall ")
+            .title(title)
             .border_style(if focused {
                 theme.focused_border()
             } else {
@@ -365,8 +495,20 @@ impl PaneComponent for WaterfallPane {
             return;
         }
 
-        // Compute time range
-        let Some((min_time, max_time)) = Self::compute_time_range(conversations) else {
+        // Filter conversations based on event filter
+        let filtered_indices = self.filter_conversations(conversations, state);
+        if filtered_indices.is_empty() {
+            buf.set_string(
+                inner.x,
+                inner.y,
+                "No conversations match current filter",
+                theme.normal_row(),
+            );
+            return;
+        }
+
+        // Compute time range from filtered conversations
+        let Some((min_time, max_time)) = Self::compute_time_range_filtered(conversations, &filtered_indices) else {
             buf.set_string(
                 inner.x,
                 inner.y,
@@ -389,6 +531,20 @@ impl PaneComponent for WaterfallPane {
 
         let visible_height = (inner.height - reserved_height) as usize;
 
+        // Calculate bar width (leave room for label)
+        let label_width = 25u16;
+        let duration_width = 8u16;
+        let error_label_width = 5u16;
+        let bar_width = inner.width.saturating_sub(label_width + duration_width + error_label_width + 3);
+
+        // Get sorted filtered indices
+        let sorted_indices = self.sort_conversations(conversations, &filtered_indices);
+
+        // Clamp selection to valid range
+        if self.selected >= sorted_indices.len() {
+            self.selected = sorted_indices.len().saturating_sub(1);
+        }
+
         // Adjust scroll to keep selection visible
         if self.selected >= self.scroll_offset + visible_height {
             self.scroll_offset = self.selected.saturating_sub(visible_height - 1);
@@ -396,21 +552,16 @@ impl PaneComponent for WaterfallPane {
             self.scroll_offset = self.selected;
         }
 
-        // Calculate bar width (leave room for label)
-        let label_width = 25u16;
-        let duration_width = 8u16;
-        let error_label_width = 5u16;
-        let bar_width = inner.width.saturating_sub(label_width + duration_width + error_label_width + 3);
-
         // Render conversations
         let mut y = inner.y;
-        for (idx, conv) in conversations
+        for (display_idx, &conv_idx) in sorted_indices
             .iter()
             .enumerate()
             .skip(self.scroll_offset)
             .take(visible_height)
         {
-            let is_selected = idx == self.selected;
+            let is_selected = display_idx == self.selected;
+            let conv = &conversations[conv_idx];
 
             // Render method label (left-aligned, truncated)
             let method = Self::get_method_label(conv);
@@ -471,7 +622,7 @@ impl PaneComponent for WaterfallPane {
         self.render_time_axis(axis_area, buf, time_range, theme);
 
         // Render latency breakdown for selected conversation
-        if self.selected < conversations.len() {
+        if self.selected < sorted_indices.len() {
             let breakdown_y = axis_y + axis_height;
             let breakdown_area = Rect {
                 x: inner.x,
@@ -479,18 +630,19 @@ impl PaneComponent for WaterfallPane {
                 width: inner.width,
                 height: breakdown_height,
             };
+            let selected_conv_idx = sorted_indices[self.selected];
             self.render_latency_breakdown(
                 breakdown_area,
                 buf,
-                &conversations[self.selected],
+                &conversations[selected_conv_idx],
                 theme,
             );
         }
 
         // Render scrollbar if needed
-        if conversations.len() > visible_height {
+        if sorted_indices.len() > visible_height {
             let mut scrollbar_state =
-                ScrollbarState::new(conversations.len()).position(self.scroll_offset);
+                ScrollbarState::new(sorted_indices.len()).position(self.scroll_offset);
 
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
