@@ -329,3 +329,40 @@ fn test_app_render_with_different_directions() {
 
     // Should render all direction types
 }
+
+#[test]
+fn test_metrics_overlay_toggle() {
+    let events = vec![
+        make_event(1, 1_000_000_000, TransportKind::Grpc),
+        make_event(2, 2_000_000_000, TransportKind::Zmq),
+        make_event(3, 3_000_000_000, TransportKind::Grpc),
+    ];
+    let store = EventStore::new(events);
+    let mut app = App::new(store, None, None);
+
+    // Toggle metrics overlay on with 'm' key
+    let m_key = KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE);
+    let should_quit = app.test_handle_key(m_key);
+    assert!(!should_quit, "Pressing 'm' should not quit");
+
+    // Verify overlay is active by rendering (should not panic)
+    let area = Rect::new(0, 0, 100, 40);
+    let mut buffer = Buffer::empty(area);
+    app.test_render_to_buffer(area, &mut buffer);
+
+    // Toggle metrics overlay off with 'm' key again
+    let should_quit = app.test_handle_key(m_key);
+    assert!(!should_quit, "Pressing 'm' again should not quit");
+
+    // Render without overlay
+    let mut buffer2 = Buffer::empty(area);
+    app.test_render_to_buffer(area, &mut buffer2);
+
+    // Test closing with Esc key
+    let should_quit = app.test_handle_key(m_key); // Turn on again
+    assert!(!should_quit);
+
+    let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    let should_quit = app.test_handle_key(esc_key);
+    assert!(!should_quit, "Pressing Esc should close overlay but not quit");
+}

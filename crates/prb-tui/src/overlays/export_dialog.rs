@@ -27,7 +27,8 @@ pub struct ExportDialogOverlay {
 
 impl ExportDialogOverlay {
     pub fn new(filtered_count: usize) -> Self {
-        let formats = vec![
+        #[allow(unused_mut)]
+        let mut formats = vec![
             ExportFormat {
                 format: "json".to_string(),
                 description: "JSON (single event)".to_string(),
@@ -49,11 +50,24 @@ impl ExportDialogOverlay {
                 extension: "har".to_string(),
             },
             ExportFormat {
+                format: "otlp".to_string(),
+                description: "OTLP (OpenTelemetry)".to_string(),
+                extension: "json".to_string(),
+            },
+            ExportFormat {
                 format: "html".to_string(),
                 description: "HTML (report)".to_string(),
                 extension: "html".to_string(),
             },
         ];
+
+        // Add Parquet if feature is enabled
+        #[cfg(feature = "parquet")]
+        formats.push(ExportFormat {
+            format: "parquet".to_string(),
+            description: "Parquet (columnar format)".to_string(),
+            extension: "parquet".to_string(),
+        });
 
         let default_path = format!("./export.{}", formats[0].extension);
         let mut output_path_input = Input::default();
