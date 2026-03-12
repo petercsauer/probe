@@ -21,7 +21,12 @@ async def main():
     print(f"Repository root: {repo_root}")
     print(f"Creating pool of 3 worktrees...")
 
-    pool = WorktreePool(repo_root=repo_root, pool_size=3, target_branch="main")
+    pool = WorktreePool(
+        repo_root=repo_root,
+        pool_size=3,
+        target_branch="main",
+        plan_id="test-plan"
+    )
 
     try:
         # Create the pool
@@ -87,7 +92,7 @@ async def main():
             capture_output=True,
             text=True
         )
-        if ".claude/worktrees/pool-" not in result.stdout:
+        if ".claude/worktrees/test-plan/pool-" not in result.stdout:
             print("[OK] All pool worktrees removed")
         else:
             print("WARNING: Some pool worktrees still exist:")

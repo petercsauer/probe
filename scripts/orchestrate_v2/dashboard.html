@@ -30,6 +30,17 @@
   .header { padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .header h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
   .header .meta { color: var(--text-dim); font-size: 13px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .header .project-stats {
+    display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--text-dim);
+    margin-left: auto;
+  }
+  .header .project-stats .metric {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .header .project-stats .metric .value {
+    color: var(--text); font-weight: 600; font-family: 'Monaco', 'Menlo', monospace;
+  }
+  .header .project-stats .metric.cost .value { color: var(--running); }
   .progress-bar { margin: 10px 0 0; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pass), #2ea043); border-radius: 3px; transition: width 0.5s ease; }
 
@@ -577,6 +588,7 @@
     <span id="progress-text">0/0 segments</span>
     <span id="elapsed">Elapsed: --</span>
     <span id="eta-text" style="color: var(--partial);"></span>
+    <span class="project-stats" id="project-stats" style="display: none;"></span>
   </div>
   <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 </div>
@@ -1021,6 +1033,9 @@
         // ETA
         const eta = computeEta(data.segments, data.max_parallel || 4);
         document.getElementById('eta-text').textContent = eta;
+
+        // Update project-wide stats
+        updateProjectStats(data.segments);
 
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
@@ -1520,6 +1535,81 @@
     }
 
     displayEl.innerHTML = html;
+  }
+
+  function updateProjectStats(segments) {
+    const statsEl = document.getElementById('project-stats');
+    if (!statsEl || !segments) return;
+
+    // Aggregate all token/cost data across all segments
+    let totalIn = 0;
+    let totalOut = 0;
+    let totalCacheRead = 0;
+    let totalCost = 0;
+
+    segments.forEach(seg => {
+      if (seg.attempts_history && seg.attempts_history.length > 0) {
+        seg.attempts_history.forEach(att => {
+          totalIn += att.tokens_in || 0;
+          totalOut += att.tokens_out || 0;
+          totalCacheRead += att.cache_read_tokens || 0;
+          totalCost += att.cost_usd || 0;
+        });
+      }
+    });
+
+    const totalTokens = totalIn + totalOut;
+
+    // Only show if we have data
+    if (totalTokens === 0 && totalCost === 0) {
+      statsEl.style.display = 'none';
+      return;
+    }
+
+    statsEl.style.display = 'flex';
+
+    // Format large numbers
+    function formatNumber(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
+
+    let html = '';
+
+    // Total tokens
+    if (totalTokens > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-coins"></i>
+          <span class="value">${formatNumber(totalTokens)}</span>
+          <span style="font-size: 10px;">tok</span>
+        </div>
+      `;
+    }
+
+    // Cached tokens
+    if (totalCacheRead > 0) {
+      html += `
+        <div class="metric">
+          <i class="fa-solid fa-database" style="color: var(--pass);"></i>
+          <span class="value">${formatNumber(totalCacheRead)}</span>
+          <span style="font-size: 10px;">cached</span>
+        </div>
+      `;
+    }
+
+    // Total cost
+    if (totalCost > 0) {
+      html += `
+        <div class="metric cost">
+          <i class="fa-solid fa-dollar-sign"></i>
+          <span class="value">$${totalCost.toFixed(3)}</span>
+        </div>
+      `;
+    }
+
+    statsEl.innerHTML = html;
   }
 
   function renderLogTabs(segNum) {

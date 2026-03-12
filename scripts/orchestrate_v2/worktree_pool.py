@@ -7,6 +7,7 @@ for concurrent segment execution with complete isolation.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import subprocess
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -29,7 +30,8 @@ class WorktreePool:
         self,
         repo_root: Path,
         pool_size: int,
-        target_branch: str = "main"
+        target_branch: str = "main",
+        plan_id: str | None = None
     ):
         """Initialize worktree pool.
 
@@ -37,10 +39,12 @@ class WorktreePool:
             repo_root: Root directory of the git repository
             pool_size: Number of worktrees to create in the pool
             target_branch: Branch to reset worktrees to (default: main)
+            plan_id: Plan identifier for isolated worktree pools (default: "default")
         """
         self._repo_root = repo_root
         self._pool_size = pool_size
         self._target_branch = target_branch
+        self._plan_id = plan_id or "default"
         self._worktrees: list[Worktree] = []
         self._queue: asyncio.Queue[Worktree] = asyncio.Queue()
 
@@ -49,10 +53,13 @@ class WorktreePool:
 
         This method:
         1. Prunes stale worktree references
-        2. Creates or reuses worktrees in .claude/worktrees/pool-{id:02d}
+        2. Creates or reuses worktrees in .claude/worktrees/{plan_id}/pool-{id:02d}
         3. Initializes the acquisition queue
+
+        Each plan gets isolated worktrees to allow multiple orchestrators to run
+        simultaneously without conflicts.
         """
-        worktrees_dir = self._repo_root / ".claude" / "worktrees"
+        worktrees_dir = self._repo_root / ".claude" / "worktrees" / self._plan_id
         worktrees_dir.mkdir(parents=True, exist_ok=True)
 
         # Prune stale worktree references
@@ -64,7 +71,7 @@ class WorktreePool:
         for i in range(self._pool_size):
             pool_id = i
             wt_path = worktrees_dir / f"pool-{pool_id:02d}"
-            wt_branch = f"wt/pool-{pool_id:02d}"
+            wt_branch = f"wt/{self._plan_id}/pool-{pool_id:02d}"
 
             # Check if worktree already exists
             if str(wt_path) in existing_worktrees:
