@@ -1,0 +1,14 @@
+[package]
+name = "invalid-plugin"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+# This package is not part of the parent workspace
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+prb-plugin-api = { path = "../../../../prb-plugin-api" }
+serde_json = "1"
