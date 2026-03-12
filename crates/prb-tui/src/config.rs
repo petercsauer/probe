@@ -43,80 +43,80 @@ pub struct ColorOverrides {
 impl ColorOverrides {
     /// Apply color overrides to a ThemeConfig
     pub fn apply_to_theme(&self, theme: &mut crate::theme::ThemeConfig) {
-        if let Some(ref color_str) = self.selected_row_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.selected_row_fg = color;
-            }
+        if let Some(ref color_str) = self.selected_row_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.selected_row_fg = color;
         }
-        if let Some(ref color_str) = self.selected_row_bg {
-            if let Some(color) = parse_color(color_str) {
-                theme.selected_row_bg = color;
-            }
+        if let Some(ref color_str) = self.selected_row_bg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.selected_row_bg = color;
         }
-        if let Some(ref color_str) = self.zebra_bg {
-            if let Some(color) = parse_color(color_str) {
-                theme.zebra_bg = color;
-            }
+        if let Some(ref color_str) = self.zebra_bg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.zebra_bg = color;
         }
-        if let Some(ref color_str) = self.warning_bg {
-            if let Some(color) = parse_color(color_str) {
-                theme.warning_bg = color;
-            }
+        if let Some(ref color_str) = self.warning_bg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.warning_bg = color;
         }
-        if let Some(ref color_str) = self.focused_border {
-            if let Some(color) = parse_color(color_str) {
-                theme.focused_border = color;
-            }
+        if let Some(ref color_str) = self.focused_border
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.focused_border = color;
         }
-        if let Some(ref color_str) = self.unfocused_border {
-            if let Some(color) = parse_color(color_str) {
-                theme.unfocused_border = color;
-            }
+        if let Some(ref color_str) = self.unfocused_border
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.unfocused_border = color;
         }
-        if let Some(ref color_str) = self.focused_title_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.focused_title_fg = color;
-            }
+        if let Some(ref color_str) = self.focused_title_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.focused_title_fg = color;
         }
-        if let Some(ref color_str) = self.unfocused_title_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.unfocused_title_fg = color;
-            }
+        if let Some(ref color_str) = self.unfocused_title_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.unfocused_title_fg = color;
         }
-        if let Some(ref color_str) = self.header_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.header_fg = color;
-            }
+        if let Some(ref color_str) = self.header_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.header_fg = color;
         }
-        if let Some(ref color_str) = self.status_bar_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.status_bar_fg = color;
-            }
+        if let Some(ref color_str) = self.status_bar_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.status_bar_fg = color;
         }
-        if let Some(ref color_str) = self.status_bar_bg {
-            if let Some(color) = parse_color(color_str) {
-                theme.status_bar_bg = color;
-            }
+        if let Some(ref color_str) = self.status_bar_bg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.status_bar_bg = color;
         }
-        if let Some(ref color_str) = self.filter_bar_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.filter_bar_fg = color;
-            }
+        if let Some(ref color_str) = self.filter_bar_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.filter_bar_fg = color;
         }
-        if let Some(ref color_str) = self.filter_bar_bg {
-            if let Some(color) = parse_color(color_str) {
-                theme.filter_bar_bg = color;
-            }
+        if let Some(ref color_str) = self.filter_bar_bg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.filter_bar_bg = color;
         }
-        if let Some(ref color_str) = self.filter_error_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.filter_error_fg = color;
-            }
+        if let Some(ref color_str) = self.filter_error_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.filter_error_fg = color;
         }
-        if let Some(ref color_str) = self.warning_fg {
-            if let Some(color) = parse_color(color_str) {
-                theme.warning_fg = color;
-            }
+        if let Some(ref color_str) = self.warning_fg
+            && let Some(color) = parse_color(color_str)
+        {
+            theme.warning_fg = color;
         }
     }
 
@@ -484,13 +484,13 @@ pub fn parse_color(s: &str) -> Option<Color> {
     let s = s.trim();
 
     // Try hex format
-    if let Some(hex) = s.strip_prefix('#') {
-        if hex.len() == 6 {
-            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            return Some(Color::Rgb(r, g, b));
-        }
+    if let Some(hex) = s.strip_prefix('#')
+        && hex.len() == 6
+    {
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        return Some(Color::Rgb(r, g, b));
     }
 
     // Try color names

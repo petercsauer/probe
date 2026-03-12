@@ -589,13 +589,7 @@ fn infer_message_type_from_grpc_method(
 
     // Check which message types exist in the registry
     let available = registry.list_messages();
-    for candidate in candidates {
-        if available.contains(&candidate) {
-            return Some(candidate);
-        }
-    }
-
-    None
+    candidates.into_iter().find(|candidate| available.contains(candidate))
 }
 
 /// Build tree items from a decoded protobuf message.
