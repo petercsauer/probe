@@ -63,20 +63,31 @@ If segment brief doesn't separate targeted from regression tests, treat all as P
 
 **CRITICAL: Status Field Format**
 
-Your FINAL message must include EXACTLY one of these three status lines:
+Your FINAL message MUST include EXACTLY one of these three status lines:
 - `**Status:** PASS`
 - `**Status:** PARTIAL`
 - `**Status:** BLOCKED`
 
-The orchestrator parses your output using exact string matching. Use the EXACT format above.
+The orchestrator parses your output using exact string matching. Use the EXACT format above — including the bold markdown (`**Status:**`) and exact word (`PASS`, `PARTIAL`, or `BLOCKED`).
 
 Do NOT use variations like:
 - ❌ `**Status:** COMPLETE` (will work but logged as non-standard)
 - ❌ `**Status:** SUCCESS` (will work but logged as non-standard)
+- ❌ `**Status:** ✅ PASS` (emoji will cause parsing issues)
 - ❌ `Segment Status: ✅ COMPLETE` (will work but requires regex fallback)
+- ❌ `Ready for commit` (will be detected but logged as non-standard)
 - ❌ Just ending with a summary without the status line (will be marked "unknown")
 
-**IMPORTANT:** Output the status line as your LAST substantive statement before any final summaries.
+**CRITICAL:** Output the status line at the END of your builder report, not buried in the middle. The orchestrator reads your FINAL output to extract status.
+
+**Template to copy:**
+```
+## Builder Report: [Segment Title]
+
+**Status:** PASS
+**Cycles used:** N / [budget]
+[rest of report]
+```
 
 ```
 ## Builder Report: [Segment Title]
@@ -195,4 +206,23 @@ All 326 tests passing. No regressions.
 **IMPORTANT:** Do NOT write additional commentary or summaries after the status line. The orchestrator reads your output sequentially and expects the status marker to be your final substantive statement.
 
 If you're writing completion reports or additional documentation, write those BEFORE the structured report.
+
+---
+
+## Before You Finish - Final Checklist
+
+When you're ready to report completion, verify:
+
+✅ **Status line is present:** Your output contains EXACTLY one of:
+   - `**Status:** PASS` (all exit criteria met)
+   - `**Status:** PARTIAL` (budget exhausted, made progress)
+   - `**Status:** BLOCKED` (stuck, no progress in 3 cycles)
+
+✅ **Status line is at the END:** Place it in your final builder report, not buried in early commentary
+
+✅ **Exact format used:** `**Status:** PASS` with bold markdown, not variations like "Status: ✅ PASS" or "COMPLETE"
+
+✅ **No text after status:** Don't add summaries, encouragement, or next steps after the status line
+
+**If you forget the status line, the orchestrator will mark you as "UNKNOWN" and retry your segment, wasting cycles.**
 
