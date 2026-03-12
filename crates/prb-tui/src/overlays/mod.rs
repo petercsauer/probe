@@ -8,6 +8,7 @@ pub mod follow_stream;
 pub mod metrics;
 pub mod plugin_manager;
 pub mod session_info;
+pub mod theme_editor;
 pub mod welcome;
 pub mod which_key;
 
@@ -19,5 +20,6 @@ pub use follow_stream::FollowStreamOverlay;
 pub use metrics::MetricsOverlay;
 pub use plugin_manager::{PluginEntry, PluginManagerOverlay, PluginType};
 pub use session_info::{ChannelDisplay, SessionInfo, SessionInfoOverlay};
+pub use theme_editor::ThemeEditorOverlay;
 pub use welcome::WelcomeOverlay;
 pub use which_key::WhichKeyOverlay;

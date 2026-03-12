@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package test;
+
+// Simple test message for schema-aware decoding verification
+message TestMessage {
+  string name = 1;
+  int32 id = 2;
+  bool active = 3;
+}
+
+// Nested message to test schema tree expansion
+message UserRequest {
+  string user_id = 1;
+  TestMessage profile = 2;
+  repeated string tags = 3;
+}

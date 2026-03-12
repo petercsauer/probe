@@ -226,6 +226,9 @@ def _extract_status(log_text: str) -> str:
     patterns = [
         (r"\*\*Status:\*\*\s+(COMPLETE|SUCCESS|DONE)", "pass"),
         (r"Status:\s+(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"\*\*Segment Status:\*\*\s*✅\s*(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"Segment Status:\s*✅\s*(COMPLETE|SUCCESS|DONE)", "pass"),
+        (r"COMPLETE\s*-\s*No further work required", "pass"),
         (r"\*\*Status:\*\*\s+(IN_PROGRESS|ONGOING)", "partial"),
         (r"Status:\s+(IN_PROGRESS|ONGOING)", "partial"),
     ]

@@ -218,3 +218,26 @@ fn test_all_supported_formats() {
     #[cfg(feature = "parquet")]
     assert!(formats.contains(&"parquet"));
 }
+
+#[test]
+#[cfg(feature = "parquet")]
+fn test_export_parquet() {
+    let temp_dir = TempDir::new().unwrap();
+    let export_path = temp_dir.path().join("export.parquet");
+
+    let events = create_test_events();
+
+    // Export to Parquet using the prb-export crate
+    let exporter = prb_export::create_exporter("parquet").unwrap();
+    let file = fs::File::create(&export_path).unwrap();
+    let mut writer = BufWriter::new(file);
+    exporter.export(&events, &mut writer).unwrap();
+    writer.flush().unwrap();
+
+    // Verify file exists
+    assert!(export_path.exists());
+
+    // Verify file has content (Parquet files have a binary header)
+    let metadata = fs::metadata(&export_path).unwrap();
+    assert!(metadata.len() > 0, "Parquet file should have content");
+}

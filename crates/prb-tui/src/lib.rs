@@ -1,4 +1,5 @@
 pub mod ai_features;
+pub mod ai_smart;
 pub mod app;
 pub mod config;
 pub mod demo;

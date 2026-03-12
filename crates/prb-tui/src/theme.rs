@@ -41,8 +41,10 @@ pub struct ThemeConfig {
 impl ThemeConfig {
     pub fn from_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
-            "dark" => Self::dark(),
+            "dark" | "default" => Self::dark(),
             "light" => Self::light(),
+            "solarized" | "solarized-dark" | "solarized_dark" => Self::solarized(),
+            "monokai" => Self::monokai(),
             "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => Self::catppuccin_mocha(),
             "dracula" => Self::dracula(),
             "colorblind-safe" | "colorblind_safe" | "colorblind safe" | "accessible" => Self::colorblind_safe(),
@@ -316,6 +318,96 @@ impl ThemeConfig {
             sparkline_fg: Color::White,
             help_key_fg: Color::White,
             help_desc_fg: Color::Rgb(200, 200, 200), // Light gray
+            transport_colors,
+        }
+    }
+
+    pub fn solarized() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Solarized dark palette
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(133, 153, 0)); // Green
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(181, 137, 0)); // Yellow
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(211, 54, 130)); // Magenta
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(38, 139, 210)); // Blue
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(42, 161, 152)); // Cyan
+        transport_colors.insert(TransportKind::JsonFixture, Color::Rgb(131, 148, 150)); // Base0
+
+        ThemeConfig {
+            name: "Solarized".to_string(),
+            selected_row_fg: Color::Rgb(0, 43, 54), // Base03
+            selected_row_bg: Color::Rgb(38, 139, 210), // Blue
+            zebra_bg: Color::Rgb(7, 54, 66), // Base02
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(88, 28, 36), // Dark red
+            focused_border: Color::Rgb(38, 139, 210), // Blue
+            unfocused_border: Color::Rgb(88, 110, 117), // Base01
+            focused_title_fg: Color::Rgb(38, 139, 210), // Blue
+            unfocused_title_fg: Color::Rgb(88, 110, 117), // Base01
+            header_fg: Color::Rgb(181, 137, 0), // Yellow
+            status_bar_fg: Color::Rgb(131, 148, 150), // Base0
+            status_bar_bg: Color::Rgb(7, 54, 66), // Base02
+            filter_bar_fg: Color::Rgb(131, 148, 150), // Base0
+            filter_bar_bg: Color::Rgb(0, 43, 54), // Base03
+            filter_error_fg: Color::Rgb(220, 50, 47), // Red
+            warning_fg: Color::Rgb(220, 50, 47), // Red
+            tree_key_fg: Color::Rgb(38, 139, 210), // Blue
+            tree_value_fg: Color::Rgb(131, 148, 150), // Base0
+            hex_offset_fg: Color::Rgb(88, 110, 117), // Base01
+            hex_byte_fg: Color::Rgb(131, 148, 150), // Base0
+            hex_highlight_fg: Color::Rgb(0, 43, 54), // Base03
+            hex_highlight_bg: Color::Rgb(181, 137, 0), // Yellow
+            hex_search_match_fg: Color::Rgb(0, 43, 54), // Base03
+            hex_search_match_bg: Color::Rgb(211, 54, 130), // Magenta
+            hex_ascii_fg: Color::Rgb(133, 153, 0), // Green
+            hex_nonprint_fg: Color::Rgb(88, 110, 117), // Base01
+            sparkline_fg: Color::Rgb(38, 139, 210), // Blue
+            help_key_fg: Color::Rgb(181, 137, 0), // Yellow
+            help_desc_fg: Color::Rgb(131, 148, 150), // Base0
+            transport_colors,
+        }
+    }
+
+    pub fn monokai() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Monokai palette
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(166, 226, 46)); // Green
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(230, 219, 116)); // Yellow
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(174, 129, 255)); // Purple
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(102, 217, 239)); // Blue/Cyan
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(249, 38, 114)); // Pink
+        transport_colors.insert(TransportKind::JsonFixture, Color::Rgb(248, 248, 242)); // Foreground
+
+        ThemeConfig {
+            name: "Monokai".to_string(),
+            selected_row_fg: Color::Rgb(39, 40, 34), // Background
+            selected_row_bg: Color::Rgb(102, 217, 239), // Blue/Cyan
+            zebra_bg: Color::Rgb(30, 31, 27), // Darker background
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(68, 23, 36), // Dark red
+            focused_border: Color::Rgb(102, 217, 239), // Blue/Cyan
+            unfocused_border: Color::Rgb(117, 113, 94), // Comment
+            focused_title_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
+            unfocused_title_fg: Color::Rgb(117, 113, 94), // Comment
+            header_fg: Color::Rgb(230, 219, 116), // Yellow
+            status_bar_fg: Color::Rgb(248, 248, 242), // Foreground
+            status_bar_bg: Color::Rgb(73, 72, 62), // Line highlight
+            filter_bar_fg: Color::Rgb(248, 248, 242), // Foreground
+            filter_bar_bg: Color::Rgb(39, 40, 34), // Background
+            filter_error_fg: Color::Rgb(249, 38, 114), // Pink
+            warning_fg: Color::Rgb(249, 38, 114), // Pink
+            tree_key_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
+            tree_value_fg: Color::Rgb(248, 248, 242), // Foreground
+            hex_offset_fg: Color::Rgb(117, 113, 94), // Comment
+            hex_byte_fg: Color::Rgb(248, 248, 242), // Foreground
+            hex_highlight_fg: Color::Rgb(39, 40, 34), // Background
+            hex_highlight_bg: Color::Rgb(230, 219, 116), // Yellow
+            hex_search_match_fg: Color::Rgb(39, 40, 34), // Background
+            hex_search_match_bg: Color::Rgb(174, 129, 255), // Purple
+            hex_ascii_fg: Color::Rgb(166, 226, 46), // Green
+            hex_nonprint_fg: Color::Rgb(117, 113, 94), // Comment
+            sparkline_fg: Color::Rgb(102, 217, 239), // Blue/Cyan
+            help_key_fg: Color::Rgb(230, 219, 116), // Yellow
+            help_desc_fg: Color::Rgb(248, 248, 242), // Foreground
             transport_colors,
         }
     }

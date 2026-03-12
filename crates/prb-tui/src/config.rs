@@ -1,8 +1,216 @@
 use crossterm::event::KeyCode;
+use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+
+/// Optional color overrides for theme customization
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ColorOverrides {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub selected_row_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub selected_row_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub zebra_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub warning_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub focused_border: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub unfocused_border: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub focused_title_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub unfocused_title_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub header_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub status_bar_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub status_bar_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub filter_bar_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub filter_bar_bg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub filter_error_fg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub warning_fg: Option<String>,
+}
+
+impl ColorOverrides {
+    /// Apply color overrides to a ThemeConfig
+    pub fn apply_to_theme(&self, theme: &mut crate::theme::ThemeConfig) {
+        if let Some(ref color_str) = self.selected_row_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.selected_row_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.selected_row_bg {
+            if let Some(color) = parse_color(color_str) {
+                theme.selected_row_bg = color;
+            }
+        }
+        if let Some(ref color_str) = self.zebra_bg {
+            if let Some(color) = parse_color(color_str) {
+                theme.zebra_bg = color;
+            }
+        }
+        if let Some(ref color_str) = self.warning_bg {
+            if let Some(color) = parse_color(color_str) {
+                theme.warning_bg = color;
+            }
+        }
+        if let Some(ref color_str) = self.focused_border {
+            if let Some(color) = parse_color(color_str) {
+                theme.focused_border = color;
+            }
+        }
+        if let Some(ref color_str) = self.unfocused_border {
+            if let Some(color) = parse_color(color_str) {
+                theme.unfocused_border = color;
+            }
+        }
+        if let Some(ref color_str) = self.focused_title_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.focused_title_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.unfocused_title_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.unfocused_title_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.header_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.header_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.status_bar_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.status_bar_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.status_bar_bg {
+            if let Some(color) = parse_color(color_str) {
+                theme.status_bar_bg = color;
+            }
+        }
+        if let Some(ref color_str) = self.filter_bar_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.filter_bar_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.filter_bar_bg {
+            if let Some(color) = parse_color(color_str) {
+                theme.filter_bar_bg = color;
+            }
+        }
+        if let Some(ref color_str) = self.filter_error_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.filter_error_fg = color;
+            }
+        }
+        if let Some(ref color_str) = self.warning_fg {
+            if let Some(color) = parse_color(color_str) {
+                theme.warning_fg = color;
+            }
+        }
+    }
+
+    /// Create ColorOverrides from a ThemeConfig (for saving custom themes)
+    pub fn from_theme(theme: &crate::theme::ThemeConfig, base_theme: &crate::theme::ThemeConfig) -> Option<Self> {
+        let mut overrides = ColorOverrides {
+            selected_row_fg: None,
+            selected_row_bg: None,
+            zebra_bg: None,
+            warning_bg: None,
+            focused_border: None,
+            unfocused_border: None,
+            focused_title_fg: None,
+            unfocused_title_fg: None,
+            header_fg: None,
+            status_bar_fg: None,
+            status_bar_bg: None,
+            filter_bar_fg: None,
+            filter_bar_bg: None,
+            filter_error_fg: None,
+            warning_fg: None,
+        };
+
+        let mut has_overrides = false;
+
+        // Check each field for differences
+        if theme.selected_row_fg != base_theme.selected_row_fg {
+            overrides.selected_row_fg = Some(color_to_string(theme.selected_row_fg));
+            has_overrides = true;
+        }
+        if theme.selected_row_bg != base_theme.selected_row_bg {
+            overrides.selected_row_bg = Some(color_to_string(theme.selected_row_bg));
+            has_overrides = true;
+        }
+        if theme.zebra_bg != base_theme.zebra_bg {
+            overrides.zebra_bg = Some(color_to_string(theme.zebra_bg));
+            has_overrides = true;
+        }
+        if theme.warning_bg != base_theme.warning_bg {
+            overrides.warning_bg = Some(color_to_string(theme.warning_bg));
+            has_overrides = true;
+        }
+        if theme.focused_border != base_theme.focused_border {
+            overrides.focused_border = Some(color_to_string(theme.focused_border));
+            has_overrides = true;
+        }
+        if theme.unfocused_border != base_theme.unfocused_border {
+            overrides.unfocused_border = Some(color_to_string(theme.unfocused_border));
+            has_overrides = true;
+        }
+        if theme.focused_title_fg != base_theme.focused_title_fg {
+            overrides.focused_title_fg = Some(color_to_string(theme.focused_title_fg));
+            has_overrides = true;
+        }
+        if theme.unfocused_title_fg != base_theme.unfocused_title_fg {
+            overrides.unfocused_title_fg = Some(color_to_string(theme.unfocused_title_fg));
+            has_overrides = true;
+        }
+        if theme.header_fg != base_theme.header_fg {
+            overrides.header_fg = Some(color_to_string(theme.header_fg));
+            has_overrides = true;
+        }
+        if theme.status_bar_fg != base_theme.status_bar_fg {
+            overrides.status_bar_fg = Some(color_to_string(theme.status_bar_fg));
+            has_overrides = true;
+        }
+        if theme.status_bar_bg != base_theme.status_bar_bg {
+            overrides.status_bar_bg = Some(color_to_string(theme.status_bar_bg));
+            has_overrides = true;
+        }
+        if theme.filter_bar_fg != base_theme.filter_bar_fg {
+            overrides.filter_bar_fg = Some(color_to_string(theme.filter_bar_fg));
+            has_overrides = true;
+        }
+        if theme.filter_bar_bg != base_theme.filter_bar_bg {
+            overrides.filter_bar_bg = Some(color_to_string(theme.filter_bar_bg));
+            has_overrides = true;
+        }
+        if theme.filter_error_fg != base_theme.filter_error_fg {
+            overrides.filter_error_fg = Some(color_to_string(theme.filter_error_fg));
+            has_overrides = true;
+        }
+        if theme.warning_fg != base_theme.warning_fg {
+            overrides.warning_fg = Some(color_to_string(theme.warning_fg));
+            has_overrides = true;
+        }
+
+        if has_overrides {
+            Some(overrides)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Config {
@@ -34,6 +242,9 @@ pub struct TuiConfig {
 
     #[serde(default)]
     pub profiles: HashMap<String, ProfileConfig>,
+
+    #[serde(default)]
+    pub colors: Option<ColorOverrides>,
 }
 
 impl Default for TuiConfig {
@@ -46,6 +257,7 @@ impl Default for TuiConfig {
             columns: ColumnConfig::default(),
             keybindings: KeyBindings::default(),
             profiles: HashMap::new(),
+            colors: None,
         }
     }
 }
@@ -187,6 +399,15 @@ impl Config {
 
         Ok(config_path)
     }
+
+    pub fn save(&self) -> anyhow::Result<()> {
+        let config_dir = Self::ensure_config_dir()?;
+        let config_path = config_dir.join("config.toml");
+        let toml_str = toml::to_string_pretty(self)?;
+        fs::write(&config_path, toml_str)?;
+        tracing::debug!("Saved config to {:?}", config_path);
+        Ok(())
+    }
 }
 
 fn default_theme() -> String {
@@ -255,5 +476,56 @@ fn parse_keycode(s: &str) -> Option<KeyCode> {
                 None
             }
         }
+    }
+}
+
+/// Parse a color string in hex format (#RRGGBB) or color name
+pub fn parse_color(s: &str) -> Option<Color> {
+    let s = s.trim();
+
+    // Try hex format
+    if let Some(hex) = s.strip_prefix('#') {
+        if hex.len() == 6 {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            return Some(Color::Rgb(r, g, b));
+        }
+    }
+
+    // Try color names
+    match s.to_lowercase().as_str() {
+        "black" => Some(Color::Black),
+        "red" => Some(Color::Red),
+        "green" => Some(Color::Green),
+        "yellow" => Some(Color::Yellow),
+        "blue" => Some(Color::Blue),
+        "magenta" => Some(Color::Magenta),
+        "cyan" => Some(Color::Cyan),
+        "gray" | "grey" => Some(Color::Gray),
+        "darkgray" | "darkgrey" => Some(Color::DarkGray),
+        "white" => Some(Color::White),
+        "reset" => Some(Color::Reset),
+        _ => None,
+    }
+}
+
+/// Convert a color to a string representation
+pub fn color_to_string(color: Color) -> String {
+    match color {
+        Color::Reset => "reset".to_string(),
+        Color::Black => "black".to_string(),
+        Color::Red => "red".to_string(),
+        Color::Green => "green".to_string(),
+        Color::Yellow => "yellow".to_string(),
+        Color::Blue => "blue".to_string(),
+        Color::Magenta => "magenta".to_string(),
+        Color::Cyan => "cyan".to_string(),
+        Color::Gray => "gray".to_string(),
+        Color::DarkGray => "darkgray".to_string(),
+        Color::White => "white".to_string(),
+        Color::Rgb(r, g, b) => format!("#{:02x}{:02x}{:02x}", r, g, b),
+        Color::Indexed(i) => format!("indexed{}", i),
+        _ => "reset".to_string(),
     }
 }

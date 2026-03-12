@@ -1,6 +1,6 @@
 use crate::{ExportError, Exporter};
 use arrow::array::{
-    ArrayRef, StringArray, UInt64Array, UInt64Builder, StringBuilder,
+    ArrayRef, UInt64Builder, StringBuilder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -98,7 +98,7 @@ fn events_to_record_batch(events: &[DebugEvent]) -> Result<RecordBatch, ExportEr
             Payload::Decoded { raw, fields, schema_name } => {
                 payload_type_builder.append_value("decoded");
                 payload_size_builder.append_value(raw.len() as u64);
-                if let Some(ref name) = schema_name {
+                if let Some(name) = schema_name {
                     schema_name_builder.append_value(name);
                 } else {
                     schema_name_builder.append_null();

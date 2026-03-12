@@ -6,10 +6,7 @@ use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Widget};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
-use prb_decode::{decode_with_schema, DecodedMessage};
-use prb_schema::SchemaRegistry;
-use prost_reflect::{ReflectMessage, Value};
+use prb_core::{DebugEvent, Payload};
 
 use crate::app::AppState;
 use crate::error_intel;
@@ -185,7 +182,7 @@ impl PaneComponent for DecodeTreePane {
                     && let Some(event_idx) = state.filtered_indices.get(sel_idx)
                     && let Some(event) = state.store.get(*event_idx)
                 {
-                    let items = build_tree_items(event, state.schema_registry.as_ref());
+                    let items = build_tree_items(event);
                     self.expand_all(&items);
                 }
                 Action::None
@@ -200,7 +197,7 @@ impl PaneComponent for DecodeTreePane {
                     && let Some(event_idx) = state.filtered_indices.get(sel_idx)
                     && let Some(event) = state.store.get(*event_idx)
                 {
-                    let items = build_tree_items(event, state.schema_registry.as_ref());
+                    let items = build_tree_items(event);
                     self.copy_selected_value(&items);
                 }
                 Action::None
@@ -299,7 +296,7 @@ impl PaneComponent for DecodeTreePane {
             return;
         };
 
-        let items = build_tree_items(event, state.schema_registry.as_ref());
+        let items = build_tree_items(event);
 
         let tree = Tree::new(&items)
             .expect("tree items are valid")
@@ -309,7 +306,7 @@ impl PaneComponent for DecodeTreePane {
     }
 }
 
-fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>) -> Vec<TreeItem<'static, String>> {
+fn build_tree_items(event: &DebugEvent) -> Vec<TreeItem<'static, String>> {
     let mut items = Vec::new();
 
     // Event header
@@ -420,22 +417,8 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
 
     let mut payload_children = Vec::new();
     match &event.payload {
-        Payload::Raw { raw } => {
+        Payload::Raw { .. } => {
             payload_children.push(TreeItem::new_leaf("p.type".to_string(), "Type: Raw".to_string()));
-
-            // Try schema-based decoding if we have a schema registry
-            if let Some(registry) = schema_registry {
-                if let Some(decoded_items) = try_schema_decode(raw, event, registry) {
-                    // Successfully decoded with schema
-                    payload_children.extend(decoded_items);
-                } else {
-                    // Fallback: show that we tried but couldn't decode
-                    payload_children.push(TreeItem::new_leaf(
-                        "p.note".to_string(),
-                        "No matching schema found (showing raw bytes in hex view)".to_string(),
-                    ));
-                }
-            }
         }
         Payload::Decoded {
             fields,
@@ -501,261 +484,6 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
     }
 
     items
-}
-
-/// Try to decode raw payload using schema registry.
-/// Returns tree items if successful, None if no matching schema found.
-fn try_schema_decode(
-    raw: &[u8],
-    event: &DebugEvent,
-    registry: &SchemaRegistry,
-) -> Option<Vec<TreeItem<'static, String>>> {
-    // Try to find the schema name from gRPC method metadata
-    let schema_name = if let Some(method) = event.metadata.get(METADATA_KEY_GRPC_METHOD) {
-        // gRPC method format is /package.Service/Method
-        // We need to map this to message types, but for now try common patterns
-        // Look for request/response message types based on method name
-        infer_message_type_from_grpc_method(method, registry)
-    } else {
-        // Try to find any matching schema by attempting decoding
-        // This is a fallback for non-gRPC protocols
-        None
-    };
-
-    if let Some(msg_type) = schema_name {
-        // Get the message descriptor
-        if let Some(descriptor) = registry.get_message(&msg_type) {
-            // Try to decode
-            match decode_with_schema(raw, &descriptor) {
-                Ok(decoded) => {
-                    // Build tree from decoded message
-                    let mut items = vec![
-                        TreeItem::new_leaf("p.schema".to_string(), format!("Schema: {}", msg_type)),
-                    ];
-
-                    // Convert decoded message to tree items
-                    items.extend(build_tree_from_decoded_message(&decoded, "p.msg"));
-
-                    return Some(items);
-                }
-                Err(e) => {
-                    // Decode failed, show error
-                    return Some(vec![
-                        TreeItem::new_leaf("p.schema".to_string(), format!("Schema: {} (failed)", msg_type)),
-                        TreeItem::new_leaf("p.error".to_string(), format!("Error: {}", e)),
-                    ]);
-                }
-            }
-        }
-    }
-
-    None
-}
-
-/// Infer protobuf message type from gRPC method name.
-/// Returns the fully qualified message type name if found.
-fn infer_message_type_from_grpc_method(
-    method: &str,
-    registry: &SchemaRegistry,
-) -> Option<String> {
-    // gRPC method format: /package.Service/Method
-    // Common patterns for message types:
-    // - package.MethodRequest / package.MethodResponse
-    // - package.service.MethodRequest / package.service.MethodResponse
-
-    let path_parts: Vec<&str> = method.trim_start_matches('/').split('/').collect();
-    if path_parts.len() != 2 {
-        return None;
-    }
-
-    let service_path = path_parts[0];
-    let method_name = path_parts[1];
-
-    // Extract package from service path
-    let package_parts: Vec<&str> = service_path.rsplitn(2, '.').collect();
-    let package = if package_parts.len() == 2 {
-        package_parts[1]
-    } else {
-        ""
-    };
-
-    // Try common naming patterns
-    let candidates = vec![
-        format!("{}.{}Request", package, method_name),
-        format!("{}.{}Response", package, method_name),
-        format!("{}Request", method_name),
-        format!("{}.{}", service_path, method_name),
-    ];
-
-    // Check which message types exist in the registry
-    let available = registry.list_messages();
-    for candidate in candidates {
-        if available.contains(&candidate) {
-            return Some(candidate);
-        }
-    }
-
-    None
-}
-
-/// Build tree items from a decoded protobuf message.
-fn build_tree_from_decoded_message(
-    decoded: &DecodedMessage,
-    prefix: &str,
-) -> Vec<TreeItem<'static, String>> {
-    let mut items = Vec::new();
-    let message = decoded.message();
-    let descriptor = message.descriptor();
-
-    for field in descriptor.fields() {
-        let value = message.get_field(&field);
-        let field_id = format!("{}.{}", prefix, field.name());
-
-        // Convert Cow to owned Value
-        if let Some(item) = build_tree_from_value(value.as_ref(), &field_id, field.name()) {
-            items.push(item);
-        }
-    }
-
-    items
-}
-
-/// Build a tree item from a prost-reflect Value.
-fn build_tree_from_value(
-    value: &Value,
-    identifier: &str,
-    field_name: &str,
-) -> Option<TreeItem<'static, String>> {
-    match value {
-        Value::Bool(b) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, b),
-        )),
-        Value::I32(i) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, i),
-        )),
-        Value::I64(i) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, i),
-        )),
-        Value::U32(u) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, u),
-        )),
-        Value::U64(u) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, u),
-        )),
-        Value::F32(f) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, f),
-        )),
-        Value::F64(f) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {}", field_name, f),
-        )),
-        Value::String(s) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: \"{}\"", field_name, s),
-        )),
-        Value::Bytes(b) => {
-            let hex = b.iter()
-                .take(16)
-                .map(|byte| format!("{:02x}", byte))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let display = if b.len() > 16 {
-                format!("{}: 0x{} ... ({} bytes)", field_name, hex, b.len())
-            } else {
-                format!("{}: 0x{}", field_name, hex)
-            };
-            Some(TreeItem::new_leaf(identifier.to_string(), display))
-        }
-        Value::EnumNumber(n) => Some(TreeItem::new_leaf(
-            identifier.to_string(),
-            format!("{}: {} (enum)", field_name, n),
-        )),
-        Value::Message(msg) => {
-            // Nested message - create a parent node with children
-            let mut children = Vec::new();
-            let descriptor = msg.descriptor();
-
-            for field in descriptor.fields() {
-                let field_value = msg.get_field(&field);
-                let child_id = format!("{}.{}", identifier, field.name());
-
-                if let Some(child_item) = build_tree_from_value(field_value.as_ref(), &child_id, field.name()) {
-                    children.push(child_item);
-                }
-            }
-
-            if children.is_empty() {
-                Some(TreeItem::new_leaf(
-                    identifier.to_string(),
-                    format!("{}: {{}}", field_name),
-                ))
-            } else {
-                TreeItem::new(
-                    identifier.to_string(),
-                    format!("{}: {}", field_name, descriptor.name()),
-                    children,
-                ).ok()
-            }
-        }
-        Value::List(items) => {
-            if items.is_empty() {
-                Some(TreeItem::new_leaf(
-                    identifier.to_string(),
-                    format!("{}: []", field_name),
-                ))
-            } else {
-                let mut children = Vec::new();
-                for (i, item) in items.iter().enumerate() {
-                    let child_id = format!("{}[{}]", identifier, i);
-                    if let Some(child_item) = build_tree_from_value(item, &child_id, &format!("[{}]", i)) {
-                        children.push(child_item);
-                    }
-                }
-
-                TreeItem::new(
-                    identifier.to_string(),
-                    format!("{}: [{} items]", field_name, items.len()),
-                    children,
-                ).ok()
-            }
-        }
-        Value::Map(entries) => {
-            if entries.is_empty() {
-                Some(TreeItem::new_leaf(
-                    identifier.to_string(),
-                    format!("{}: {{}}", field_name),
-                ))
-            } else {
-                let mut children = Vec::new();
-                for (i, (key, val)) in entries.iter().enumerate() {
-                    let key_str = match key {
-                        prost_reflect::MapKey::Bool(b) => b.to_string(),
-                        prost_reflect::MapKey::I32(i) => i.to_string(),
-                        prost_reflect::MapKey::I64(i) => i.to_string(),
-                        prost_reflect::MapKey::U32(u) => u.to_string(),
-                        prost_reflect::MapKey::U64(u) => u.to_string(),
-                        prost_reflect::MapKey::String(s) => s.clone(),
-                    };
-                    let child_id = format!("{}.{}", identifier, i);
-                    if let Some(child_item) = build_tree_from_value(val, &child_id, &key_str) {
-                        children.push(child_item);
-                    }
-                }
-
-                TreeItem::new(
-                    identifier.to_string(),
-                    format!("{}: {{{}  entries}}", field_name, entries.len()),
-                    children,
-                ).ok()
-            }
-        }
-    }
 }
 
 /// Extract value text from a tree item at the given identifier path
@@ -913,6 +641,20 @@ mod tests {
         METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_ZMQ_TOPIC,
     };
     use std::collections::BTreeMap;
+    use crate::EventStore;
+
+    fn create_mock_app_state() -> AppState {
+        AppState {
+            store: EventStore::empty(),
+            filtered_indices: vec![],
+            selected_event: None,
+            filter: None,
+            filter_text: String::new(),
+            schema_registry: None,
+            conversations: None,
+            visible_columns: vec![],
+        }
+    }
 
     fn create_test_event(transport: TransportKind, metadata: BTreeMap<String, String>) -> DebugEvent {
         DebugEvent {
@@ -952,7 +694,8 @@ mod tests {
         metadata.insert(METADATA_KEY_H2_STREAM_ID.to_string(), "1".to_string());
 
         let event = create_test_event(TransportKind::Grpc, metadata);
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Verify we have several top-level items
         assert!(items.len() >= 4, "Should have timestamp, direction, source, transport, payload sections");
@@ -968,7 +711,8 @@ mod tests {
         metadata.insert(METADATA_KEY_ZMQ_TOPIC.to_string(), "sensor.temperature".to_string());
 
         let event = create_test_event(TransportKind::Zmq, metadata);
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Verify ZMQ event produces tree items
         assert!(items.len() >= 4, "Should have basic sections");
@@ -981,7 +725,8 @@ mod tests {
         metadata.insert(METADATA_KEY_DDS_TOPIC_NAME.to_string(), "ChatterTopic".to_string());
 
         let event = create_test_event(TransportKind::DdsRtps, metadata);
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Verify DDS-RTPS event produces tree items
         assert!(items.len() >= 4, "Should have basic sections");
@@ -990,7 +735,8 @@ mod tests {
     #[test]
     fn test_source_section_with_network() {
         let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Verify we have items (including source section)
         assert!(items.len() >= 3, "Should have timestamp, direction, source at minimum");
@@ -999,7 +745,8 @@ mod tests {
     #[test]
     fn test_payload_decoded_section() {
         let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Decoded payload should produce tree items
         assert!(items.len() >= 5, "Should have all sections including payload");
@@ -1012,7 +759,8 @@ mod tests {
             raw: Bytes::from_static(b"raw bytes"),
         };
 
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Raw payload should also produce tree items
         assert!(items.len() >= 5, "Should have all sections including raw payload");
@@ -1021,7 +769,8 @@ mod tests {
     #[test]
     fn test_correlation_section() {
         let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Event has correlation keys, so should have correlation section
         assert!(items.len() >= 5, "Should have correlation section");
@@ -1032,7 +781,8 @@ mod tests {
         let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
         event.warnings = vec!["Parse error".to_string(), "Missing field".to_string()];
 
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Warnings should add an extra section
         let base_len = 5; // timestamp, direction, source, transport, payload
@@ -1042,7 +792,8 @@ mod tests {
     #[test]
     fn test_no_warnings_section_when_empty() {
         let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Without warnings and with correlation keys
         // We should have: timestamp, direction, source, transport, payload, correlation
@@ -1052,7 +803,8 @@ mod tests {
     #[test]
     fn test_timestamp_formatting() {
         let event = create_test_event(TransportKind::Grpc, BTreeMap::new());
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Just verify tree items are created - timestamp is first
         assert!(!items.is_empty(), "Should have timestamp item");
@@ -1065,7 +817,8 @@ mod tests {
         metadata.insert(METADATA_KEY_GRPC_METHOD.to_string(), "/api.Service/Method".to_string());
 
         let event = create_test_event(TransportKind::Grpc, metadata);
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Metadata adds children to transport section
         assert!(items.len() >= 4, "Should have all sections");
@@ -1076,7 +829,8 @@ mod tests {
         let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
         event.source.network = None;
 
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Should still build tree successfully
         assert!(items.len() >= 5, "Should work without network info");
@@ -1087,7 +841,8 @@ mod tests {
         let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
         event.correlation_keys = vec![];
 
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Without correlation keys, should have one less section
         assert_eq!(items.len(), 5, "Should have 5 sections without correlation");
@@ -1110,7 +865,8 @@ mod tests {
             },
         ];
 
-        let items = build_tree_items(&event, None);
+        let state = create_mock_app_state();
+        let items = build_tree_items(&event, &state);
 
         // Should handle all correlation key types
         assert!(items.len() >= 5, "Should handle all correlation key types");

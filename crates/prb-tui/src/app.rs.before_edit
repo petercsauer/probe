@@ -7,7 +7,6 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent,
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, event::EnableMouseCapture, event::DisableMouseCapture};
 use ratatui::backend::CrosstermBackend;
-use tokio::sync::mpsc;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
@@ -22,7 +21,7 @@ use crate::config::Config;
 use crate::filter_state::FilterState;
 use crate::event_store::EventStore;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
-use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, ThemeEditorOverlay, WelcomeOverlay, WhichKeyOverlay};
+use crate::overlays::{CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay, PluginManagerOverlay, PluginType, WelcomeOverlay, WhichKeyOverlay};
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::conversation_list::ConversationListPane;
 use crate::panes::decode_tree::DecodeTreePane;
@@ -40,9 +39,6 @@ use prb_decode::{decode_with_schema, decode_wire_format, WireMessage, WireValue,
 use prb_export;
 use prb_plugin_native::NativePluginLoader;
 use prb_plugin_wasm::WasmPluginLoader;
-use prb_grpc::GrpcCorrelationStrategy;
-use prb_zmq::ZmqCorrelationStrategy;
-use prb_dds::DdsCorrelationStrategy;
 use prb_query::Filter;
 use prb_schema::SchemaRegistry;
 use serde_json::{json, Value as JsonValue};
@@ -90,7 +86,6 @@ pub enum InputMode {
     CaptureConfig,
     SessionInfo,
     AiFilter,
-    ThemeEditor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,11 +141,6 @@ pub struct App {
     ai_filter_input: Input,
     ai_filter_generated: Option<String>,
     ai_filter_generating: bool,
-    ai_filter_rx: Option<mpsc::UnboundedReceiver<Result<String, String>>>,
-
-    // AI smart features channels
-    anomaly_rx: Option<mpsc::UnboundedReceiver<Result<Vec<crate::ai_smart::Anomaly>, String>>>,
-    protocol_rx: Option<mpsc::UnboundedReceiver<Result<Vec<crate::ai_smart::ProtocolHint>, String>>>,
 
     // Command palette and overlays
     #[allow(dead_code)]
@@ -169,7 +159,6 @@ pub struct App {
     follow_stream_overlay: Option<crate::overlays::FollowStreamOverlay>,
     metrics_overlay: bool,
     diff_view_overlay: Option<crate::overlays::DiffViewOverlay>,
-    theme_editor: Option<ThemeEditorOverlay>,
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -221,11 +210,7 @@ impl App {
                 };
             }
 
-        let mut theme = ThemeConfig::from_name(&config.tui.theme);
-        // Apply custom color overrides from config
-        if let Some(ref overrides) = config.tui.colors {
-            overrides.apply_to_theme(&mut theme);
-        }
+        let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
         let input_mode = if state.store.is_empty() { InputMode::Welcome } else { InputMode::Normal };
 
@@ -256,9 +241,6 @@ impl App {
             ai_filter_input: Input::default(),
             ai_filter_generated: None,
             ai_filter_generating: false,
-            ai_filter_rx: None,
-            anomaly_rx: None,
-            protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
@@ -271,7 +253,6 @@ impl App {
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: None,
-            theme_editor: None,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -289,14 +270,6 @@ impl App {
     /// Set a status message that will be displayed for 2 seconds.
     fn set_status_message(&mut self, message: &str) {
         self.status_message = Some((message.to_string(), std::time::Instant::now()));
-    }
-
-    /// Save the current config to disk.
-    #[allow(dead_code)]
-    fn save_config(&mut self) {
-        if let Err(e) = self.config.save() {
-            self.set_status_message(&format!("Failed to save config: {}", e));
-        }
     }
 
     /// Set the input file path and size for session info display.
@@ -389,11 +362,7 @@ impl App {
             store,
         };
 
-        let mut theme = ThemeConfig::from_name(&config.tui.theme);
-        // Apply custom color overrides from config
-        if let Some(ref overrides) = config.tui.colors {
-            overrides.apply_to_theme(&mut theme);
-        }
+        let theme = ThemeConfig::from_name(&config.tui.theme);
         let auto_follow = config.tui.auto_follow;
         let plugin_manager = Self::load_plugins();
 
@@ -424,9 +393,6 @@ impl App {
             ai_filter_input: Input::default(),
             ai_filter_generated: None,
             ai_filter_generating: false,
-            ai_filter_rx: None,
-            anomaly_rx: None,
-            protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
@@ -448,7 +414,6 @@ impl App {
             status_message: None,
             session_info: None,
             input_file_path: None,
-            theme_editor: None,
             input_file_size: 0,
             tls_stats: None,
         }
@@ -488,11 +453,7 @@ impl App {
             None,
         );
 
-        let mut theme = ThemeConfig::from_name(&config.tui.theme);
-        // Apply custom color overrides from config
-        if let Some(ref overrides) = config.tui.colors {
-            overrides.apply_to_theme(&mut theme);
-        }
+        let theme = ThemeConfig::from_name(&config.tui.theme);
         let plugin_manager = Self::load_plugins();
 
         App {
@@ -522,9 +483,6 @@ impl App {
             ai_filter_input: Input::default(),
             ai_filter_generated: None,
             ai_filter_generating: false,
-            ai_filter_rx: None,
-            anomaly_rx: None,
-            protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
             which_key_overlay: None,
             help_scroll_offset: 0,
@@ -546,7 +504,6 @@ impl App {
             status_message: None,
             session_info: None,
             input_file_path: Some(path1),
-            theme_editor: None,
             input_file_size: 0,
             tls_stats: None,
         }
@@ -602,25 +559,6 @@ impl App {
         }
 
         manager
-    }
-
-    /// Build conversations from events using the conversation engine.
-    fn build_conversations(events: &[DebugEvent]) -> Option<prb_core::engine::ConversationSet> {
-        if events.is_empty() {
-            return None;
-        }
-        let mut engine = prb_core::engine::ConversationEngine::new();
-        engine.register(Box::new(GrpcCorrelationStrategy));
-        engine.register(Box::new(ZmqCorrelationStrategy));
-        engine.register(Box::new(DdsCorrelationStrategy));
-
-        match engine.build_conversations(events) {
-            Ok(conv_set) => Some(conv_set),
-            Err(e) => {
-                tracing::warn!("Failed to build conversations: {}", e);
-                None
-            }
-        }
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
@@ -800,56 +738,6 @@ impl App {
                 self.ai_panel.poll_stream(event.id);
             }
 
-        // Poll AI filter generation result
-        if let Some(ref mut rx) = self.ai_filter_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(filter_expr) => {
-                        self.ai_filter_generated = Some(filter_expr.clone());
-                        self.ai_filter_generating = false;
-                        self.set_status_message(&format!("Filter generated: {}", filter_expr));
-                    }
-                    Err(e) => {
-                        self.ai_filter_generating = false;
-                        self.set_status_message(&format!("AI filter error: {}", e));
-                    }
-                }
-                self.ai_filter_rx = None;
-            }
-        }
-
-        // Poll anomaly detection result
-        if let Some(ref mut rx) = self.anomaly_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(anomalies) => {
-                        self.ai_panel.show_anomalies(anomalies.clone());
-                        self.set_status_message(&format!("Found {} anomalies", anomalies.len()));
-                    }
-                    Err(e) => {
-                        self.set_status_message(&format!("Anomaly detection error: {}", e));
-                    }
-                }
-                self.anomaly_rx = None;
-            }
-        }
-
-        // Poll protocol identification result
-        if let Some(ref mut rx) = self.protocol_rx {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(hints) => {
-                        self.ai_panel.show_protocol_hints(hints.clone());
-                        self.set_status_message(&format!("Found {} protocol hints", hints.len()));
-                    }
-                    Err(e) => {
-                        self.set_status_message(&format!("Protocol identification error: {}", e));
-                    }
-                }
-                self.protocol_rx = None;
-            }
-        }
-
         terminal.draw(|frame| {
             let area = frame.area();
             let buf = frame.buffer_mut();
@@ -873,11 +761,9 @@ impl App {
     }
 
     /// Recompute filtered indices after new events arrive.
-    /// Uses incremental filtering to only check new events since last filter.
     fn recompute_filter(&mut self) {
         if let Some(ref filter) = self.state.filter {
-            // Use incremental filtering for better performance with streaming/live data
-            self.state.filtered_indices = self.state.store.filter_indices_incremental(filter);
+            self.state.filtered_indices = self.state.store.filter_indices(filter);
         } else {
             self.state.filtered_indices = self.state.store.all_indices();
         }
@@ -1171,10 +1057,9 @@ impl App {
                 return false;
             }
             InputMode::AiFilter => {
-                return self.handle_ai_filter_key(key);
-            }
-            InputMode::ThemeEditor => {
-                return self.handle_theme_editor_key(key);
+                // TEMPORARILY DISABLED: ai_features module has compilation errors
+                // return self.handle_ai_filter_key(key);
+                return false;
             }
             InputMode::Normal => {}
             InputMode::WhichKey => {
@@ -1255,7 +1140,8 @@ impl App {
             }
             KeyCode::Char('A') => {
                 // Generate capture summary in AI panel
-                self.start_capture_summary();
+                // TEMPORARILY DISABLED: ai_features module has compilation errors
+                // self.start_capture_summary();
                 return false;
             }
             KeyCode::Tab => {
@@ -1372,10 +1258,6 @@ impl App {
             KeyCode::Char('v') => {
                 // Toggle conversation view
                 self.showing_conversations = !self.showing_conversations;
-                if self.showing_conversations && self.state.conversations.is_none() {
-                    // Build conversations on-demand
-                    self.state.conversations = Self::build_conversations(self.state.store.events());
-                }
                 return false;
             }
             KeyCode::Char('w') => {
@@ -1413,16 +1295,6 @@ impl App {
                         self.set_status_message("No event selected");
                     }
                 }
-                return false;
-            }
-            KeyCode::Char('D') => {
-                // Run anomaly detection on capture
-                self.start_anomaly_detection();
-                return false;
-            }
-            KeyCode::Char('P') => {
-                // Identify protocol of selected event
-                self.start_protocol_identification();
                 return false;
             }
             KeyCode::Char('f') => {
@@ -1564,6 +1436,8 @@ impl App {
         }
     }
 
+    // TEMPORARILY DISABLED: ai_features module has compilation errors
+    /*
     fn handle_ai_filter_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Enter => {
@@ -1619,107 +1493,16 @@ impl App {
         }
     }
 
-    fn start_ai_filter_generation(&mut self, query: &str) {
-        if self.state.store.is_empty() {
-            self.set_status_message("No events to filter");
-            return;
-        }
-
-        self.ai_filter_generating = true;
-        self.ai_filter_generated = None;
-        self.generate_filter_from_nl(query.to_string());
-    }
-
     fn generate_filter_from_nl(&mut self, nl_query: String) {
         let config = self.config.ai.clone();
-        let all_events = self.state.store.events().to_vec();
-
-        // Create channel to receive result
-        let (tx, rx) = mpsc::unbounded_channel();
-        self.ai_filter_rx = Some(rx);
-
-        // Spawn async task to generate filter
         tokio::spawn(async move {
-            let context = crate::ai_smart::CaptureContext::build(&all_events);
-            let result = crate::ai_smart::generate_filter(&nl_query, &context, &config).await;
-            let _ = tx.send(result);
+            crate::ai_features::natural_language_to_filter(&nl_query, &config).await
         });
-
+        // Note: In a full implementation, we'd need to poll for the result
+        // and update self.ai_filter_generated when ready
+        // For now, we'll keep it simple and set a status message
         self.set_status_message("Generating filter from AI...");
-    }
-
-    fn start_anomaly_detection(&mut self) {
-        if self.state.store.is_empty() {
-            self.set_status_message("No events to analyze");
-            return;
-        }
-
-        let config = self.config.ai.clone();
-        let all_events = self.state.store.events().to_vec();
-
-        // Show AI panel immediately with a loading message
-        self.ai_panel_visible = true;
-        self.ai_panel.clear();
-
-        // Create channel to receive result
-        let (tx, rx) = mpsc::unbounded_channel();
-        self.anomaly_rx = Some(rx);
-
-        // Spawn async task
-        tokio::spawn(async move {
-            let result = crate::ai_smart::detect_anomalies(&all_events, &config).await;
-            let _ = tx.send(result);
-        });
-
-        self.set_status_message("Running anomaly detection...");
-    }
-
-    fn start_protocol_identification(&mut self) {
-        if self.state.store.is_empty() {
-            self.set_status_message("No events to analyze");
-            return;
-        }
-
-        // Get payload from selected event
-        if let Some(selected_idx) = self.state.selected_event {
-            if let Some(&event_idx) = self.state.filtered_indices.get(selected_idx) {
-                if let Some(event) = self.state.store.get(event_idx) {
-                    let payload_bytes = match &event.payload {
-                        Payload::Raw { raw } => raw.to_vec(),
-                        Payload::Decoded { raw, .. } => raw.to_vec(),
-                    };
-
-                    if payload_bytes.is_empty() {
-                        self.set_status_message("Selected event has no payload");
-                        return;
-                    }
-
-                    let config = self.config.ai.clone();
-
-                    // Show AI panel
-                    self.ai_panel_visible = true;
-                    self.ai_panel.clear();
-
-                    // Create channel to receive result
-                    let (tx, rx) = mpsc::unbounded_channel();
-                    self.protocol_rx = Some(rx);
-
-                    // Spawn async task
-                    tokio::spawn(async move {
-                        let result = crate::ai_smart::identify_protocol(&payload_bytes, &config).await;
-                        let _ = tx.send(result);
-                    });
-
-                    self.set_status_message("Identifying protocol...");
-                } else {
-                    self.set_status_message("No event selected");
-                }
-            } else {
-                self.set_status_message("No event selected");
-            }
-        } else {
-            self.set_status_message("No event selected");
-        }
+        self.ai_filter_generating = false;
     }
 
     fn start_capture_summary(&mut self) {
@@ -1743,7 +1526,7 @@ impl App {
         let config = self.config.ai.clone();
 
         // Create channel for streaming
-        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         // Start streaming in background
         tokio::spawn(async move {
@@ -1770,6 +1553,7 @@ impl App {
         // For now, set a status message
         self.set_status_message("Generating capture summary...");
     }
+    */
 
     fn handle_command_palette_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
@@ -1778,39 +1562,6 @@ impl App {
                 false
             }
             KeyCode::Enter => {
-                // Check if input is a command (e.g., "theme dark")
-                let input = self.command_palette.input.trim();
-                if let Some(theme_name) = input.strip_prefix("theme ") {
-                    // Theme switching command
-                    let theme_name = theme_name.trim().to_string();
-                    let mut new_theme = ThemeConfig::from_name(&theme_name);
-                    // Apply any custom color overrides from config
-                    if let Some(ref overrides) = self.config.tui.colors {
-                        overrides.apply_to_theme(&mut new_theme);
-                    }
-                    self.theme = new_theme.clone();
-                    self.config.tui.theme = theme_name.clone();
-                    self.save_config();
-                    self.set_status_message(&format!("Switched to {} theme", theme_name));
-                    self.input_mode = InputMode::Normal;
-                    return false;
-                } else if input == "theme-editor" || input == "theme editor" {
-                    // Open theme editor
-                    self.theme_editor = Some(ThemeEditorOverlay::new(self.theme.clone()));
-                    self.input_mode = InputMode::ThemeEditor;
-                    return false;
-                } else if let Some(query) = input.strip_prefix("/ai ").or_else(|| input.strip_prefix("ai ")) {
-                    // AI natural language filter generation
-                    let query = query.trim().to_string();
-                    if !query.is_empty() {
-                        self.start_ai_filter_generation(&query);
-                    } else {
-                        self.set_status_message("Usage: /ai <query> (e.g., /ai show all errors)");
-                    }
-                    self.input_mode = InputMode::Normal;
-                    return false;
-                }
-
                 // Execute selected command
                 if let Some(cmd) = self.command_palette.selected_command() {
                     match cmd.name.as_str() {
@@ -2125,88 +1876,6 @@ impl App {
         }
     }
 
-    fn handle_theme_editor_key(&mut self, key: KeyEvent) -> bool {
-        let Some(ref mut editor) = self.theme_editor else {
-            self.input_mode = InputMode::Normal;
-            return false;
-        };
-
-        if editor.editing_color {
-            // Editing a color value
-            match key.code {
-                KeyCode::Esc => {
-                    editor.cancel_editing();
-                    false
-                }
-                KeyCode::Enter => {
-                    match editor.confirm_edit() {
-                        Ok(()) => {
-                            // Apply the updated theme
-                            self.theme = editor.current_theme.clone();
-                            self.set_status_message("Color updated");
-                        }
-                        Err(e) => {
-                            self.set_status_message(&format!("Invalid color: {}", e));
-                        }
-                    }
-                    false
-                }
-                KeyCode::Char(c) => {
-                    editor.color_input.push(c);
-                    false
-                }
-                KeyCode::Backspace => {
-                    editor.color_input.pop();
-                    false
-                }
-                _ => false,
-            }
-        } else {
-            // Navigating color list
-            match key.code {
-                KeyCode::Esc => {
-                    self.theme_editor = None;
-                    self.input_mode = InputMode::Normal;
-                    false
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    editor.move_selection(-1);
-                    false
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    editor.move_selection(1);
-                    false
-                }
-                KeyCode::Enter => {
-                    editor.start_editing();
-                    false
-                }
-                KeyCode::Char('r') => {
-                    // Reset to original theme (with overrides from config)
-                    let mut theme = ThemeConfig::from_name(&self.config.tui.theme);
-                    if let Some(ref overrides) = self.config.tui.colors {
-                        overrides.apply_to_theme(&mut theme);
-                    }
-                    editor.reset_to_theme(&theme);
-                    self.theme = theme;
-                    self.set_status_message("Theme reset");
-                    false
-                }
-                KeyCode::Char('s') => {
-                    // Save theme to config
-                    self.theme = editor.current_theme.clone();
-                    // Save color overrides to config
-                    let base_theme = ThemeConfig::from_name(&self.config.tui.theme);
-                    self.config.tui.colors = crate::config::ColorOverrides::from_theme(&self.theme, &base_theme);
-                    self.save_config();
-                    self.set_status_message("Theme saved to config");
-                    false
-                }
-                _ => false,
-            }
-        }
-    }
-
     fn start_capture_from_config(&mut self) {
         let Some(ref config_overlay) = self.capture_config else {
             return;
@@ -2301,8 +1970,6 @@ impl App {
             "har" => "har",
             "html" => "html",
             "otlp" => "otlp",
-            #[cfg(feature = "parquet")]
-            "parquet" => "parquet",
             other => {
                 self.set_status_message(&format!("Unsupported export format: {}", other));
                 return;
@@ -2905,10 +2572,12 @@ impl App {
             }
 
         // Render metrics overlay
-        if self.metrics_overlay {
-            let metrics_overlay = MetricsOverlay::new();
-            metrics_overlay.render(area, buf, &self.state.store, &self.state.filtered_indices, &self.theme);
-        }
+        if self.metrics_overlay
+            && let Some(ref conv_set) = self.state.conversations {
+                let metrics_overlay = MetricsOverlay::new();
+                metrics_overlay.render(area, buf, &conv_set.conversations, &self.theme);
+            }
+
         // Render AI panel overlay
         if self.ai_panel_visible {
             // Create a centered overlay for the AI panel
@@ -2926,12 +2595,6 @@ impl App {
         if let Some(ref diff_view) = self.diff_view_overlay {
             diff_view.render(area, buf, &self.theme);
         }
-
-        // Render theme editor overlay if active
-        if self.input_mode == InputMode::ThemeEditor
-            && let Some(ref theme_editor) = self.theme_editor {
-                theme_editor.render(area, buf);
-            }
     }
 
     /// Check if we're in live capture mode.

@@ -5,10 +5,18 @@ use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use tokio::sync::mpsc;
 
+use crate::ai_smart::{Anomaly, ProtocolHint};
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
 use prb_core::{DebugEvent, EventId};
+
+#[derive(Debug, Clone)]
+enum PanelMode {
+    Explanation,
+    Anomalies(Vec<Anomaly>),
+    ProtocolHints(Vec<ProtocolHint>),
+}
 
 pub struct AiPanel {
     content: String,
@@ -17,6 +25,7 @@ pub struct AiPanel {
     cached: HashMap<EventId, String>,
     stream_rx: Option<mpsc::UnboundedReceiver<String>>,
     error: Option<String>,
+    mode: PanelMode,
 }
 
 impl Default for AiPanel {
@@ -34,6 +43,7 @@ impl AiPanel {
             cached: HashMap::new(),
             stream_rx: None,
             error: None,
+            mode: PanelMode::Explanation,
         }
     }
 
@@ -43,6 +53,57 @@ impl AiPanel {
         self.scroll_offset = 0;
         self.stream_rx = None;
         self.error = None;
+        self.mode = PanelMode::Explanation;
+    }
+
+    /// Show anomaly detection results.
+    pub fn show_anomalies(&mut self, anomalies: Vec<Anomaly>) {
+        self.clear();
+        self.mode = PanelMode::Anomalies(anomalies.clone());
+
+        // Format anomalies as content
+        if anomalies.is_empty() {
+            self.content = "No anomalies detected. The capture appears healthy.".to_string();
+        } else {
+            let mut lines = vec!["Anomalies Detected:\n".to_string()];
+            for (i, anomaly) in anomalies.iter().enumerate() {
+                let severity_marker = match anomaly.severity {
+                    crate::ai_smart::AnomalySeverity::High => "🔴 HIGH",
+                    crate::ai_smart::AnomalySeverity::Medium => "🟡 MEDIUM",
+                    crate::ai_smart::AnomalySeverity::Low => "🟢 LOW",
+                };
+                lines.push(format!("\n{}. {} [{}]", i + 1, anomaly.title, severity_marker));
+                lines.push(format!("   {}", anomaly.description));
+                if !anomaly.event_indices.is_empty() {
+                    lines.push(format!("   Affects {} events", anomaly.event_indices.len()));
+                }
+            }
+            self.content = lines.join("\n");
+        }
+    }
+
+    /// Show protocol identification hints.
+    pub fn show_protocol_hints(&mut self, hints: Vec<ProtocolHint>) {
+        self.clear();
+        self.mode = PanelMode::ProtocolHints(hints.clone());
+
+        // Format hints as content
+        if hints.is_empty() {
+            self.content = "No protocol hints available.".to_string();
+        } else {
+            let mut lines = vec!["Protocol Identification:\n".to_string()];
+            for (i, hint) in hints.iter().enumerate() {
+                let confidence_pct = (hint.confidence * 100.0) as u8;
+                lines.push(format!(
+                    "\n{}. {} ({}% confidence)",
+                    i + 1,
+                    hint.protocol_name,
+                    confidence_pct
+                ));
+                lines.push(format!("   {}", hint.description));
+            }
+            self.content = lines.join("\n");
+        }
     }
 
     pub fn start_explain(&mut self, event: &DebugEvent, all_events: &[DebugEvent], config: &prb_ai::AiConfig) {
@@ -166,12 +227,18 @@ impl PaneComponent for AiPanel {
             theme.unfocused_border()
         };
 
-        let title = if self.streaming {
-            " AI Explain (streaming...) "
-        } else if self.error.is_some() {
-            " AI Explain (error) "
-        } else {
-            " AI Explain "
+        let title = match &self.mode {
+            PanelMode::Explanation => {
+                if self.streaming {
+                    " AI Explain (streaming...) "
+                } else if self.error.is_some() {
+                    " AI Explain (error) "
+                } else {
+                    " AI Explain "
+                }
+            }
+            PanelMode::Anomalies(_) => " AI Smart: Anomaly Detection ",
+            PanelMode::ProtocolHints(_) => " AI Smart: Protocol Hints ",
         };
 
         let block = Block::default()

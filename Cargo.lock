@@ -1624,7 +1624,7 @@ dependencies = [
  "base64",
  "bytemuck",
  "extism-convert-macros",
- "prost 0.14.3",
+ "prost",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -2543,9 +2543,9 @@ checksum = "bf36173d4167ed999940f804952e6b08197cae5ad5d572eb4db150ce8ad5d58f"
 
 [[package]]
 name = "lazy_static"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leb128"
@@ -3575,8 +3575,8 @@ dependencies = [
  "prb-storage",
  "prb-tui",
  "predicates",
- "prost 0.14.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-types",
  "serde",
  "serde_json",
  "tempfile",
@@ -3622,9 +3622,9 @@ dependencies = [
  "bytes",
  "prb-core",
  "prb-pcap",
- "prost 0.14.3",
- "prost-reflect 0.16.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-reflect",
+ "prost-types",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3708,8 +3708,8 @@ dependencies = [
  "prb-query",
  "prb-schema",
  "prb-storage",
- "prost 0.14.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-types",
  "serde",
  "serde_json",
  "tempfile",
@@ -3804,9 +3804,9 @@ dependencies = [
  "bytes",
  "camino",
  "prb-core",
- "prost 0.14.3",
- "prost-reflect 0.16.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-reflect",
+ "prost-types",
  "protox",
  "tempfile",
  "thiserror 2.0.18",
@@ -3825,8 +3825,8 @@ dependencies = [
  "memmap2",
  "prb-core",
  "prb-schema",
- "prost 0.14.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-types",
  "serde",
  "serde_json",
  "tempfile",
@@ -3848,6 +3848,7 @@ dependencies = [
  "etherparse",
  "futures",
  "insta",
+ "lazy_static",
  "prb-ai",
  "prb-capture",
  "prb-core",
@@ -3864,7 +3865,7 @@ dependencies = [
  "prb-schema",
  "prb-storage",
  "prb-zmq",
- "prost-reflect 0.15.3",
+ "prost-reflect",
  "ratatui",
  "serde",
  "serde_json",
@@ -3983,35 +3984,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
-dependencies = [
- "bytes",
- "prost-derive 0.13.5",
-]
-
-[[package]]
-name = "prost"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2ea70524a2f82d518bce41317d0fae74151505651af45faf1ffbd6fd33f0568"
 dependencies = [
  "bytes",
- "prost-derive 0.14.3",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
-dependencies = [
- "anyhow",
- "itertools 0.14.0",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
+ "prost-derive",
 ]
 
 [[package]]
@@ -4029,33 +4007,14 @@ dependencies = [
 
 [[package]]
 name = "prost-reflect"
-version = "0.15.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37587d5a8a1b3dc9863403d084fc2254b91ab75a702207098837950767e2260b"
-dependencies = [
- "prost 0.13.5",
- "prost-types 0.13.5",
-]
-
-[[package]]
-name = "prost-reflect"
 version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
 dependencies = [
  "logos",
  "miette",
- "prost 0.14.3",
- "prost-types 0.14.3",
-]
-
-[[package]]
-name = "prost-types"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
-dependencies = [
- "prost 0.13.5",
+ "prost",
+ "prost-types",
 ]
 
 [[package]]
@@ -4064,7 +4023,7 @@ version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8991c4cbdb8bc5b11f0b074ffe286c30e523de90fee5ba8132f1399f23cb3dd7"
 dependencies = [
- "prost 0.14.3",
+ "prost",
 ]
 
 [[package]]
@@ -4075,9 +4034,9 @@ checksum = "4f25a07a73c6717f0b9bbbd685918f5df9815f7efba450b83d9c9dea41f0e3a1"
 dependencies = [
  "bytes",
  "miette",
- "prost 0.14.3",
- "prost-reflect 0.16.3",
- "prost-types 0.14.3",
+ "prost",
+ "prost-reflect",
+ "prost-types",
  "protox-parse",
  "thiserror 2.0.18",
 ]
@@ -4090,7 +4049,7 @@ checksum = "072eee358134396a4643dff81cfff1c255c9fbd3fb296be14bdb6a26f9156366"
 dependencies = [
  "logos",
  "miette",
- "prost-types 0.14.3",
+ "prost-types",
  "thiserror 2.0.18",
 ]
 

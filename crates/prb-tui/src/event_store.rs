@@ -1,6 +1,8 @@
 use prb_core::{DebugEvent, Timestamp, TransportKind};
 use prb_query::Filter;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 /// Index structure for fast lookups by protocol, source, and destination.
 #[derive(Debug, Clone)]
@@ -9,6 +11,18 @@ pub struct EventIndex {
     pub by_source: HashMap<String, Vec<usize>>,
     pub by_dest: HashMap<String, Vec<usize>>,
     pub time_sorted: Vec<usize>,
+}
+
+/// Cache for incremental filtering.
+/// Tracks which events have been checked against the current filter.
+#[derive(Debug, Clone)]
+struct FilterCache {
+    /// The filter that was applied
+    filter_hash: u64,
+    /// Index of the last event that was checked
+    last_checked: usize,
+    /// Indices of events that match the filter
+    matches: Vec<usize>,
 }
 
 impl EventIndex {
@@ -44,6 +58,7 @@ pub struct EventStore {
     events: Vec<DebugEvent>,
     time_range: Option<(Timestamp, Timestamp)>,
     index: Option<EventIndex>,
+    filter_cache: Option<FilterCache>,
 }
 
 impl EventStore {
@@ -60,6 +75,7 @@ impl EventStore {
             events,
             time_range,
             index: None,
+            filter_cache: None,
         }
     }
 
@@ -80,6 +96,7 @@ impl EventStore {
             events: Vec::new(),
             time_range: None,
             index: None,
+            filter_cache: None,
         }
     }
 
@@ -99,6 +116,9 @@ impl EventStore {
 
         // Invalidate index when new events are added
         self.index = None;
+
+        // Note: filter_cache is not invalidated here - incremental filtering
+        // will handle the new event on next filter_indices_incremental call
     }
 
     /// Append a batch of events to the store (for streaming file load).
@@ -122,6 +142,9 @@ impl EventStore {
 
         // Invalidate index when new events are added
         self.index = None;
+
+        // Note: filter_cache is not invalidated here - incremental filtering
+        // will handle the new events on next filter_indices_incremental call
     }
 
     pub fn len(&self) -> usize {
@@ -155,6 +178,58 @@ impl EventStore {
             .filter(|(_, e)| filter.matches(e))
             .map(|(i, _)| i)
             .collect()
+    }
+
+    /// Incrementally filter events, only checking new events since last call.
+    /// This is much faster than re-filtering everything when events are streamed in.
+    pub fn filter_indices_incremental(&mut self, filter: &Filter) -> Vec<usize> {
+        // Compute hash of the filter
+        let mut hasher = DefaultHasher::new();
+        format!("{:?}", filter).hash(&mut hasher);
+        let filter_hash = hasher.finish();
+
+        // Check if we have a valid cache for this filter
+        let mut cache = if let Some(ref cache) = self.filter_cache {
+            if cache.filter_hash == filter_hash && cache.last_checked <= self.events.len() {
+                // Valid cache - we can do incremental filtering
+                cache.clone()
+            } else {
+                // Filter changed - start fresh
+                FilterCache {
+                    filter_hash,
+                    last_checked: 0,
+                    matches: Vec::new(),
+                }
+            }
+        } else {
+            // No cache - start fresh
+            FilterCache {
+                filter_hash,
+                last_checked: 0,
+                matches: Vec::new(),
+            }
+        };
+
+        // Filter only new events since last check
+        for idx in cache.last_checked..self.events.len() {
+            if filter.matches(&self.events[idx]) {
+                cache.matches.push(idx);
+            }
+        }
+
+        // Update last_checked to current event count
+        cache.last_checked = self.events.len();
+
+        // Store the updated cache
+        let result = cache.matches.clone();
+        self.filter_cache = Some(cache);
+
+        result
+    }
+
+    /// Clear the filter cache, forcing a full re-filter on next call.
+    pub fn clear_filter_cache(&mut self) {
+        self.filter_cache = None;
     }
 
     pub fn all_indices(&self) -> Vec<usize> {
@@ -294,5 +369,194 @@ mod tests {
         let store = EventStore::new(vec![]);
         assert!(store.is_empty());
         assert!(store.time_range().is_none());
+    }
+
+    #[test]
+    fn incremental_filtering_basic() {
+        let events = vec![
+            make_event(1, 1000, TransportKind::Grpc),
+            make_event(2, 2000, TransportKind::Zmq),
+            make_event(3, 3000, TransportKind::Grpc),
+        ];
+        let mut store = EventStore::new(events);
+
+        let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
+        let filtered = store.filter_indices_incremental(&filter);
+
+        // Should match 2 gRPC events
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(store.get(filtered[0]).unwrap().transport, TransportKind::Grpc);
+        assert_eq!(store.get(filtered[1]).unwrap().transport, TransportKind::Grpc);
+    }
+
+    #[test]
+    fn incremental_filtering_with_new_events() {
+        let initial_events = vec![
+            make_event(1, 1000, TransportKind::Grpc),
+            make_event(2, 2000, TransportKind::Zmq),
+        ];
+        let mut store = EventStore::new(initial_events);
+
+        let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
+
+        // First filter - should find 1 match
+        let filtered1 = store.filter_indices_incremental(&filter);
+        assert_eq!(filtered1.len(), 1);
+
+        // Add more events
+        store.push(make_event(3, 3000, TransportKind::Grpc));
+        store.push(make_event(4, 4000, TransportKind::Zmq));
+        store.push(make_event(5, 5000, TransportKind::Grpc));
+
+        // Second filter - should incrementally add new matches
+        let filtered2 = store.filter_indices_incremental(&filter);
+        assert_eq!(filtered2.len(), 3);
+
+        // Verify all matches are gRPC
+        for idx in &filtered2 {
+            assert_eq!(store.get(*idx).unwrap().transport, TransportKind::Grpc);
+        }
+    }
+
+    #[test]
+    fn incremental_filtering_filter_change() {
+        let events = vec![
+            make_event(1, 1000, TransportKind::Grpc),
+            make_event(2, 2000, TransportKind::Zmq),
+            make_event(3, 3000, TransportKind::Grpc),
+        ];
+        let mut store = EventStore::new(events);
+
+        // Apply first filter
+        let filter1 = Filter::parse(r#"transport == "gRPC""#).unwrap();
+        let filtered1 = store.filter_indices_incremental(&filter1);
+        assert_eq!(filtered1.len(), 2);
+
+        // Change filter - should start fresh
+        let filter2 = Filter::parse(r#"transport == "ZMQ""#).unwrap();
+        let filtered2 = store.filter_indices_incremental(&filter2);
+        assert_eq!(filtered2.len(), 1);
+        assert_eq!(store.get(filtered2[0]).unwrap().transport, TransportKind::Zmq);
+    }
+
+    #[test]
+    fn incremental_filtering_with_batches() {
+        let mut store = EventStore::empty();
+
+        let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
+
+        // Add first batch
+        let batch1 = vec![
+            make_event(1, 1000, TransportKind::Grpc),
+            make_event(2, 2000, TransportKind::Zmq),
+        ];
+        store.push_batch(batch1);
+        let filtered1 = store.filter_indices_incremental(&filter);
+        assert_eq!(filtered1.len(), 1);
+
+        // Add second batch
+        let batch2 = vec![
+            make_event(3, 3000, TransportKind::Grpc),
+            make_event(4, 4000, TransportKind::Grpc),
+            make_event(5, 5000, TransportKind::Zmq),
+        ];
+        store.push_batch(batch2);
+        let filtered2 = store.filter_indices_incremental(&filter);
+        assert_eq!(filtered2.len(), 3);
+
+        // All matches should be gRPC
+        for idx in &filtered2 {
+            assert_eq!(store.get(*idx).unwrap().transport, TransportKind::Grpc);
+        }
+    }
+
+    #[test]
+    fn test_index_building() {
+        let events = vec![
+            make_event(1, 1000, TransportKind::Grpc),
+            make_event(2, 2000, TransportKind::Zmq),
+            make_event(3, 3000, TransportKind::Grpc),
+        ];
+        let mut store = EventStore::new(events);
+
+        // Index should not exist initially
+        assert!(store.index().is_none());
+
+        // Build index
+        store.build_index();
+
+        // Index should exist now
+        assert!(store.index().is_some());
+
+        let index = store.index().unwrap();
+
+        // Check protocol index
+        assert_eq!(index.by_protocol.get(&TransportKind::Grpc).unwrap().len(), 2);
+        assert_eq!(index.by_protocol.get(&TransportKind::Zmq).unwrap().len(), 1);
+
+        // Check time_sorted
+        assert_eq!(index.time_sorted.len(), 3);
+    }
+
+    #[test]
+    fn test_large_dataset_performance() {
+        // Create 10K events to test performance
+        let events: Vec<_> = (0..10000)
+            .map(|i| {
+                make_event(
+                    i,
+                    1000 * i,
+                    if i % 3 == 0 {
+                        TransportKind::Grpc
+                    } else if i % 3 == 1 {
+                        TransportKind::Zmq
+                    } else {
+                        TransportKind::DdsRtps
+                    },
+                )
+            })
+            .collect();
+
+        let mut store = EventStore::new(events);
+
+        // Build index
+        store.build_index();
+        assert!(store.index().is_some());
+
+        // Test incremental filtering on large dataset
+        let filter = Filter::parse(r#"transport == "gRPC""#).unwrap();
+        let start = std::time::Instant::now();
+        let filtered = store.filter_indices_incremental(&filter);
+        let duration = start.elapsed();
+
+        // Should find ~3333 events (1/3 of 10K)
+        assert!((filtered.len() as f64 - 3333.0).abs() < 10.0);
+
+        // Filtering 10K events should be fast (< 50ms for incremental first pass)
+        assert!(duration.as_millis() < 50, "Filtering took {:?}", duration);
+
+        // Add more events and test incremental performance
+        for i in 10000..10100 {
+            store.push(make_event(
+                i,
+                1000 * i,
+                if i % 3 == 0 {
+                    TransportKind::Grpc
+                } else {
+                    TransportKind::Zmq
+                },
+            ));
+        }
+
+        let start = std::time::Instant::now();
+        let filtered2 = store.filter_indices_incremental(&filter);
+        let duration2 = start.elapsed();
+
+        // Should have added ~33 more matches
+        assert!(filtered2.len() > filtered.len());
+        assert!(filtered2.len() - filtered.len() <= 34);
+
+        // Incremental filtering should be very fast (< 5ms for 100 new events)
+        assert!(duration2.as_millis() < 5, "Incremental filtering took {:?}", duration2);
     }
 }
