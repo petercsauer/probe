@@ -15,9 +15,11 @@ from pathlib import Path
 from .config import OrchestrateConfig
 from .monitor import MonitorServer
 from .notify import _send_ntfy, Notifier
+from .orchestrator import Orchestrator
 from .planner import Segment, load_plan
 from .recovery import RecoveryAgent
 from .runner import CircuitBreaker, run_segment
+from .signal_handler import SignalHandler
 from .state import StateDB
 from .worktree_pool import WorktreePool
 
@@ -31,32 +33,68 @@ _running_pids: dict[int, int] = {}
 
 
 async def _run_gate(config: OrchestrateConfig, log_dir: Path, wave: int) -> tuple[bool, str]:
-    """Run the configured gate command after a wave, streaming output to a log file."""
+    """Run the configured gate command after a wave, streaming output to a log file.
+
+    Gate execution has a timeout (default 1800s / 30min) to prevent deadlocks.
+    """
     if not config.gate_command:
         return True, "no gate configured"
     gate_log = log_dir / f"gate-W{wave}.log"
-    log.info("Running gate: %s", config.gate_command)
+    gate_timeout = config.gate_timeout
+    log.info("Running gate: %s (timeout: %ds)", config.gate_command, gate_timeout)
 
-    proc = await asyncio.create_subprocess_shell(
-        config.gate_command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            config.gate_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
 
-    lines: list[str] = []
-    with open(gate_log, "w", encoding="utf-8") as f:
-        while True:
-            raw = await proc.stdout.readline()
-            if not raw:
-                break
-            line = raw.decode(errors="replace").rstrip()
-            lines.append(line)
-            f.write(line + "\n")
-            f.flush()
+        lines: list[str] = []
 
-    await proc.wait()
-    passed = proc.returncode == 0
-    return passed, "\n".join(lines)
+        async def _stream_output():
+            """Stream output to file with line-by-line reading."""
+            with open(gate_log, "w", encoding="utf-8") as f:
+                while True:
+                    raw = await proc.stdout.readline()
+                    if not raw:
+                        break
+                    line = raw.decode(errors="replace").rstrip()
+                    lines.append(line)
+                    f.write(line + "\n")
+                    f.flush()
+            await proc.wait()
+
+        # Run with timeout
+        await asyncio.wait_for(_stream_output(), timeout=gate_timeout)
+
+        passed = proc.returncode == 0
+        return passed, "\n".join(lines)
+
+    except asyncio.TimeoutError:
+        # Gate timed out - kill the process
+        log.error("Gate timed out after %ds, killing process", gate_timeout)
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
+
+        # Write timeout message to log
+        timeout_msg = f"GATE TIMEOUT: Execution exceeded {gate_timeout}s limit"
+        lines.append(timeout_msg)
+        with open(gate_log, "a", encoding="utf-8") as f:
+            f.write(f"\n{timeout_msg}\n")
+
+        return False, "\n".join(lines)
+
+    except Exception as e:
+        # Gate execution failed
+        log.error("Gate execution failed: %s", e)
+        error_msg = f"GATE ERROR: {str(e)}"
+        with open(gate_log, "a", encoding="utf-8") as f:
+            f.write(f"\n{error_msg}\n")
+        return False, error_msg
 
 
 async def _claude_summarise(context: str, config: "OrchestrateConfig") -> str:
@@ -927,16 +965,10 @@ async def _orchestrate_inner(
         await pool.create()
         log.info("Created worktree pool with %d worktrees", pool_size)
 
-    shutting_down = asyncio.Event()
-    worker_stop = asyncio.Event()
-
     # Signal handlers
+    signal_handler = SignalHandler()
     loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: _handle_shutdown(shutting_down, worker_stop))
-
-    await monitor.start()
-    await notifier.started(meta.title, len(segments), max_wave)
+    signal_handler.register_handlers(loop)
 
     # Banner
     print(f"\n{'='*60}")
@@ -948,213 +980,33 @@ async def _orchestrate_inner(
     print(f"{'='*60}\n")
 
     heartbeat_task = asyncio.create_task(
-        _heartbeat_loop(state, notifier, config.heartbeat_interval, worker_stop, config)
+        _heartbeat_loop(state, notifier, config.heartbeat_interval, signal_handler.worker_stop, config)
     )
     notif_task = asyncio.create_task(
-        _notification_worker(notifier, state, worker_stop)
+        _notification_worker(notifier, state, signal_handler.worker_stop)
+    )
+
+    # Create recovery agent if enabled
+    recovery_agent = RecoveryAgent(state, config) if config.recovery_enabled else None
+
+    # Create orchestrator
+    orchestrator = Orchestrator(
+        state, config, notifier, monitor,
+        signal_handler, recovery_agent, pool
     )
 
     try:
-        for wave_num in range(1, max_wave + 1):
-            if shutting_down.is_set():
-                log.warning("Shutting down, skipping wave %d+", wave_num)
-                break
-
-            wave_segs = waves.get(wave_num, [])
-            if not wave_segs:
-                continue
-
-            # Skip segments that already passed or were skipped by operator (resume support)
-            pending = []
-            for s in wave_segs:
-                seg = await state.get_segment(s.num)
-                if seg and seg.status not in ("pass", "merged", "skipped"):
-                    pending.append(s)
-
-            if not pending:
-                log.info("Wave %d: all segments already passed, skipping", wave_num)
-                continue
-
-            await state.set_meta("current_wave", str(wave_num))
-            seg_nums = [s.num for s in pending]
-            await state.log_event("wave_start", f"Wave {wave_num}/{max_wave}: {seg_nums}")
-
-            print(f"\n{'━'*50}")
-            print(f"  Wave {wave_num}/{max_wave} — {len(pending)} segments: "
-                  f"{', '.join(f'S{s.num:02d}' for s in pending)}")
-            print(f"{'━'*50}")
-
-            await _wait_for_network(notifier, config.network_retry_max)
-
-            # Pre-flight health check
-            if config.enable_preflight_checks:
-                healthy, errors = await _pre_wave_health_check(wave_num, config, state)
-
-                if not healthy:
-                    # Workspace is broken - stop orchestration
-                    log.error(
-                        f"Wave {wave_num} blocked by workspace errors. "
-                        f"Fix errors and resume with: orchestrate resume"
-                    )
-
-                    # Notify operator
-                    if notifier:
-                        error_summary = f"Wave {wave_num} pre-flight failed: {len(errors)} compilation errors. First error: {errors[0][:100] if errors else 'unknown'}"
-                        await notifier.error(error_summary)
-
-                    # Stop orchestration - don't launch any segments
-                    break
-
-            results = await _run_wave(
-                wave_num, pending, config, state, notifier, log_dir, shutting_down, pool, segments
-            )
-
-            # Batched wave completion notification
-            await notifier.wave_complete(wave_num, max_wave, results)
-            # Individual notifications for non-passing segments
-            for seg_num, status in results:
-                if status not in ("pass", "merged", "skipped"):
-                    seg = next((s for s in pending if s.num == seg_num), None)
-                    if seg:
-                        await notifier.segment_complete(seg_num, seg.title, status, "")
-
-            # Wave summary
-            passed = sum(1 for _, s in results if s in ("pass", "merged"))
-            failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
-            print(f"  Wave {wave_num} complete: {passed} passed, {failed} failed")
-
-            # Recovery: Auto-retry cascade victims if enabled
-            if config.recovery_enabled and not shutting_down.is_set():
-                # Check if wave has any failures to trigger recovery
-                has_failures = any(status in ("partial", "blocked") for _, status in results)
-                if has_failures:
-                    log.info("Recovery: Wave has failures, checking workspace health...")
-                    recovery = RecoveryAgent(state, config)
-
-                    # Check workspace health
-                    healthy, errors = await recovery.check_workspace_health()
-                    if healthy:
-                        log.info("Recovery: Workspace is healthy, identifying cascade victims...")
-
-                        # Get segment rows for victim identification
-                        wave_seg_rows = []
-                        for seg in pending:
-                            seg_data = await state.get_segment(seg.num)
-                            if seg_data:
-                                from .state import SegmentRow
-                                wave_seg_rows.append(SegmentRow(
-                                    num=seg.num,
-                                    slug=seg.slug,
-                                    title=seg.title,
-                                    wave=wave_num,
-                                    status=seg_data["status"],
-                                    attempts=seg_data["attempts"],
-                                ))
-
-                        # Identify victims
-                        victims = await recovery.identify_cascade_victims(wave_seg_rows)
-
-                        if victims:
-                            # Apply circuit breaker: filter by max_attempts
-                            filtered_victims = []
-                            for seg_num in victims:
-                                seg_data = await state.get_segment(seg_num)
-                                if seg_data and seg_data["attempts"] < config.recovery_max_attempts:
-                                    filtered_victims.append(seg_num)
-                                else:
-                                    log.info(
-                                        "Recovery: S%02d filtered by circuit breaker (attempts: %d >= max: %d)",
-                                        seg_num,
-                                        seg_data["attempts"] if seg_data else 0,
-                                        config.recovery_max_attempts,
-                                    )
-
-                            if filtered_victims:
-                                log.info(
-                                    "Recovery: Retrying %d victims: %s",
-                                    len(filtered_victims),
-                                    filtered_victims,
-                                )
-                                recovery_results = await _run_recovery_wave(
-                                    filtered_victims,
-                                    segments,
-                                    wave_num,
-                                    config,
-                                    state,
-                                    notifier,
-                                    log_dir,
-                                    shutting_down,
-                                    pool,
-                                )
-
-                                # Update results with recovery outcomes
-                                recovery_map = {num: status for num, status in recovery_results}
-                                results = [
-                                    (num, recovery_map.get(num, status))
-                                    for num, status in results
-                                ]
-
-                                # Update wave summary
-                                passed = sum(1 for _, s in results if s == "pass")
-                                failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
-                                print(f"  After recovery: {passed} passed, {failed} failed")
-                            else:
-                                log.info("Recovery: No victims to retry after circuit breaker filter")
-                        else:
-                            log.info("Recovery: No cascade victims identified")
-                    else:
-                        log.warning(
-                            "Recovery: Workspace health check failed, skipping victim retry. Errors: %s",
-                            errors[:3] if len(errors) > 3 else errors,
-                        )
-                        await state.log_event(
-                            "recovery_skipped",
-                            f"Wave {wave_num}: workspace unhealthy, {len(errors)} errors",
-                        )
-
-            # Gate check
-            if config.gate_command and not shutting_down.is_set():
-                gate_ok, gate_output = await _run_gate(config, log_dir, wave_num)
-                await state.log_event(
-                    "gate_result",
-                    f"Wave {wave_num} gate: {'PASS' if gate_ok else 'FAIL'}",
-                )
-                await notifier.gate_result(wave_num, gate_ok, gate_output)
-                if not gate_ok:
-                    log.error("Gate failed after wave %d, stopping", wave_num)
-                    await notifier.error(f"Gate failed after wave {wave_num}. Stopping.")
-                    break
-
-    except Exception as exc:
-        log.exception("Orchestration error")
-        await notifier.error(str(exc))
+        await orchestrator.run(
+            segments, waves, max_wave, meta, log_dir,
+            _run_wave, _run_gate, _pre_wave_health_check,
+            _wait_for_network, _run_recovery_wave
+        )
     finally:
-        worker_stop.set()
+        signal_handler.worker_stop.set()
         await heartbeat_task
         await notif_task
 
-        progress = await state.progress()
-        await state.log_event("run_complete", json.dumps(progress))
-        await notifier.finished(meta.title, progress)
 
-        # NEW: Cleanup pool
-        if pool:
-            await pool.cleanup()
-            log.info("Cleaned up worktree pool")
-
-        await monitor.stop()
-        await state.close()
-
-        print(f"\n{'='*60}")
-        print(f"  ORCHESTRATION COMPLETE")
-        print(f"  Results: {progress}")
-        print(f"{'='*60}\n")
-
-
-def _handle_shutdown(shutting_down: asyncio.Event, worker_stop: asyncio.Event) -> None:
-    log.warning("Received shutdown signal")
-    shutting_down.set()
-    worker_stop.set()
 
 
 async def _cmd_status_async(plan_dir: Path) -> None:

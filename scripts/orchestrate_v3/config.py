@@ -106,6 +106,7 @@ class OrchestrateConfig:
     extra_rules: str = ""
     max_parallel: int = 4
     segment_timeout: int = 3600
+    gate_timeout: int = 1800  # Gate timeout: 30 minutes (prevents deadlocks)
     max_retries: int = 2
     heartbeat_interval: int = 300
     isolation_strategy: str = "worktree"  # Default to worktree isolation for safety

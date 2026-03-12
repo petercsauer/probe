@@ -31,32 +31,68 @@ _running_pids: dict[int, int] = {}
 
 
 async def _run_gate(config: OrchestrateConfig, log_dir: Path, wave: int) -> tuple[bool, str]:
-    """Run the configured gate command after a wave, streaming output to a log file."""
+    """Run the configured gate command after a wave, streaming output to a log file.
+
+    Gate execution has a timeout (default 1800s / 30min) to prevent deadlocks.
+    """
     if not config.gate_command:
         return True, "no gate configured"
     gate_log = log_dir / f"gate-W{wave}.log"
-    log.info("Running gate: %s", config.gate_command)
+    gate_timeout = config.gate_timeout
+    log.info("Running gate: %s (timeout: %ds)", config.gate_command, gate_timeout)
 
-    proc = await asyncio.create_subprocess_shell(
-        config.gate_command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            config.gate_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
 
-    lines: list[str] = []
-    with open(gate_log, "w", encoding="utf-8") as f:
-        while True:
-            raw = await proc.stdout.readline()
-            if not raw:
-                break
-            line = raw.decode(errors="replace").rstrip()
-            lines.append(line)
-            f.write(line + "\n")
-            f.flush()
+        lines: list[str] = []
 
-    await proc.wait()
-    passed = proc.returncode == 0
-    return passed, "\n".join(lines)
+        async def _stream_output():
+            """Stream output to file with line-by-line reading."""
+            with open(gate_log, "w", encoding="utf-8") as f:
+                while True:
+                    raw = await proc.stdout.readline()
+                    if not raw:
+                        break
+                    line = raw.decode(errors="replace").rstrip()
+                    lines.append(line)
+                    f.write(line + "\n")
+                    f.flush()
+            await proc.wait()
+
+        # Run with timeout
+        await asyncio.wait_for(_stream_output(), timeout=gate_timeout)
+
+        passed = proc.returncode == 0
+        return passed, "\n".join(lines)
+
+    except asyncio.TimeoutError:
+        # Gate timed out - kill the process
+        log.error("Gate timed out after %ds, killing process", gate_timeout)
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
+
+        # Write timeout message to log
+        timeout_msg = f"GATE TIMEOUT: Execution exceeded {gate_timeout}s limit"
+        lines.append(timeout_msg)
+        with open(gate_log, "a", encoding="utf-8") as f:
+            f.write(f"\n{timeout_msg}\n")
+
+        return False, "\n".join(lines)
+
+    except Exception as e:
+        # Gate execution failed
+        log.error("Gate execution failed: %s", e)
+        error_msg = f"GATE ERROR: {str(e)}"
+        with open(gate_log, "a", encoding="utf-8") as f:
+            f.write(f"\n{error_msg}\n")
+        return False, error_msg
 
 
 async def _claude_summarise(context: str, config: "OrchestrateConfig") -> str:
@@ -391,7 +427,8 @@ async def _validate_upstream_dependencies(
         else:
             dep_status = "unknown"
 
-        if dep_status != "pass":
+        # Accept both "pass" and "merged" as successful statuses
+        if dep_status not in ("pass", "merged"):
             blocking.append(f"S{dep_num:02d}")
 
     if blocking:
@@ -1253,11 +1290,51 @@ async def _orchestrate_inner(
                                                (await state.get_segment(s.num)).status == "pending"]
                                 if pending_segs:
                                     print(f"🚀 Running {len(pending_segs)} pending segments from wave {wave_num} onwards...")
-                                    # TODO: Could re-run pending segments here if needed
                                     await state.log_event(
                                         "gate_retry_resume",
                                         f"Wave {wave_num} gate passed, {len(pending_segs)} segments ready to run",
                                     )
+
+                                    # Group pending segments by wave and run each wave
+                                    waves_to_run = {}
+                                    for seg in pending_segs:
+                                        if seg.wave not in waves_to_run:
+                                            waves_to_run[seg.wave] = []
+                                        waves_to_run[seg.wave].append(seg)
+
+                                    # Run waves in order
+                                    for wave_to_run in sorted(waves_to_run.keys()):
+                                        wave_pending = waves_to_run[wave_to_run]
+                                        await state.set_meta("current_wave", str(wave_to_run))
+                                        seg_nums = [s.num for s in wave_pending]
+                                        await state.log_event("wave_start", f"Wave {wave_to_run}/{max_wave}: {seg_nums}")
+
+                                        print(f"\n{'━'*50}")
+                                        print(f"  Wave {wave_to_run}/{max_wave} — {len(wave_pending)} segments: "
+                                              f"{', '.join(f'S{s.num:02d}' for s in wave_pending)}")
+                                        print(f"{'━'*50}")
+
+                                        results = await _run_wave(
+                                            wave_to_run, wave_pending, config, state, notifier, log_dir,
+                                            shutting_down, pool, segments
+                                        )
+
+                                        # Wave summary
+                                        passed = sum(1 for _, s in results if s == "pass")
+                                        failed = sum(1 for _, s in results if s not in ("pass", "skipped"))
+                                        print(f"  Wave {wave_to_run} complete: {passed} passed, {failed} failed")
+
+                                        # Check gate for this wave if configured
+                                        if config.gate_command:
+                                            gate_ok_next, gate_output_next = await _run_gate(config, log_dir, wave_to_run)
+                                            await state.log_event(
+                                                "gate_result",
+                                                f"Wave {wave_to_run} gate: {'PASS' if gate_ok_next else 'FAIL'}",
+                                            )
+                                            await notifier.gate_result(wave_to_run, gate_ok_next, gate_output_next)
+                                            if not gate_ok_next:
+                                                print(f"❌ Wave {wave_to_run} gate failed - stopping")
+                                                break
                             else:
                                 print(f"❌ Wave {wave_num} gate failed")
 

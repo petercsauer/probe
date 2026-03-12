@@ -193,7 +193,7 @@ fn test_transport_layer_copy() {
 #[test]
 fn test_transport_layer_clone() {
     let udp = TransportLayer::Udp;
-    let cloned = udp.clone();
+    let cloned = udp;
 
     assert_eq!(udp, cloned);
 }

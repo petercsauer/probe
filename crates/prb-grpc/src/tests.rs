@@ -1288,7 +1288,7 @@ fn test_h2_data_frame_with_padding() {
     if let crate::h2::H2Event::Data { data, .. } = &events[0] {
         // Note: Current implementation doesn't strip padding automatically
         // so the data includes pad_length byte + payload + padding
-        assert!(data.len() > 0);
+        assert!(!data.is_empty());
     }
 }
 
@@ -1975,7 +1975,7 @@ fn test_h2_hpack_integer_edge_case_126() {
     payload.extend_from_slice(b"test");
     // Value length 126 (fits in single byte)
     payload.push(126); // Single byte encoding for 126
-    payload.extend_from_slice(&vec![b'x'; 126]);
+    payload.extend_from_slice(&[b'x'; 126]);
 
     let mut frame = vec![0x00, 0x00, payload.len() as u8, 0x01, 0x05];
     frame.extend_from_slice(&1u32.to_be_bytes());

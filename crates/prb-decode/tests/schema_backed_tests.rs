@@ -938,13 +938,13 @@ fn test_display_numeric_types() {
     // uint64_field = 999 (field 4)
     payload.extend_from_slice(&[0x20, 0xe7, 0x07]);
 
-    // float_field = 3.14 (field 6, fixed32)
+    // float_field = 3.25 (field 6, fixed32)
     payload.push(0x35); // tag (6 << 3) | 5
-    payload.extend_from_slice(&3.14f32.to_le_bytes());
+    payload.extend_from_slice(&3.25f32.to_le_bytes());
 
-    // double_field = 2.718 (field 7, fixed64)
+    // double_field = 2.5 (field 7, fixed64)
     payload.push(0x39); // tag (7 << 3) | 1
-    payload.extend_from_slice(&2.718f64.to_le_bytes());
+    payload.extend_from_slice(&2.5f64.to_le_bytes());
 
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
     let display = format!("{decoded}");
@@ -1092,11 +1092,12 @@ fn test_json_int_key_map() {
     let descriptor = create_int_key_map_descriptor();
 
     // Encode map<int32, int32> with entry {42: 100}
-    let mut entry = vec![];
-    entry.push(0x08); // field 1 (key), varint
-    entry.push(0x2a); // key = 42
-    entry.push(0x10); // field 2 (value), varint
-    entry.push(0x64); // value = 100
+    let entry = vec![
+        0x08, // field 1 (key), varint
+        0x2a, // key = 42
+        0x10, // field 2 (value), varint
+        0x64, // value = 100
+    ];
 
     let mut payload = vec![0x0a]; // field 1
     payload.push(entry.len() as u8);
