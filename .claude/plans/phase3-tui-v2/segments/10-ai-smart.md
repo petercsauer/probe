@@ -1,7 +1,7 @@
 ---
 segment: 10
 title: AI Smart Features
-depends: [03]
+depends_on: [03]
 risk: 5
 complexity: Medium
 cycle_budget: 7

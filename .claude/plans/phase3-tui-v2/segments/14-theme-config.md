@@ -1,7 +1,7 @@
 ---
 segment: 14
 title: Theme System & Configuration
-depends: []
+depends_on: []
 risk: 4
 complexity: Medium
 cycle_budget: 7

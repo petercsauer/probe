@@ -1,7 +1,7 @@
 ---
 segment: 12
 title: Complete Request Waterfall
-depends: [01]
+depends_on: [01]
 risk: 5
 complexity: Medium
 cycle_budget: 7

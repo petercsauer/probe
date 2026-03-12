@@ -1,7 +1,7 @@
 ---
 segment: 05
 title: Schema-Aware Decode Pipeline
-depends: []
+depends_on: []
 risk: 6
 complexity: High
 cycle_budget: 10

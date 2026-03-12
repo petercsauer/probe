@@ -1,7 +1,7 @@
 ---
 segment: 16
 title: Accessibility
-depends: [14]
+depends_on: [14]
 risk: 2
 complexity: Low
 cycle_budget: 5

@@ -1,7 +1,7 @@
 ---
 segment: 01
 title: Enable Conversation View
-depends: []
+depends_on: []
 risk: 3
 complexity: Low
 cycle_budget: 3

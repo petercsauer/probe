@@ -1,7 +1,7 @@
 ---
 segment: 07
 title: Column Layout Improvements
-depends: []
+depends_on: []
 risk: 3
 complexity: Medium
 cycle_budget: 5

@@ -1,7 +1,7 @@
 ---
 segment: 17
 title: Session & TLS Management
-depends: [05]
+depends_on: [05]
 risk: 4
 complexity: Medium
 cycle_budget: 5

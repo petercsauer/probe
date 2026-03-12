@@ -1,7 +1,7 @@
 ---
 segment: 02
 title: Complete Export Dialog
-depends: []
+depends_on: []
 risk: 2
 complexity: Low
 cycle_budget: 3

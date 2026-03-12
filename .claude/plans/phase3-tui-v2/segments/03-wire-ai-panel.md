@@ -1,7 +1,7 @@
 ---
 segment: 03
 title: Wire AI Panel
-depends: []
+depends_on: []
 risk: 4
 complexity: Medium
 cycle_budget: 5

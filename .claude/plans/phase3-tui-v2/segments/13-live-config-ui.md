@@ -1,7 +1,7 @@
 ---
 segment: 13
 title: Live Capture Config UI
-depends: [09]
+depends_on: [09]
 risk: 4
 complexity: Medium
 cycle_budget: 5

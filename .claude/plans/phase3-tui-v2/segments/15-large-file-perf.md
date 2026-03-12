@@ -1,7 +1,7 @@
 ---
 segment: 15
 title: Large File Performance
-depends: []
+depends_on: []
 risk: 6
 complexity: High
 cycle_budget: 10

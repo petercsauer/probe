@@ -1,7 +1,7 @@
 ---
 segment: 19
 title: Plugin System UI
-depends: [05]
+depends_on: [05]
 risk: 5
 complexity: Medium
 cycle_budget: 7

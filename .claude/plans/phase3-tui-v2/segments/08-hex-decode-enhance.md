@@ -1,7 +1,7 @@
 ---
 segment: 08
 title: Hex Dump & Decode Tree Enhancements
-depends: [05]
+depends_on: [05]
 risk: 4
 complexity: Medium
 cycle_budget: 7

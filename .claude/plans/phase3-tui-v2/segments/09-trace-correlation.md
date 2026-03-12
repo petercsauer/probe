@@ -1,7 +1,7 @@
 ---
 segment: 09
 title: Trace Correlation View
-depends: [01, 05, 07]
+depends_on: [01, 05, 07]
 risk: 5
 complexity: Medium
 cycle_budget: 7

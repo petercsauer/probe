@@ -1,7 +1,7 @@
 ---
 segment: 18
 title: Multi-Tab Support
-depends: [01]
+depends_on: [01]
 risk: 7
 complexity: High
 cycle_budget: 10

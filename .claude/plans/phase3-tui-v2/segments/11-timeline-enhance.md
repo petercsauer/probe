@@ -1,7 +1,7 @@
 ---
 segment: 11
 title: Timeline Enhancements
-depends: [01]
+depends_on: [01]
 risk: 4
 complexity: Medium
 cycle_budget: 5

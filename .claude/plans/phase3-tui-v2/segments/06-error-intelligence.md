@@ -1,7 +1,7 @@
 ---
 segment: 06
 title: Error Intelligence
-depends: []
+depends_on: []
 risk: 2
 complexity: Low
 cycle_budget: 5

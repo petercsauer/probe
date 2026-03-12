@@ -1,7 +1,7 @@
 ---
 segment: 04
 title: Enable Metrics Overlay
-depends: []
+depends_on: []
 risk: 2
 complexity: Low
 cycle_budget: 3
