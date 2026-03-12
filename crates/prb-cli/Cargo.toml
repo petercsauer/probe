@@ -35,14 +35,14 @@ serde_json = { workspace = true }
 camino = { workspace = true }
 tokio = { workspace = true }
 ctrlc = { version = "3", features = ["termination"] }
-dirs = "5"
-toml = "0.8"
+dirs = { workspace = true }
+toml = { workspace = true }
 
 [dev-dependencies]
-assert_cmd = "2.0"
-insta = "1.41"
-predicates = "3.1"
-tempfile = "3.13"
+assert_cmd = { workspace = true }
+insta = { workspace = true }
+predicates = { workspace = true }
+tempfile = { workspace = true }
 prost = "0.14"
 prost-types = "0.14"
 base64 = { workspace = true }

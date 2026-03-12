@@ -8,8 +8,8 @@ repository.workspace = true
 [dependencies]
 prb-core = { path = "../prb-core" }
 prb-pcap = { path = "../prb-pcap" }
-pcap = "2.4"
-crossbeam-channel = "0.5"
+pcap = { workspace = true }
+crossbeam-channel = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 
