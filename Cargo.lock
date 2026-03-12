@@ -3849,6 +3849,7 @@ dependencies = [
  "futures",
  "insta",
  "lazy_static",
+ "pcap",
  "prb-ai",
  "prb-capture",
  "prb-core",
