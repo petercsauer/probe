@@ -1008,7 +1008,7 @@ fn test_h2_indexed_headers_various_static_table_entries() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get(":method"), Some(&"POST".to_string()));
@@ -1038,7 +1038,7 @@ fn test_h2_literal_header_with_incremental_indexing() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(
@@ -1069,7 +1069,7 @@ fn test_h2_literal_header_never_indexed() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("x-secret-key"), Some(&"secretAA".to_string()));
@@ -1095,7 +1095,7 @@ fn test_h2_dynamic_table_size_update() {
 
     // Should process without error (size update is consumed)
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get(":method"), Some(&"GET".to_string()));
@@ -1127,7 +1127,7 @@ fn test_h2_hpack_multi_byte_integer_edge_cases() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("test"), Some(&long_value));
@@ -1154,7 +1154,7 @@ fn test_h2_static_table_high_indices() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert!(headers.contains_key("range"));
@@ -1372,7 +1372,7 @@ fn test_h2_literal_header_with_indexed_name() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("cookie"), Some(&"sessionid=".to_string()));
@@ -1782,7 +1782,7 @@ fn test_h2_static_table_mid_range_indices() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert!(headers.contains_key("accept-charset"));
@@ -1819,7 +1819,7 @@ fn test_h2_static_table_all_status_codes() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         // Last one wins, so should be 500
@@ -1867,7 +1867,7 @@ fn test_h2_static_table_remaining_entries() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert!(headers.contains_key("date"));
@@ -1896,7 +1896,7 @@ fn test_h2_literal_with_indexed_name_from_static_table() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("accept-encoding"), Some(&"gzip".to_string()));
@@ -1923,7 +1923,7 @@ fn test_h2_literal_never_indexed_with_static_table_name() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert!(headers.contains_key(":authority") || headers.contains_key("unknown"));
@@ -1951,7 +1951,7 @@ fn test_h2_mixed_hpack_encodings() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get(":method"), Some(&"GET".to_string()));
@@ -1982,7 +1982,7 @@ fn test_h2_hpack_integer_edge_case_126() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("test").map(|s| s.len()), Some(126));
@@ -2022,7 +2022,7 @@ fn test_h2_hpack_integer_three_byte() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("test").map(|s| s.len()), Some(384));
@@ -2172,7 +2172,7 @@ fn test_h2_hpack_literal_with_indexing_literal_name() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 
     if let crate::h2::H2Event::Headers { headers, .. } = &events[0] {
         assert_eq!(headers.get("x-custom"), Some(&"value".to_string()));
@@ -2320,7 +2320,7 @@ fn test_h2_static_table_boundary_indices() {
     frame.extend_from_slice(&payload);
 
     let events = codec.process(&frame).unwrap();
-    assert!(events.len() >= 1);
+    assert!(!events.is_empty());
 }
 
 #[test]
