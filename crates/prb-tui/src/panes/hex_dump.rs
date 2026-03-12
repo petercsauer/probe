@@ -540,15 +540,13 @@ fn render_hex_line(
                     let is_search_match = search_matches.contains(&byte_pos);
                     let mut is_diff = false;
                     for j in 0..4 {
-                        if i + j < bytes.len() {
-                            if let Some(marked) = marked_bytes {
-                                if let Some(&marked_byte) = marked.get(byte_pos + j) {
-                                    if marked_byte != bytes[i + j] {
-                                        is_diff = true;
-                                        break;
-                                    }
-                                }
-                            }
+                        if i + j < bytes.len()
+                            && let Some(marked) = marked_bytes
+                            && let Some(&marked_byte) = marked.get(byte_pos + j)
+                            && marked_byte != bytes[i + j]
+                        {
+                            is_diff = true;
+                            break;
                         }
                     }
                     let style = if is_search_match {

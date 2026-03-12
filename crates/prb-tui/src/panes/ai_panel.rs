@@ -14,7 +14,9 @@ use prb_core::{DebugEvent, EventId};
 #[derive(Debug, Clone)]
 enum PanelMode {
     Explanation,
+    #[allow(dead_code)]
     Anomalies(Vec<Anomaly>),
+    #[allow(dead_code)]
     ProtocolHints(Vec<ProtocolHint>),
 }
 
