@@ -19,7 +19,7 @@ pub use diff_view::DiffViewOverlay;
 pub use export_dialog::ExportDialogOverlay;
 pub use follow_stream::FollowStreamOverlay;
 pub use metrics::MetricsOverlay;
-pub use plugin_manager::{PluginEntry, PluginManagerOverlay, PluginType};
+pub use plugin_manager::{PluginEntry, PluginManagerOverlay, PluginManagerView, PluginType};
 pub use session_info::{ChannelDisplay, SessionInfo, SessionInfoOverlay};
 pub use theme_editor::ThemeEditorOverlay;
 pub use tls_keylog_picker::TlsKeylogPickerOverlay;
