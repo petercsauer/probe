@@ -82,16 +82,20 @@
   .seg-row {
     display: flex; align-items: center; padding: 5px 20px; gap: 10px;
     cursor: pointer; transition: background 0.15s; font-size: 13px;
+    position: relative; z-index: 1;
   }
   .seg-row:hover { background: rgba(255,255,255,0.04); }
   .seg-row.active { background: rgba(88,166,255,0.1); border-left: 3px solid #58a6ff; padding-left: 17px; }
+  .seg-row:has(.status-dropdown.show) { z-index: 2000; }
   .seg-num { font-weight: 700; font-size: 12px; width: 36px; flex-shrink: 0; font-family: 'SF Mono', monospace; }
   .seg-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); }
   .seg-elapsed { font-size: 11px; color: var(--text-muted); font-family: 'SF Mono', monospace; flex-shrink: 0; }
   .seg-status {
     font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
     text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0;
+    cursor: pointer; position: relative;
   }
+  .seg-status:hover { opacity: 0.8; }
   .seg-status.pass    { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass); }
   .seg-status.running { background: var(--running-bg); color: var(--running); border: 1px solid var(--running); animation: pulse 2s infinite; }
   .seg-status.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
@@ -101,6 +105,23 @@
   .seg-status.timeout { background: var(--partial-bg); color: var(--timeout); border: 1px solid var(--timeout); }
   .seg-status.unknown  { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
   .seg-status.skipped  { background: var(--pending-bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* Status dropdown menu */
+  .status-dropdown {
+    position: absolute; top: 100%; right: 0; margin-top: 4px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 9999; min-width: 120px;
+    display: none;
+  }
+  .status-dropdown.show { display: block; }
+  .status-dropdown-item {
+    padding: 6px 12px; font-size: 11px; cursor: pointer;
+    transition: background 0.1s; text-transform: uppercase;
+    font-weight: 600; letter-spacing: 0.3px;
+  }
+  .status-dropdown-item:hover { background: rgba(255,255,255,0.08); }
+  .status-dropdown-item:first-child { border-radius: 6px 6px 0 0; }
+  .status-dropdown-item:last-child { border-radius: 0 0 6px 6px; }
 
   /* ── Operator action buttons ── */
   .act-btns { display: flex; gap: 4px; flex-shrink: 0; }
@@ -785,6 +806,60 @@
     }
   };
 
+  window.changeStatus = async function(num, newStatus) {
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'set_status', seg_num: num, status: newStatus}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed: ${data.error || 'unknown error'}`);
+      } else {
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
+  };
+
+  window.toggleStatusDropdown = function(event, num, currentStatus) {
+    event.stopPropagation();
+    // Close any open dropdowns
+    document.querySelectorAll('.status-dropdown').forEach(d => d.remove());
+
+    const statuses = ['pending', 'running', 'pass', 'failed', 'blocked', 'partial', 'timeout', 'unknown', 'skipped'];
+    const dropdown = document.createElement('div');
+    dropdown.className = 'status-dropdown show';
+
+    statuses.forEach(status => {
+      const item = document.createElement('div');
+      item.className = 'status-dropdown-item';
+      item.textContent = status;
+      item.style.color = getComputedStyle(document.documentElement).getPropertyValue(`--${status === 'pass' ? 'pass' : status === 'running' ? 'running' : status === 'pending' ? 'pending' : status.includes('fail') || status === 'blocked' ? 'fail' : status === 'partial' || status === 'timeout' ? 'partial' : 'text-muted'}`);
+      if (status === currentStatus) {
+        item.style.background = 'rgba(255,255,255,0.15)';
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        window.changeStatus(num, status);
+        dropdown.remove();
+      };
+      dropdown.appendChild(item);
+    });
+
+    event.target.appendChild(dropdown);
+
+    // Close dropdown when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeDropdown() {
+        dropdown.remove();
+        document.removeEventListener('click', closeDropdown);
+      });
+    }, 10);
+  };
+
   function renderTimeline(segments, maxWave, events, currentWave) {
     const el = document.getElementById('timeline-content');
     const waves = {};
@@ -814,7 +889,7 @@
         html += `<span class="seg-num">S${pad(s.num)}</span>`;
         html += `<span class="seg-title">${s.title}</span>`;
         html += elapsedStr;
-        html += `<span class="seg-status ${s.status}">${s.status}</span>`;
+        html += `<span class="seg-status ${s.status}" onclick="event.stopPropagation();window.toggleStatusDropdown(event,${s.num},'${s.status}')" title="Click to change status">${s.status}</span>`;
         html += actionButtons(s);
         html += `</div>`;
       });

@@ -97,6 +97,21 @@ async def _handle_control(request: web.Request) -> web.Response:
         except Exception as e:
             return web.json_response({"ok": False, "error": str(e)}, status=500)
 
+    elif action == "set_status":
+        new_status = data.get("status")
+        if not new_status:
+            return web.json_response({"ok": False, "error": "status parameter required"}, status=400)
+        valid_statuses = ["pending", "running", "pass", "failed", "blocked", "partial", "timeout", "unknown", "skipped"]
+        if new_status not in valid_statuses:
+            return web.json_response({"ok": False, "error": f"invalid status: {new_status}"}, status=400)
+        await state.set_status(seg_num, new_status)
+        await state.log_event(
+            "operator_status_change",
+            f"S{seg_num:02d} status changed to {new_status} by operator",
+            severity="info",
+        )
+        return web.json_response({"ok": True, "action": "set_status", "seg_num": seg_num, "status": new_status})
+
     return web.json_response({"ok": False, "error": f"unknown action: {action}"}, status=400)
 
 

@@ -4,6 +4,26 @@ This defines HOW you operate, not WHAT you build. The segment brief (provided se
 
 ---
 
+## Tool Usage (CRITICAL)
+
+**IMPORTANT: Use the correct parameter names for all tools:**
+
+- `Read` tool requires `file_path` parameter (NOT `path`)
+  - ✅ Correct: `Read(file_path="/path/to/file.rs")`
+  - ❌ Wrong: `Read(path="/path/to/file.rs")`
+
+- `Edit` tool requires `file_path` parameter (NOT `path`)
+  - ✅ Correct: `Edit(file_path="/path/to/file.rs", ...)`
+  - ❌ Wrong: `Edit(path="/path/to/file.rs", ...)`
+
+- `Write` tool requires `file_path` parameter (NOT `path`)
+  - ✅ Correct: `Write(file_path="/path/to/file.rs", content="...")`
+  - ❌ Wrong: `Write(path="/path/to/file.rs", content="...")`
+
+**File paths:** You are running in a worktree at `.claude/worktrees/pool-XX`. Use relative paths from the worktree root (which is a copy of the main repo). Do NOT use absolute paths like `/Users/...` unless reading from `.claude/plans/` or `.claude/commands/`.
+
+---
+
 ## Iteration Budget
 
 Your cycle budget is set by the segment brief's **Cycle budget** field. Default: **15 cycles** if not specified. A cycle is one pass of: edit code → build → run tests → evaluate results.
