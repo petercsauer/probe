@@ -19,6 +19,30 @@ cargo build
 cargo test
 ```
 
+### Pre-commit Hooks
+
+Install Git pre-commit hooks to catch issues before they reach CI:
+
+```bash
+# Standard hooks (format, lint, fast tests)
+bash scripts/install-hooks.sh
+
+# Or use just:
+just install-hooks
+```
+
+The hooks will automatically run on every `git commit` and block commits if checks fail.
+
+To bypass hooks (not recommended):
+```bash
+git commit --no-verify
+```
+
+For faster hooks (skip tests):
+```bash
+bash scripts/install-hooks-fast.sh
+```
+
 ### Useful Commands
 
 ```bash
