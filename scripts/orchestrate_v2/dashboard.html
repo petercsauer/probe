@@ -205,6 +205,9 @@
   .toolbar-interject-input:focus { border-color: var(--running); background: rgba(0,0,0,0.4); }
   .toolbar-interject-input:disabled { opacity: 0.4; cursor: not-allowed; }
   .toolbar-interject-input::placeholder { color: var(--text-muted); }
+  .toolbar-divider {
+    width: 1px; height: 24px; background: var(--border); flex-shrink: 0;
+  }
   .prompt-btn {
     padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
     background: rgba(122,162,247,0.15); color: var(--running); border: 1px solid var(--running);
@@ -428,7 +431,7 @@
   <div class="timeline" id="timeline">
     <div id="timeline-content"></div>
     <div class="kbd-hint">
-      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log &nbsp; <kbd>/</kbd> search
+      <kbd>j</kbd>/<kbd>k</kbd> navigate &nbsp; <kbd>Enter</kbd> open log
     </div>
   </div>
 
@@ -448,10 +451,11 @@
         disabled
         onkeydown="if(event.key==='Enter' && !this.disabled) interjectCurrentSeg()"
       >
-      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
       <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
         <i class="fa-solid fa-message"></i> Send
       </button>
+      <div class="toolbar-divider"></div>
+      <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
     </div>
   </div>
 
@@ -613,11 +617,6 @@
     const div = document.createElement('div');
     div.className = 'cc-text';
     div.innerHTML = _renderMarkdown(text);
-    const term = document.getElementById('log-search').value.toLowerCase();
-    if (term) {
-      if (!text.toLowerCase().includes(term)) div.style.display = 'none';
-      else div.classList.add('highlight');
-    }
     logEl.appendChild(div);
   }
 
@@ -791,8 +790,6 @@
   document.addEventListener('keydown', function(e) {
     if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
       if (e.key === 'Escape') {
-        document.getElementById('log-search').value = '';
-        document.getElementById('log-search').dispatchEvent(new Event('input'));
         e.target.blur();
       }
       return;
@@ -803,28 +800,6 @@
       const seg = lastSegments && lastSegments.find(s => s.num === activeSeg);
       if (seg) window._selectSeg(seg.num, seg.title, seg.status);
     }
-    if (e.key === '/') { e.preventDefault(); document.getElementById('log-search').focus(); }
-    if (e.key === 'Escape') {
-      document.getElementById('log-search').value = '';
-      document.getElementById('log-search').dispatchEvent(new Event('input'));
-    }
-  });
-
-  // ── Log search ──
-  document.getElementById('log-search').addEventListener('input', function() {
-    // Disable search when viewing prompt
-    if (showingPrompt) return;
-
-    const term = this.value.toLowerCase();
-    const lines = document.querySelectorAll('.log-line');
-    let matches = 0;
-    lines.forEach(l => {
-      const vis = !term || l.textContent.toLowerCase().includes(term);
-      l.style.display = vis ? '' : 'none';
-      l.classList.toggle('highlight', vis && !!term);
-      if (vis && term) matches++;
-    });
-    document.getElementById('search-count').textContent = term ? `${matches}` : '';
   });
 
   // ── Notifications ──
@@ -1202,7 +1177,6 @@
     const promptBtn = document.getElementById('prompt-btn');
     const logContent = document.getElementById('log-content');
     const badge = document.getElementById('live-badge');
-    const searchInput = document.getElementById('log-search');
 
     if (showingPrompt) {
       // Switch back to log view
@@ -1221,10 +1195,6 @@
       showingPrompt = true;
       promptBtn.textContent = 'Log';
       promptBtn.classList.add('active');
-
-      // Clear search
-      searchInput.value = '';
-      document.getElementById('search-count').textContent = '';
 
       // Stop log stream
       if (logSource) {
