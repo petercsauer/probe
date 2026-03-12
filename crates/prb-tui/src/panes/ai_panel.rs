@@ -291,3 +291,212 @@ impl PaneComponent for AiPanel {
         paragraph.render(inner, buf);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ai_smart::{Anomaly, AnomalySeverity, ProtocolHint};
+
+    #[test]
+    fn test_ai_panel_new() {
+        let panel = AiPanel::new();
+        assert!(panel.content.is_empty());
+        assert!(!panel.streaming);
+        assert_eq!(panel.scroll_offset, 0);
+        assert!(panel.cached.is_empty());
+        assert!(panel.error.is_none());
+    }
+
+    #[test]
+    fn test_ai_panel_clear() {
+        let mut panel = AiPanel::new();
+        panel.content = "test content".to_string();
+        panel.streaming = true;
+        panel.scroll_offset = 5;
+        panel.error = Some("error".to_string());
+
+        panel.clear();
+
+        assert!(panel.content.is_empty());
+        assert!(!panel.streaming);
+        assert_eq!(panel.scroll_offset, 0);
+        assert!(panel.error.is_none());
+    }
+
+    #[test]
+    fn test_show_anomalies_empty() {
+        let mut panel = AiPanel::new();
+        panel.show_anomalies(vec![]);
+
+        assert!(panel.content.contains("No anomalies detected"));
+        assert!(!panel.streaming);
+    }
+
+    #[test]
+    fn test_show_anomalies_with_data() {
+        let mut panel = AiPanel::new();
+        let anomalies = vec![
+            Anomaly {
+                title: "High latency".to_string(),
+                description: "Request took too long".to_string(),
+                severity: AnomalySeverity::High,
+                event_indices: vec![1, 2, 3],
+            },
+            Anomaly {
+                title: "Missing response".to_string(),
+                description: "No response received".to_string(),
+                severity: AnomalySeverity::Medium,
+                event_indices: vec![4],
+            },
+        ];
+
+        panel.show_anomalies(anomalies);
+
+        assert!(panel.content.contains("Anomalies Detected"));
+        assert!(panel.content.contains("High latency"));
+        assert!(panel.content.contains("HIGH"));
+        assert!(panel.content.contains("Missing response"));
+        assert!(panel.content.contains("MEDIUM"));
+        assert!(panel.content.contains("Affects 3 events"));
+        assert!(panel.content.contains("Affects 1 events"));
+    }
+
+    #[test]
+    fn test_show_anomalies_severity_markers() {
+        let mut panel = AiPanel::new();
+        let anomalies = vec![
+            Anomaly {
+                title: "Critical".to_string(),
+                description: "Bad".to_string(),
+                severity: AnomalySeverity::High,
+                event_indices: vec![],
+            },
+            Anomaly {
+                title: "Warning".to_string(),
+                description: "Moderate".to_string(),
+                severity: AnomalySeverity::Medium,
+                event_indices: vec![],
+            },
+            Anomaly {
+                title: "Info".to_string(),
+                description: "Minor".to_string(),
+                severity: AnomalySeverity::Low,
+                event_indices: vec![],
+            },
+        ];
+
+        panel.show_anomalies(anomalies);
+
+        assert!(panel.content.contains("HIGH"));
+        assert!(panel.content.contains("MEDIUM"));
+        assert!(panel.content.contains("LOW"));
+    }
+
+    #[test]
+    fn test_show_protocol_hints_empty() {
+        let mut panel = AiPanel::new();
+        panel.show_protocol_hints(vec![]);
+
+        assert!(panel.content.contains("No protocol hints available"));
+        assert!(!panel.streaming);
+    }
+
+    #[test]
+    fn test_show_protocol_hints_with_data() {
+        let mut panel = AiPanel::new();
+        let hints = vec![
+            ProtocolHint {
+                protocol_name: "gRPC".to_string(),
+                description: "Detected HTTP/2 with binary framing".to_string(),
+                confidence: 0.95,
+            },
+            ProtocolHint {
+                protocol_name: "ZeroMQ".to_string(),
+                description: "Detected ZMQ message patterns".to_string(),
+                confidence: 0.72,
+            },
+        ];
+
+        panel.show_protocol_hints(hints);
+
+        assert!(panel.content.contains("Protocol Identification"));
+        assert!(panel.content.contains("gRPC"));
+        assert!(panel.content.contains("95% confidence"));
+        assert!(panel.content.contains("ZeroMQ"));
+        assert!(panel.content.contains("72% confidence"));
+        assert!(panel.content.contains("HTTP/2 with binary framing"));
+    }
+
+    #[test]
+    fn test_is_streaming() {
+        let mut panel = AiPanel::new();
+        assert!(!panel.is_streaming());
+
+        panel.streaming = true;
+        assert!(panel.is_streaming());
+
+        panel.streaming = false;
+        assert!(!panel.is_streaming());
+    }
+
+    #[test]
+    fn test_poll_stream_end_marker() {
+        let mut panel = AiPanel::new();
+        let (tx, rx) = mpsc::unbounded_channel();
+        panel.stream_rx = Some(rx);
+        panel.streaming = true;
+        panel.content = "partial".to_string();
+
+        let event_id = EventId::from_raw(1);
+
+        // Send END marker
+        tx.send("\n[END]".to_string()).unwrap();
+        drop(tx);
+
+        panel.poll_stream(event_id);
+
+        assert!(!panel.streaming);
+        assert!(panel.stream_rx.is_none());
+        assert_eq!(panel.content, "partial");
+        assert!(panel.cached.contains_key(&event_id));
+    }
+
+    #[test]
+    fn test_poll_stream_error_marker() {
+        let mut panel = AiPanel::new();
+        let (tx, rx) = mpsc::unbounded_channel();
+        panel.stream_rx = Some(rx);
+        panel.streaming = true;
+
+        let event_id = EventId::from_raw(1);
+
+        // Send ERROR marker
+        tx.send("\n[ERROR: Connection failed]".to_string()).unwrap();
+        drop(tx);
+
+        panel.poll_stream(event_id);
+
+        assert!(!panel.streaming);
+        assert!(panel.stream_rx.is_none());
+        assert_eq!(panel.error, Some(" Connection failed".to_string()));
+    }
+
+    #[test]
+    fn test_poll_stream_accumulates_content() {
+        let mut panel = AiPanel::new();
+        let (tx, rx) = mpsc::unbounded_channel();
+        panel.stream_rx = Some(rx);
+        panel.streaming = true;
+
+        let event_id = EventId::from_raw(1);
+
+        // Send chunks
+        tx.send("Hello ".to_string()).unwrap();
+        tx.send("world".to_string()).unwrap();
+
+        panel.poll_stream(event_id);
+
+        assert_eq!(panel.content, "Hello world");
+        assert!(panel.streaming); // Still streaming until END marker
+    }
+}
