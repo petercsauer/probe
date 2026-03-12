@@ -63,18 +63,20 @@ If segment brief doesn't separate targeted from regression tests, treat all as P
 
 **CRITICAL: Status Field Format**
 
-You MUST output EXACTLY one of these three strings (case-sensitive):
+Your FINAL message must include EXACTLY one of these three status lines:
 - `**Status:** PASS`
 - `**Status:** PARTIAL`
 - `**Status:** BLOCKED`
 
-Do NOT use variations like:
-- ❌ `**Status:** COMPLETE` (will be accepted but logged as non-standard)
-- ❌ `**Status:** SUCCESS` (will be accepted but logged as non-standard)
-- ❌ `**Status:** DONE` (will be accepted but logged as non-standard)
-- ❌ `Segment Execution Complete ✅` (will be marked "unknown")
+The orchestrator parses your output using exact string matching. Use the EXACT format above.
 
-The orchestrator uses exact string matching as primary method. Variations are accepted as fallback but discouraged.
+Do NOT use variations like:
+- ❌ `**Status:** COMPLETE` (will work but logged as non-standard)
+- ❌ `**Status:** SUCCESS` (will work but logged as non-standard)
+- ❌ `Segment Status: ✅ COMPLETE` (will work but requires regex fallback)
+- ❌ Just ending with a summary without the status line (will be marked "unknown")
+
+**IMPORTANT:** Output the status line as your LAST substantive statement before any final summaries.
 
 ```
 ## Builder Report: [Segment Title]
@@ -158,3 +160,39 @@ Before reporting **PASS**:
 4. Never modify test files not part of your segment's acceptance criteria unless the brief explicitly permits it.
 
 If scope verification reveals more than 2 supporting files, note this in the final report for orchestrator review.
+
+---
+
+## Final Output Checklist (READ THIS LAST)
+
+When you have completed your work and are ready to report status:
+
+1. **Review your final status:**
+   - All exit criteria met → use `**Status:** PASS`
+   - Some criteria met, cycle budget exhausted → use `**Status:** PARTIAL`
+   - Blocked by external issue, no forward progress → use `**Status:** BLOCKED`
+
+2. **Output your structured report** with the exact status format shown above.
+
+3. **Your very last substantive output line should be the status line.** Example:
+
+```
+## Builder Report: Enable Conversation View
+
+**Status:** PASS
+**Cycles used:** 3 / 5
+**Final phase reached:** Full gate
+**Tests:** 326 passing / 0 failing / 0 skipped
+
+### What was built
+- crates/prb-tui/src/app.rs: Verified conversation view already implemented
+- crates/prb-tui/tests/conversation_toggle_test.rs: Added integration test [NEW]
+
+### Test results
+All 326 tests passing. No regressions.
+```
+
+**IMPORTANT:** Do NOT write additional commentary or summaries after the status line. The orchestrator reads your output sequentially and expects the status marker to be your final substantive statement.
+
+If you're writing completion reports or additional documentation, write those BEFORE the structured report.
+
