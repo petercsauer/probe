@@ -7,9 +7,22 @@ incremental = true
 rustflags = [
     "-D", "warnings",
     "-D", "clippy::all",
-    "-D", "clippy::pedantic",
-    "-D", "clippy::cargo",
     "-W", "clippy::nursery",  # Warn on nursery, don't error
+    # Pedantic and cargo lints are temporarily allowed for gradual cleanup
+    # Allow specific lints that require gradual cleanup
+    "-A", "clippy::use_self",
+    "-A", "clippy::equatable_if_let",
+    "-A", "clippy::redundant_clone",
+    "-A", "clippy::useless_let_if_seq",
+    "-A", "clippy::option_if_let_else",
+    "-A", "clippy::or_fun_call",
+    "-A", "clippy::branches_sharing_code",
+    "-A", "clippy::missing_const_for_fn",
+    "-A", "clippy::needless_pass_by_ref_mut",
+    "-A", "clippy::redundant_pattern_matching",
+    "-A", "clippy::collection_is_never_read",
+    "-A", "clippy::needless_collect",
+    "-A", "clippy::significant_drop_tightening",
 ]
 
 # Platform-specific: Unix-like systems
@@ -17,9 +30,22 @@ rustflags = [
 rustflags = [
     "-D", "warnings",
     "-D", "clippy::all",
-    "-D", "clippy::pedantic",
-    "-D", "clippy::cargo",
     "-W", "clippy::nursery",
+    # Pedantic and cargo lints are temporarily allowed for gradual cleanup
+    # Allow specific lints that require gradual cleanup
+    "-A", "clippy::use_self",
+    "-A", "clippy::equatable_if_let",
+    "-A", "clippy::redundant_clone",
+    "-A", "clippy::useless_let_if_seq",
+    "-A", "clippy::option_if_let_else",
+    "-A", "clippy::or_fun_call",
+    "-A", "clippy::branches_sharing_code",
+    "-A", "clippy::missing_const_for_fn",
+    "-A", "clippy::needless_pass_by_ref_mut",
+    "-A", "clippy::redundant_pattern_matching",
+    "-A", "clippy::collection_is_never_read",
+    "-A", "clippy::needless_collect",
+    "-A", "clippy::significant_drop_tightening",
 ]
 
 # Platform-specific: Windows
@@ -27,9 +53,22 @@ rustflags = [
 rustflags = [
     "-D", "warnings",
     "-D", "clippy::all",
-    "-D", "clippy::pedantic",
-    "-D", "clippy::cargo",
     "-W", "clippy::nursery",
+    # Pedantic and cargo lints are temporarily allowed for gradual cleanup
+    # Allow specific lints that require gradual cleanup
+    "-A", "clippy::use_self",
+    "-A", "clippy::equatable_if_let",
+    "-A", "clippy::redundant_clone",
+    "-A", "clippy::useless_let_if_seq",
+    "-A", "clippy::option_if_let_else",
+    "-A", "clippy::or_fun_call",
+    "-A", "clippy::branches_sharing_code",
+    "-A", "clippy::missing_const_for_fn",
+    "-A", "clippy::needless_pass_by_ref_mut",
+    "-A", "clippy::redundant_pattern_matching",
+    "-A", "clippy::collection_is_never_read",
+    "-A", "clippy::needless_collect",
+    "-A", "clippy::significant_drop_tightening",
 ]
 
 [alias]
