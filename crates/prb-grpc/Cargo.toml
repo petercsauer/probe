@@ -20,3 +20,8 @@ flate2 = "1.0"
 
 [dev-dependencies]
 insta = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "grpc_decode"
+harness = false

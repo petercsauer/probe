@@ -3590,6 +3590,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "bytes",
+ "criterion",
  "insta",
  "prb-pcap",
  "proptest",
@@ -3603,6 +3604,7 @@ name = "prb-dds"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "criterion",
  "indexmap 2.13.0",
  "insta",
  "prb-core",
@@ -3681,6 +3683,7 @@ name = "prb-grpc"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "criterion",
  "flate2",
  "indexmap 2.13.0",
  "insta",
@@ -3790,6 +3793,7 @@ name = "prb-query"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "criterion",
  "nom 8.0.0",
  "prb-core",
  "thiserror 2.0.18",
@@ -3818,6 +3822,7 @@ dependencies = [
  "bytes",
  "camino",
  "chrono",
+ "criterion",
  "itertools 0.13.0",
  "mcap",
  "memmap2",
@@ -3884,6 +3889,7 @@ name = "prb-zmq"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "criterion",
  "indexmap 2.13.0",
  "insta",
  "prb-core",
