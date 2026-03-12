@@ -43,10 +43,7 @@ fn test_real_data_http11_basic() {
 #[test]
 fn test_real_data_http_chunked_gzip() {
     let capture_path = fixtures_dir().join("http/http-chunked-gzip.pcap");
-    assert!(
-        capture_path.exists(),
-        "HTTP chunked+gzip fixture required"
-    );
+    assert!(capture_path.exists(), "HTTP chunked+gzip fixture required");
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
     let events: Vec<_> = adapter.ingest().collect();
@@ -64,10 +61,7 @@ fn test_real_data_http_chunked_gzip() {
 #[test]
 fn test_real_data_http_large_payload() {
     let capture_path = fixtures_dir().join("http/http_with_jpegs.cap");
-    assert!(
-        capture_path.exists(),
-        "HTTP large payload fixture required"
-    );
+    assert!(capture_path.exists(), "HTTP large payload fixture required");
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
     let events: Vec<_> = adapter.ingest().collect();

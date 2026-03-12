@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
     ChatCompletionRequestUserMessage, CreateChatCompletionRequest, Role,
 };
-use async_openai::Client;
 use prb_core::{DebugEvent, TransportKind};
 use prb_query::Filter;
 
@@ -227,8 +227,7 @@ IMPORTANT:
         .to_string();
 
     // Validate the filter
-    Filter::parse(&filter_expr)
-        .map_err(|e| format!("Invalid filter generated: {}", e))?;
+    Filter::parse(&filter_expr).map_err(|e| format!("Invalid filter generated: {}", e))?;
 
     Ok(filter_expr)
 }
@@ -366,8 +365,7 @@ fn build_anomaly_summary(events: &[DebugEvent], context: &CaptureContext) -> Str
                 .get("grpc.status")
                 .map(|s| s != "0")
                 .unwrap_or(false)
-                || e
-                    .metadata
+                || e.metadata
                     .get("http.status")
                     .and_then(|s| s.parse::<u16>().ok())
                     .map(|s| s >= 400)
@@ -375,13 +373,22 @@ fn build_anomaly_summary(events: &[DebugEvent], context: &CaptureContext) -> Str
         })
         .count();
     if error_count > 0 {
-        summary.push(format!("Errors: {} ({:.1}%)", error_count, (error_count as f64 / events.len() as f64) * 100.0));
+        summary.push(format!(
+            "Errors: {} ({:.1}%)",
+            error_count,
+            (error_count as f64 / events.len() as f64) * 100.0
+        ));
     }
 
     // Sample metadata
     summary.push("\nSample metadata:".to_string());
     for (key, values) in context.sample_metadata.iter().take(10) {
-        let value_str = values.iter().take(3).map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", ");
+        let value_str = values
+            .iter()
+            .take(3)
+            .map(|s| format!("\"{}\"", s))
+            .collect::<Vec<_>>()
+            .join(", ");
         summary.push(format!("  {}: {}", key, value_str));
     }
 
@@ -587,10 +594,7 @@ fn parse_protocol_response(content: &str) -> Result<Vec<ProtocolHint>, String> {
     let mut hints = Vec::new();
 
     for item in array {
-        let protocol_name = item["protocol"]
-            .as_str()
-            .unwrap_or("Unknown")
-            .to_string();
+        let protocol_name = item["protocol"].as_str().unwrap_or("Unknown").to_string();
         let confidence = item["confidence"].as_f64().unwrap_or(0.5) as f32;
         let description = item["description"]
             .as_str()
@@ -641,9 +645,7 @@ mod tests {
             },
             transport: TransportKind::Grpc,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata,
             correlation_keys: vec![],
             sequence: None,
@@ -652,6 +654,10 @@ mod tests {
 
         let context = CaptureContext::build(&[event]);
         assert_eq!(context.total_events, 1);
-        assert!(context.available_fields.contains(&"grpc.method".to_string()));
+        assert!(
+            context
+                .available_fields
+                .contains(&"grpc.method".to_string())
+        );
     }
 }

@@ -7,10 +7,8 @@ pub fn eval(expr: &Expr, event: &DebugEvent) -> bool {
         Expr::Or(lhs, rhs) => eval(lhs, event) || eval(rhs, event),
         Expr::Not(inner) => !eval(inner, event),
         Expr::Compare { field, op, value } => eval_compare(field, *op, value, event),
-        Expr::Contains { field, substring } => {
-            resolve_field(field, event)
-                .is_some_and(|v| v.to_lowercase().contains(&substring.to_lowercase()))
-        }
+        Expr::Contains { field, substring } => resolve_field(field, event)
+            .is_some_and(|v| v.to_lowercase().contains(&substring.to_lowercase())),
         Expr::Exists { field } => eval_exists(field, event),
     }
 }
@@ -34,16 +32,8 @@ fn resolve_field(field: &FieldPath, event: &DebugEvent) -> Option<String> {
         "direction" => Some(event.direction.to_string()),
         "source.adapter" | "adapter" => Some(event.source.adapter.clone()),
         "source.origin" | "origin" => Some(event.source.origin.clone()),
-        "source.src" | "src" => event
-            .source
-            .network
-            .as_ref()
-            .map(|n| n.src.clone()),
-        "source.dst" | "dst" => event
-            .source
-            .network
-            .as_ref()
-            .map(|n| n.dst.clone()),
+        "source.src" | "src" => event.source.network.as_ref().map(|n| n.src.clone()),
+        "source.dst" | "dst" => event.source.network.as_ref().map(|n| n.dst.clone()),
         "sequence" => event.sequence.map(|s| s.to_string()),
         _ => event.metadata.get(&key).cloned(),
     }
@@ -202,10 +192,9 @@ mod tests {
     #[test]
     fn eval_and() {
         let event = sample_event();
-        let expr = crate::parser::parse_expr(
-            r#"transport == "gRPC" && grpc.method contains "Users""#,
-        )
-        .unwrap();
+        let expr =
+            crate::parser::parse_expr(r#"transport == "gRPC" && grpc.method contains "Users""#)
+                .unwrap();
         assert!(eval(&expr, &event));
     }
 

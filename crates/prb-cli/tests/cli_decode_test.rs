@@ -38,21 +38,38 @@ fn test_cli_inspect_wire_format() {
         .output()
         .expect("failed to execute prb");
 
-    assert!(output.status.success(),
+    assert!(
+        output.status.success(),
         "prb inspect --wire-format should succeed: stderr={}",
-        String::from_utf8_lossy(&output.stderr));
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Verify wire-format output
-    assert!(stdout.contains("WIRE FORMAT DECODE"),
-        "Output should indicate wire-format decode: {}", stdout);
-    assert!(stdout.contains("field 1:"),
-        "Output should contain field 1: {}", stdout);
-    assert!(stdout.contains("42"),
-        "Output should contain value 42: {}", stdout);
-    assert!(stdout.contains("field 2:"),
-        "Output should contain field 2: {}", stdout);
-    assert!(stdout.contains("hello"),
-        "Output should contain string 'hello': {}", stdout);
+    assert!(
+        stdout.contains("WIRE FORMAT DECODE"),
+        "Output should indicate wire-format decode: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("field 1:"),
+        "Output should contain field 1: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("42"),
+        "Output should contain value 42: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("field 2:"),
+        "Output should contain field 2: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("hello"),
+        "Output should contain string 'hello': {}",
+        stdout
+    );
 }

@@ -4,8 +4,8 @@
 
 use crate::error::PluginError;
 use libloading::{Library, Symbol};
-use prb_plugin_api::native::{ByteBuffer, DetectResultFfi, DecoderHandle, OwnedBuffer, PluginInfo};
-use prb_plugin_api::{validate_api_version, PluginMetadata};
+use prb_plugin_api::native::{ByteBuffer, DecoderHandle, DetectResultFfi, OwnedBuffer, PluginInfo};
+use prb_plugin_api::{PluginMetadata, validate_api_version};
 use std::ffi::CStr;
 use std::path::Path;
 use std::sync::Arc;
@@ -40,7 +40,13 @@ impl LoadedPlugin {
     }
 
     /// Call the plugin's detect function.
-    pub fn detect(&self, data: &[u8], src_port: u16, dst_port: u16, transport: u8) -> DetectResultFfi {
+    pub fn detect(
+        &self,
+        data: &[u8],
+        src_port: u16,
+        dst_port: u16,
+        transport: u8,
+    ) -> DetectResultFfi {
         let buffer = ByteBuffer::from_slice(data);
         (self.detect_fn)(buffer, src_port, dst_port, transport)
     }
@@ -171,8 +177,7 @@ impl NativePluginLoader {
         };
 
         // Validate API version
-        validate_api_version(&api_version)
-            .map_err(PluginError::IncompatibleVersion)?;
+        validate_api_version(&api_version).map_err(PluginError::IncompatibleVersion)?;
 
         let metadata = PluginMetadata {
             name: name.clone(),

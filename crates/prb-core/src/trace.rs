@@ -8,9 +8,9 @@ use std::collections::HashMap;
 /// W3C Trace Context extracted from protocol headers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TraceContext {
-    pub trace_id: String,     // 32 lowercase hex chars
-    pub span_id: String,      // 16 lowercase hex chars
-    pub trace_flags: u8,      // 0x01 = sampled
+    pub trace_id: String,           // 32 lowercase hex chars
+    pub span_id: String,            // 16 lowercase hex chars
+    pub trace_flags: u8,            // 0x01 = sampled
     pub tracestate: Option<String>, // vendor-specific key=value pairs
 }
 
@@ -97,7 +97,9 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
     let sampling = parts.get(2).copied();
 
     // B3 trace_id can be 16 or 32 hex chars
-    if (trace_id.len() != 16 && trace_id.len() != 32) || !trace_id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if (trace_id.len() != 16 && trace_id.len() != 32)
+        || !trace_id.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return None;
     }
     // Pad 64-bit trace IDs to 128-bit
@@ -114,7 +116,7 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
 
     // sampling: "0" (deny), "1" (accept), "d" (debug)
     let trace_flags = match sampling {
-        Some("1") | Some("d") => 0x01,
+        Some("1" | "d") => 0x01,
         _ => 0x00,
     };
 
@@ -132,11 +134,17 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
 ///
 /// Spec: <https://github.com/openzipkin/b3-propagation>
 pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext> {
-    let trace_id = headers.get("x-b3-traceid").or_else(|| headers.get("X-B3-TraceId"))?;
-    let span_id = headers.get("x-b3-spanid").or_else(|| headers.get("X-B3-SpanId"))?;
+    let trace_id = headers
+        .get("x-b3-traceid")
+        .or_else(|| headers.get("X-B3-TraceId"))?;
+    let span_id = headers
+        .get("x-b3-spanid")
+        .or_else(|| headers.get("X-B3-SpanId"))?;
 
     // Same validation as B3 single-header
-    if (trace_id.len() != 16 && trace_id.len() != 32) || !trace_id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if (trace_id.len() != 16 && trace_id.len() != 32)
+        || !trace_id.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return None;
     }
     let trace_id_normalized = if trace_id.len() == 16 {
@@ -149,9 +157,11 @@ pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext>
         return None;
     }
 
-    let sampled = headers.get("x-b3-sampled").or_else(|| headers.get("X-B3-Sampled"));
+    let sampled = headers
+        .get("x-b3-sampled")
+        .or_else(|| headers.get("X-B3-Sampled"));
     let trace_flags = match sampled.map(|s| s.as_str()) {
-        Some("1") | Some("d") => 0x01,
+        Some("1" | "d") => 0x01,
         _ => 0x00,
     };
 
@@ -180,7 +190,9 @@ pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
     let flags_str = parts[3];
 
     // Jaeger trace_id: 16 or 32 hex chars
-    if (trace_id.len() != 16 && trace_id.len() != 32) || !trace_id.chars().all(|c| c.is_ascii_hexdigit()) {
+    if (trace_id.len() != 16 && trace_id.len() != 32)
+        || !trace_id.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return None;
     }
     let trace_id_normalized = if trace_id.len() == 16 {
@@ -328,7 +340,10 @@ mod tests {
     #[test]
     fn test_parse_b3_multi_headers() {
         let mut headers = HashMap::new();
-        headers.insert("X-B3-TraceId".to_string(), "4bf92f3577b34da6a3ce929d0e0e4736".to_string());
+        headers.insert(
+            "X-B3-TraceId".to_string(),
+            "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+        );
         headers.insert("X-B3-SpanId".to_string(), "00f067aa0ba902b7".to_string());
         headers.insert("X-B3-Sampled".to_string(), "1".to_string());
 
@@ -341,7 +356,10 @@ mod tests {
     #[test]
     fn test_parse_b3_multi_lowercase_headers() {
         let mut headers = HashMap::new();
-        headers.insert("x-b3-traceid".to_string(), "4bf92f3577b34da6a3ce929d0e0e4736".to_string());
+        headers.insert(
+            "x-b3-traceid".to_string(),
+            "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+        );
         headers.insert("x-b3-spanid".to_string(), "00f067aa0ba902b7".to_string());
 
         let ctx = parse_b3_multi(&headers).unwrap();
@@ -361,8 +379,14 @@ mod tests {
     #[test]
     fn test_extract_trace_context_priority() {
         let mut headers = HashMap::new();
-        headers.insert("traceparent".to_string(), "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01".to_string());
-        headers.insert("b3".to_string(), "cccccccccccccccccccccccccccccccc-dddddddddddddddd-1".to_string());
+        headers.insert(
+            "traceparent".to_string(),
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01".to_string(),
+        );
+        headers.insert(
+            "b3".to_string(),
+            "cccccccccccccccccccccccccccccccc-dddddddddddddddd-1".to_string(),
+        );
 
         let ctx = extract_trace_context(&headers).unwrap();
         // W3C should win

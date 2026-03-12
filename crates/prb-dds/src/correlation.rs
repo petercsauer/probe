@@ -4,8 +4,8 @@
 
 use indexmap::IndexMap;
 use prb_core::{
-    CoreError, CorrelationStrategy, DebugEvent, Flow, TransportKind, METADATA_KEY_DDS_DOMAIN_ID,
-    METADATA_KEY_DDS_TOPIC_NAME,
+    CoreError, CorrelationStrategy, DebugEvent, Flow, METADATA_KEY_DDS_DOMAIN_ID,
+    METADATA_KEY_DDS_TOPIC_NAME, TransportKind,
 };
 use std::collections::BTreeMap;
 
@@ -32,11 +32,9 @@ impl CorrelationStrategy for DdsCorrelationStrategy {
         let mut flows = Vec::new();
         for (key, mut group) in groups {
             // Sort by sequence number if available, then timestamp
-            group.sort_by(|a, b| {
-                match (a.sequence, b.sequence) {
-                    (Some(seq_a), Some(seq_b)) => seq_a.cmp(&seq_b),
-                    _ => a.timestamp.cmp(&b.timestamp),
-                }
+            group.sort_by(|a, b| match (a.sequence, b.sequence) {
+                (Some(seq_a), Some(seq_b)) => seq_a.cmp(&seq_b),
+                _ => a.timestamp.cmp(&b.timestamp),
             });
 
             // Extract metadata
@@ -66,10 +64,7 @@ impl CorrelationStrategy for DdsCorrelationStrategy {
             if !sequences.is_empty() {
                 let first = sequences.iter().min().unwrap();
                 let last = sequences.iter().max().unwrap();
-                metadata.insert(
-                    "sequence_range".to_string(),
-                    format!("{}..{}", first, last),
-                );
+                metadata.insert("sequence_range".to_string(), format!("{}..{}", first, last));
 
                 // Calculate gap count
                 let gap_count = calculate_gap_count(&sequences);

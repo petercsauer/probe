@@ -6,8 +6,8 @@ use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Widget};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use prb_core::{DebugEvent, Payload, METADATA_KEY_GRPC_METHOD};
-use prb_decode::{decode_with_schema, DecodedMessage};
+use prb_core::{DebugEvent, METADATA_KEY_GRPC_METHOD, Payload};
+use prb_decode::{DecodedMessage, decode_with_schema};
 use prb_schema::SchemaRegistry;
 use prost_reflect::{ReflectMessage, Value};
 
@@ -37,7 +37,11 @@ impl DecodeTreePane {
         }
     }
 
-    fn expand_all_recursive(items: &[TreeItem<'static, String>], identifiers: &mut Vec<Vec<String>>, prefix: Vec<String>) {
+    fn expand_all_recursive(
+        items: &[TreeItem<'static, String>],
+        identifiers: &mut Vec<Vec<String>>,
+        prefix: Vec<String>,
+    ) {
         for item in items.iter() {
             let mut id = prefix.clone();
             id.push(item.identifier().clone());
@@ -72,15 +76,23 @@ impl DecodeTreePane {
         }
     }
 
-    fn render_diff_overlay(&self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig) {
+    fn render_diff_overlay(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+    ) {
         use ratatui::layout::{Constraint, Direction, Layout};
         use ratatui::widgets::{BorderType, Clear};
 
         // Get marked and current events
-        let marked_event = self.marked_event_idx
+        let marked_event = self
+            .marked_event_idx
             .and_then(|idx| state.filtered_indices.get(idx))
             .and_then(|&idx| state.store.get(idx));
-        let current_event = state.selected_event
+        let current_event = state
+            .selected_event
             .and_then(|idx| state.filtered_indices.get(idx))
             .and_then(|&idx| state.store.get(idx));
 
@@ -125,7 +137,12 @@ impl DecodeTreePane {
             if y_offset >= columns[0].height {
                 break;
             }
-            buf.set_line(columns[0].x, columns[0].y + y_offset, line, columns[0].width);
+            buf.set_line(
+                columns[0].x,
+                columns[0].y + y_offset,
+                line,
+                columns[0].width,
+            );
             y_offset += 1;
         }
 
@@ -135,7 +152,12 @@ impl DecodeTreePane {
             if y_offset >= columns[1].height {
                 break;
             }
-            buf.set_line(columns[1].x, columns[1].y + y_offset, line, columns[1].width);
+            buf.set_line(
+                columns[1].x,
+                columns[1].y + y_offset,
+                line,
+                columns[1].width,
+            );
             y_offset += 1;
         }
     }
@@ -228,7 +250,10 @@ impl PaneComponent for DecodeTreePane {
                         Payload::Decoded { raw, .. } => raw.len(),
                     };
                     if payload_len > 0 {
-                        return Action::HighlightBytes { offset: 0, len: payload_len };
+                        return Action::HighlightBytes {
+                            offset: 0,
+                            len: payload_len,
+                        };
                     }
                 }
                 Action::None
@@ -237,7 +262,14 @@ impl PaneComponent for DecodeTreePane {
         }
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    ) {
         use ratatui::widgets::BorderType;
 
         // Build title with marker indicator
@@ -248,11 +280,7 @@ impl PaneComponent for DecodeTreePane {
                 " Decode (marked) "
             }
         } else {
-            if focused {
-                " Decode [*] "
-            } else {
-                " Decode "
-            }
+            if focused { " Decode [*] " } else { " Decode " }
         };
 
         let block = if focused {
@@ -309,7 +337,10 @@ impl PaneComponent for DecodeTreePane {
     }
 }
 
-fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>) -> Vec<TreeItem<'static, String>> {
+fn build_tree_items(
+    event: &DebugEvent,
+    schema_registry: Option<&SchemaRegistry>,
+) -> Vec<TreeItem<'static, String>> {
     let mut items = Vec::new();
 
     // Event header
@@ -320,28 +351,36 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
     let m = (secs % 3600) / 60;
     let s = secs % 60;
 
-    items.push(
-        TreeItem::new_leaf(
-            "ts".to_string(),
-            format!("Timestamp: {:02}:{:02}:{:02}.{:03}", h, m, s, millis),
-        ),
-    );
+    items.push(TreeItem::new_leaf(
+        "ts".to_string(),
+        format!("Timestamp: {:02}:{:02}:{:02}.{:03}", h, m, s, millis),
+    ));
 
-    items.push(
-        TreeItem::new_leaf(
-            "dir".to_string(),
-            format!("Direction: {}", event.direction),
-        ),
-    );
+    items.push(TreeItem::new_leaf(
+        "dir".to_string(),
+        format!("Direction: {}", event.direction),
+    ));
 
     // Source section
     let mut source_children = vec![
-        TreeItem::new_leaf("s.adapter".to_string(), format!("Adapter: {}", event.source.adapter)),
-        TreeItem::new_leaf("s.origin".to_string(), format!("Origin: {}", event.source.origin)),
+        TreeItem::new_leaf(
+            "s.adapter".to_string(),
+            format!("Adapter: {}", event.source.adapter),
+        ),
+        TreeItem::new_leaf(
+            "s.origin".to_string(),
+            format!("Origin: {}", event.source.origin),
+        ),
     ];
     if let Some(ref net) = event.source.network {
-        source_children.push(TreeItem::new_leaf("s.src".to_string(), format!("Src: {}", net.src)));
-        source_children.push(TreeItem::new_leaf("s.dst".to_string(), format!("Dst: {}", net.dst)));
+        source_children.push(TreeItem::new_leaf(
+            "s.src".to_string(),
+            format!("Src: {}", net.src),
+        ));
+        source_children.push(TreeItem::new_leaf(
+            "s.dst".to_string(),
+            format!("Dst: {}", net.dst),
+        ));
     }
     items.push(
         TreeItem::new("source".to_string(), "Source", source_children)
@@ -388,18 +427,11 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
 
         // Add the metadata item (with or without children)
         if children.is_empty() {
-            transport_children.push(TreeItem::new_leaf(
-                format!("m.{}", key),
-                label,
-            ));
+            transport_children.push(TreeItem::new_leaf(format!("m.{}", key), label));
         } else {
             transport_children.push(
-                TreeItem::new(
-                    format!("m.{}", key),
-                    label,
-                    children,
-                )
-                .expect("metadata children valid"),
+                TreeItem::new(format!("m.{}", key), label, children)
+                    .expect("metadata children valid"),
             );
         }
     }
@@ -421,7 +453,10 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
     let mut payload_children = Vec::new();
     match &event.payload {
         Payload::Raw { raw } => {
-            payload_children.push(TreeItem::new_leaf("p.type".to_string(), "Type: Raw".to_string()));
+            payload_children.push(TreeItem::new_leaf(
+                "p.type".to_string(),
+                "Type: Raw".to_string(),
+            ));
 
             // Try schema-based decoding if we have a schema registry
             if let Some(registry) = schema_registry {
@@ -442,7 +477,10 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
             schema_name,
             ..
         } => {
-            payload_children.push(TreeItem::new_leaf("p.type".to_string(), "Type: Decoded".to_string()));
+            payload_children.push(TreeItem::new_leaf(
+                "p.type".to_string(),
+                "Type: Decoded".to_string(),
+            ));
             if let Some(name) = schema_name {
                 payload_children.push(TreeItem::new_leaf(
                     "p.schema".to_string(),
@@ -451,10 +489,7 @@ fn build_tree_items(event: &DebugEvent, schema_registry: Option<&SchemaRegistry>
             }
             let fields_str = serde_json::to_string_pretty(fields).unwrap_or_default();
             for (i, line) in fields_str.lines().enumerate() {
-                payload_children.push(TreeItem::new_leaf(
-                    format!("p.f.{}", i),
-                    line.to_string(),
-                ));
+                payload_children.push(TreeItem::new_leaf(format!("p.f.{}", i), line.to_string()));
             }
         }
     }
@@ -529,9 +564,10 @@ fn try_schema_decode(
             match decode_with_schema(raw, &descriptor) {
                 Ok(decoded) => {
                     // Build tree from decoded message
-                    let mut items = vec![
-                        TreeItem::new_leaf("p.schema".to_string(), format!("Schema: {}", msg_type)),
-                    ];
+                    let mut items = vec![TreeItem::new_leaf(
+                        "p.schema".to_string(),
+                        format!("Schema: {}", msg_type),
+                    )];
 
                     // Convert decoded message to tree items
                     items.extend(build_tree_from_decoded_message(&decoded, "p.msg"));
@@ -541,7 +577,10 @@ fn try_schema_decode(
                 Err(e) => {
                     // Decode failed, show error
                     return Some(vec![
-                        TreeItem::new_leaf("p.schema".to_string(), format!("Schema: {} (failed)", msg_type)),
+                        TreeItem::new_leaf(
+                            "p.schema".to_string(),
+                            format!("Schema: {} (failed)", msg_type),
+                        ),
                         TreeItem::new_leaf("p.error".to_string(), format!("Error: {}", e)),
                     ]);
                 }
@@ -554,10 +593,7 @@ fn try_schema_decode(
 
 /// Infer protobuf message type from gRPC method name.
 /// Returns the fully qualified message type name if found.
-fn infer_message_type_from_grpc_method(
-    method: &str,
-    registry: &SchemaRegistry,
-) -> Option<String> {
+fn infer_message_type_from_grpc_method(method: &str, registry: &SchemaRegistry) -> Option<String> {
     // gRPC method format: /package.Service/Method
     // Common patterns for message types:
     // - package.MethodRequest / package.MethodResponse
@@ -589,7 +625,9 @@ fn infer_message_type_from_grpc_method(
 
     // Check which message types exist in the registry
     let available = registry.list_messages();
-    candidates.into_iter().find(|candidate| available.contains(candidate))
+    candidates
+        .into_iter()
+        .find(|candidate| available.contains(candidate))
 }
 
 /// Build tree items from a decoded protobuf message.
@@ -654,7 +692,8 @@ fn build_tree_from_value(
             format!("{}: \"{}\"", field_name, s),
         )),
         Value::Bytes(b) => {
-            let hex = b.iter()
+            let hex = b
+                .iter()
                 .take(16)
                 .map(|byte| format!("{:02x}", byte))
                 .collect::<Vec<_>>()
@@ -679,7 +718,9 @@ fn build_tree_from_value(
                 let field_value = msg.get_field(&field);
                 let child_id = format!("{}.{}", identifier, field.name());
 
-                if let Some(child_item) = build_tree_from_value(field_value.as_ref(), &child_id, field.name()) {
+                if let Some(child_item) =
+                    build_tree_from_value(field_value.as_ref(), &child_id, field.name())
+                {
                     children.push(child_item);
                 }
             }
@@ -694,7 +735,8 @@ fn build_tree_from_value(
                     identifier.to_string(),
                     format!("{}: {}", field_name, descriptor.name()),
                     children,
-                ).ok()
+                )
+                .ok()
             }
         }
         Value::List(items) => {
@@ -707,7 +749,9 @@ fn build_tree_from_value(
                 let mut children = Vec::new();
                 for (i, item) in items.iter().enumerate() {
                     let child_id = format!("{}[{}]", identifier, i);
-                    if let Some(child_item) = build_tree_from_value(item, &child_id, &format!("[{}]", i)) {
+                    if let Some(child_item) =
+                        build_tree_from_value(item, &child_id, &format!("[{}]", i))
+                    {
                         children.push(child_item);
                     }
                 }
@@ -716,7 +760,8 @@ fn build_tree_from_value(
                     identifier.to_string(),
                     format!("{}: [{} items]", field_name, items.len()),
                     children,
-                ).ok()
+                )
+                .ok()
             }
         }
         Value::Map(entries) => {
@@ -746,7 +791,8 @@ fn build_tree_from_value(
                     identifier.to_string(),
                     format!("{}: {{{}  entries}}", field_name, entries.len()),
                     children,
-                ).ok()
+                )
+                .ok()
             }
         }
     }
@@ -763,7 +809,10 @@ fn extract_value_from_tree(items: &[TreeItem<'static, String>], path: &[String])
 
     for (depth, identifier) in path.iter().enumerate() {
         // Find the item with matching identifier
-        if let Some(item) = current_items.iter().find(|item| item.identifier() == identifier) {
+        if let Some(item) = current_items
+            .iter()
+            .find(|item| item.identifier() == identifier)
+        {
             // Use the identifier as the value to copy
             result = Some(identifier.clone());
 
@@ -814,7 +863,10 @@ fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
         let h = (secs / 3600) % 24;
         let m = (secs % 3600) / 60;
         let s = secs % 60;
-        fields.insert("Timestamp".to_string(), format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis));
+        fields.insert(
+            "Timestamp".to_string(),
+            format!("{:02}:{:02}:{:02}.{:03}", h, m, s, millis),
+        );
 
         // Direction
         fields.insert("Direction".to_string(), event.direction.to_string());
@@ -833,7 +885,9 @@ fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
                 fields.insert("Payload.type".to_string(), "Raw".to_string());
                 fields.insert("Payload.size".to_string(), format!("{} bytes", raw.len()));
             }
-            Payload::Decoded { raw, schema_name, .. } => {
+            Payload::Decoded {
+                raw, schema_name, ..
+            } => {
                 fields.insert("Payload.type".to_string(), "Decoded".to_string());
                 fields.insert("Payload.size".to_string(), format!("{} bytes", raw.len()));
                 if let Some(name) = schema_name {
@@ -854,8 +908,14 @@ fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
     all_keys.dedup();
 
     // Header
-    left_lines.push(Line::from(Span::styled("Marked Event", Style::default().fg(Color::Cyan))));
-    right_lines.push(Line::from(Span::styled("Current Event", Style::default().fg(Color::Cyan))));
+    left_lines.push(Line::from(Span::styled(
+        "Marked Event",
+        Style::default().fg(Color::Cyan),
+    )));
+    right_lines.push(Line::from(Span::styled(
+        "Current Event",
+        Style::default().fg(Color::Cyan),
+    )));
     left_lines.push(Line::from(""));
     right_lines.push(Line::from(""));
 
@@ -871,7 +931,10 @@ fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
             }
             (Some(_), Some(_)) => {
                 // Different values
-                (Style::default().fg(Color::Yellow), Style::default().fg(Color::Yellow))
+                (
+                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(Color::Yellow),
+                )
             }
             (Some(_), None) => {
                 // Only in left
@@ -884,8 +947,12 @@ fn compute_event_diff(event1: &DebugEvent, event2: &DebugEvent) -> DiffResult {
             (None, None) => unreachable!(),
         };
 
-        let left_text = val1.map(|v| format!("{}: {}", key, v)).unwrap_or_else(|| format!("{}: <missing>", key));
-        let right_text = val2.map(|v| format!("{}: {}", key, v)).unwrap_or_else(|| format!("{}: <missing>", key));
+        let left_text = val1
+            .map(|v| format!("{}: {}", key, v))
+            .unwrap_or_else(|| format!("{}: <missing>", key));
+        let right_text = val2
+            .map(|v| format!("{}: {}", key, v))
+            .unwrap_or_else(|| format!("{}: <missing>", key));
 
         left_lines.push(Line::from(Span::styled(left_text, style_left)));
         right_lines.push(Line::from(Span::styled(right_text, style_right)));
@@ -902,13 +969,16 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use prb_core::{
-        CorrelationKey, DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload,
-        Timestamp, TransportKind, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME,
-        METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_ZMQ_TOPIC,
+        CorrelationKey, DebugEvent, Direction, EventId, EventSource, METADATA_KEY_DDS_DOMAIN_ID,
+        METADATA_KEY_DDS_TOPIC_NAME, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID,
+        METADATA_KEY_ZMQ_TOPIC, NetworkAddr, Payload, Timestamp, TransportKind,
     };
     use std::collections::BTreeMap;
 
-    fn create_test_event(transport: TransportKind, metadata: BTreeMap<String, String>) -> DebugEvent {
+    fn create_test_event(
+        transport: TransportKind,
+        metadata: BTreeMap<String, String>,
+    ) -> DebugEvent {
         DebugEvent {
             id: EventId::from_raw(42),
             timestamp: Timestamp::from_nanos(1_000_000_000),
@@ -942,14 +1012,20 @@ mod tests {
     #[test]
     fn test_grpc_tree_structure() {
         let mut metadata = BTreeMap::new();
-        metadata.insert(METADATA_KEY_GRPC_METHOD.to_string(), "/api.v1.Users/GetUser".to_string());
+        metadata.insert(
+            METADATA_KEY_GRPC_METHOD.to_string(),
+            "/api.v1.Users/GetUser".to_string(),
+        );
         metadata.insert(METADATA_KEY_H2_STREAM_ID.to_string(), "1".to_string());
 
         let event = create_test_event(TransportKind::Grpc, metadata);
         let items = build_tree_items(&event, None);
 
         // Verify we have several top-level items
-        assert!(items.len() >= 4, "Should have timestamp, direction, source, transport, payload sections");
+        assert!(
+            items.len() >= 4,
+            "Should have timestamp, direction, source, transport, payload sections"
+        );
 
         // We can't access TreeItem internals, but we can verify the structure was built
         // by checking the return from build_tree_items is valid
@@ -959,7 +1035,10 @@ mod tests {
     #[test]
     fn test_zmq_tree_structure() {
         let mut metadata = BTreeMap::new();
-        metadata.insert(METADATA_KEY_ZMQ_TOPIC.to_string(), "sensor.temperature".to_string());
+        metadata.insert(
+            METADATA_KEY_ZMQ_TOPIC.to_string(),
+            "sensor.temperature".to_string(),
+        );
 
         let event = create_test_event(TransportKind::Zmq, metadata);
         let items = build_tree_items(&event, None);
@@ -972,7 +1051,10 @@ mod tests {
     fn test_dds_tree_structure() {
         let mut metadata = BTreeMap::new();
         metadata.insert(METADATA_KEY_DDS_DOMAIN_ID.to_string(), "0".to_string());
-        metadata.insert(METADATA_KEY_DDS_TOPIC_NAME.to_string(), "ChatterTopic".to_string());
+        metadata.insert(
+            METADATA_KEY_DDS_TOPIC_NAME.to_string(),
+            "ChatterTopic".to_string(),
+        );
 
         let event = create_test_event(TransportKind::DdsRtps, metadata);
         let items = build_tree_items(&event, None);
@@ -987,7 +1069,10 @@ mod tests {
         let items = build_tree_items(&event, None);
 
         // Verify we have items (including source section)
-        assert!(items.len() >= 3, "Should have timestamp, direction, source at minimum");
+        assert!(
+            items.len() >= 3,
+            "Should have timestamp, direction, source at minimum"
+        );
     }
 
     #[test]
@@ -996,7 +1081,10 @@ mod tests {
         let items = build_tree_items(&event, None);
 
         // Decoded payload should produce tree items
-        assert!(items.len() >= 5, "Should have all sections including payload");
+        assert!(
+            items.len() >= 5,
+            "Should have all sections including payload"
+        );
     }
 
     #[test]
@@ -1009,7 +1097,10 @@ mod tests {
         let items = build_tree_items(&event, None);
 
         // Raw payload should also produce tree items
-        assert!(items.len() >= 5, "Should have all sections including raw payload");
+        assert!(
+            items.len() >= 5,
+            "Should have all sections including raw payload"
+        );
     }
 
     #[test]
@@ -1056,7 +1147,10 @@ mod tests {
     fn test_metadata_keys_in_transport() {
         let mut metadata = BTreeMap::new();
         metadata.insert("custom.key".to_string(), "custom_value".to_string());
-        metadata.insert(METADATA_KEY_GRPC_METHOD.to_string(), "/api.Service/Method".to_string());
+        metadata.insert(
+            METADATA_KEY_GRPC_METHOD.to_string(),
+            "/api.Service/Method".to_string(),
+        );
 
         let event = create_test_event(TransportKind::Grpc, metadata);
         let items = build_tree_items(&event, None);
@@ -1092,8 +1186,12 @@ mod tests {
         let mut event = create_test_event(TransportKind::Grpc, BTreeMap::new());
         event.correlation_keys = vec![
             CorrelationKey::StreamId { id: 123 },
-            CorrelationKey::Topic { name: "test.topic".to_string() },
-            CorrelationKey::ConnectionId { id: "conn-1".to_string() },
+            CorrelationKey::Topic {
+                name: "test.topic".to_string(),
+            },
+            CorrelationKey::ConnectionId {
+                id: "conn-1".to_string(),
+            },
             CorrelationKey::TraceContext {
                 trace_id: "trace-abc".to_string(),
                 span_id: "span-xyz".to_string(),

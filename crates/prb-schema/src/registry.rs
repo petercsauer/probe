@@ -62,13 +62,12 @@ impl SchemaRegistry {
         tracing::debug!("Loading descriptor set from {}", path.display());
 
         let bytes = std::fs::read(path)?;
-        self.load_descriptor_set(&bytes)
-            .map_err(|e| match e {
-                SchemaError::InvalidDescriptor(msg) => {
-                    SchemaError::LoadDescriptorSet(format!("{}: {}", path.display(), msg))
-                }
-                other => other,
-            })
+        self.load_descriptor_set(&bytes).map_err(|e| match e {
+            SchemaError::InvalidDescriptor(msg) => {
+                SchemaError::LoadDescriptorSet(format!("{}: {}", path.display(), msg))
+            }
+            other => other,
+        })
     }
 
     /// Load and compile .proto files at runtime.
@@ -95,11 +94,12 @@ impl SchemaRegistry {
         );
 
         // Compile using protox
-        let fds = protox::compile(&file_paths, &include_paths)
-            .map_err(|e| SchemaError::CompileProto {
+        let fds = protox::compile(&file_paths, &include_paths).map_err(|e| {
+            SchemaError::CompileProto {
                 file: file_paths.first().unwrap().to_path_buf(),
                 message: e.to_string(),
-            })?;
+            }
+        })?;
 
         // Encode to bytes
         let mut buf = Vec::new();
@@ -157,7 +157,10 @@ impl Default for SchemaRegistry {
 
 // Implement the SchemaResolver trait from prb-core
 impl prb_core::SchemaResolver for SchemaRegistry {
-    fn resolve(&self, schema_name: &str) -> std::result::Result<Option<prb_core::ResolvedSchema>, prb_core::CoreError> {
+    fn resolve(
+        &self,
+        schema_name: &str,
+    ) -> std::result::Result<Option<prb_core::ResolvedSchema>, prb_core::CoreError> {
         match self.get_message(schema_name) {
             Some(_desc) => {
                 // For protobuf, we return the entire FileDescriptorSet that contains this message
@@ -208,9 +211,7 @@ mod tests {
             ..Default::default()
         };
 
-        let fds = FileDescriptorSet {
-            file: vec![file],
-        };
+        let fds = FileDescriptorSet { file: vec![file] };
 
         let mut buf = Vec::new();
         fds.encode(&mut buf).unwrap();
@@ -251,7 +252,10 @@ mod tests {
 
         let result = registry.load_descriptor_set(garbage);
         assert!(result.is_err(), "Should fail on invalid data");
-        assert!(matches!(result.unwrap_err(), SchemaError::InvalidDescriptor(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            SchemaError::InvalidDescriptor(_)
+        ));
     }
 
     #[test]
@@ -315,11 +319,16 @@ message SimpleMessage {
 
         // Load and compile
         let mut registry = SchemaRegistry::new();
-        registry.load_proto_files(&[&proto_path], &[temp_dir.path()]).unwrap();
+        registry
+            .load_proto_files(&[&proto_path], &[temp_dir.path()])
+            .unwrap();
 
         // Verify message can be resolved
         let msg = registry.get_message("simple.SimpleMessage");
-        assert!(msg.is_some(), "SimpleMessage should be found after proto compilation");
+        assert!(
+            msg.is_some(),
+            "SimpleMessage should be found after proto compilation"
+        );
     }
 
     #[test]
@@ -360,11 +369,16 @@ message DerivedMessage {
 
         // Load and compile with derived (should resolve imports)
         let mut registry = SchemaRegistry::new();
-        registry.load_proto_files(&[&derived_path], &[temp_dir.path()]).unwrap();
+        registry
+            .load_proto_files(&[&derived_path], &[temp_dir.path()])
+            .unwrap();
 
         // Verify both messages can be resolved
         let base_msg = registry.get_message("base.BaseMessage");
-        assert!(base_msg.is_some(), "BaseMessage should be found after import resolution");
+        assert!(
+            base_msg.is_some(),
+            "BaseMessage should be found after import resolution"
+        );
 
         let derived_msg = registry.get_message("derived.DerivedMessage");
         assert!(derived_msg.is_some(), "DerivedMessage should be found");

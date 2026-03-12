@@ -82,7 +82,8 @@ fn test_dns_tunneling_exfiltration_no_panic() {
 
     // Process through full pipeline - should not panic
     for pkt in packets.iter() {
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
         {
             normalized_count += 1;
 
@@ -147,10 +148,7 @@ fn test_nanosecond_timestamp_edge_case() {
                         if let Ok(Some(normalized)) =
                             normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
                         {
-                            assert!(
-                                normalized.timestamp_us > 0,
-                                "Timestamp should be positive"
-                            );
+                            assert!(normalized.timestamp_us > 0, "Timestamp should be positive");
                         }
                     }
                 }
@@ -205,7 +203,8 @@ fn test_ipv6_adversarial_patterns() {
 
     for pkt in packets.iter() {
         // IPv6 processing should not panic
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && normalized.src_ip.is_ipv6()
         {
             ipv6_count += 1;
@@ -233,7 +232,8 @@ fn test_tcp_edge_cases_no_panic() {
     let mut tcp_packets = 0;
 
     for pkt in packets.iter() {
-        if let Ok(Some(normalized)) = normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
+        if let Ok(Some(normalized)) =
+            normalizer.normalize(pkt.linktype, pkt.timestamp_us, &pkt.data)
             && let prb_pcap::TransportInfo::Tcp(_) = normalized.transport
         {
             tcp_packets += 1;

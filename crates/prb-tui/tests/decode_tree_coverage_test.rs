@@ -2,17 +2,23 @@
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::app::AppState;
 use prb_tui::event_store::EventStore;
-use prb_tui::panes::decode_tree::DecodeTreePane;
 use prb_tui::panes::PaneComponent;
+use prb_tui::panes::decode_tree::DecodeTreePane;
 use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::BTreeMap;
 
-fn make_event_with_metadata(id: u64, transport: TransportKind, metadata: BTreeMap<String, String>) -> DebugEvent {
+fn make_event_with_metadata(
+    id: u64,
+    transport: TransportKind,
+    metadata: BTreeMap<String, String>,
+) -> DebugEvent {
     DebugEvent {
         id: EventId::from_raw(id),
         timestamp: Timestamp::from_nanos(1_000_000_000),
@@ -38,7 +44,11 @@ fn make_event_with_metadata(id: u64, transport: TransportKind, metadata: BTreeMa
 
 #[test]
 fn test_decode_tree_render_no_selection() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -46,15 +56,21 @@ fn test_decode_tree_render_no_selection() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 20));
 
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 20),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render "No event selected" message
     let mut found_message = false;
@@ -66,7 +82,10 @@ fn test_decode_tree_render_no_selection() {
             }
         }
     }
-    assert!(found_message || buffer[(0, 0)].symbol() != " ", "Should show message or border");
+    assert!(
+        found_message || buffer[(0, 0)].symbol() != " ",
+        "Should show message or border"
+    );
 }
 
 #[test]
@@ -86,15 +105,21 @@ fn test_decode_tree_render_with_warnings() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 30),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render warnings section
 }
@@ -121,20 +146,30 @@ fn test_decode_tree_render_all_transport_types() {
             schema_registry: None,
             conversations: None,
             store,
-                    visible_columns: Vec::new(),
+            visible_columns: Vec::new(),
         };
 
         let mut pane = DecodeTreePane::new();
         let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
         // Should render without panic for each transport type
-        pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+        pane.render(
+            Rect::new(0, 0, 80, 30),
+            &mut buffer,
+            &state,
+            &ThemeConfig::dark(),
+            false,
+        );
     }
 }
 
 #[test]
 fn test_decode_tree_handle_key_space() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -142,9 +177,9 @@ fn test_decode_tree_handle_key_space() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -158,7 +193,11 @@ fn test_decode_tree_handle_key_space() {
 
 #[test]
 fn test_decode_tree_handle_key_arrows() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -166,9 +205,9 @@ fn test_decode_tree_handle_key_arrows() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -190,7 +229,11 @@ fn test_decode_tree_handle_key_arrows() {
 
 #[test]
 fn test_decode_tree_render_small_area() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -198,21 +241,31 @@ fn test_decode_tree_render_small_area() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 20, 5));
 
     // Should handle very small area gracefully
-    pane.render(Rect::new(0, 0, 20, 5), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 20, 5),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 }
 
 #[test]
 fn test_decode_tree_render_focused_vs_unfocused() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -220,20 +273,32 @@ fn test_decode_tree_render_focused_vs_unfocused() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
 
     // Render focused
     let mut buffer_focused = Buffer::empty(Rect::new(0, 0, 80, 20));
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_focused, &state, &ThemeConfig::dark(), true);
+    pane.render(
+        Rect::new(0, 0, 80, 20),
+        &mut buffer_focused,
+        &state,
+        &ThemeConfig::dark(),
+        true,
+    );
 
     // Render unfocused
     let mut buffer_unfocused = Buffer::empty(Rect::new(0, 0, 80, 20));
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer_unfocused, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 20),
+        &mut buffer_unfocused,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Both should render without panic
 }
@@ -243,7 +308,9 @@ fn test_decode_tree_with_correlation_keys() {
     let mut event = make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new());
     event.correlation_keys = vec![
         prb_core::CorrelationKey::StreamId { id: 123 },
-        prb_core::CorrelationKey::Topic { name: "test-topic".to_string() },
+        prb_core::CorrelationKey::Topic {
+            name: "test-topic".to_string(),
+        },
     ];
 
     let events = vec![event];
@@ -254,15 +321,21 @@ fn test_decode_tree_with_correlation_keys() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 30),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render correlation keys section
 }
@@ -280,22 +353,32 @@ fn test_decode_tree_with_sequence() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 30),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should render sequence number
 }
 
 #[test]
 fn test_decode_tree_handle_key_enter() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -303,9 +386,9 @@ fn test_decode_tree_handle_key_enter() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -319,7 +402,11 @@ fn test_decode_tree_handle_key_enter() {
 
 #[test]
 fn test_decode_tree_handle_key_backspace() {
-    let events = vec![make_event_with_metadata(1, TransportKind::Grpc, BTreeMap::new())];
+    let events = vec![make_event_with_metadata(
+        1,
+        TransportKind::Grpc,
+        BTreeMap::new(),
+    )];
     let store = EventStore::new(events);
     let state = AppState {
         filtered_indices: store.all_indices(),
@@ -327,9 +414,9 @@ fn test_decode_tree_handle_key_backspace() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
@@ -356,16 +443,22 @@ fn test_decode_tree_with_many_metadata_keys() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
     // Should handle many metadata entries without panic
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 30),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 }
 
 #[test]
@@ -383,14 +476,20 @@ fn test_decode_tree_with_large_payload() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = DecodeTreePane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 30));
 
     // Should handle large payload without panic
-    pane.render(Rect::new(0, 0, 80, 30), &mut buffer, &state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 30),
+        &mut buffer,
+        &state,
+        &ThemeConfig::dark(),
+        false,
+    );
 }

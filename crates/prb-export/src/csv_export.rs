@@ -88,18 +88,23 @@ impl EventRow {
             schema_name,
             decoded_fields,
             metadata: metadata_json,
-            grpc_method: event.metadata.get("grpc.method").cloned().unwrap_or_default(),
-            grpc_status: event.metadata.get("grpc.status").cloned().unwrap_or_default(),
+            grpc_method: event
+                .metadata
+                .get("grpc.method")
+                .cloned()
+                .unwrap_or_default(),
+            grpc_status: event
+                .metadata
+                .get("grpc.status")
+                .cloned()
+                .unwrap_or_default(),
             zmq_topic: event.metadata.get("zmq.topic").cloned().unwrap_or_default(),
             dds_topic_name: event
                 .metadata
                 .get("dds.topic_name")
                 .cloned()
                 .unwrap_or_default(),
-            sequence: event
-                .sequence
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
+            sequence: event.sequence.map(|s| s.to_string()).unwrap_or_default(),
             warnings: warnings_json,
         }
     }
@@ -120,11 +125,26 @@ impl Exporter for CsvExporter {
         // Write headers even for empty events
         if events.is_empty() {
             wtr.write_record([
-                "id", "timestamp_nanos", "timestamp_iso", "adapter", "origin",
-                "src_addr", "dst_addr", "transport", "direction", "payload_type",
-                "payload_size", "schema_name", "decoded_fields", "metadata",
-                "grpc_method", "grpc_status", "zmq_topic", "dds_topic_name",
-                "sequence", "warnings"
+                "id",
+                "timestamp_nanos",
+                "timestamp_iso",
+                "adapter",
+                "origin",
+                "src_addr",
+                "dst_addr",
+                "transport",
+                "direction",
+                "payload_type",
+                "payload_size",
+                "schema_name",
+                "decoded_fields",
+                "metadata",
+                "grpc_method",
+                "grpc_status",
+                "zmq_topic",
+                "dds_topic_name",
+                "sequence",
+                "warnings",
             ])?;
         }
 

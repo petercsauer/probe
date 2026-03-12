@@ -5,9 +5,11 @@
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_tui::{App, event_store::EventStore};
-use ratatui::{backend::TestBackend, Terminal};
+use ratatui::{Terminal, backend::TestBackend};
 use std::collections::BTreeMap;
 
 /// Helper to create a test event with minimal setup.
@@ -99,7 +101,11 @@ fn snapshot_two_events_120x40() {
 #[test]
 fn snapshot_active_filter_120x40() {
     let events = vec![make_grpc_event(1), make_zmq_event(2), make_grpc_event(3)];
-    let mut app = App::new(EventStore::new(events), Some(r#"transport == "gRPC""#.to_string()), None);
+    let mut app = App::new(
+        EventStore::new(events),
+        Some(r#"transport == "gRPC""#.to_string()),
+        None,
+    );
     let backend = render_app(&mut app, 120, 40);
     insta::assert_snapshot!(backend);
 }

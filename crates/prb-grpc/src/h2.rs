@@ -118,7 +118,8 @@ impl H2Codec {
             // - 1 byte: flags
             // - 4 bytes: stream ID (31-bit, reserved bit must be 0)
 
-            let length = u32::from_be_bytes([0, self.buffer[0], self.buffer[1], self.buffer[2]]) as usize;
+            let length =
+                u32::from_be_bytes([0, self.buffer[0], self.buffer[1], self.buffer[2]]) as usize;
             let frame_type = self.buffer[3];
             let flags = self.buffer[4];
             let stream_id = u32::from_be_bytes([
@@ -213,7 +214,8 @@ impl H2Codec {
                                 });
                             } else {
                                 // Still accumulating - put buffer back
-                                self.header_block_buffer = Some((buffered_stream_id, buffer, buffered_end_stream));
+                                self.header_block_buffer =
+                                    Some((buffered_stream_id, buffer, buffered_end_stream));
                             }
                         } else {
                             // Stream ID mismatch - protocol error, clear buffer
@@ -296,7 +298,8 @@ impl H2Codec {
                     if offset + name_len > data.len() {
                         break;
                     }
-                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    let name =
+                        String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
                     offset += name_len;
                     name
                 } else {
@@ -341,7 +344,8 @@ impl H2Codec {
                     if offset + name_len > data.len() {
                         break;
                     }
-                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    let name =
+                        String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
                     offset += name_len;
                     name
                 } else {
@@ -377,7 +381,8 @@ impl H2Codec {
                     if offset + name_len > data.len() {
                         break;
                     }
-                    let name = String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
+                    let name =
+                        String::from_utf8_lossy(&data[offset..offset + name_len]).to_string();
                     offset += name_len;
                     name
                 } else {
@@ -509,7 +514,9 @@ impl H2Codec {
 
     /// Get the state for a stream, creating it if it doesn't exist.
     pub fn get_stream(&mut self, stream_id: u32) -> &mut StreamState {
-        self.streams.entry(stream_id).or_insert_with(StreamState::new)
+        self.streams
+            .entry(stream_id)
+            .or_insert_with(StreamState::new)
     }
 
     /// Check if HPACK degradation has occurred.

@@ -5,8 +5,8 @@ use crate::format::{FixtureEvent, FixtureFile};
 use bytes::Bytes;
 use camino::Utf8PathBuf;
 use prb_core::{
-    CaptureAdapter, CoreError, DebugEvent, Direction, EventSource, NetworkAddr, Payload,
-    Timestamp, TransportKind,
+    CaptureAdapter, CoreError, DebugEvent, Direction, EventSource, NetworkAddr, Payload, Timestamp,
+    TransportKind,
 };
 use std::fs;
 
@@ -19,10 +19,7 @@ pub struct JsonFixtureAdapter {
 impl JsonFixtureAdapter {
     /// Create a new JSON fixture adapter from a file path.
     pub fn new(path: Utf8PathBuf) -> Self {
-        Self {
-            path,
-            events: None,
-        }
+        Self { path, events: None }
     }
 
     /// Load and parse the fixture file.
@@ -69,12 +66,12 @@ impl JsonFixtureAdapter {
             (Some(_), Some(_)) => {
                 return Err(FixtureError::invalid_format(
                     "cannot specify both payload_base64 and payload_utf8",
-                ))
+                ));
             }
             (None, None) => {
                 return Err(FixtureError::invalid_format(
                     "must specify either payload_base64 or payload_utf8",
-                ))
+                ));
             }
         };
 
@@ -117,13 +114,23 @@ impl JsonFixtureAdapter {
     /// Map FixtureError to CoreError for trait compliance.
     fn map_error(e: FixtureError) -> CoreError {
         match e {
-            FixtureError::Base64Decode(msg) => CoreError::PayloadDecode(format!("base64 decode: {}", msg)),
+            FixtureError::Base64Decode(msg) => {
+                CoreError::PayloadDecode(format!("base64 decode: {}", msg))
+            }
             FixtureError::InvalidTransport(t) => CoreError::UnsupportedTransport(t),
-            FixtureError::InvalidFormat(msg) => CoreError::PayloadDecode(format!("invalid format: {}", msg)),
+            FixtureError::InvalidFormat(msg) => {
+                CoreError::PayloadDecode(format!("invalid format: {}", msg))
+            }
             FixtureError::Parse { source } => CoreError::from(source),
-            FixtureError::Io { source } => CoreError::PayloadDecode(format!("I/O error: {}", source)),
-            FixtureError::UnsupportedVersion(v) => CoreError::PayloadDecode(format!("unsupported version: {}", v)),
-            FixtureError::InvalidDirection(d) => CoreError::PayloadDecode(format!("invalid direction: {}", d)),
+            FixtureError::Io { source } => {
+                CoreError::PayloadDecode(format!("I/O error: {}", source))
+            }
+            FixtureError::UnsupportedVersion(v) => {
+                CoreError::PayloadDecode(format!("unsupported version: {}", v))
+            }
+            FixtureError::InvalidDirection(d) => {
+                CoreError::PayloadDecode(format!("invalid direction: {}", d))
+            }
             FixtureError::Core(e) => e,
         }
     }
@@ -143,10 +150,11 @@ impl CaptureAdapter for JsonFixtureAdapter {
         // Take ownership of events to iterate
         let events = self.events.take().unwrap_or_default();
 
-        Box::new(events.into_iter().map(|event| {
-            self.convert_event(event)
-                .map_err(Self::map_error)
-        }))
+        Box::new(
+            events
+                .into_iter()
+                .map(|event| self.convert_event(event).map_err(Self::map_error)),
+        )
     }
 }
 

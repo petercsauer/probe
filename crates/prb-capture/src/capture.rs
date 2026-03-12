@@ -4,9 +4,9 @@ use crate::config::CaptureConfig;
 use crate::error::CaptureError;
 use crate::privileges::PrivilegeCheck;
 use crate::stats::{CaptureStats, CaptureStatsInner};
-use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use std::sync::atomic::{AtomicBool, Ordering};
+use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
@@ -141,7 +141,7 @@ impl CaptureEngine {
                     return Err(CaptureError::Other(format!(
                         "capture thread panicked: {:?}",
                         e
-                    )))
+                    )));
                 }
             }
         }
@@ -208,7 +208,9 @@ fn capture_loop(
                 packet_count += 1;
 
                 // Poll kernel statistics every 1000 packets to reduce overhead
-                if packet_count.is_multiple_of(1000) && let Ok(pcap_stats) = cap.stats() {
+                if packet_count.is_multiple_of(1000)
+                    && let Ok(pcap_stats) = cap.stats()
+                {
                     stats
                         .packets_dropped_kernel
                         .store(pcap_stats.dropped as u64, Ordering::Relaxed);

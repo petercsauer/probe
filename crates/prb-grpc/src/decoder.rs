@@ -4,11 +4,10 @@ use crate::h2::{H2Codec, H2Event};
 use crate::lpm::{CompressionAlgorithm, LpmParser};
 use bytes::Bytes;
 use prb_core::{
-    extract_trace_context, CorrelationKey, CoreError, DebugEvent, DebugEventBuilder,
-    DecodeContext, Direction, EventSource, NetworkAddr, Payload, ProtocolDecoder, Timestamp,
-    TransportKind, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID,
-    METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_FLAGS, METADATA_KEY_OTEL_TRACE_ID,
-    METADATA_KEY_OTEL_TRACE_SAMPLED,
+    CoreError, CorrelationKey, DebugEvent, DebugEventBuilder, DecodeContext, Direction,
+    EventSource, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_OTEL_SPAN_ID,
+    METADATA_KEY_OTEL_TRACE_FLAGS, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_TRACE_SAMPLED,
+    NetworkAddr, Payload, ProtocolDecoder, Timestamp, TransportKind, extract_trace_context,
 };
 use std::collections::HashMap;
 
@@ -262,8 +261,14 @@ impl GrpcDecoder {
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
-                    src: ctx.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx.dst_addr.clone().unwrap_or_else(|| "unknown".to_string()),
+                    src: ctx
+                        .src_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    dst: ctx
+                        .dst_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                 }),
             })
             .transport(TransportKind::Grpc)

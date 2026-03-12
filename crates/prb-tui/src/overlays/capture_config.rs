@@ -1,11 +1,11 @@
 //! Live capture configuration overlay.
 
+use prb_capture::{InterfaceEnumerator, InterfaceInfo, PrivilegeCheck};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Widget};
-use ratatui::style::{Color, Modifier, Style};
-use prb_capture::{InterfaceInfo, InterfaceEnumerator, PrivilegeCheck};
 use tui_input::Input;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,8 +101,8 @@ impl CaptureConfigOverlay {
             return;
         }
 
-        let new_idx = (self.selected_interface as isize + delta)
-            .rem_euclid(self.interfaces.len() as isize);
+        let new_idx =
+            (self.selected_interface as isize + delta).rem_euclid(self.interfaces.len() as isize);
         self.selected_interface = new_idx as usize;
 
         // Update privilege check when interface changes
@@ -170,23 +170,20 @@ impl CaptureConfigOverlay {
 
         // Try to open a dummy capture device and compile the filter
         let cap_result: Result<pcap::Capture<pcap::Active>, pcap::Error> =
-            pcap::Capture::from_device(interface)
-                .and_then(|c| c.open());
+            pcap::Capture::from_device(interface).and_then(|c| c.open());
 
         match cap_result {
-            Ok(mut active_cap) => {
-                match active_cap.filter(&self.bpf_filter, true) {
-                    Ok(_) => {
-                        self.bpf_validation_error = None;
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!("Invalid BPF filter: {}", e);
-                        self.bpf_validation_error = Some(error_msg.clone());
-                        Err(error_msg)
-                    }
+            Ok(mut active_cap) => match active_cap.filter(&self.bpf_filter, true) {
+                Ok(_) => {
+                    self.bpf_validation_error = None;
+                    Ok(())
                 }
-            }
+                Err(e) => {
+                    let error_msg = format!("Invalid BPF filter: {}", e);
+                    self.bpf_validation_error = Some(error_msg.clone());
+                    Err(error_msg)
+                }
+            },
             Err(e) => {
                 // Can't open device for validation, accept the filter
                 // (will be validated again when actually starting capture)
@@ -224,22 +221,20 @@ impl CaptureConfigOverlay {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(1),  // Header
-                Constraint::Min(8),     // Interface list
-                Constraint::Length(3),  // BPF filter
-                Constraint::Length(3),  // Settings
-                Constraint::Length(3),  // Privilege warning
-                Constraint::Length(2),  // Help text
+                Constraint::Length(1), // Header
+                Constraint::Min(8),    // Interface list
+                Constraint::Length(3), // BPF filter
+                Constraint::Length(3), // Settings
+                Constraint::Length(3), // Privilege warning
+                Constraint::Length(2), // Help text
             ])
             .split(inner);
 
         // Header
-        let header = Line::from(vec![
-            Span::styled(
-                "Select network interface and configure capture settings",
-                Style::default().fg(Color::Gray),
-            ),
-        ]);
+        let header = Line::from(vec![Span::styled(
+            "Select network interface and configure capture settings",
+            Style::default().fg(Color::Gray),
+        )]);
         buf.set_line(layout[0].x, layout[0].y, &header, layout[0].width);
 
         // Interface list
@@ -273,7 +268,9 @@ impl CaptureConfigOverlay {
     fn render_interface_list(&self, area: Rect, buf: &mut Buffer) {
         let focused = self.focused_field == ConfigField::Interface;
         let border_style = if focused {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
@@ -312,7 +309,9 @@ impl CaptureConfigOverlay {
 
                 let prefix = if is_selected { " > " } else { "   " };
                 let name_style = if is_selected {
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
                 };
@@ -356,7 +355,9 @@ impl CaptureConfigOverlay {
         let border_style = if self.bpf_validation_error.is_some() {
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         } else if focused {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
@@ -379,7 +380,10 @@ impl CaptureConfigOverlay {
             };
             let cursor_pos = self.bpf_filter_input.cursor();
 
-            let line = Line::from(Span::styled(display_text, Style::default().fg(Color::White)));
+            let line = Line::from(Span::styled(
+                display_text,
+                Style::default().fg(Color::White),
+            ));
             buf.set_line(inner.x, inner.y, &line, inner.width);
 
             // Show cursor
@@ -390,7 +394,10 @@ impl CaptureConfigOverlay {
         } else {
             // Show static text when not focused
             let display_text = if self.bpf_filter.is_empty() {
-                Span::styled("(no filter - capture all traffic)", Style::default().fg(Color::DarkGray))
+                Span::styled(
+                    "(no filter - capture all traffic)",
+                    Style::default().fg(Color::DarkGray),
+                )
             } else {
                 Span::styled(&self.bpf_filter, Style::default().fg(Color::White))
             };
@@ -416,7 +423,9 @@ impl CaptureConfigOverlay {
         let focused_promisc = self.focused_field == ConfigField::Promiscuous;
 
         let border_style = if focused_snaplen || focused_promisc {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
@@ -431,7 +440,9 @@ impl CaptureConfigOverlay {
 
         // Snaplen line
         let snaplen_style = if focused_snaplen {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -456,17 +467,16 @@ impl CaptureConfigOverlay {
         } else {
             let snaplen_line = Line::from(vec![
                 Span::styled("Snaplen: ", snaplen_style),
-                Span::styled(
-                    format!("{} bytes", self.snaplen),
-                    snaplen_style,
-                ),
+                Span::styled(format!("{} bytes", self.snaplen), snaplen_style),
             ]);
             buf.set_line(inner.x, inner.y, &snaplen_line, inner.width);
         }
 
         // Promiscuous mode line
         let promisc_style = if focused_promisc {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -475,7 +485,11 @@ impl CaptureConfigOverlay {
             Span::styled("Promiscuous mode: ", promisc_style),
             Span::styled(
                 promisc_value,
-                Style::default().fg(if self.promiscuous { Color::Green } else { Color::Red }),
+                Style::default().fg(if self.promiscuous {
+                    Color::Green
+                } else {
+                    Color::Red
+                }),
             ),
             Span::styled(" (Space to toggle)", Style::default().fg(Color::DarkGray)),
         ]);

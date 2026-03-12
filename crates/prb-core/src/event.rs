@@ -257,10 +257,7 @@ pub enum CorrelationKey {
     /// Connection identifier.
     ConnectionId { id: String },
     /// OpenTelemetry trace context.
-    TraceContext {
-        trace_id: String,
-        span_id: String,
-    },
+    TraceContext { trace_id: String, span_id: String },
     /// Custom key-value pair.
     Custom { key: String, value: String },
 }

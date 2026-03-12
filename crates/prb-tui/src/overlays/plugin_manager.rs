@@ -1,12 +1,12 @@
 //! Plugin management overlay for the TUI.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Widget};
-use ratatui::style::{Color, Modifier, Style};
 use crate::theme::Theme;
 use prb_plugin_api::PluginMetadata;
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 use tui_input::Input;
 
 /// Plugin type (native or WASM).
@@ -198,7 +198,9 @@ impl PluginManagerOverlay {
                         Span::styled(" > ", Theme::focused_border()),
                         Span::styled(
                             format!("{} {} ({}) ", checkbox, entry.metadata.name, type_str),
-                            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
                         ),
                     ])
                 } else {
@@ -286,9 +288,7 @@ impl PluginManagerOverlay {
                     Span::raw(if entry.enabled { "Yes" } else { "No" }),
                 ]),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled("Description:", Theme::help_key()),
-                ]),
+                Line::from(vec![Span::styled("Description:", Theme::help_key())]),
                 Line::from(Span::raw(&entry.metadata.description)),
             ];
 

@@ -1,0 +1,64 @@
+# cargo-deny configuration
+# Security and supply chain validation
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Ignore specific advisories (add as needed)
+# TODO: Address these security advisories in a future segment
+ignore = [
+    "RUSTSEC-2025-0012",
+    "RUSTSEC-2025-0057",
+    "RUSTSEC-2024-0384",
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2026-0006",
+    "RUSTSEC-2026-0020",
+    "RUSTSEC-2026-0021",
+]
+
+[licenses]
+version = 2
+# Allow common permissive licenses
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Unlicense",
+    "0BSD",
+    "MPL-2.0",
+    "Zlib",
+    "AGPL-3.0-or-later",
+    "CDLA-Permissive-2.0",
+]
+private = { ignore = true }
+confidence-threshold = 0.8
+
+[bans]
+# Warn on multiple versions of the same crate
+multiple-versions = "warn"
+# Deny wildcard dependencies
+wildcards = "deny"
+highlight = "all"
+workspace-default-features = "allow"
+# Allow certain duplicates if necessary
+# allow = []
+# Deny specific crates if needed
+deny = []
+# Skip checking for duplicates in dev/build dependencies
+skip = []
+skip-tree = []
+
+[sources]
+# Only allow crates.io (deny git dependencies in production)
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Allow git dependencies in dev only
+[sources.allow-org]
+github = []

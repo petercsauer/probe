@@ -184,13 +184,9 @@ mod tests {
         let stream2 = stream1.clone();
 
         // Process streams in parallel threads
-        let handle1 = thread::spawn(move || {
-            processor1.decrypt_stream(stream1)
-        });
+        let handle1 = thread::spawn(move || processor1.decrypt_stream(stream1));
 
-        let handle2 = thread::spawn(move || {
-            processor2.decrypt_stream(stream2)
-        });
+        let handle2 = thread::spawn(move || processor2.decrypt_stream(stream2));
 
         // Both should complete without panic
         let result1 = handle1.join().expect("Thread 1 panicked");

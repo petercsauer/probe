@@ -59,7 +59,9 @@ impl MmapPcapReader {
 
         // Detect format from magic bytes
         if mmap.len() < 4 {
-            return Err(PcapError::Parse("file too small to be valid PCAP".to_string()));
+            return Err(PcapError::Parse(
+                "file too small to be valid PCAP".to_string(),
+            ));
         }
 
         let magic = u32::from_le_bytes([mmap[0], mmap[1], mmap[2], mmap[3]]);
@@ -70,7 +72,7 @@ impl MmapPcapReader {
                 return Err(PcapError::UnsupportedFormat(format!(
                     "unknown magic bytes: {:08x}",
                     magic
-                )))
+                )));
             }
         };
 
@@ -80,7 +82,11 @@ impl MmapPcapReader {
             CaptureFormat::Pcapng => Self::index_pcapng(&mmap)?,
         };
 
-        Ok(Self { mmap, index, format })
+        Ok(Self {
+            mmap,
+            index,
+            format,
+        })
     }
 
     /// Returns the number of indexed packets.
@@ -132,7 +138,9 @@ impl MmapPcapReader {
 
         // Read file header (24 bytes)
         if data.len() < 24 {
-            return Err(PcapError::Parse("file too small for PCAP header".to_string()));
+            return Err(PcapError::Parse(
+                "file too small for PCAP header".to_string(),
+            ));
         }
 
         // Extract linktype from header (bytes 20-23)
@@ -142,10 +150,18 @@ impl MmapPcapReader {
         // Scan packets
         while pos + 16 <= data.len() {
             // Read packet header (16 bytes)
-            let ts_sec = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
-            let ts_usec = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]);
-            let incl_len = u32::from_le_bytes([data[pos + 8], data[pos + 9], data[pos + 10], data[pos + 11]]);
-            let _orig_len = u32::from_le_bytes([data[pos + 12], data[pos + 13], data[pos + 14], data[pos + 15]]);
+            let ts_sec =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+            let ts_usec =
+                u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]);
+            let incl_len =
+                u32::from_le_bytes([data[pos + 8], data[pos + 9], data[pos + 10], data[pos + 11]]);
+            let _orig_len = u32::from_le_bytes([
+                data[pos + 12],
+                data[pos + 13],
+                data[pos + 14],
+                data[pos + 15],
+            ]);
 
             let packet_data_offset = pos + 16;
             let packet_data_end = packet_data_offset + incl_len as usize;
@@ -179,8 +195,10 @@ impl MmapPcapReader {
 
         while pos + 8 <= data.len() {
             // Read block type and total length
-            let block_type = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
-            let block_len = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]);
+            let block_type =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+            let block_len =
+                u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]);
 
             if block_len < 12 {
                 return Err(PcapError::Parse(format!(
@@ -212,15 +230,43 @@ impl MmapPcapReader {
                 0x00000006 => {
                     // Enhanced Packet Block (EPB)
                     if pos + 28 <= data.len() {
-                        let if_id = u32::from_le_bytes([data[pos + 8], data[pos + 9], data[pos + 10], data[pos + 11]]);
-                        let ts_high = u32::from_le_bytes([data[pos + 12], data[pos + 13], data[pos + 14], data[pos + 15]]);
-                        let ts_low = u32::from_le_bytes([data[pos + 16], data[pos + 17], data[pos + 18], data[pos + 19]]);
-                        let cap_len = u32::from_le_bytes([data[pos + 20], data[pos + 21], data[pos + 22], data[pos + 23]]);
-                        let _orig_len = u32::from_le_bytes([data[pos + 24], data[pos + 25], data[pos + 26], data[pos + 27]]);
+                        let if_id = u32::from_le_bytes([
+                            data[pos + 8],
+                            data[pos + 9],
+                            data[pos + 10],
+                            data[pos + 11],
+                        ]);
+                        let ts_high = u32::from_le_bytes([
+                            data[pos + 12],
+                            data[pos + 13],
+                            data[pos + 14],
+                            data[pos + 15],
+                        ]);
+                        let ts_low = u32::from_le_bytes([
+                            data[pos + 16],
+                            data[pos + 17],
+                            data[pos + 18],
+                            data[pos + 19],
+                        ]);
+                        let cap_len = u32::from_le_bytes([
+                            data[pos + 20],
+                            data[pos + 21],
+                            data[pos + 22],
+                            data[pos + 23],
+                        ]);
+                        let _orig_len = u32::from_le_bytes([
+                            data[pos + 24],
+                            data[pos + 25],
+                            data[pos + 26],
+                            data[pos + 27],
+                        ]);
 
                         let packet_data_offset = pos + 28;
                         let timestamp_us = ((ts_high as u64) << 32) | (ts_low as u64);
-                        let linktype = interfaces.get(if_id as usize).copied().unwrap_or(default_linktype);
+                        let linktype = interfaces
+                            .get(if_id as usize)
+                            .copied()
+                            .unwrap_or(default_linktype);
 
                         index.push(PacketLocation {
                             offset: packet_data_offset as u64,
@@ -233,7 +279,12 @@ impl MmapPcapReader {
                 0x00000003 => {
                     // Simple Packet Block (SPB)
                     if pos + 16 <= data.len() {
-                        let orig_len = u32::from_le_bytes([data[pos + 8], data[pos + 9], data[pos + 10], data[pos + 11]]);
+                        let orig_len = u32::from_le_bytes([
+                            data[pos + 8],
+                            data[pos + 9],
+                            data[pos + 10],
+                            data[pos + 11],
+                        ]);
                         let packet_data_offset = pos + 12;
                         let linktype = interfaces.first().copied().unwrap_or(default_linktype);
 
@@ -260,9 +311,10 @@ impl MmapPcapReader {
     ///
     /// Returns (PacketLocation, packet_data) tuples.
     pub fn iter_packets(&self) -> impl Iterator<Item = (PacketLocation, &[u8])> + '_ {
-        self.index.iter().enumerate().filter_map(move |(i, &loc)| {
-            self.get_packet_data(i).ok().map(|data| (loc, data))
-        })
+        self.index
+            .iter()
+            .enumerate()
+            .filter_map(move |(i, &loc)| self.get_packet_data(i).ok().map(|data| (loc, data)))
     }
 }
 

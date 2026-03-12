@@ -2,8 +2,8 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
-use prb_tui::event_store::EventStore;
 use prb_tui::App;
+use prb_tui::event_store::EventStore;
 use std::collections::BTreeMap;
 
 fn make_test_event(id: u64, timestamp_nanos: u64, transport: TransportKind) -> DebugEvent {
@@ -130,9 +130,9 @@ fn test_app_state_with_complex_filter() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC" || transport == "ZMQ""#.to_string(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     // Should match gRPC (2) + ZMQ (1) = 3 events
@@ -150,9 +150,9 @@ fn test_app_state_empty_store() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     assert!(state.filtered_indices.is_empty());
@@ -176,9 +176,9 @@ fn test_app_state_selection_bounds() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     assert_eq!(state.selected_event, Some(1));
@@ -584,10 +584,7 @@ fn test_app_process_action_highlight_bytes() {
     let mut app = App::new(store, None, None);
 
     // Process HighlightBytes action (should not panic)
-    app.test_process_action(Action::HighlightBytes {
-        offset: 10,
-        len: 5,
-    });
+    app.test_process_action(Action::HighlightBytes { offset: 10, len: 5 });
 }
 
 #[test]
@@ -599,10 +596,7 @@ fn test_app_process_action_clear_highlight() {
     let mut app = App::new(store, None, None);
 
     // Set highlight first
-    app.test_process_action(Action::HighlightBytes {
-        offset: 10,
-        len: 5,
-    });
+    app.test_process_action(Action::HighlightBytes { offset: 10, len: 5 });
 
     // Clear highlight
     app.test_process_action(Action::ClearHighlight);

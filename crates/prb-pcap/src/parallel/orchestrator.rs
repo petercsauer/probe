@@ -127,10 +127,8 @@ impl ParallelPipeline {
             Self::PARALLEL_THRESHOLD,
         );
 
-        let shard_processor = ShardProcessor::new(
-            Arc::clone(&self.tls_keylog),
-            self.capture_path.clone(),
-        );
+        let shard_processor =
+            ShardProcessor::new(Arc::clone(&self.tls_keylog), self.capture_path.clone());
 
         // Process all packets as a single shard
         let events = shard_processor.process_single_shard(packets);
@@ -145,18 +143,24 @@ impl ParallelPipeline {
         packets: Vec<OwnedNormalizedPacket>,
     ) -> Result<Vec<DebugEvent>, CoreError> {
         let total = packets.len();
-        tracing::info!("Processing {} packets with {} shards", total, self.num_shards);
+        tracing::info!(
+            "Processing {} packets with {} shards",
+            total,
+            self.num_shards
+        );
 
         // Phase 2: Partition by flow
         let shards = self.partition_by_flow(packets);
         let shard_sizes: Vec<_> = shards.iter().map(|s| s.len()).collect();
-        tracing::info!("Partitioned into {} shards: {:?}", shards.len(), shard_sizes);
+        tracing::info!(
+            "Partitioned into {} shards: {:?}",
+            shards.len(),
+            shard_sizes
+        );
 
         // Phase 3: Process each shard in parallel
-        let shard_processor = ShardProcessor::new(
-            Arc::clone(&self.tls_keylog),
-            self.capture_path.clone(),
-        );
+        let shard_processor =
+            ShardProcessor::new(Arc::clone(&self.tls_keylog), self.capture_path.clone());
         let shard_events: Vec<Vec<DebugEvent>> = shard_processor.process_shards(shards);
 
         // Phase 4: Flatten and sort by timestamp
@@ -168,7 +172,10 @@ impl ParallelPipeline {
     }
 
     /// Partitions packets by flow key into shards.
-    fn partition_by_flow(&self, packets: Vec<OwnedNormalizedPacket>) -> Vec<Vec<OwnedNormalizedPacket>> {
+    fn partition_by_flow(
+        &self,
+        packets: Vec<OwnedNormalizedPacket>,
+    ) -> Vec<Vec<OwnedNormalizedPacket>> {
         let mut shards: Vec<Vec<OwnedNormalizedPacket>> = vec![Vec::new(); self.num_shards];
 
         for packet in packets {
@@ -184,13 +191,12 @@ impl ParallelPipeline {
 
         shards
     }
-
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::normalize::{TcpSegmentInfo, TcpFlags, TransportInfo};
+    use crate::normalize::{TcpFlags, TcpSegmentInfo, TransportInfo};
     use std::net::{IpAddr, Ipv4Addr};
 
     fn make_tcp_packet(

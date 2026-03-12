@@ -1,8 +1,6 @@
 //! DDS/RTPS protocol decoder implementing the ProtocolDecoder trait.
 
-use crate::discovery::{
-    DiscoveredEndpoint, Guid, RtpsDiscoveryTracker, well_known_entities,
-};
+use crate::discovery::{DiscoveredEndpoint, Guid, RtpsDiscoveryTracker, well_known_entities};
 use crate::error::DdsError;
 use crate::rtps_parser::{
     DataSubmessage, InfoTsSubmessage, RtpsMessage, SUBMESSAGE_DATA, SUBMESSAGE_DATA_FRAG,
@@ -10,9 +8,9 @@ use crate::rtps_parser::{
 };
 use bytes::Bytes;
 use prb_core::{
-    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr,
-    Payload, ProtocolDecoder, Timestamp, TransportKind, METADATA_KEY_DDS_DOMAIN_ID,
-    METADATA_KEY_DDS_TOPIC_NAME,
+    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource,
+    METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME, NetworkAddr, Payload, ProtocolDecoder,
+    Timestamp, TransportKind,
 };
 
 /// DDS/RTPS protocol decoder.
@@ -113,8 +111,8 @@ impl DdsDecoder {
                         // Check if this is a SEDP discovery message
                         if well_known_entities::is_sedp_entity(&data_msg.writer_id) {
                             // Process discovery data
-                            if let Err(e) =
-                                self.process_discovery_data(&writer_guid, data_msg.serialized_payload)
+                            if let Err(e) = self
+                                .process_discovery_data(&writer_guid, data_msg.serialized_payload)
                             {
                                 tracing::debug!("Failed to parse discovery data: {}", e);
                             }
@@ -149,12 +147,18 @@ impl DdsDecoder {
     }
 
     /// Process SEDP discovery data to extract topic name and endpoint GUID.
-    fn process_discovery_data(&mut self, _writer_guid: &Guid, payload: &[u8]) -> Result<(), DdsError> {
+    fn process_discovery_data(
+        &mut self,
+        _writer_guid: &Guid,
+        payload: &[u8],
+    ) -> Result<(), DdsError> {
         // Parse CDR parameter list from SEDP payload
         // Format: encapsulation_header (4 bytes) + parameter_list
 
         if payload.len() < 4 {
-            return Err(DdsError::DiscoveryParse("SEDP payload too short".to_string()));
+            return Err(DdsError::DiscoveryParse(
+                "SEDP payload too short".to_string(),
+            ));
         }
 
         // Read encapsulation header
@@ -201,22 +205,38 @@ impl DdsDecoder {
             match pid {
                 0x0005 => {
                     // PID_TOPIC_NAME
-                    topic_name = Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
+                    topic_name =
+                        Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
                 }
                 0x0007 => {
                     // PID_TYPE_NAME
-                    type_name = Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
+                    type_name =
+                        Self::parse_cdr_string(&payload[offset..offset + param_len], little_endian);
                 }
                 0x005A => {
                     // PID_ENDPOINT_GUID (16 bytes)
                     if param_len >= 16 {
                         let guid_bytes = &payload[offset..offset + 16];
                         let prefix = [
-                            guid_bytes[0], guid_bytes[1], guid_bytes[2], guid_bytes[3],
-                            guid_bytes[4], guid_bytes[5], guid_bytes[6], guid_bytes[7],
-                            guid_bytes[8], guid_bytes[9], guid_bytes[10], guid_bytes[11],
+                            guid_bytes[0],
+                            guid_bytes[1],
+                            guid_bytes[2],
+                            guid_bytes[3],
+                            guid_bytes[4],
+                            guid_bytes[5],
+                            guid_bytes[6],
+                            guid_bytes[7],
+                            guid_bytes[8],
+                            guid_bytes[9],
+                            guid_bytes[10],
+                            guid_bytes[11],
                         ];
-                        let entity_id = [guid_bytes[12], guid_bytes[13], guid_bytes[14], guid_bytes[15]];
+                        let entity_id = [
+                            guid_bytes[12],
+                            guid_bytes[13],
+                            guid_bytes[14],
+                            guid_bytes[15],
+                        ];
                         endpoint_guid = Some(Guid::new(prefix, entity_id));
                     }
                 }
@@ -225,11 +245,25 @@ impl DdsDecoder {
                     if param_len >= 16 && endpoint_guid.is_none() {
                         let guid_bytes = &payload[offset..offset + 16];
                         let prefix = [
-                            guid_bytes[0], guid_bytes[1], guid_bytes[2], guid_bytes[3],
-                            guid_bytes[4], guid_bytes[5], guid_bytes[6], guid_bytes[7],
-                            guid_bytes[8], guid_bytes[9], guid_bytes[10], guid_bytes[11],
+                            guid_bytes[0],
+                            guid_bytes[1],
+                            guid_bytes[2],
+                            guid_bytes[3],
+                            guid_bytes[4],
+                            guid_bytes[5],
+                            guid_bytes[6],
+                            guid_bytes[7],
+                            guid_bytes[8],
+                            guid_bytes[9],
+                            guid_bytes[10],
+                            guid_bytes[11],
                         ];
-                        let entity_id = [guid_bytes[12], guid_bytes[13], guid_bytes[14], guid_bytes[15]];
+                        let entity_id = [
+                            guid_bytes[12],
+                            guid_bytes[13],
+                            guid_bytes[14],
+                            guid_bytes[15],
+                        ];
                         endpoint_guid = Some(Guid::new(prefix, entity_id));
                     }
                 }
@@ -277,7 +311,10 @@ impl DdsDecoder {
 
         // Extract string bytes (null-terminated)
         let str_bytes = &data[4..4 + len];
-        let str_end = str_bytes.iter().position(|&b| b == 0).unwrap_or(str_bytes.len());
+        let str_end = str_bytes
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(str_bytes.len());
         String::from_utf8(str_bytes[..str_end].to_vec()).ok()
     }
 
@@ -296,7 +333,8 @@ impl DdsDecoder {
         // Look up topic name from discovery
         let topic_name = self.discovery.lookup_topic_name(writer_guid);
 
-        let timestamp = self.last_timestamp
+        let timestamp = self
+            .last_timestamp
             .or(ctx.timestamp)
             .unwrap_or_else(Timestamp::now);
 
@@ -310,8 +348,14 @@ impl DdsDecoder {
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
-                    src: ctx.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx.dst_addr.clone().unwrap_or_else(|| "unknown".to_string()),
+                    src: ctx
+                        .src_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    dst: ctx
+                        .dst_addr
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                 }),
             })
             .transport(TransportKind::DdsRtps)
@@ -320,8 +364,13 @@ impl DdsDecoder {
                 raw: Bytes::copy_from_slice(payload),
             })
             .metadata("dds.writer_guid", writer_guid.to_hex_string())
-            .metadata("dds.reader_entity", format!("{:02x}{:02x}{:02x}{:02x}",
-                reader_entity[0], reader_entity[1], reader_entity[2], reader_entity[3]))
+            .metadata(
+                "dds.reader_entity",
+                format!(
+                    "{:02x}{:02x}{:02x}{:02x}",
+                    reader_entity[0], reader_entity[1], reader_entity[2], reader_entity[3]
+                ),
+            )
             .metadata("dds.sequence_number", sequence_number.to_string())
             .sequence(self.sequence);
 
@@ -372,18 +421,42 @@ impl ProtocolDecoder for DdsDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prb_core::{DecodeContext, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME};
     use crate::rtps_parser::RTPS_MAGIC;
+    use prb_core::{DecodeContext, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME};
 
     #[test]
     fn test_dds_domain_id_boundary() {
         // WS-3.3: Port 7399 → None, port 7400 → domain 0, port 7650 → domain 1
-        assert_eq!(DdsDecoder::extract_domain_id(7399), None, "Port 7399 should return None");
-        assert_eq!(DdsDecoder::extract_domain_id(7400), Some(0), "Port 7400 should be domain 0");
-        assert_eq!(DdsDecoder::extract_domain_id(7401), Some(0), "Port 7401 should be domain 0");
-        assert_eq!(DdsDecoder::extract_domain_id(7650), Some(1), "Port 7650 should be domain 1");
-        assert_eq!(DdsDecoder::extract_domain_id(7651), Some(1), "Port 7651 should be domain 1");
-        assert_eq!(DdsDecoder::extract_domain_id(7900), Some(2), "Port 7900 should be domain 2");
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7399),
+            None,
+            "Port 7399 should return None"
+        );
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7400),
+            Some(0),
+            "Port 7400 should be domain 0"
+        );
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7401),
+            Some(0),
+            "Port 7401 should be domain 0"
+        );
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7650),
+            Some(1),
+            "Port 7650 should be domain 1"
+        );
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7651),
+            Some(1),
+            "Port 7651 should be domain 1"
+        );
+        assert_eq!(
+            DdsDecoder::extract_domain_id(7900),
+            Some(2),
+            "Port 7900 should be domain 2"
+        );
     }
 
     #[test]
@@ -427,8 +500,8 @@ mod tests {
             let event = &events[0];
             // Timestamp should come from INFO_TS (1234567890 seconds)
             // Converted to nanoseconds: 1234567890 * 1_000_000_000 + (0x80000000 * 1_000_000_000 / 2^32)
-            let expected_ts_ns = (ts_seconds as u64) * 1_000_000_000 +
-                                 ((ts_fraction as u64 * 1_000_000_000) / 0x100000000);
+            let expected_ts_ns = (ts_seconds as u64) * 1_000_000_000
+                + ((ts_fraction as u64 * 1_000_000_000) / 0x100000000);
 
             assert_eq!(
                 event.timestamp.as_nanos(),
@@ -448,7 +521,9 @@ mod tests {
         sedp_msg.extend_from_slice(RTPS_MAGIC);
         sedp_msg.extend_from_slice(&[0x02, 0x03]);
         sedp_msg.extend_from_slice(&[0x01, 0x0F]);
-        let guid_prefix = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C];
+        let guid_prefix = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+        ];
         sedp_msg.extend_from_slice(&guid_prefix);
 
         // DATA submessage with SEDP writer entity ID (0x000003C2)

@@ -25,9 +25,13 @@ impl PrivilegeCheck {
             match caps::has_cap(None, CapSet::Effective, Capability::CAP_NET_RAW) {
                 Ok(true) => Ok(()),
                 Ok(false) => Err(CaptureError::InsufficientPrivileges {
-                    message: format!("insufficient privileges to capture on interface '{}'", interface),
+                    message: format!(
+                        "insufficient privileges to capture on interface '{}'",
+                        interface
+                    ),
                     remediation: "Run with sudo, or grant CAP_NET_RAW capability:\n  \
-                                  sudo setcap cap_net_raw+ep $(which prb)".to_string(),
+                                  sudo setcap cap_net_raw+ep $(which prb)"
+                        .to_string(),
                 }),
                 Err(e) => Err(CaptureError::Other(format!(
                     "failed to check capabilities: {}",

@@ -27,14 +27,22 @@ fn test_real_data_http2_h2c_fixture() {
 
 #[test]
 fn test_real_data_tcp_fixtures() {
-    let fixtures = vec!["tcp/dns-remoteshell.pcap", "tcp/tcp-ecn-sample.pcap", "tcp/200722_tcp_anon.pcapng"];
+    let fixtures = vec![
+        "tcp/dns-remoteshell.pcap",
+        "tcp/tcp-ecn-sample.pcap",
+        "tcp/200722_tcp_anon.pcapng",
+    ];
 
     for fixture in fixtures {
         let path = fixtures_dir().join(fixture);
         if path.exists() {
             let file = File::open(&path).expect("Should open TCP fixture");
             let metadata = file.metadata().expect("Should read metadata");
-            assert!(metadata.len() > 100, "Fixture {} should have content", fixture);
+            assert!(
+                metadata.len() > 100,
+                "Fixture {} should have content",
+                fixture
+            );
         }
     }
 }
@@ -48,7 +56,11 @@ fn test_real_data_tls_fixtures() {
         if path.exists() {
             let file = File::open(&path).expect("Should open TLS fixture");
             let metadata = file.metadata().expect("Should read metadata");
-            assert!(metadata.len() > 1000, "TLS fixture {} should have content", fixture);
+            assert!(
+                metadata.len() > 1000,
+                "TLS fixture {} should have content",
+                fixture
+            );
         }
     }
 }
@@ -60,6 +72,9 @@ fn test_real_data_readme_documentation() {
 
     let content = std::fs::read_to_string(&readme_path).expect("Should read README");
     assert!(content.contains("HTTP/2"), "README should document HTTP/2");
-    assert!(content.contains("Wireshark"), "README should credit sources");
+    assert!(
+        content.contains("Wireshark"),
+        "README should credit sources"
+    );
     assert!(content.len() > 500, "README should be comprehensive");
 }

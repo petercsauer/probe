@@ -89,10 +89,7 @@ fn test_zmtp_greeting_parse() {
 fn test_zmtp_ready_metadata() {
     let mut parser = ZmtpParser::new();
     let mut data = build_greeting(3, 0, "NULL", false);
-    let ready = build_ready_command(&[
-        ("Socket-Type", b"PUB"),
-        ("Identity", b"test-pub"),
-    ]);
+    let ready = build_ready_command(&[("Socket-Type", b"PUB"), ("Identity", b"test-pub")]);
     data.extend_from_slice(&ready);
 
     let events = parser.feed(&data).expect("parse greeting and ready");

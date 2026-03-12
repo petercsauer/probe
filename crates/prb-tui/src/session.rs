@@ -1,9 +1,9 @@
 //! Session save/restore functionality for TUI state persistence.
 
-use std::fs;
-use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::app::PaneId;
 
@@ -120,8 +120,7 @@ impl Session {
 
     /// Save session to a JSON file.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .context("Failed to serialize session")?;
+        let json = serde_json::to_string_pretty(self).context("Failed to serialize session")?;
         fs::write(path, json)
             .with_context(|| format!("Failed to write session to {}", path.display()))?;
         Ok(())
@@ -131,8 +130,8 @@ impl Session {
     pub fn load(path: &Path) -> Result<Self> {
         let json = fs::read_to_string(path)
             .with_context(|| format!("Failed to read session from {}", path.display()))?;
-        let session: Session = serde_json::from_str(&json)
-            .context("Failed to deserialize session")?;
+        let session: Session =
+            serde_json::from_str(&json).context("Failed to deserialize session")?;
 
         // Version check (forward compatibility)
         if session.version != SESSION_VERSION {

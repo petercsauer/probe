@@ -1,6 +1,6 @@
 //! Additional integration tests for wire-format protobuf decoding.
 
-use prb_decode::wire_format::{decode_wire_format, LenValue, WireValue};
+use prb_decode::wire_format::{LenValue, WireValue, decode_wire_format};
 
 #[test]
 fn test_multi_field_message() {

@@ -88,8 +88,8 @@ fn load_packet_events_from_ndjson(path: &camino::Utf8Path) -> Result<Vec<DebugEv
 }
 
 fn load_otlp_trace_events(path: &camino::Utf8Path) -> Result<Vec<DebugEvent>> {
-    let data = std::fs::read(path)
-        .with_context(|| format!("Failed to read OTLP trace file: {}", path))?;
+    let data =
+        std::fs::read(path).with_context(|| format!("Failed to read OTLP trace file: {}", path))?;
 
     let request = parse_otlp_json(&data)
         .with_context(|| format!("Failed to parse OTLP JSON from {}", path))?;

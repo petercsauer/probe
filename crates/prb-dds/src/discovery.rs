@@ -24,10 +24,22 @@ impl Guid {
     pub fn to_hex_string(self) -> String {
         format!(
             "{:02x}{:02x}{:02x}{:02x}.{:02x}{:02x}{:02x}{:02x}.{:02x}{:02x}{:02x}{:02x}:{:02x}{:02x}{:02x}{:02x}",
-            self.prefix[0], self.prefix[1], self.prefix[2], self.prefix[3],
-            self.prefix[4], self.prefix[5], self.prefix[6], self.prefix[7],
-            self.prefix[8], self.prefix[9], self.prefix[10], self.prefix[11],
-            self.entity[0], self.entity[1], self.entity[2], self.entity[3],
+            self.prefix[0],
+            self.prefix[1],
+            self.prefix[2],
+            self.prefix[3],
+            self.prefix[4],
+            self.prefix[5],
+            self.prefix[6],
+            self.prefix[7],
+            self.prefix[8],
+            self.prefix[9],
+            self.prefix[10],
+            self.prefix[11],
+            self.entity[0],
+            self.entity[1],
+            self.entity[2],
+            self.entity[3],
         )
     }
 
@@ -158,7 +170,9 @@ mod tests {
         // PID_ENDPOINT_GUID (0x005A) - 16 bytes
         payload.extend_from_slice(&0x005Au16.to_le_bytes());
         payload.extend_from_slice(&16u16.to_le_bytes()); // length
-        let guid_prefix = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C];
+        let guid_prefix = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+        ];
         let entity_id = [0xAA, 0xBB, 0xCC, 0xDD];
         payload.extend_from_slice(&guid_prefix);
         payload.extend_from_slice(&entity_id);
@@ -183,7 +197,9 @@ mod tests {
         let mut tracker = RtpsDiscoveryTracker::new();
 
         let guid = Guid::new(
-            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C],
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+            ],
             [0xAA, 0xBB, 0xCC, 0xDD],
         );
 
@@ -211,20 +227,29 @@ mod tests {
         let guid2 = Guid::new([0x02; 12], [0x11, 0x22, 0x33, 0x44]);
         let guid3 = Guid::new([0x03; 12], [0xFF, 0xEE, 0xDD, 0xCC]);
 
-        tracker.register_endpoint(guid1, DiscoveredEndpoint {
-            topic_name: "topic_one".to_string(),
-            type_name: "type_one".to_string(),
-        });
+        tracker.register_endpoint(
+            guid1,
+            DiscoveredEndpoint {
+                topic_name: "topic_one".to_string(),
+                type_name: "type_one".to_string(),
+            },
+        );
 
-        tracker.register_endpoint(guid2, DiscoveredEndpoint {
-            topic_name: "topic_two".to_string(),
-            type_name: "type_two".to_string(),
-        });
+        tracker.register_endpoint(
+            guid2,
+            DiscoveredEndpoint {
+                topic_name: "topic_two".to_string(),
+                type_name: "type_two".to_string(),
+            },
+        );
 
-        tracker.register_endpoint(guid3, DiscoveredEndpoint {
-            topic_name: "topic_three".to_string(),
-            type_name: "type_three".to_string(),
-        });
+        tracker.register_endpoint(
+            guid3,
+            DiscoveredEndpoint {
+                topic_name: "topic_three".to_string(),
+                type_name: "type_three".to_string(),
+            },
+        );
 
         // Verify all endpoints are registered
         assert_eq!(tracker.lookup_topic_name(&guid1), Some("topic_one"));

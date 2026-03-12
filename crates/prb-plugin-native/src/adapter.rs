@@ -69,7 +69,11 @@ impl ProtocolDecoder for NativeDecoderInstance {
             src_addr: ctx.src_addr.clone(),
             dst_addr: ctx.dst_addr.clone(),
             timestamp_nanos: ctx.timestamp.map(|t| t.as_nanos()),
-            metadata: ctx.metadata.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            metadata: ctx
+                .metadata
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         };
 
         // Serialize context to JSON
@@ -94,10 +98,9 @@ impl ProtocolDecoder for NativeDecoderInstance {
         }
 
         // Deserialize Vec<DebugEventDto>
-        let event_dtos: Vec<DebugEventDto> =
-            serde_json::from_slice(&result_json).map_err(|e| {
-                CoreError::PayloadDecode(format!("Failed to deserialize plugin events: {}", e))
-            })?;
+        let event_dtos: Vec<DebugEventDto> = serde_json::from_slice(&result_json).map_err(|e| {
+            CoreError::PayloadDecode(format!("Failed to deserialize plugin events: {}", e))
+        })?;
 
         // Convert DTOs to DebugEvents
         let events = event_dtos
@@ -152,9 +155,9 @@ impl ProtocolDetector for NativeProtocolDetector {
         };
 
         // Call plugin's detect function
-        let result = self
-            .plugin
-            .detect(ctx.initial_bytes, ctx.src_port, ctx.dst_port, transport_u8);
+        let result =
+            self.plugin
+                .detect(ctx.initial_bytes, ctx.src_port, ctx.dst_port, transport_u8);
 
         if result.detected == 0 {
             return None;
@@ -209,7 +212,11 @@ fn dto_to_debug_event(dto: DebugEventDto) -> Result<DebugEvent, CoreError> {
         .correlation_keys
         .into_iter()
         .filter_map(|k| match k.kind.as_str() {
-            "stream_id" => k.value.parse::<u32>().ok().map(|id| CorrelationKey::StreamId { id }),
+            "stream_id" => k
+                .value
+                .parse::<u32>()
+                .ok()
+                .map(|id| CorrelationKey::StreamId { id }),
             "topic" => Some(CorrelationKey::Topic { name: k.value }),
             "connection_id" => Some(CorrelationKey::ConnectionId { id: k.value }),
             "trace_context" => {
@@ -234,7 +241,10 @@ fn dto_to_debug_event(dto: DebugEventDto) -> Result<DebugEvent, CoreError> {
     // Create event source
     let source = EventSource {
         adapter: "native-plugin".to_string(),
-        origin: dto.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
+        origin: dto
+            .src_addr
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string()),
         network: if dto.src_addr.is_some() && dto.dst_addr.is_some() {
             Some(prb_core::NetworkAddr {
                 src: dto.src_addr.clone().unwrap(),
@@ -314,7 +324,11 @@ mod tests {
         for (transport_str, expected_kind) in transports {
             let dto = DebugEventDto::minimal(transport_str, "request");
             let event = dto_to_debug_event(dto).expect("conversion should succeed");
-            assert_eq!(event.transport, expected_kind, "failed for transport: {}", transport_str);
+            assert_eq!(
+                event.transport, expected_kind,
+                "failed for transport: {}",
+                transport_str
+            );
         }
     }
 
@@ -334,7 +348,11 @@ mod tests {
         for (direction_str, expected_dir) in directions {
             let dto = DebugEventDto::minimal("tcp", direction_str);
             let event = dto_to_debug_event(dto).expect("conversion should succeed");
-            assert_eq!(event.direction, expected_dir, "failed for direction: {}", direction_str);
+            assert_eq!(
+                event.direction, expected_dir,
+                "failed for direction: {}",
+                direction_str
+            );
         }
     }
 
@@ -362,7 +380,11 @@ mod tests {
         let event = dto_to_debug_event(dto).expect("conversion should succeed");
 
         match event.payload {
-            prb_core::Payload::Decoded { raw: _, fields, schema_name } => {
+            prb_core::Payload::Decoded {
+                raw: _,
+                fields,
+                schema_name,
+            } => {
                 assert_eq!(fields["key"], "value");
                 assert_eq!(fields["number"], 42);
                 assert_eq!(schema_name, Some("MySchema".to_string()));
@@ -527,10 +549,7 @@ mod tests {
     #[test]
     fn test_dto_to_debug_event_with_warnings() {
         let mut dto = DebugEventDto::minimal("grpc", "request");
-        dto.warnings = vec![
-            "warning 1".to_string(),
-            "warning 2".to_string(),
-        ];
+        dto.warnings = vec!["warning 1".to_string(), "warning 2".to_string()];
 
         let event = dto_to_debug_event(dto).expect("conversion should succeed");
 

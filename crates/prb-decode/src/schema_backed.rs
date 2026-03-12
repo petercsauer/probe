@@ -106,7 +106,11 @@ pub fn decode_with_schema(
 
     // Decode using prost-reflect
     let message = DynamicMessage::decode(descriptor.clone(), &mut buf).map_err(|e| {
-        DecodeError::DecodeFailed(format!("Failed to decode {}: {}", descriptor.full_name(), e))
+        DecodeError::DecodeFailed(format!(
+            "Failed to decode {}: {}",
+            descriptor.full_name(),
+            e
+        ))
     })?;
 
     // Check if there's trailing data (potential schema mismatch)
@@ -273,8 +277,8 @@ mod tests {
     use super::*;
     use prost_reflect::DescriptorPool;
     use prost_types::{
-        field_descriptor_proto, DescriptorProto, FieldDescriptorProto, FileDescriptorProto,
-        FileDescriptorSet,
+        DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
+        field_descriptor_proto,
     };
 
     fn create_simple_descriptor() -> MessageDescriptor {
@@ -304,9 +308,7 @@ mod tests {
             ..Default::default()
         };
 
-        let fds = FileDescriptorSet {
-            file: vec![file],
-        };
+        let fds = FileDescriptorSet { file: vec![file] };
 
         let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
         pool.get_message_by_name("test.SimpleMessage").unwrap()

@@ -25,5 +25,12 @@ pub enum Action {
 
 pub trait PaneComponent {
     fn handle_key(&mut self, key: crossterm::event::KeyEvent, state: &AppState) -> Action;
-    fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool);
+    fn render(
+        &mut self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &AppState,
+        theme: &ThemeConfig,
+        focused: bool,
+    );
 }

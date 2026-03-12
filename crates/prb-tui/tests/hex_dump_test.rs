@@ -41,7 +41,10 @@ fn test_set_highlight() {
     pane.set_highlight(32, 16);
 
     assert_eq!(pane.highlight, Some((32, 16)));
-    assert_eq!(pane.scroll_offset, 2, "Should scroll to line containing offset 32");
+    assert_eq!(
+        pane.scroll_offset, 2,
+        "Should scroll to line containing offset 32"
+    );
 }
 
 #[test]

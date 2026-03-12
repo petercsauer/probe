@@ -31,7 +31,9 @@ impl std::str::FromStr for AiProvider {
             "ollama" => Ok(Self::Ollama),
             "openai" => Ok(Self::OpenAi),
             "custom" => Ok(Self::Custom),
-            _ => Err(format!("unknown provider: {s} (expected: ollama, openai, custom)")),
+            _ => Err(format!(
+                "unknown provider: {s} (expected: ollama, openai, custom)"
+            )),
         }
     }
 }
@@ -151,21 +153,29 @@ mod tests {
     #[test]
     fn test_config_openai_requires_key() {
         let config = AiConfig::for_provider(AiProvider::OpenAi);
-        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
+        unsafe {
+            std::env::remove_var("PRB_AI_API_KEY");
+        }
         assert!(config.resolve_api_key().is_err());
     }
 
     #[test]
     fn test_config_from_env() {
-        unsafe { std::env::set_var("PRB_AI_API_KEY", "test-key-123"); }
+        unsafe {
+            std::env::set_var("PRB_AI_API_KEY", "test-key-123");
+        }
         let config = AiConfig::for_provider(AiProvider::OpenAi);
         assert_eq!(config.resolve_api_key().unwrap(), "test-key-123");
-        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
+        unsafe {
+            std::env::remove_var("PRB_AI_API_KEY");
+        }
     }
 
     #[test]
     fn test_config_ollama_no_key_needed() {
-        unsafe { std::env::remove_var("PRB_AI_API_KEY"); }
+        unsafe {
+            std::env::remove_var("PRB_AI_API_KEY");
+        }
         let config = AiConfig::default();
         assert_eq!(config.resolve_api_key().unwrap(), "ollama");
     }

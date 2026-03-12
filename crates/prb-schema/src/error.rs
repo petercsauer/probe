@@ -14,10 +14,7 @@ pub enum SchemaError {
 
     /// Failed to compile .proto file.
     #[error("Failed to compile .proto file {file}: {message}")]
-    CompileProto {
-        file: PathBuf,
-        message: String,
-    },
+    CompileProto { file: PathBuf, message: String },
 
     /// Schema not found.
     #[error("Schema not found: {0}")]

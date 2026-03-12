@@ -2,8 +2,8 @@
 
 use crate::error::Result;
 use crate::metadata::SessionMetadata;
-use mcap::records::MessageHeader;
 use mcap::Writer;
+use mcap::records::MessageHeader;
 use prb_core::DebugEvent;
 use prb_schema::SchemaRegistry;
 use std::collections::BTreeMap;
@@ -51,19 +51,14 @@ impl<W: Write + Seek> SessionWriter<W> {
             let topic = format!("events/{}/{}", channel_key.adapter, channel_key.origin);
 
             // Create a schema for DebugEvent
-            let schema_id = self.writer.add_schema(
-                "prb.DebugEvent",
-                "jsonschema",
-                br#"{"type":"object"}"#,
-            )?;
+            let schema_id =
+                self.writer
+                    .add_schema("prb.DebugEvent", "jsonschema", br#"{"type":"object"}"#)?;
 
             // Create channel
-            let channel_id = self.writer.add_channel(
-                schema_id,
-                &topic,
-                "json",
-                &BTreeMap::new(),
-            )?;
+            let channel_id =
+                self.writer
+                    .add_channel(schema_id, &topic, "json", &BTreeMap::new())?;
 
             self.channels.insert(channel_key.clone(), channel_id);
             self.channel_sequences.insert(channel_id, 0);
@@ -71,7 +66,9 @@ impl<W: Write + Seek> SessionWriter<W> {
         };
 
         // Get and increment sequence number
-        let sequence = self.channel_sequences.get_mut(&channel_id)
+        let sequence = self
+            .channel_sequences
+            .get_mut(&channel_id)
             .expect("channel_id must exist in channel_sequences");
         let seq = *sequence;
         *sequence += 1;
@@ -84,8 +81,7 @@ impl<W: Write + Seek> SessionWriter<W> {
             channel_id,
             sequence: seq,
             log_time: event.timestamp.as_nanos(),
-            publish_time: chrono::Utc::now().timestamp_nanos_opt()
-                .unwrap_or(0) as u64,
+            publish_time: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64,
         };
 
         self.writer.write_to_known_channel(&header, &data)?;
@@ -101,7 +97,8 @@ impl<W: Write + Seek> SessionWriter<W> {
         // Get all descriptor sets from the registry
         for (idx, desc_bytes) in registry.descriptor_sets().iter().enumerate() {
             let schema_name = format!("protobuf_descriptors_{}", idx);
-            self.writer.add_schema(&schema_name, "protobuf", desc_bytes)?;
+            self.writer
+                .add_schema(&schema_name, "protobuf", desc_bytes)?;
         }
         Ok(())
     }

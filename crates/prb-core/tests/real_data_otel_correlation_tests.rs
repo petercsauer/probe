@@ -3,8 +3,8 @@
 //! Tests OpenTelemetry trace context extraction and correlation with network captures.
 
 use prb_core::{
-    extract_trace_context, parse_w3c_traceparent, CorrelationKey, DebugEvent, Direction,
-    EventSource, Payload, TransportKind,
+    CorrelationKey, DebugEvent, Direction, EventSource, Payload, TransportKind,
+    extract_trace_context, parse_w3c_traceparent,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -42,11 +42,7 @@ fn load_spans(filename: &str) -> Vec<OTelSpan> {
 }
 
 /// Create synthetic network events with trace context.
-fn create_synthetic_event_with_trace(
-    trace_id: &str,
-    span_id: &str,
-    trace_flags: u8,
-) -> DebugEvent {
+fn create_synthetic_event_with_trace(trace_id: &str, span_id: &str, trace_flags: u8) -> DebugEvent {
     let mut metadata = std::collections::BTreeMap::new();
     metadata.insert("http.method".to_string(), "GET".to_string());
     metadata.insert("http.path".to_string(), "/api/users".to_string());
@@ -132,7 +128,10 @@ fn test_grpc_metadata_trace_extraction() {
         "traceparent".to_string(),
         "00-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6-0011223344556677-01".to_string(),
     );
-    headers.insert("grpc-method".to_string(), "/service.Method/Call".to_string());
+    headers.insert(
+        "grpc-method".to_string(),
+        "/service.Method/Call".to_string(),
+    );
 
     let ctx = extract_trace_context(&headers).expect("Should extract from gRPC metadata");
 
@@ -155,14 +154,18 @@ fn test_correlate_network_events_to_spans() {
     let spans = load_spans("synthetic-trace.spans.json");
 
     // Verify events have trace context
-    assert!(event1
-        .correlation_keys
-        .iter()
-        .any(|k| matches!(k, CorrelationKey::TraceContext { .. })));
-    assert!(event2
-        .correlation_keys
-        .iter()
-        .any(|k| matches!(k, CorrelationKey::TraceContext { .. })));
+    assert!(
+        event1
+            .correlation_keys
+            .iter()
+            .any(|k| matches!(k, CorrelationKey::TraceContext { .. }))
+    );
+    assert!(
+        event2
+            .correlation_keys
+            .iter()
+            .any(|k| matches!(k, CorrelationKey::TraceContext { .. }))
+    );
 
     // Verify trace_id matches across events
     if let Some(CorrelationKey::TraceContext { trace_id: tid1, .. }) =
@@ -175,10 +178,7 @@ fn test_correlate_network_events_to_spans() {
 
     // If spans exist, verify correlation
     if !spans.is_empty() {
-        let matching_spans: Vec<_> = spans
-            .iter()
-            .filter(|s| s.trace_id == trace_id)
-            .collect();
+        let matching_spans: Vec<_> = spans.iter().filter(|s| s.trace_id == trace_id).collect();
         assert!(
             !matching_spans.is_empty(),
             "Should find spans with matching trace_id"
@@ -199,10 +199,12 @@ fn test_correlation_with_missing_spans() {
     let spans = load_spans("synthetic-trace.spans.json");
 
     // Verify event is valid even without matching spans
-    assert!(event
-        .correlation_keys
-        .iter()
-        .any(|k| matches!(k, CorrelationKey::TraceContext { .. })));
+    assert!(
+        event
+            .correlation_keys
+            .iter()
+            .any(|k| matches!(k, CorrelationKey::TraceContext { .. }))
+    );
 
     // No panic - graceful handling of missing spans
     let matching = spans
@@ -248,10 +250,12 @@ fn test_synthetic_otel_correlation() {
     let event = create_synthetic_event_with_trace(trace_id, span_id, 0x01);
 
     // Verify 100% correlation rate for synthetic fixtures
-    assert!(event
-        .correlation_keys
-        .iter()
-        .any(|k| matches!(k, CorrelationKey::TraceContext { .. })));
+    assert!(
+        event
+            .correlation_keys
+            .iter()
+            .any(|k| matches!(k, CorrelationKey::TraceContext { .. }))
+    );
 
     // Extract and verify trace context
     if let Some(CorrelationKey::TraceContext {

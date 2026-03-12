@@ -135,8 +135,16 @@ fn test_error_intelligence_in_event_with_grpc_error() {
     };
 
     // Verify we can look up the status code
-    let status_code = event.metadata.get("grpc.status").unwrap().parse::<u32>().unwrap();
-    assert_eq!(error_intel::grpc_status_name(status_code), Some("UNAVAILABLE"));
+    let status_code = event
+        .metadata
+        .get("grpc.status")
+        .unwrap()
+        .parse::<u32>()
+        .unwrap();
+    assert_eq!(
+        error_intel::grpc_status_name(status_code),
+        Some("UNAVAILABLE")
+    );
     assert!(error_intel::grpc_status_explanation(status_code).is_some());
 }
 
@@ -169,7 +177,12 @@ fn test_error_intelligence_in_event_with_tls_alert() {
     };
 
     // Verify we can look up the TLS alert
-    let alert_code = event.metadata.get("tls.alert").unwrap().parse::<u8>().unwrap();
+    let alert_code = event
+        .metadata
+        .get("tls.alert")
+        .unwrap()
+        .parse::<u8>()
+        .unwrap();
     let description = error_intel::tls_alert_description(alert_code);
     assert!(description.is_some());
     assert!(description.unwrap().contains("certificate_expired"));
@@ -188,9 +201,7 @@ fn test_warning_events_have_metadata() {
         },
         transport: TransportKind::Grpc,
         direction: Direction::Unknown,
-        payload: Payload::Raw {
-            raw: Bytes::new(),
-        },
+        payload: Payload::Raw { raw: Bytes::new() },
         metadata: BTreeMap::new(),
         correlation_keys: vec![],
         sequence: None,
@@ -225,9 +236,7 @@ fn test_all_transport_kinds_supported() {
             },
             transport,
             direction: Direction::Outbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -251,7 +260,10 @@ fn test_grpc_status_name_matches_spec() {
     assert_eq!(error_intel::grpc_status_name(6), Some("ALREADY_EXISTS"));
     assert_eq!(error_intel::grpc_status_name(7), Some("PERMISSION_DENIED"));
     assert_eq!(error_intel::grpc_status_name(8), Some("RESOURCE_EXHAUSTED"));
-    assert_eq!(error_intel::grpc_status_name(9), Some("FAILED_PRECONDITION"));
+    assert_eq!(
+        error_intel::grpc_status_name(9),
+        Some("FAILED_PRECONDITION")
+    );
     assert_eq!(error_intel::grpc_status_name(10), Some("ABORTED"));
     assert_eq!(error_intel::grpc_status_name(11), Some("OUT_OF_RANGE"));
     assert_eq!(error_intel::grpc_status_name(12), Some("UNIMPLEMENTED"));

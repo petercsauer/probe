@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use prb_core::{CaptureAdapter, DebugEvent};
 use prb_schema::SchemaRegistry;
 
@@ -51,9 +51,7 @@ fn detect_format(path: &Path) -> Result<InputFormat> {
         match &magic[..4] {
             [0x89, b'M', b'C', b'A'] => return Ok(InputFormat::Mcap),
             [0x0a, 0x0d, 0x0d, 0x0a] => return Ok(InputFormat::Pcapng),
-            [0xa1, 0xb2, 0xc3, 0xd4] | [0xd4, 0xc3, 0xb2, 0xa1] => {
-                return Ok(InputFormat::Pcap)
-            }
+            [0xa1, 0xb2, 0xc3, 0xd4] | [0xd4, 0xc3, 0xb2, 0xa1] => return Ok(InputFormat::Pcap),
             [b'{', ..] | [b'[', ..] => return Ok(InputFormat::Json),
             _ => {}
         }
@@ -68,7 +66,10 @@ fn detect_format(path: &Path) -> Result<InputFormat> {
     }
 }
 
-pub fn load_events(path: &Path, tls_keylog: Option<PathBuf>) -> Result<(EventStore, Option<TlsStats>)> {
+pub fn load_events(
+    path: &Path,
+    tls_keylog: Option<PathBuf>,
+) -> Result<(EventStore, Option<TlsStats>)> {
     let format = detect_format(path)?;
     let (events, tls_stats) = match format {
         InputFormat::Json => (load_json(path)?, None),
@@ -96,7 +97,9 @@ pub fn load_events_streaming(
     std::thread::spawn(move || {
         let result = match format {
             InputFormat::Json => load_json_streaming(&path, &sender),
-            InputFormat::Pcap | InputFormat::Pcapng => load_pcap_streaming(&path, &sender, tls_keylog),
+            InputFormat::Pcap | InputFormat::Pcapng => {
+                load_pcap_streaming(&path, &sender, tls_keylog)
+            }
             InputFormat::Mcap => load_mcap_streaming(&path, &sender),
         };
 
@@ -128,7 +131,10 @@ fn load_json(path: &Path) -> Result<Vec<DebugEvent>> {
     Ok(events)
 }
 
-fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<(Vec<DebugEvent>, Option<TlsStats>)> {
+fn load_pcap(
+    path: &Path,
+    tls_keylog: Option<PathBuf>,
+) -> Result<(Vec<DebugEvent>, Option<TlsStats>)> {
     use prb_pcap::PcapCaptureAdapter;
     let has_keylog = tls_keylog.is_some();
     let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
@@ -161,8 +167,8 @@ fn load_pcap(path: &Path, tls_keylog: Option<PathBuf>) -> Result<(Vec<DebugEvent
 
 fn load_mcap(path: &Path) -> Result<Vec<DebugEvent>> {
     use prb_storage::SessionReader;
-    let reader =
-        SessionReader::open(path).with_context(|| format!("Failed to open MCAP {}", path.display()))?;
+    let reader = SessionReader::open(path)
+        .with_context(|| format!("Failed to open MCAP {}", path.display()))?;
     let mut events = Vec::new();
     for result in reader.events() {
         match result {
@@ -193,9 +199,14 @@ fn load_json_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
                 loaded += 1;
 
                 if batch.len() >= BATCH_SIZE {
-                    sender.send(LoadEvent::Batch(batch.clone()))
+                    sender
+                        .send(LoadEvent::Batch(batch.clone()))
                         .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
-                    sender.send(LoadEvent::Progress { loaded, total: None })
+                    sender
+                        .send(LoadEvent::Progress {
+                            loaded,
+                            total: None,
+                        })
                         .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
                     batch.clear();
                 }
@@ -206,14 +217,19 @@ fn load_json_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
 
     // Send remaining events
     if !batch.is_empty() {
-        sender.send(LoadEvent::Batch(batch))
+        sender
+            .send(LoadEvent::Batch(batch))
             .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
     }
 
     Ok(())
 }
 
-fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog: Option<PathBuf>) -> Result<()> {
+fn load_pcap_streaming(
+    path: &Path,
+    sender: &mpsc::Sender<LoadEvent>,
+    tls_keylog: Option<PathBuf>,
+) -> Result<()> {
     use prb_pcap::PcapCaptureAdapter;
     let has_keylog = tls_keylog.is_some();
     let mut adapter = PcapCaptureAdapter::new(PathBuf::from(path), tls_keylog);
@@ -228,9 +244,14 @@ fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog
                 loaded += 1;
 
                 if batch.len() >= BATCH_SIZE {
-                    sender.send(LoadEvent::Batch(batch.clone()))
+                    sender
+                        .send(LoadEvent::Batch(batch.clone()))
                         .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
-                    sender.send(LoadEvent::Progress { loaded, total: None })
+                    sender
+                        .send(LoadEvent::Progress {
+                            loaded,
+                            total: None,
+                        })
                         .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
                     batch.clear();
                 }
@@ -241,7 +262,8 @@ fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog
 
     // Send remaining events
     if !batch.is_empty() {
-        sender.send(LoadEvent::Batch(batch))
+        sender
+            .send(LoadEvent::Batch(batch))
             .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
     }
 
@@ -250,11 +272,12 @@ fn load_pcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>, tls_keylog
         let stats = adapter.stats();
         let total_tls = stats.tls_decrypted + stats.tls_encrypted;
         if total_tls > 0 {
-            sender.send(LoadEvent::TlsStats(TlsStats {
-                decrypted: stats.tls_decrypted,
-                total: total_tls,
-            }))
-            .map_err(|e| anyhow::anyhow!("Failed to send TLS stats: {}", e))?;
+            sender
+                .send(LoadEvent::TlsStats(TlsStats {
+                    decrypted: stats.tls_decrypted,
+                    total: total_tls,
+                }))
+                .map_err(|e| anyhow::anyhow!("Failed to send TLS stats: {}", e))?;
         }
     }
 
@@ -276,9 +299,14 @@ fn load_mcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
                 loaded += 1;
 
                 if batch.len() >= BATCH_SIZE {
-                    sender.send(LoadEvent::Batch(batch.clone()))
+                    sender
+                        .send(LoadEvent::Batch(batch.clone()))
                         .map_err(|e| anyhow::anyhow!("Failed to send batch: {}", e))?;
-                    sender.send(LoadEvent::Progress { loaded, total: None })
+                    sender
+                        .send(LoadEvent::Progress {
+                            loaded,
+                            total: None,
+                        })
                         .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
                     batch.clear();
                 }
@@ -289,7 +317,8 @@ fn load_mcap_streaming(path: &Path, sender: &mpsc::Sender<LoadEvent>) -> Result<
 
     // Send remaining events
     if !batch.is_empty() {
-        sender.send(LoadEvent::Batch(batch))
+        sender
+            .send(LoadEvent::Batch(batch))
             .map_err(|e| anyhow::anyhow!("Failed to send final batch: {}", e))?;
     }
 
@@ -341,17 +370,25 @@ pub fn load_schemas(
 
 fn extract_mcap_schemas(registry: &mut SchemaRegistry, path: &Path) -> Result<()> {
     use prb_storage::SessionReader;
-    let reader = SessionReader::open(path)
-        .with_context(|| format!("Failed to open MCAP for schema extraction: {}", path.display()))?;
+    let reader = SessionReader::open(path).with_context(|| {
+        format!(
+            "Failed to open MCAP for schema extraction: {}",
+            path.display()
+        )
+    })?;
 
     // Extract embedded schemas from the MCAP file
-    let embedded_registry = reader.extract_schemas()
+    let embedded_registry = reader
+        .extract_schemas()
         .with_context(|| "Failed to extract schemas from MCAP")?;
 
     // Merge the extracted schemas into the main registry
     let message_types = embedded_registry.list_messages();
     if !message_types.is_empty() {
-        tracing::info!("Auto-extracted {} schema(s) from MCAP file", message_types.len());
+        tracing::info!(
+            "Auto-extracted {} schema(s) from MCAP file",
+            message_types.len()
+        );
 
         // Load the extracted schemas into the main registry
         // We need to get the descriptor set from the embedded registry

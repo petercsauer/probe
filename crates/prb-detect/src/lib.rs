@@ -9,7 +9,9 @@ pub mod engine;
 pub mod registry;
 pub mod types;
 
-pub use detector::{GrpcDetector, GuessCrateDetector, PortMappingDetector, RtpsDetector, ZmtpDetector};
+pub use detector::{
+    GrpcDetector, GuessCrateDetector, PortMappingDetector, RtpsDetector, ZmtpDetector,
+};
 pub use engine::DetectionEngine;
 pub use registry::{DecoderFactory, DecoderRegistry, StreamKey};
 pub use types::{

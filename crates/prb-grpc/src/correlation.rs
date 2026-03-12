@@ -4,8 +4,8 @@
 
 use indexmap::IndexMap;
 use prb_core::{
-    CoreError, CorrelationStrategy, DebugEvent, Flow, TransportKind, METADATA_KEY_H2_STREAM_ID,
-    METADATA_KEY_GRPC_METHOD,
+    CoreError, CorrelationStrategy, DebugEvent, Flow, METADATA_KEY_GRPC_METHOD,
+    METADATA_KEY_H2_STREAM_ID, TransportKind,
 };
 use std::collections::BTreeMap;
 

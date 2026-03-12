@@ -4,8 +4,8 @@
 
 use indexmap::IndexMap;
 use prb_core::{
-    CoreError, CorrelationStrategy, DebugEvent, Direction, Flow, TransportKind,
-    METADATA_KEY_ZMQ_TOPIC,
+    CoreError, CorrelationStrategy, DebugEvent, Direction, Flow, METADATA_KEY_ZMQ_TOPIC,
+    TransportKind,
 };
 use std::collections::BTreeMap;
 
@@ -152,9 +152,8 @@ fn correlate_req_rep<'a>(events: &[&'a DebugEvent]) -> Result<Vec<Flow<'a>>, Cor
 
                 // Create flow for this pair
                 let mut metadata = BTreeMap::new();
-                if let Some(socket_type) = pair
-                    .iter()
-                    .find_map(|e| e.metadata.get("zmq.socket_type"))
+                if let Some(socket_type) =
+                    pair.iter().find_map(|e| e.metadata.get("zmq.socket_type"))
                 {
                     metadata.insert("zmq.socket_type".to_string(), socket_type.clone());
                 }
@@ -506,9 +505,9 @@ mod tests {
 
         // Should have 2 flows (one per topic)
         assert_eq!(flows.len(), 2);
-        let topic_a_flow = flows.iter().find(|f| {
-            f.metadata.get("zmq.topic") == Some(&"topic.a".to_string())
-        });
+        let topic_a_flow = flows
+            .iter()
+            .find(|f| f.metadata.get("zmq.topic") == Some(&"topic.a".to_string()));
         assert!(topic_a_flow.is_some());
         assert_eq!(topic_a_flow.unwrap().events.len(), 2);
     }

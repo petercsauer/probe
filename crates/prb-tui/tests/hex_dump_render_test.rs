@@ -5,8 +5,8 @@ mod buf_helpers;
 use bytes::Bytes;
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
 use prb_tui::event_store::EventStore;
-use prb_tui::panes::hex_dump::HexDumpPane;
 use prb_tui::panes::PaneComponent;
+use prb_tui::panes::hex_dump::HexDumpPane;
 use prb_tui::theme::ThemeConfig;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -44,13 +44,13 @@ fn test_hex_dump_renders_with_payload() {
     // Create app state
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     // Create hex dump pane
@@ -60,7 +60,13 @@ fn test_hex_dump_renders_with_payload() {
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
     // Render the pane
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &app_state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &app_state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Verify something was rendered (buffer is not empty)
     let mut found_offset = false;
@@ -84,19 +90,25 @@ fn test_hex_dump_renders_empty_for_no_selection() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![],
         selected_event: None,
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
 
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &app_state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &app_state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Should show "No event selected" message - check for 'N' or 'e' from message
     let mut found_message_char = false;
@@ -125,19 +137,25 @@ fn test_hex_dump_with_multiline_payload() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 20));
 
-    pane.render(Rect::new(0, 0, 80, 20), &mut buffer, &app_state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 20),
+        &mut buffer,
+        &app_state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Check that rendering occurred - look for numeric characters from offsets
     let mut found_digits = 0;
@@ -166,13 +184,13 @@ fn test_hex_dump_scroll_functionality() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
@@ -181,7 +199,13 @@ fn test_hex_dump_scroll_functionality() {
     pane.scroll_offset = 5;
 
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &app_state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &app_state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // When scrolled to line 5, first visible offset should be 0x50 (5 * 16 = 80 = 0x50)
     // The first content row (after border if present) should start with "00000050"
@@ -201,13 +225,13 @@ fn test_hex_dump_highlight_visible() {
 
     let app_state = prb_tui::app::AppState {
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
         filtered_indices: vec![0],
         selected_event: Some(0),
         filter: None,
         filter_text: String::new(),
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     let mut pane = HexDumpPane::new();
@@ -216,7 +240,13 @@ fn test_hex_dump_highlight_visible() {
     pane.set_highlight(0, 5);
 
     let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 10));
-    pane.render(Rect::new(0, 0, 80, 10), &mut buffer, &app_state, &ThemeConfig::dark(), false);
+    pane.render(
+        Rect::new(0, 0, 80, 10),
+        &mut buffer,
+        &app_state,
+        &ThemeConfig::dark(),
+        false,
+    );
 
     // Verify rendering succeeded (highlight styling is applied during render)
     // We can't easily test the styling in a unit test, but we can verify

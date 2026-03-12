@@ -3,16 +3,16 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::Style;
 use ratatui::widgets::{
     Block, Borders, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
 };
-use ratatui::style::Style;
-use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
-use prb_core::{conversation::Conversation, DebugEvent};
+use prb_core::{DebugEvent, conversation::Conversation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConvSortColumn {
@@ -97,10 +97,7 @@ impl ConversationListPane {
                     let dst_b = self.get_first_event_dest(b, events);
                     dst_a.cmp(&dst_b)
                 }
-                ConvSortColumn::Requests => a
-                    .metrics
-                    .request_count
-                    .cmp(&b.metrics.request_count),
+                ConvSortColumn::Requests => a.metrics.request_count.cmp(&b.metrics.request_count),
                 ConvSortColumn::Duration => a.metrics.duration_ns.cmp(&b.metrics.duration_ns),
                 ConvSortColumn::Error => {
                     let status_a = Self::get_status_str(a);
@@ -209,7 +206,12 @@ impl ConversationListPane {
 
         for (col_name, col_width) in &columns {
             if *col_width > 0 {
-                buf.set_string(x, area.y, truncate(col_name, *col_width as usize), header_style);
+                buf.set_string(
+                    x,
+                    area.y,
+                    truncate(col_name, *col_width as usize),
+                    header_style,
+                );
                 x += col_width;
             }
         }
@@ -256,7 +258,12 @@ impl ConversationListPane {
 
         // Duration column
         let duration_str = Self::format_duration(conv.metrics.duration_ns);
-        buf.set_string(x, y, truncate(&duration_str, widths.duration as usize), style);
+        buf.set_string(
+            x,
+            y,
+            truncate(&duration_str, widths.duration as usize),
+            style,
+        );
         x += widths.duration;
 
         // Status column
@@ -318,7 +325,11 @@ impl PaneComponent for ConversationListPane {
                     if let Some(&first_event_id) = conv.event_ids.first() {
                         // Find the event index in the filtered indices
                         if let Some(pos) = state.filtered_indices.iter().position(|&idx| {
-                            state.store.get(idx).map(|e| e.id == first_event_id).unwrap_or(false)
+                            state
+                                .store
+                                .get(idx)
+                                .map(|e| e.id == first_event_id)
+                                .unwrap_or(false)
                         }) {
                             return Action::SelectEvent(pos);
                         }

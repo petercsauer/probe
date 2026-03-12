@@ -35,7 +35,11 @@ fn test_real_data_http2_h2c_cleartext() {
 
 #[test]
 fn test_real_data_tcp_robustness() {
-    let captures = vec!["tcp/dns-remoteshell.pcap", "tcp/tcp-ecn-sample.pcap", "tcp/200722_tcp_anon.pcapng"];
+    let captures = vec![
+        "tcp/dns-remoteshell.pcap",
+        "tcp/tcp-ecn-sample.pcap",
+        "tcp/200722_tcp_anon.pcapng",
+    ];
 
     for capture in captures {
         let path = fixtures_dir().join(capture);
@@ -47,8 +51,16 @@ fn test_real_data_tcp_robustness() {
         let events: Vec<_> = adapter.ingest().collect();
 
         let stats = adapter.stats();
-        assert!(stats.packets_read > 0, "Capture {} should have packets", capture);
-        assert!(!events.is_empty(), "Capture {} should produce events", capture);
+        assert!(
+            stats.packets_read > 0,
+            "Capture {} should have packets",
+            capture
+        );
+        assert!(
+            !events.is_empty(),
+            "Capture {} should produce events",
+            capture
+        );
     }
 }
 
@@ -81,8 +93,15 @@ fn test_real_data_tls_without_keys() {
         let events: Vec<_> = adapter.ingest().collect();
 
         let stats = adapter.stats();
-        assert!(stats.packets_read > 0, "Capture {} should have packets", capture);
-        assert!(!events.is_empty(), "TLS without keys should still produce events");
+        assert!(
+            stats.packets_read > 0,
+            "Capture {} should have packets",
+            capture
+        );
+        assert!(
+            !events.is_empty(),
+            "TLS without keys should still produce events"
+        );
     }
 }
 
@@ -111,7 +130,11 @@ fn test_real_data_no_panic_comprehensive() {
         }
     }
 
-    assert!(tested >= 5, "Should test at least 5 real captures, tested {}", tested);
+    assert!(
+        tested >= 5,
+        "Should test at least 5 real captures, tested {}",
+        tested
+    );
 }
 
 #[test]

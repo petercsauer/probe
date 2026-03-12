@@ -43,12 +43,9 @@ impl SessionReader {
         // MessageStream::new returns Result<MessageStream, Error>
         match MessageStream::new(&self.mapped) {
             Ok(stream) => itertools::Either::Left(stream.map(|msg_result| {
-                msg_result
-                    .map_err(StorageError::Mcap)
-                    .and_then(|msg| {
-                        serde_json::from_slice::<DebugEvent>(&msg.data)
-                            .map_err(StorageError::Json)
-                    })
+                msg_result.map_err(StorageError::Mcap).and_then(|msg| {
+                    serde_json::from_slice::<DebugEvent>(&msg.data).map_err(StorageError::Json)
+                })
             })),
             Err(e) => itertools::Either::Right(std::iter::once(Err(StorageError::Mcap(e)))),
         }
@@ -64,12 +61,13 @@ impl SessionReader {
         for record in reader {
             let record = record?;
             if let Record::Metadata(metadata) = record
-                && metadata.name == "session_info" {
-                    // Convert BTreeMap to JSON and deserialize
-                    let metadata_json = serde_json::to_string(&metadata.metadata)?;
-                    let session_metadata: SessionMetadata = serde_json::from_str(&metadata_json)?;
-                    return Ok(Some(session_metadata));
-                }
+                && metadata.name == "session_info"
+            {
+                // Convert BTreeMap to JSON and deserialize
+                let metadata_json = serde_json::to_string(&metadata.metadata)?;
+                let session_metadata: SessionMetadata = serde_json::from_str(&metadata_json)?;
+                return Ok(Some(session_metadata));
+            }
         }
 
         Ok(None)
@@ -118,8 +116,12 @@ impl SessionReader {
             if let Record::Schema { header, data } = record {
                 // Only load protobuf schemas
                 if header.encoding == "protobuf" {
-                    registry.load_descriptor_set(&data)
-                        .map_err(|e| StorageError::InvalidSession(format!("Failed to load embedded schema: {}", e)))?;
+                    registry.load_descriptor_set(&data).map_err(|e| {
+                        StorageError::InvalidSession(format!(
+                            "Failed to load embedded schema: {}",
+                            e
+                        ))
+                    })?;
                 }
             }
         }

@@ -164,8 +164,8 @@ fn test_tls13_keylog_with_comments_and_blank_lines() {
     let pcap_path = fixture_path("tls13.pcapng");
 
     // Read the original keylog
-    let original_keylog = std::fs::read_to_string(fixture_path("tls13.keylog"))
-        .expect("Should read TLS 1.3 keylog");
+    let original_keylog =
+        std::fs::read_to_string(fixture_path("tls13.keylog")).expect("Should read TLS 1.3 keylog");
 
     // Create a keylog with comments and blank lines
     let mut tmpfile = NamedTempFile::new().unwrap();
@@ -179,7 +179,8 @@ fn test_tls13_keylog_with_comments_and_blank_lines() {
     tmpfile.flush().unwrap();
 
     // Process pcap with enhanced keylog
-    let mut adapter = PcapCaptureAdapter::new(pcap_path.clone(), Some(tmpfile.path().to_path_buf()));
+    let mut adapter =
+        PcapCaptureAdapter::new(pcap_path.clone(), Some(tmpfile.path().to_path_buf()));
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should work the same as without comments

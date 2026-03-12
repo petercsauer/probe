@@ -7,10 +7,7 @@ fn test_list_interfaces_returns_at_least_loopback() {
     // All systems should have at least a loopback interface
     let interfaces = InterfaceEnumerator::list().expect("failed to list interfaces");
 
-    assert!(
-        !interfaces.is_empty(),
-        "should have at least one interface"
-    );
+    assert!(!interfaces.is_empty(), "should have at least one interface");
 
     // Check if we have a loopback interface
     let has_loopback = interfaces.iter().any(|iface| {
@@ -68,10 +65,7 @@ fn test_find_loopback_interface() {
     if !found {
         // If none of the common names work, just verify error handling
         let result = InterfaceEnumerator::find("nonexistent_interface_xyz");
-        assert!(
-            result.is_err(),
-            "should error when interface doesn't exist"
-        );
+        assert!(result.is_err(), "should error when interface doesn't exist");
     }
 }
 

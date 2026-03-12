@@ -102,7 +102,11 @@ fn test_all_fixtures_parse_without_panic() {
         processed.push(fixture.path.clone());
     }
 
-    eprintln!("Processed {} fixtures, skipped {}", processed.len(), skipped.len());
+    eprintln!(
+        "Processed {} fixtures, skipped {}",
+        processed.len(),
+        skipped.len()
+    );
     if !skipped.is_empty() {
         eprintln!("Skipped (not present): {:?}", skipped);
     }
@@ -240,7 +244,10 @@ fn test_performance_baseline_all_fixtures() {
 
         eprintln!(
             "PERF: {} → {} events in {:?} ({:.0} events/sec)",
-            fixture.path, events.len(), elapsed, events_per_sec
+            fixture.path,
+            events.len(),
+            elapsed,
+            events_per_sec
         );
 
         // Assert reasonable upper bound
@@ -254,7 +261,10 @@ fn test_performance_baseline_all_fixtures() {
     }
 
     eprintln!("\nPerformance Summary:");
-    eprintln!("{:<40} {:>10} {:>12} {:>15}", "Fixture", "Events", "Duration", "Events/sec");
+    eprintln!(
+        "{:<40} {:>10} {:>12} {:>15}",
+        "Fixture", "Events", "Duration", "Events/sec"
+    );
     eprintln!("{}", "-".repeat(80));
     for (path, events, duration, eps) in results {
         eprintln!(
@@ -340,10 +350,7 @@ fn test_fixture_file_count() {
 
     eprintln!("Manifest contains {} fixtures", manifest_count);
 
-    assert!(
-        manifest_count > 0,
-        "Manifest contains no fixtures"
-    );
+    assert!(manifest_count > 0, "Manifest contains no fixtures");
 
     // Allow some discrepancy (manifest may exclude some files)
     assert!(

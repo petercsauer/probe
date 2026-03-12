@@ -14,7 +14,7 @@ fn create_tcp_segment(
     flags: TcpFlags,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
 
     let mut packet = Vec::new();
 
@@ -494,7 +494,10 @@ fn test_multiple_connections() {
             b"DATA",
         );
 
-        let pkt = normalizer.normalize(1, 9000000 + i as u64, &seg).unwrap().unwrap();
+        let pkt = normalizer
+            .normalize(1, 9000000 + i as u64, &seg)
+            .unwrap()
+            .unwrap();
         let _events = reassembler.process_segment(&pkt).unwrap();
     }
 

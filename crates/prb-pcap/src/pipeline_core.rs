@@ -8,7 +8,10 @@ use crate::tcp::{ReassembledStream, StreamEvent, TcpReassembler};
 use crate::tls::{DecryptedStream, TlsKeyLog, TlsStreamProcessor};
 use crate::{PcapError, PipelineStats};
 use bytes::Bytes;
-use prb_core::{DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, DecodeContext, Direction, EventSource, NetworkAddr, Payload, Timestamp,
+    TransportKind,
+};
 use prb_detect::{DecoderRegistry, StreamKey, TransportLayer};
 use std::net::IpAddr;
 use std::path::Path;
@@ -55,10 +58,16 @@ impl PipelineCore {
     }
 
     /// Creates a new pipeline with TLS keylog loaded from a file.
-    pub fn with_keylog(keylog_path: &Path, decoder_registry: DecoderRegistry) -> Result<Self, PcapError> {
+    pub fn with_keylog(
+        keylog_path: &Path,
+        decoder_registry: DecoderRegistry,
+    ) -> Result<Self, PcapError> {
         let keylog = TlsKeyLog::from_file(keylog_path)
             .map_err(|e| PcapError::TlsKey(format!("failed to load TLS keylog: {}", e)))?;
-        Ok(Self::new(TlsStreamProcessor::with_keylog(keylog), decoder_registry))
+        Ok(Self::new(
+            TlsStreamProcessor::with_keylog(keylog),
+            decoder_registry,
+        ))
     }
 
     /// Get a mutable reference to the decoder registry for configuration.
@@ -119,7 +128,13 @@ impl PipelineCore {
             }
             TransportInfo::Udp { src_port, dst_port } => {
                 self.stats.udp_datagrams += 1;
-                self.process_udp_datagram(&owned_normalized, *src_port, *dst_port, origin, &mut result);
+                self.process_udp_datagram(
+                    &owned_normalized,
+                    *src_port,
+                    *dst_port,
+                    origin,
+                    &mut result,
+                );
             }
             TransportInfo::Other(_) => {
                 // Ignore other protocols (ICMP, etc.)
@@ -158,7 +173,9 @@ impl PipelineCore {
                     }
                 }
                 StreamEvent::GapSkipped { gap_size, .. } => {
-                    result.warnings.push(format!("TCP gap skipped: {} bytes", gap_size));
+                    result
+                        .warnings
+                        .push(format!("TCP gap skipped: {} bytes", gap_size));
                 }
                 StreamEvent::Timeout { .. } => {
                     tracing::debug!("TCP connection timeout");
@@ -191,7 +208,10 @@ impl PipelineCore {
             .with_metadata("pcap.origin", origin.to_string());
 
         // Route through decoder registry
-        match self.decoder_registry.process_datagram(stream_key, &normalized.payload, &ctx) {
+        match self
+            .decoder_registry
+            .process_datagram(stream_key, &normalized.payload, &ctx)
+        {
             Ok(events) if !events.is_empty() => {
                 self.stats.protocol_decoded += events.len() as u64;
                 for event in events {
@@ -208,7 +228,11 @@ impl PipelineCore {
     }
 
     /// Process a reassembled TCP stream through TLS decryption and protocol decoding.
-    fn process_tcp_stream(&mut self, stream: ReassembledStream, origin: &str) -> Option<DebugEvent> {
+    fn process_tcp_stream(
+        &mut self,
+        stream: ReassembledStream,
+        origin: &str,
+    ) -> Option<DebugEvent> {
         // Attempt TLS decryption
         let decrypted = match self.tls_processor.decrypt_stream(stream) {
             Ok(dec) => dec,
@@ -241,7 +265,10 @@ impl PipelineCore {
             .with_metadata("pcap.origin", origin.to_string());
 
         // Route through decoder registry
-        match self.decoder_registry.process_stream(stream_key, &decrypted.data, &ctx) {
+        match self
+            .decoder_registry
+            .process_stream(stream_key, &decrypted.data, &ctx)
+        {
             Ok(events) if !events.is_empty() => {
                 self.stats.protocol_decoded += events.len() as u64;
                 // Return the first event (multi-event streams will be handled in future work)
@@ -267,7 +294,9 @@ impl PipelineCore {
     /// # Returns
     /// Vector of DebugEvents from flushed connections.
     pub fn flush_idle(&mut self, current_time_us: u64) -> Vec<DebugEvent> {
-        let timeout_events = self.tcp_reassembler.cleanup_idle_connections(current_time_us);
+        let timeout_events = self
+            .tcp_reassembler
+            .cleanup_idle_connections(current_time_us);
 
         let mut events = Vec::new();
         for event in timeout_events {

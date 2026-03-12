@@ -18,10 +18,7 @@ impl CorrelationStrategy for MockGrpcStrategy {
 
         for event in events {
             if let Some(stream_id) = event.metadata.get("h2.stream_id") {
-                flows_map
-                    .entry(stream_id.clone())
-                    .or_default()
-                    .push(event);
+                flows_map.entry(stream_id.clone()).or_default().push(event);
             }
         }
 
@@ -61,10 +58,7 @@ impl CorrelationStrategy for MockZmqStrategy {
 
         for event in events {
             if let Some(topic) = event.metadata.get("zmq.topic") {
-                flows_map
-                    .entry(topic.clone())
-                    .or_default()
-                    .push(event);
+                flows_map.entry(topic.clone()).or_default().push(event);
             }
         }
 
@@ -138,12 +132,20 @@ fn test_conversation_engine_build_conversations_single_protocol() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut event1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    event1.metadata.insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
+    event1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    event1
+        .metadata
+        .insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
 
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    event2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    event2.metadata.insert("grpc.status".to_string(), "0".to_string());
+    event2
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    event2
+        .metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let events = vec![event1, event2];
     let result = engine.build_conversations(&events).expect("should succeed");
@@ -152,7 +154,10 @@ fn test_conversation_engine_build_conversations_single_protocol() {
     let conv = &result.conversations[0];
     assert_eq!(conv.protocol, TransportKind::Grpc);
     assert_eq!(conv.event_ids.len(), 2);
-    assert_eq!(conv.metadata.get("grpc.method"), Some(&"/api.v1.Users/Get".to_string()));
+    assert_eq!(
+        conv.metadata.get("grpc.method"),
+        Some(&"/api.v1.Users/Get".to_string())
+    );
 }
 
 #[test]
@@ -162,10 +167,14 @@ fn test_conversation_engine_build_conversations_multiple_protocols() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut grpc_event = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    grpc_event.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    grpc_event
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut zmq_event = create_test_event(TransportKind::Zmq, Direction::Outbound, 2000000000);
-    zmq_event.metadata.insert("zmq.topic".to_string(), "market.data".to_string());
+    zmq_event
+        .metadata
+        .insert("zmq.topic".to_string(), "market.data".to_string());
 
     let events = vec![grpc_event, zmq_event];
     let result = engine.build_conversations(&events).expect("should succeed");
@@ -185,16 +194,24 @@ fn test_conversation_engine_build_conversations_multiple_streams() {
 
     // Create events for two different streams
     let mut event1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    event1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    event2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    event2
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut event3 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    event3.metadata.insert("h2.stream_id".to_string(), "3".to_string());
+    event3
+        .metadata
+        .insert("h2.stream_id".to_string(), "3".to_string());
 
     let mut event4 = create_test_event(TransportKind::Grpc, Direction::Inbound, 2050000000);
-    event4.metadata.insert("h2.stream_id".to_string(), "3".to_string());
+    event4
+        .metadata
+        .insert("h2.stream_id".to_string(), "3".to_string());
 
     let events = vec![event1, event2, event3, event4];
     let result = engine.build_conversations(&events).expect("should succeed");
@@ -227,7 +244,9 @@ fn test_conversation_engine_mixed_claimed_and_unclaimed() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut grpc_event = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    grpc_event.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    grpc_event
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let tcp_event = create_test_event(TransportKind::RawTcp, Direction::Outbound, 2000000000);
 
@@ -244,7 +263,9 @@ fn test_conversation_set_for_event() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut event = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    event
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
     let event_id = event.id;
 
     let events = vec![event];
@@ -272,13 +293,19 @@ fn test_conversation_set_sorted_by_time() {
 
     // Create events with different timestamps (not in order)
     let mut event1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 3000000000);
-    event1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    event1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    event2
+        .metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
 
     let mut event3 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    event3.metadata.insert("h2.stream_id".to_string(), "3".to_string());
+    event3
+        .metadata
+        .insert("h2.stream_id".to_string(), "3".to_string());
 
     let events = vec![event1, event2, event3];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -298,13 +325,18 @@ fn test_conversation_set_by_protocol() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut grpc1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    grpc1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    grpc1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut grpc2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    grpc2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    grpc2
+        .metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
 
     let mut zmq = create_test_event(TransportKind::Zmq, Direction::Outbound, 3000000000);
-    zmq.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    zmq.metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![grpc1, grpc2, zmq];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -325,12 +357,20 @@ fn test_conversation_set_stats() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut event1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    event1.metadata.insert("grpc.status".to_string(), "0".to_string());
+    event1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    event1
+        .metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    event2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
-    event2.metadata.insert("grpc.status".to_string(), "14".to_string()); // Error
+    event2
+        .metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
+    event2
+        .metadata
+        .insert("grpc.status".to_string(), "14".to_string()); // Error
 
     let events = vec![event1, event2];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -347,10 +387,12 @@ fn test_conversation_set_stats_multiple_protocols() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut grpc = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    grpc.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    grpc.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut zmq = create_test_event(TransportKind::Zmq, Direction::Outbound, 2000000000);
-    zmq.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    zmq.metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![grpc, zmq];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -373,7 +415,9 @@ fn test_conversation_for_event() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut event = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    event
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
     let event_id = event.id;
 
     let events = vec![event];
@@ -386,10 +430,14 @@ fn test_conversation_for_event() {
 #[test]
 fn test_flow_to_conversation_grpc() {
     let mut event1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    event1.metadata.insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
+    event1
+        .metadata
+        .insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
 
     let mut event2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    event2.metadata.insert("grpc.status".to_string(), "0".to_string());
+    event2
+        .metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let events = [event1, event2];
     let event_refs: Vec<&DebugEvent> = events.iter().collect();
@@ -415,10 +463,12 @@ fn test_classify_grpc_conversation_kinds() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![req, resp];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -431,14 +481,19 @@ fn test_classify_grpc_server_streaming() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     // Multiple responses
     let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1100000000);
-    resp2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp2
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![req, resp1, resp2];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -452,13 +507,16 @@ fn test_classify_grpc_client_streaming() {
 
     // Multiple requests
     let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req1.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1050000000);
-    req2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req2.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1100000000);
-    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![req1, req2, resp];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -472,20 +530,29 @@ fn test_classify_grpc_bidirectional_streaming() {
 
     // Multiple requests and multiple responses
     let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req1.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1050000000);
-    req2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req2.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1100000000);
-    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp2 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1150000000);
-    resp2.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp2
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![req1, req2, resp1, resp2];
     let set = engine.build_conversations(&events).expect("should succeed");
-    assert_eq!(set.conversations[0].kind, ConversationKind::BidirectionalStreaming);
+    assert_eq!(
+        set.conversations[0].kind,
+        ConversationKind::BidirectionalStreaming
+    );
 }
 
 #[test]
@@ -495,7 +562,8 @@ fn test_conversation_state_timeout() {
 
     // Only outbound, no response
     let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![req];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -509,7 +577,8 @@ fn test_conversation_state_incomplete() {
 
     // Only inbound, no request
     let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1000000000);
-    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let events = vec![resp];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -522,11 +591,14 @@ fn test_conversation_state_error() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    resp.metadata.insert("grpc.status".to_string(), "14".to_string()); // Error status
+    resp.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata
+        .insert("grpc.status".to_string(), "14".to_string()); // Error status
 
     let events = vec![req, resp];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -539,7 +611,9 @@ fn test_classify_zmq_kind_pubsub() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
-    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    event
+        .metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![event];
     let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
@@ -558,7 +632,9 @@ fn test_classify_zmq_kind_request_reply() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
-    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    event
+        .metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![event];
     let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
@@ -577,7 +653,9 @@ fn test_classify_zmq_kind_pipeline() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
-    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    event
+        .metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![event];
     let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
@@ -596,7 +674,9 @@ fn test_classify_zmq_kind_unknown() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut event = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
-    event.metadata.insert("zmq.topic".to_string(), "test".to_string());
+    event
+        .metadata
+        .insert("zmq.topic".to_string(), "test".to_string());
 
     let events = vec![event];
     let flows = MockZmqStrategy.correlate(&events).expect("should succeed");
@@ -615,12 +695,16 @@ fn test_summary_generation_grpc_with_status() {
     engine.register(Box::new(MockGrpcStrategy));
 
     let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    req.metadata.insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
+    req.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    req.metadata
+        .insert("grpc.method".to_string(), "/api.v1.Users/Get".to_string());
 
     let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    resp.metadata.insert("grpc.status".to_string(), "0".to_string());
+    resp.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    resp.metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let events = vec![req, resp];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -656,18 +740,29 @@ fn test_summary_generation_grpc_error_statuses() {
 
     for (code, name) in status_codes {
         let mut req = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-        req.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-        req.metadata.insert("grpc.method".to_string(), "/test.Service/Method".to_string());
+        req.metadata
+            .insert("h2.stream_id".to_string(), "1".to_string());
+        req.metadata.insert(
+            "grpc.method".to_string(),
+            "/test.Service/Method".to_string(),
+        );
 
         let mut resp = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-        resp.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-        resp.metadata.insert("grpc.status".to_string(), code.to_string());
+        resp.metadata
+            .insert("h2.stream_id".to_string(), "1".to_string());
+        resp.metadata
+            .insert("grpc.status".to_string(), code.to_string());
 
         let events = vec![req, resp];
         let set = engine.build_conversations(&events).expect("should succeed");
 
         let summary = &set.conversations[0].summary;
-        assert!(summary.contains(name), "Expected {} in summary for code {}", name, code);
+        assert!(
+            summary.contains(name),
+            "Expected {} in summary for code {}",
+            name,
+            code
+        );
     }
 }
 
@@ -677,10 +772,14 @@ fn test_summary_generation_zmq_pubsub() {
     engine.register(Box::new(MockZmqStrategy));
 
     let mut event1 = create_test_event(TransportKind::Zmq, Direction::Outbound, 1000000000);
-    event1.metadata.insert("zmq.topic".to_string(), "market.data".to_string());
+    event1
+        .metadata
+        .insert("zmq.topic".to_string(), "market.data".to_string());
 
     let mut event2 = create_test_event(TransportKind::Zmq, Direction::Outbound, 2000000000);
-    event2.metadata.insert("zmq.topic".to_string(), "market.data".to_string());
+    event2
+        .metadata
+        .insert("zmq.topic".to_string(), "market.data".to_string());
 
     let events = vec![event1, event2];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -719,12 +818,20 @@ fn test_summary_generation_dds() {
     engine.register(Box::new(MockDdsStrategy));
 
     let mut event1 = create_test_event(TransportKind::DdsRtps, Direction::Inbound, 1000000000);
-    event1.metadata.insert("dds.topic_name".to_string(), "rt/chatter".to_string());
-    event1.metadata.insert("dds.domain_id".to_string(), "0".to_string());
+    event1
+        .metadata
+        .insert("dds.topic_name".to_string(), "rt/chatter".to_string());
+    event1
+        .metadata
+        .insert("dds.domain_id".to_string(), "0".to_string());
 
     let mut event2 = create_test_event(TransportKind::DdsRtps, Direction::Inbound, 2000000000);
-    event2.metadata.insert("dds.topic_name".to_string(), "rt/chatter".to_string());
-    event2.metadata.insert("dds.domain_id".to_string(), "0".to_string());
+    event2
+        .metadata
+        .insert("dds.topic_name".to_string(), "rt/chatter".to_string());
+    event2
+        .metadata
+        .insert("dds.domain_id".to_string(), "0".to_string());
 
     let events = vec![event1, event2];
     let set = engine.build_conversations(&events).expect("should succeed");
@@ -757,15 +864,22 @@ fn test_conversation_stats_by_state() {
 
     // Create conversations with different states
     let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    req1.metadata.insert("grpc.status".to_string(), "0".to_string());
+    req1.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    req1.metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
-    resp1.metadata.insert("grpc.status".to_string(), "0".to_string());
+    resp1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
+    resp1
+        .metadata
+        .insert("grpc.status".to_string(), "0".to_string());
 
     let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    req2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    req2.metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
     // No response - timeout
 
     let events = vec![req1, resp1, req2];
@@ -783,25 +897,36 @@ fn test_conversation_stats_by_kind() {
 
     // Create conversations with different kinds
     let mut req1 = create_test_event(TransportKind::Grpc, Direction::Outbound, 1000000000);
-    req1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    req1.metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     let mut resp1 = create_test_event(TransportKind::Grpc, Direction::Inbound, 1050000000);
-    resp1.metadata.insert("h2.stream_id".to_string(), "1".to_string());
+    resp1
+        .metadata
+        .insert("h2.stream_id".to_string(), "1".to_string());
 
     // Server streaming
     let mut req2 = create_test_event(TransportKind::Grpc, Direction::Outbound, 2000000000);
-    req2.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    req2.metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
 
     let mut resp2a = create_test_event(TransportKind::Grpc, Direction::Inbound, 2050000000);
-    resp2a.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    resp2a
+        .metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
 
     let mut resp2b = create_test_event(TransportKind::Grpc, Direction::Inbound, 2100000000);
-    resp2b.metadata.insert("h2.stream_id".to_string(), "2".to_string());
+    resp2b
+        .metadata
+        .insert("h2.stream_id".to_string(), "2".to_string());
 
     let events = vec![req1, resp1, req2, resp2a, resp2b];
     let set = engine.build_conversations(&events).expect("should succeed");
 
     let stats = set.stats();
     assert_eq!(stats.by_kind.get(&ConversationKind::UnaryRpc), Some(&1));
-    assert_eq!(stats.by_kind.get(&ConversationKind::ServerStreaming), Some(&1));
+    assert_eq!(
+        stats.by_kind.get(&ConversationKind::ServerStreaming),
+        Some(&1)
+    );
 }

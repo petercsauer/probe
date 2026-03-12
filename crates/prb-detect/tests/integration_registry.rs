@@ -1,10 +1,10 @@
 //! Integration tests for DecoderRegistry with real decoder implementations.
 
 use prb_core::{DecodeContext, ProtocolDecoder};
+use prb_dds::DdsDecoder;
 use prb_detect::{DecoderFactory, DecoderRegistry, ProtocolId, StreamKey, TransportLayer};
 use prb_grpc::GrpcDecoder;
 use prb_zmq::ZmqDecoder;
-use prb_dds::DdsDecoder;
 
 // Factory implementations for real decoders
 
@@ -80,9 +80,10 @@ fn test_process_stream_zmtp() {
     let greeting = [
         0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x7F, // signature
         0x03, 0x00, // version 3.0
-        b'N', b'U', b'L', b'L', 0, 0, 0, 0, 0, 0, // mechanism (NULL)
+        b'N', b'U', b'L', b'L', 0, 0, 0, 0, 0, 0,    // mechanism (NULL)
         0x00, // as_server = false
-        0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // filler
+        0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, // filler
     ];
 
     let stream_key = StreamKey::new(
@@ -148,7 +149,12 @@ fn test_unknown_protocol_fallback() {
 
     // Should fail because no decoder factory is registered for UNKNOWN
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No decoder factory"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("No decoder factory")
+    );
 }
 
 #[test]
@@ -199,10 +205,9 @@ fn test_multiple_streams_separate_decoders() {
 
     // Stream 2: ZMTP
     let zmtp_greeting = [
-        0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0x03, 0x00,
-        b'N', b'U', b'L', b'L', 0, 0, 0, 0, 0, 0,
-        0x00,
-        0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0x03, 0x00, b'N', b'U', b'L', b'L', 0, 0, 0, 0, 0, 0,
+        0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0,
     ];
     let stream2 = StreamKey::new(
         "10.0.0.1:5555".to_string(),

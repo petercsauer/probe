@@ -20,7 +20,10 @@ pub use error::PcapError;
 pub use factories::create_registry_with_builtins;
 pub use flow_key::{FlowKey, FlowProtocol};
 pub use mmap_reader::{MmapPcapReader, PacketLocation};
-pub use normalize::{normalize_stateless, NormalizeResult, NormalizedPacket, OwnedNormalizedPacket, PacketNormalizer, TcpFlags, TcpSegmentInfo, TransportInfo};
+pub use normalize::{
+    NormalizeResult, NormalizedPacket, OwnedNormalizedPacket, PacketNormalizer, TcpFlags,
+    TcpSegmentInfo, TransportInfo, normalize_stateless,
+};
 pub use parallel::{BatchStage, ParallelPipeline, PipelineConfig, StreamStage};
 pub use pipeline::{PcapCaptureAdapter, PipelineStats};
 pub use pipeline_core::{PipelineCore, ProcessedEvents};

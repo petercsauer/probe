@@ -7,9 +7,7 @@
 //! - TLS version
 
 use crate::error::PcapError;
-use tls_parser::{
-    parse_tls_plaintext, TlsMessage, TlsMessageHandshake, TlsVersion,
-};
+use tls_parser::{TlsMessage, TlsMessageHandshake, TlsVersion, parse_tls_plaintext};
 
 /// TLS session information extracted from handshake.
 #[derive(Debug, Clone)]
@@ -139,10 +137,10 @@ impl TlsSession {
         }
 
         // Validate that we have all required fields
-        let client_random = client_random
-            .ok_or_else(|| PcapError::TlsKey("ClientHello not found".to_string()))?;
-        let server_random = server_random
-            .ok_or_else(|| PcapError::TlsKey("ServerHello not found".to_string()))?;
+        let client_random =
+            client_random.ok_or_else(|| PcapError::TlsKey("ClientHello not found".to_string()))?;
+        let server_random =
+            server_random.ok_or_else(|| PcapError::TlsKey("ServerHello not found".to_string()))?;
         let cipher_suite_id = cipher_suite_id
             .ok_or_else(|| PcapError::TlsKey("cipher suite not found".to_string()))?;
         let version =

@@ -80,7 +80,9 @@ fn test_app_event_capture_stopped() {
 #[test]
 fn test_app_event_captured_event() {
     use bytes::Bytes;
-    use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
+    use prb_core::{
+        DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind,
+    };
     use std::collections::BTreeMap;
 
     let debug_event = DebugEvent {

@@ -98,10 +98,7 @@ fn test_all_fixtures_exist_in_manifest() {
         present, missing
     );
 
-    assert!(
-        present > 0,
-        "At least some fixtures should be present"
-    );
+    assert!(present > 0, "At least some fixtures should be present");
 }
 
 #[test]

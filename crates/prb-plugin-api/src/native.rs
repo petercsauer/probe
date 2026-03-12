@@ -141,7 +141,11 @@ pub trait PluginDecoder: Send {
     /// Decode a byte stream chunk.
     ///
     /// Returns a vector of decoded events, or an error message on failure.
-    fn decode(&mut self, data: &[u8], ctx: &crate::DecodeCtx) -> Result<Vec<crate::DebugEventDto>, String>;
+    fn decode(
+        &mut self,
+        data: &[u8],
+        ctx: &crate::DecodeCtx,
+    ) -> Result<Vec<crate::DebugEventDto>, String>;
 }
 
 /// Macro to implement all required C ABI exports from a Rust struct.
@@ -185,7 +189,7 @@ macro_rules! prb_export_plugin {
     ($decoder_type:ty) => {
         use std::ffi::CString;
         use std::os::raw::{c_char, c_void};
-        use std::panic::{catch_unwind, AssertUnwindSafe};
+        use std::panic::{AssertUnwindSafe, catch_unwind};
 
         // Static strings for plugin info (must outlive the plugin)
         static mut PLUGIN_NAME: Option<CString> = None;
@@ -204,14 +208,12 @@ macro_rules! prb_export_plugin {
                 PLUGIN_NAME = Some(CString::new(info.name).expect("null byte in plugin name"));
                 PLUGIN_VERSION =
                     Some(CString::new(info.version).expect("null byte in plugin version"));
-                PLUGIN_DESCRIPTION = Some(
-                    CString::new(info.description).expect("null byte in plugin description"),
-                );
+                PLUGIN_DESCRIPTION =
+                    Some(CString::new(info.description).expect("null byte in plugin description"));
                 PLUGIN_API_VERSION =
                     Some(CString::new(info.api_version).expect("null byte in API version"));
-                PLUGIN_PROTOCOL_ID = Some(
-                    CString::new(info.protocol_id).expect("null byte in protocol ID"),
-                );
+                PLUGIN_PROTOCOL_ID =
+                    Some(CString::new(info.protocol_id).expect("null byte in protocol ID"));
             }
         }
 

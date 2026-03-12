@@ -2,13 +2,13 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{
     Block, Borders, Clear, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
 };
-use ratatui::style::{Color, Style};
 
 use crate::theme::ThemeConfig;
-use prb_core::{conversation::Conversation, DebugEvent, Direction};
+use prb_core::{DebugEvent, Direction, conversation::Conversation};
 
 /// Follow stream overlay showing detailed conversation flow.
 pub struct FollowStreamOverlay {
@@ -51,8 +51,12 @@ impl FollowStreamOverlay {
         theme: &ThemeConfig,
     ) {
         // Calculate overlay dimensions (80% of screen, minimum size)
-        let width = (area.width * 80 / 100).max(60).min(area.width.saturating_sub(4));
-        let height = (area.height * 80 / 100).max(20).min(area.height.saturating_sub(4));
+        let width = (area.width * 80 / 100)
+            .max(60)
+            .min(area.width.saturating_sub(4));
+        let height = (area.height * 80 / 100)
+            .max(20)
+            .min(area.height.saturating_sub(4));
         let x = (area.width.saturating_sub(width)) / 2;
         let y = (area.height.saturating_sub(height)) / 2;
         let overlay_area = Rect::new(x, y, width, height);
@@ -100,8 +104,8 @@ impl FollowStreamOverlay {
         let content_lines = self.count_content_lines(&conv_events);
         let visible_lines = inner.height.saturating_sub(3) as usize; // Reserve space for footer
         if content_lines > visible_lines {
-            let mut scrollbar_state = ScrollbarState::new(content_lines)
-                .position(self.scroll_offset);
+            let mut scrollbar_state =
+                ScrollbarState::new(content_lines).position(self.scroll_offset);
 
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
@@ -164,18 +168,9 @@ impl FollowStreamOverlay {
 
         // Determine direction and style
         let (arrow, style) = match event.direction {
-            Direction::Outbound => (
-                "→",
-                Style::default().fg(Color::Green),
-            ),
-            Direction::Inbound => (
-                "←",
-                Style::default().fg(Color::Blue),
-            ),
-            Direction::Unknown => (
-                "?",
-                Style::default().fg(Color::Gray),
-            ),
+            Direction::Outbound => ("→", Style::default().fg(Color::Green)),
+            Direction::Inbound => ("←", Style::default().fg(Color::Blue)),
+            Direction::Unknown => ("?", Style::default().fg(Color::Gray)),
         };
 
         // Line 1: Direction arrow and addresses
@@ -220,11 +215,9 @@ impl FollowStreamOverlay {
                 let status = event
                     .metadata
                     .get("grpc.status")
-                    .map(|s| {
-                        match s.as_str() {
-                            "0" => "OK",
-                            _ => "ERROR",
-                        }
+                    .map(|s| match s.as_str() {
+                        "0" => "OK",
+                        _ => "ERROR",
                     })
                     .unwrap_or("Response");
                 format!("    {} Response ({})", event.transport, status)
@@ -233,7 +226,12 @@ impl FollowStreamOverlay {
                 format!("    {} Event (direction unknown)", event.transport)
             }
         };
-        buf.set_string(x, current_y, truncate(&event_type, width as usize), Style::default());
+        buf.set_string(
+            x,
+            current_y,
+            truncate(&event_type, width as usize),
+            Style::default(),
+        );
         current_y += 1;
 
         // Line 3: Payload preview (first 60 chars)
@@ -281,7 +279,11 @@ impl FollowStreamOverlay {
                         .iter()
                         .map(|b| format!("{:02x}", b))
                         .collect();
-                    format!("[{}{}]", hex.join(" "), if raw.len() > 20 { " ..." } else { "" })
+                    format!(
+                        "[{}{}]",
+                        hex.join(" "),
+                        if raw.len() > 20 { " ..." } else { "" }
+                    )
                 }
             }
         }

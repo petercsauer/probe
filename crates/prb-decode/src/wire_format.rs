@@ -124,12 +124,12 @@ fn decode_with_depth(bytes: &[u8], depth: usize) -> Result<WireMessage, WireDeco
             2 => {
                 let (len, bytes_read) = read_varint(bytes, pos)?;
                 pos += bytes_read;
-                
+
                 let len = len as usize;
                 if pos + len > bytes.len() {
                     return Err(WireDecodeError::UnexpectedEof(pos));
                 }
-                
+
                 let data = &bytes[pos..pos + len];
                 pos += len;
                 WireValue::LengthDelimited(decode_length_delimited(data, depth)?)
@@ -144,7 +144,10 @@ fn decode_with_depth(bytes: &[u8], depth: usize) -> Result<WireMessage, WireDeco
                 WireValue::Fixed32(decode_fixed32(buf))
             }
             _ => {
-                return Err(WireDecodeError::InvalidWireType(wire_type, pos - bytes_read));
+                return Err(WireDecodeError::InvalidWireType(
+                    wire_type,
+                    pos - bytes_read,
+                ));
             }
         };
 
@@ -172,11 +175,11 @@ fn read_varint(bytes: &[u8], start: usize) -> Result<(u64, usize), WireDecodeErr
         pos += 1;
 
         result |= ((byte & 0x7F) as u64) << shift;
-        
+
         if byte & 0x80 == 0 {
             return Ok((result, pos - start));
         }
-        
+
         shift += 7;
     }
 
@@ -208,7 +211,7 @@ fn decode_fixed64(bytes: [u8; 8]) -> Fixed64Value {
     let as_u64 = u64::from_le_bytes(bytes);
     let as_i64 = i64::from_le_bytes(bytes);
     let f64_val = f64::from_le_bytes(bytes);
-    
+
     let as_f64 = if f64_val.is_normal() || f64_val == 0.0 {
         Some(f64_val)
     } else {
@@ -227,7 +230,7 @@ fn decode_fixed32(bytes: [u8; 4]) -> Fixed32Value {
     let as_u32 = u32::from_le_bytes(bytes);
     let as_i32 = i32::from_le_bytes(bytes);
     let f32_val = f32::from_le_bytes(bytes);
-    
+
     let as_f32 = if f32_val.is_normal() || f32_val == 0.0 {
         Some(f32_val)
     } else {
@@ -255,7 +258,9 @@ fn decode_length_delimited(data: &[u8], depth: usize) -> Result<LenValue, WireDe
         Err(_) => {}
     }
 
-    if let Ok(s) = std::str::from_utf8(data) && is_mostly_printable(s) {
+    if let Ok(s) = std::str::from_utf8(data)
+        && is_mostly_printable(s)
+    {
         return Ok(LenValue::String(s.to_string()));
     }
 
@@ -286,7 +291,13 @@ impl fmt::Display for WireMessage {
 
 fn format_message(f: &mut fmt::Formatter<'_>, msg: &WireMessage, indent: usize) -> fmt::Result {
     for field in &msg.fields {
-        write!(f, "{:indent$}field {}: ", "", field.field_number, indent = indent)?;
+        write!(
+            f,
+            "{:indent$}field {}: ",
+            "",
+            field.field_number,
+            indent = indent
+        )?;
         format_value(f, &field.value, indent)?;
         writeln!(f)?;
     }
@@ -325,10 +336,14 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) ->
             LenValue::SubMessage(msg) => {
                 writeln!(f, "{{")?;
                 format_message(f, msg, indent + 2)?;
-                write!(f, "{:indent$}}} (submessage; {} field{})",
-                    "", msg.fields.len(),
+                write!(
+                    f,
+                    "{:indent$}}} (submessage; {} field{})",
+                    "",
+                    msg.fields.len(),
                     if msg.fields.len() == 1 { "" } else { "s" },
-                    indent = indent)?;
+                    indent = indent
+                )?;
             }
             LenValue::String(s) => {
                 write!(f, "\"{}\" (string; {} bytes)", s, s.len())?;
@@ -450,12 +465,17 @@ mod tests {
             bytes = wrapper;
         }
         let result = decode_wire_format(&bytes);
-        assert!(matches!(result, Err(WireDecodeError::RecursionLimitExceeded)));
+        assert!(matches!(
+            result,
+            Err(WireDecodeError::RecursionLimitExceeded)
+        ));
     }
 
     #[test]
     fn test_wire_malformed_varint() {
-        let bytes = vec![0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80];
+        let bytes = vec![
+            0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+        ];
         let result = decode_wire_format(&bytes);
         assert!(matches!(result, Err(WireDecodeError::InvalidVarint(_))));
     }

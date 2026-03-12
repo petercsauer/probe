@@ -1,8 +1,8 @@
 //! Unit and integration tests for app.rs
 
 use prb_core::{DebugEvent, Direction, EventId, EventSource, Payload, Timestamp, TransportKind};
-use prb_tui::event_store::EventStore;
 use prb_tui::App;
+use prb_tui::event_store::EventStore;
 use std::collections::BTreeMap;
 
 fn make_test_event(id: u64, timestamp_nanos: u64, transport: TransportKind) -> DebugEvent {
@@ -103,9 +103,9 @@ fn test_app_state_initialization() {
         filter: None,
         filter_text: String::new(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     assert_eq!(state.filtered_indices.len(), 2);
@@ -135,9 +135,9 @@ fn test_app_state_with_filter() {
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),
         schema_registry: None,
-            conversations: None,
+        conversations: None,
         store,
-                visible_columns: Vec::new(),
+        visible_columns: Vec::new(),
     };
 
     // Should have 2 gRPC events

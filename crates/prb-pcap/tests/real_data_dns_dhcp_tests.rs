@@ -90,10 +90,7 @@ fn test_dns_remoteshell_mixed_traffic() {
     let events: Vec<_> = adapter.ingest().collect();
 
     // Should handle mixed traffic without panic
-    assert!(
-        !events.is_empty(),
-        "Should process mixed DNS/TCP traffic"
-    );
+    assert!(!events.is_empty(), "Should process mixed DNS/TCP traffic");
 
     let success_count = events.iter().filter(|e| e.is_ok()).count();
     assert!(

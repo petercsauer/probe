@@ -5,16 +5,16 @@
 
 use bytes::Bytes;
 use prb_core::{
-    CaptureAdapter, ConversationEngine, DebugEvent, Direction, EventId,
-    EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+    CaptureAdapter, ConversationEngine, DebugEvent, Direction, EventId, EventSource, NetworkAddr,
+    Payload, Timestamp, TransportKind,
 };
+use prb_decode::{decode_wire_format, decode_with_schema};
 use prb_detect::{DetectionContext, DetectionEngine, ProtocolId, TransportLayer};
-use prb_export::{create_exporter, Exporter, OtlpExporter};
+use prb_export::{Exporter, OtlpExporter, create_exporter};
 use prb_pcap::{PcapCaptureAdapter, TcpFlags};
 use prb_query::Filter;
-use prb_storage::{SessionMetadata, SessionReader, SessionWriter};
 use prb_schema::SchemaRegistry;
-use prb_decode::{decode_with_schema, decode_wire_format};
+use prb_storage::{SessionMetadata, SessionReader, SessionWriter};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
@@ -37,7 +37,7 @@ fn create_tcp_segment(
     flags: TcpFlags,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, TcpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
 
     let mut packet = Vec::new();
 
@@ -76,7 +76,7 @@ fn create_udp_datagram(
     dst_port: u16,
     payload: &[u8],
 ) -> Vec<u8> {
-    use etherparse::{Ethernet2Header, EtherType, IpNumber, Ipv4Header, UdpHeader};
+    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, UdpHeader};
 
     let mut packet = Vec::new();
 
@@ -373,7 +373,10 @@ fn integration_conversation_metrics() {
 
     // Check that conversations have valid structure
     for conv in &conv_set.conversations {
-        assert!(!conv.event_ids.is_empty(), "Conversation should have events");
+        assert!(
+            !conv.event_ids.is_empty(),
+            "Conversation should have events"
+        );
     }
 }
 
@@ -429,12 +432,7 @@ fn integration_export_otlp_roundtrip() {
     let mut meta = BTreeMap::new();
     meta.insert("grpc.method".to_string(), "/api/Test".to_string());
 
-    let original_events = vec![make_test_event(
-        1,
-        TransportKind::Grpc,
-        meta,
-        1_000_000_000,
-    )];
+    let original_events = vec![make_test_event(1, TransportKind::Grpc, meta, 1_000_000_000)];
 
     // Export to OTLP
     let exporter = OtlpExporter;
@@ -481,16 +479,10 @@ fn integration_query_filter_metadata() {
     let filter = Filter::parse(r#"grpc.method contains "Users""#).expect("Filter should parse");
 
     let mut meta_match = BTreeMap::new();
-    meta_match.insert(
-        "grpc.method".to_string(),
-        "/api/Users/Get".to_string(),
-    );
+    meta_match.insert("grpc.method".to_string(), "/api/Users/Get".to_string());
 
     let mut meta_no_match = BTreeMap::new();
-    meta_no_match.insert(
-        "grpc.method".to_string(),
-        "/api/Orders/List".to_string(),
-    );
+    meta_no_match.insert("grpc.method".to_string(), "/api/Orders/List".to_string());
 
     let event_match = make_test_event(1, TransportKind::Grpc, meta_match, 1_000_000_000);
     let event_no_match = make_test_event(2, TransportKind::Grpc, meta_no_match, 2_000_000_000);
@@ -507,9 +499,8 @@ fn integration_query_filter_metadata() {
 
 #[test]
 fn integration_query_filter_complex() {
-    let filter =
-        Filter::parse(r#"transport == "gRPC" && grpc.method == "/api/Test""#)
-            .expect("Complex filter should parse");
+    let filter = Filter::parse(r#"transport == "gRPC" && grpc.method == "/api/Test""#)
+        .expect("Complex filter should parse");
 
     let mut meta = BTreeMap::new();
     meta.insert("grpc.method".to_string(), "/api/Test".to_string());
@@ -517,10 +508,7 @@ fn integration_query_filter_complex() {
     let match_event = make_test_event(1, TransportKind::Grpc, meta.clone(), 1_000_000_000);
     let wrong_transport = make_test_event(2, TransportKind::Zmq, meta, 2_000_000_000);
 
-    assert!(
-        filter.matches(&match_event),
-        "Complex filter should match"
-    );
+    assert!(filter.matches(&match_event), "Complex filter should match");
     assert!(
         !filter.matches(&wrong_transport),
         "Complex filter should not match wrong transport"
@@ -619,15 +607,16 @@ fn integration_storage_roundtrip() {
     let metadata = SessionMetadata::new().with_source_file("test.pcap");
     let mut writer = SessionWriter::new(file, metadata).expect("Writer should be created");
     for event in &events {
-        writer
-            .write_event(event)
-            .expect("Event should be written");
+        writer.write_event(event).expect("Event should be written");
     }
     writer.finish().expect("Writer should finish");
 
     // Read back from MCAP
     let reader = SessionReader::open(&mcap_path).expect("Reader should open");
-    let read_events: Vec<_> = reader.events().collect::<Result<Vec<_>, _>>().expect("Events should be read");
+    let read_events: Vec<_> = reader
+        .events()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Events should be read");
 
     assert_eq!(
         read_events.len(),
@@ -705,8 +694,8 @@ fn integration_empty_event_list_handling() {
 fn create_test_descriptor_set() -> Vec<u8> {
     use prost::Message;
     use prost_types::{
-        field_descriptor_proto, DescriptorProto, FieldDescriptorProto, FileDescriptorProto,
-        FileDescriptorSet,
+        DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
+        field_descriptor_proto,
     };
 
     let field = FieldDescriptorProto {
@@ -747,7 +736,7 @@ fn create_test_descriptor_set() -> Vec<u8> {
 
 /// Encode a simple test message.
 fn encode_test_message(id: i32, name: &str) -> Vec<u8> {
-    use prost::encoding::{encode_key, encode_varint, WireType};
+    use prost::encoding::{WireType, encode_key, encode_varint};
 
     let mut buf = Vec::new();
 
@@ -793,7 +782,10 @@ fn integration_schema_load_and_decode() {
         "Should have id field in JSON output"
     );
     assert_eq!(json["id"], 42, "ID should match encoded value");
-    assert_eq!(json["name"], "test_value", "Name should match encoded value");
+    assert_eq!(
+        json["name"], "test_value",
+        "Name should match encoded value"
+    );
 }
 
 #[test]

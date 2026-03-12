@@ -1,7 +1,9 @@
 //! Additional tests for event_store.rs to improve coverage
 
 use bytes::Bytes;
-use prb_core::{DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind};
+use prb_core::{
+    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
+};
 use prb_query::Filter;
 use prb_tui::event_store::EventStore;
 use std::collections::BTreeMap;
@@ -166,9 +168,27 @@ fn test_event_store_protocol_counts() {
     let counts = store.protocol_counts(&store.all_indices());
 
     // Should have 3 gRPC, 1 ZMQ, 1 DDS
-    assert_eq!(counts.iter().find(|(k, _)| *k == TransportKind::Grpc).map(|(_, v)| *v), Some(3));
-    assert_eq!(counts.iter().find(|(k, _)| *k == TransportKind::Zmq).map(|(_, v)| *v), Some(1));
-    assert_eq!(counts.iter().find(|(k, _)| *k == TransportKind::DdsRtps).map(|(_, v)| *v), Some(1));
+    assert_eq!(
+        counts
+            .iter()
+            .find(|(k, _)| *k == TransportKind::Grpc)
+            .map(|(_, v)| *v),
+        Some(3)
+    );
+    assert_eq!(
+        counts
+            .iter()
+            .find(|(k, _)| *k == TransportKind::Zmq)
+            .map(|(_, v)| *v),
+        Some(1)
+    );
+    assert_eq!(
+        counts
+            .iter()
+            .find(|(k, _)| *k == TransportKind::DdsRtps)
+            .map(|(_, v)| *v),
+        Some(1)
+    );
 }
 
 #[test]
@@ -185,7 +205,13 @@ fn test_event_store_protocol_counts_filtered() {
     let counts = store.protocol_counts(&filtered_indices);
 
     // Should only have gRPC counts
-    assert_eq!(counts.iter().find(|(k, _)| *k == TransportKind::Grpc).map(|(_, v)| *v), Some(2));
+    assert_eq!(
+        counts
+            .iter()
+            .find(|(k, _)| *k == TransportKind::Grpc)
+            .map(|(_, v)| *v),
+        Some(2)
+    );
     assert_eq!(counts.iter().find(|(k, _)| *k == TransportKind::Zmq), None);
 }
 

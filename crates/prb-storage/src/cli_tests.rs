@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use prb_core::{DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind};
     use crate::{SessionMetadata, SessionReader, SessionWriter};
+    use prb_core::{DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind};
     use std::fs::File;
     use tempfile::TempDir;
 

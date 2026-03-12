@@ -1,7 +1,7 @@
 use prb_core::{
-    DebugEvent, Direction, Payload, TransportKind, METADATA_KEY_DDS_DOMAIN_ID,
-    METADATA_KEY_DDS_TOPIC_NAME, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID,
-    METADATA_KEY_ZMQ_TOPIC,
+    DebugEvent, Direction, METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME,
+    METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_ZMQ_TOPIC, Payload,
+    TransportKind,
 };
 
 /// Structured context for AI explanation, built from DebugEvents.
@@ -57,7 +57,10 @@ fn summarize_event(event: &DebugEvent) -> String {
     let mut parts = Vec::new();
 
     parts.push(format!("[Event {}]", event.id));
-    parts.push(format!("Timestamp: {}", format_timestamp(event.timestamp.as_nanos())));
+    parts.push(format!(
+        "Timestamp: {}",
+        format_timestamp(event.timestamp.as_nanos())
+    ));
     parts.push(format!("Transport: {}", event.transport));
     parts.push(format!("Direction: {}", event.direction));
 
@@ -72,7 +75,12 @@ fn summarize_event(event: &DebugEvent) -> String {
         _ => summarize_generic(event, &mut parts),
     }
 
-    if let Payload::Decoded { ref fields, ref schema_name, .. } = event.payload {
+    if let Payload::Decoded {
+        ref fields,
+        ref schema_name,
+        ..
+    } = event.payload
+    {
         if let Some(name) = schema_name {
             parts.push(format!("Schema: {name}"));
         }
@@ -80,7 +88,10 @@ fn summarize_event(event: &DebugEvent) -> String {
         if fields_str.len() <= 500 {
             parts.push(format!("Decoded fields: {fields_str}"));
         } else {
-            parts.push(format!("Decoded fields (truncated): {}...", &fields_str[..500]));
+            parts.push(format!(
+                "Decoded fields (truncated): {}...",
+                &fields_str[..500]
+            ));
         }
     } else if let Payload::Raw { ref raw } = event.payload {
         parts.push(format!("Payload size: {} bytes", raw.len()));
@@ -218,7 +229,9 @@ mod tests {
     fn make_grpc_event(id: u64, method: &str, status: &str) -> DebugEvent {
         let mut builder = DebugEvent::builder()
             .id(prb_core::EventId::from_raw(id))
-            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000 + id * 1_000_000))
+            .timestamp(Timestamp::from_nanos(
+                1_710_000_000_000_000_000 + id * 1_000_000,
+            ))
             .source(EventSource {
                 adapter: "pcap".into(),
                 origin: "test.pcap".into(),
@@ -245,7 +258,9 @@ mod tests {
     fn make_zmq_event(id: u64, topic: &str) -> DebugEvent {
         DebugEvent::builder()
             .id(prb_core::EventId::from_raw(id))
-            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000 + id * 1_000_000))
+            .timestamp(Timestamp::from_nanos(
+                1_710_000_000_000_000_000 + id * 1_000_000,
+            ))
             .source(EventSource {
                 adapter: "pcap".into(),
                 origin: "test.pcap".into(),
@@ -264,7 +279,9 @@ mod tests {
     fn make_dds_event(id: u64, topic: &str, domain: &str) -> DebugEvent {
         DebugEvent::builder()
             .id(prb_core::EventId::from_raw(id))
-            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000 + id * 1_000_000))
+            .timestamp(Timestamp::from_nanos(
+                1_710_000_000_000_000_000 + id * 1_000_000,
+            ))
             .source(EventSource {
                 adapter: "pcap".into(),
                 origin: "test.pcap".into(),
@@ -318,9 +335,7 @@ mod tests {
 
     #[test]
     fn test_context_window_selection() {
-        let events: Vec<DebugEvent> = (0..20)
-            .map(|i| make_grpc_event(i, "/test", "0"))
-            .collect();
+        let events: Vec<DebugEvent> = (0..20).map(|i| make_grpc_event(i, "/test", "0")).collect();
 
         let ctx = ExplainContext::build(&events, 10, 3);
         assert_eq!(ctx.surrounding_summaries.len(), 6);

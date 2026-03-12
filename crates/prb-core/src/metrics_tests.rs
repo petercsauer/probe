@@ -4,11 +4,7 @@ use super::*;
 use bytes::Bytes;
 
 /// Helper to create a test DebugEvent.
-fn create_test_event(
-    timestamp_ns: u64,
-    direction: Direction,
-    payload_size: usize,
-) -> DebugEvent {
+fn create_test_event(timestamp_ns: u64, direction: Direction, payload_size: usize) -> DebugEvent {
     DebugEvent::builder()
         .id(EventId::next())
         .timestamp(Timestamp::from_nanos(timestamp_ns))
@@ -104,7 +100,9 @@ fn test_compute_metrics_multiple_requests_responses() {
 #[test]
 fn test_extract_error_grpc_status_ok() {
     let mut event = create_test_event(1000000000, Direction::Inbound, 100);
-    event.metadata.insert("grpc.status".to_string(), "0".to_string());
+    event
+        .metadata
+        .insert("grpc.status".to_string(), "0".to_string());
     let events = vec![&event];
 
     let result = compute_metrics(&events).expect("should succeed");
@@ -114,8 +112,13 @@ fn test_extract_error_grpc_status_ok() {
 #[test]
 fn test_extract_error_grpc_status_error() {
     let mut event = create_test_event(1000000000, Direction::Inbound, 100);
-    event.metadata.insert("grpc.status".to_string(), "14".to_string());
-    event.metadata.insert("grpc.message".to_string(), "Service unavailable".to_string());
+    event
+        .metadata
+        .insert("grpc.status".to_string(), "14".to_string());
+    event.metadata.insert(
+        "grpc.message".to_string(),
+        "Service unavailable".to_string(),
+    );
     let events = vec![&event];
 
     let result = compute_metrics(&events).expect("should succeed");
@@ -130,7 +133,9 @@ fn test_extract_error_grpc_status_error() {
 #[test]
 fn test_extract_error_grpc_status_without_message() {
     let mut event = create_test_event(1000000000, Direction::Inbound, 100);
-    event.metadata.insert("grpc.status".to_string(), "5".to_string());
+    event
+        .metadata
+        .insert("grpc.status".to_string(), "5".to_string());
     let events = vec![&event];
 
     let result = compute_metrics(&events).expect("should succeed");
@@ -145,7 +150,9 @@ fn test_extract_error_grpc_status_without_message() {
 #[test]
 fn test_extract_error_rst_stream() {
     let mut event = create_test_event(1000000000, Direction::Inbound, 0);
-    event.metadata.insert("h2.frame_type".to_string(), "RST_STREAM".to_string());
+    event
+        .metadata
+        .insert("h2.frame_type".to_string(), "RST_STREAM".to_string());
     let events = vec![&event];
 
     let result = compute_metrics(&events).expect("should succeed");
@@ -355,7 +362,9 @@ fn test_compute_aggregate_metrics_conversations_per_second() {
             ConversationState::Complete,
         );
         conv.metrics.start_time = Some(Timestamp::from_nanos(1_000_000_000 + (i * 500_000_000)));
-        conv.metrics.end_time = Some(Timestamp::from_nanos(1_000_000_000 + (i * 500_000_000) + 100_000_000));
+        conv.metrics.end_time = Some(Timestamp::from_nanos(
+            1_000_000_000 + (i * 500_000_000) + 100_000_000,
+        ));
         conv.metrics.duration_ns = 100_000_000;
         conversations.push(conv);
     }

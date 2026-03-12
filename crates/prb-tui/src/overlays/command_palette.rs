@@ -1,11 +1,11 @@
 //! Command palette for fuzzy-searchable command list.
 
+use crate::theme::Theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget};
-use ratatui::style::{Color, Modifier, Style};
-use crate::theme::Theme;
 
 /// Command palette entry mapping display name to action.
 #[derive(Debug, Clone)]
@@ -162,14 +162,8 @@ impl CommandPaletteOverlay {
                 };
 
                 let line = Line::from(vec![
-                    Span::styled(
-                        format!(" {:<20}", cmd.name),
-                        style,
-                    ),
-                    Span::styled(
-                        format!(" {:<10}", cmd.key_hint),
-                        style.fg(Color::DarkGray),
-                    ),
+                    Span::styled(format!(" {:<20}", cmd.name), style),
+                    Span::styled(format!(" {:<10}", cmd.key_hint), style.fg(Color::DarkGray)),
                 ]);
                 ListItem::new(line)
             })
@@ -179,8 +173,8 @@ impl CommandPaletteOverlay {
             let list = List::new(items);
             list.render(list_area, buf);
         } else {
-            let no_match = Paragraph::new("No matching commands")
-                .style(Style::default().fg(Color::DarkGray));
+            let no_match =
+                Paragraph::new("No matching commands").style(Style::default().fg(Color::DarkGray));
             no_match.render(list_area, buf);
         }
     }

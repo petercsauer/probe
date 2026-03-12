@@ -6,8 +6,8 @@ use prb_capture::{CaptureConfig, CaptureError, InterfaceEnumerator, LiveCaptureA
 use prb_core::CaptureAdapter;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 /// Run the capture command.
@@ -204,11 +204,7 @@ fn list_interfaces() -> Result<()> {
         let status = iface.status();
         let addrs_str = iface.addresses_display();
         let desc = iface.description.as_deref().unwrap_or("");
-        let suffix = if iface.is_loopback {
-            " [loopback]"
-        } else {
-            ""
-        };
+        let suffix = if iface.is_loopback { " [loopback]" } else { "" };
 
         println!(
             "{:<16} {:<8} {:<40} {}{}",

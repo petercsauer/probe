@@ -3,9 +3,9 @@
 
 use camino::Utf8PathBuf;
 use prb_cli::cli::{
-    CaptureArgs, CaptureOutputFormat, ExportArgs, ExportFormat, IngestArgs, InspectArgs,
-    MergeArgs, OutputFormat, PluginsArgs, PluginsCommand, SchemaLoadArgs, SchemasArgs,
-    SchemasCommand, TuiArgs,
+    CaptureArgs, CaptureOutputFormat, ExportArgs, ExportFormat, IngestArgs, InspectArgs, MergeArgs,
+    OutputFormat, PluginsArgs, PluginsCommand, SchemaLoadArgs, SchemasArgs, SchemasCommand,
+    TuiArgs,
 };
 use prb_cli::commands::{
     run_capture, run_export, run_ingest, run_inspect, run_merge, run_plugins, run_schemas,
@@ -286,8 +286,16 @@ fn test_plugins_install_unsupported_extension() {
 
     // Should fail for unsupported file type
     let result = run_plugins(args, Some(&plugin_dir));
-    assert!(result.is_err(), "Install should fail for unsupported extension");
-    assert!(result.unwrap_err().to_string().contains("Unknown plugin file type"));
+    assert!(
+        result.is_err(),
+        "Install should fail for unsupported extension"
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Unknown plugin file type")
+    );
 }
 
 #[test]
@@ -430,7 +438,10 @@ fn test_inspect_with_transport_filter() {
     };
 
     let result = run_inspect(args);
-    assert!(result.is_ok(), "Inspect should succeed with transport filter");
+    assert!(
+        result.is_ok(),
+        "Inspect should succeed with transport filter"
+    );
 }
 
 #[test]
@@ -450,7 +461,10 @@ fn test_inspect_with_invalid_filter() {
     };
 
     let result = run_inspect(args);
-    assert!(result.is_err(), "Inspect should fail with invalid transport filter");
+    assert!(
+        result.is_err(),
+        "Inspect should fail with invalid transport filter"
+    );
 }
 
 #[test]
@@ -490,7 +504,10 @@ fn test_inspect_with_trace_id_filter() {
     };
 
     let result = run_inspect(args);
-    assert!(result.is_ok(), "Inspect should succeed with trace ID filter");
+    assert!(
+        result.is_ok(),
+        "Inspect should succeed with trace ID filter"
+    );
 }
 
 #[test]
@@ -588,7 +605,10 @@ fn test_schemas_load_proto() {
     };
 
     let result = run_schemas(args);
-    assert!(result.is_ok(), "Schemas load should succeed with valid proto file");
+    assert!(
+        result.is_ok(),
+        "Schemas load should succeed with valid proto file"
+    );
 }
 
 #[test]
@@ -601,7 +621,10 @@ fn test_schemas_load_nonexistent_proto() {
     };
 
     let result = run_schemas(args);
-    assert!(result.is_err(), "Schemas load should fail for nonexistent file");
+    assert!(
+        result.is_err(),
+        "Schemas load should fail for nonexistent file"
+    );
 }
 
 #[test]
@@ -619,8 +642,16 @@ fn test_schemas_load_unsupported_extension() {
     };
 
     let result = run_schemas(args);
-    assert!(result.is_err(), "Schemas load should fail for unsupported extension");
-    assert!(result.unwrap_err().to_string().contains("Unsupported file extension"));
+    assert!(
+        result.is_err(),
+        "Schemas load should fail for unsupported extension"
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported file extension")
+    );
 }
 
 // ============================================================================
@@ -642,7 +673,10 @@ fn test_schemas_load_with_multiple_includes() {
     };
 
     let result = run_schemas(args);
-    assert!(result.is_ok(), "Schemas load with multiple includes should succeed");
+    assert!(
+        result.is_ok(),
+        "Schemas load with multiple includes should succeed"
+    );
 }
 
 #[test]
@@ -661,7 +695,10 @@ fn test_schemas_load_invalid_proto_syntax() {
     };
 
     let result = run_schemas(args);
-    assert!(result.is_err(), "Schemas load should fail for invalid proto syntax");
+    assert!(
+        result.is_err(),
+        "Schemas load should fail for invalid proto syntax"
+    );
 }
 
 // ============================================================================
@@ -716,7 +753,10 @@ fn test_merge_ndjson_and_otlp() {
     assert!(result.is_ok(), "Merge should succeed with valid inputs");
 
     // Verify output file was created
-    assert!(output_path.as_std_path().exists(), "Merged output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "Merged output file should exist"
+    );
 }
 
 #[test]
@@ -747,7 +787,10 @@ fn test_merge_missing_packets_file() {
     };
 
     let result = run_merge(args);
-    assert!(result.is_err(), "Merge should fail with missing packets file");
+    assert!(
+        result.is_err(),
+        "Merge should fail with missing packets file"
+    );
 }
 
 #[test]
@@ -762,7 +805,10 @@ fn test_merge_missing_traces_file() {
     };
 
     let result = run_merge(args);
-    assert!(result.is_err(), "Merge should fail with missing traces file");
+    assert!(
+        result.is_err(),
+        "Merge should fail with missing traces file"
+    );
 }
 
 // ============================================================================
@@ -879,7 +925,10 @@ fn test_export_csv_from_ndjson() {
 
     let result = run_export(args);
     assert!(result.is_ok(), "CSV export should succeed");
-    assert!(output_path.as_std_path().exists(), "CSV output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "CSV output file should exist"
+    );
 }
 
 #[test]
@@ -897,7 +946,10 @@ fn test_export_har_from_ndjson() {
 
     let result = run_export(args);
     assert!(result.is_ok(), "HAR export should succeed");
-    assert!(output_path.as_std_path().exists(), "HAR output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "HAR output file should exist"
+    );
 }
 
 #[test]
@@ -915,7 +967,10 @@ fn test_export_otlp_from_ndjson() {
 
     let result = run_export(args);
     assert!(result.is_ok(), "OTLP export should succeed");
-    assert!(output_path.as_std_path().exists(), "OTLP output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "OTLP output file should exist"
+    );
 }
 
 #[test]
@@ -933,7 +988,10 @@ fn test_export_html_from_ndjson() {
 
     let result = run_export(args);
     assert!(result.is_ok(), "HTML export should succeed");
-    assert!(output_path.as_std_path().exists(), "HTML output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "HTML output file should exist"
+    );
 }
 
 #[test]
@@ -950,7 +1008,12 @@ fn test_export_html_requires_output_file() {
 
     let result = run_export(args);
     assert!(result.is_err(), "HTML export to stdout should fail");
-    assert!(result.unwrap_err().to_string().contains("HTML export requires"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("HTML export requires")
+    );
 }
 
 #[test]
@@ -1008,7 +1071,10 @@ fn test_ingest_json_to_ndjson() {
 
     let result = run_ingest(args);
     assert!(result.is_ok(), "JSON ingest should succeed");
-    assert!(output_path.as_std_path().exists(), "Output file should exist");
+    assert!(
+        output_path.as_std_path().exists(),
+        "Output file should exist"
+    );
 }
 
 #[test]
@@ -1180,7 +1246,10 @@ fn test_plugins_info_case_insensitive_match() {
     };
 
     let result = run_plugins(args, None);
-    assert!(result.is_ok(), "Should match gRPC decoder case-insensitively");
+    assert!(
+        result.is_ok(),
+        "Should match gRPC decoder case-insensitively"
+    );
 }
 
 #[test]
@@ -1448,7 +1517,13 @@ fn test_tui_with_long_path() {
         diff_file: None,
     };
 
-    assert!(args.input.as_ref().unwrap().as_str().contains("events.ndjson"));
+    assert!(
+        args.input
+            .as_ref()
+            .unwrap()
+            .as_str()
+            .contains("events.ndjson")
+    );
     assert!(args.where_clause.is_some());
 }
 

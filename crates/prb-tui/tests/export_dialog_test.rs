@@ -93,9 +93,7 @@ fn test_export_dialog_path_updates_with_format() {
 fn test_export_dialog_formats_include_all_supported() {
     let dialog = ExportDialogOverlay::new(100);
 
-    let format_names: Vec<String> = dialog.formats.iter()
-        .map(|f| f.format.clone())
-        .collect();
+    let format_names: Vec<String> = dialog.formats.iter().map(|f| f.format.clone()).collect();
 
     // Check that all expected formats are present
     assert!(format_names.contains(&"json".to_string()));
@@ -115,19 +113,27 @@ fn test_export_dialog_format_descriptions() {
     let dialog = ExportDialogOverlay::new(42);
 
     // Verify format descriptions contain expected text
-    let json_all_format = dialog.formats.iter()
+    let json_all_format = dialog
+        .formats
+        .iter()
         .find(|f| f.format == "json-all")
         .expect("Should have json-all format");
 
-    assert!(json_all_format.description.contains("42"),
-        "Description should include filtered count");
+    assert!(
+        json_all_format.description.contains("42"),
+        "Description should include filtered count"
+    );
 
-    let csv_format = dialog.formats.iter()
+    let csv_format = dialog
+        .formats
+        .iter()
         .find(|f| f.format == "csv")
         .expect("Should have CSV format");
 
-    assert!(csv_format.description.contains("42"),
-        "CSV description should include filtered count");
+    assert!(
+        csv_format.description.contains("42"),
+        "CSV description should include filtered count"
+    );
 }
 
 #[test]

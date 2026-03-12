@@ -1,10 +1,10 @@
 //! Integration tests for schema-backed protobuf decoding.
 
-use prb_decode::schema_backed::{decode_with_schema, DecodeError};
+use prb_decode::schema_backed::{DecodeError, decode_with_schema};
 use prost_reflect::DescriptorPool;
 use prost_types::{
-    field_descriptor_proto, DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto,
-    FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
+    DescriptorProto, EnumDescriptorProto, EnumValueDescriptorProto, FieldDescriptorProto,
+    FileDescriptorProto, FileDescriptorSet, field_descriptor_proto,
 };
 
 /// Helper to create a simple message descriptor.
@@ -35,9 +35,7 @@ fn create_simple_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.SimpleMessage").unwrap()
@@ -76,9 +74,7 @@ fn create_nested_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.Outer").unwrap()
@@ -103,9 +99,7 @@ fn create_repeated_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.RepeatedMessage").unwrap()
@@ -152,9 +146,7 @@ fn create_enum_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.EnumMessage").unwrap()
@@ -268,7 +260,10 @@ fn test_decode_wrong_schema() {
 
     let result = decode_with_schema(&payload, &descriptor);
     // prost-reflect typically ignores unknown fields, so this should succeed
-    assert!(result.is_ok(), "Should decode with unknown fields (ignored)");
+    assert!(
+        result.is_ok(),
+        "Should decode with unknown fields (ignored)"
+    );
 }
 
 #[test]
@@ -425,9 +420,7 @@ fn create_all_types_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.AllTypes").unwrap()
@@ -563,9 +556,7 @@ fn create_packed_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.PackedMessage").unwrap()
@@ -668,9 +659,7 @@ fn create_map_descriptor() -> prost_reflect::MessageDescriptor {
         ..Default::default()
     };
 
-    let fds = FileDescriptorSet {
-        file: vec![file],
-    };
+    let fds = FileDescriptorSet { file: vec![file] };
 
     let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
     pool.get_message_by_name("test.MapMessage").unwrap()
@@ -811,11 +800,7 @@ fn test_nested_message_display() {
 fn test_repeated_fields_display() {
     let descriptor = create_repeated_descriptor();
 
-    let payload = vec![
-        0x0a, 0x01, b'a',
-        0x0a, 0x01, b'b',
-        0x0a, 0x01, b'c',
-    ];
+    let payload = vec![0x0a, 0x01, b'a', 0x0a, 0x01, b'b', 0x0a, 0x01, b'c'];
 
     let decoded = decode_with_schema(&payload, &descriptor).unwrap();
 

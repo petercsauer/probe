@@ -1,12 +1,12 @@
 //! Export dialog for saving events in multiple formats.
 
+use crate::theme::Theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Widget};
-use ratatui::style::{Color, Modifier, Style};
 use tui_input::Input;
-use crate::theme::Theme;
 
 /// Export format option with display information.
 #[derive(Debug, Clone)]
@@ -124,15 +124,14 @@ impl ExportDialogOverlay {
         block.render(overlay_area, buf);
 
         // Format list
-        let list_height = self.formats.len().min(inner.height.saturating_sub(4) as usize);
-        let list_area = Rect::new(
-            inner.x,
-            inner.y,
-            inner.width,
-            list_height as u16,
-        );
+        let list_height = self
+            .formats
+            .len()
+            .min(inner.height.saturating_sub(4) as usize);
+        let list_area = Rect::new(inner.x, inner.y, inner.width, list_height as u16);
 
-        let items: Vec<ListItem> = self.formats
+        let items: Vec<ListItem> = self
+            .formats
             .iter()
             .enumerate()
             .map(|(i, fmt)| {
@@ -146,12 +145,10 @@ impl ExportDialogOverlay {
                 };
 
                 let prefix = if i == self.selected { "> " } else { "  " };
-                let line = Line::from(vec![
-                    Span::styled(
-                        format!("{}{}", prefix, fmt.description),
-                        style,
-                    ),
-                ]);
+                let line = Line::from(vec![Span::styled(
+                    format!("{}{}", prefix, fmt.description),
+                    style,
+                )]);
                 ListItem::new(line)
             })
             .collect();
@@ -164,7 +161,9 @@ impl ExportDialogOverlay {
         let output_area = Rect::new(inner.x, output_y, inner.width, 1);
 
         let output_style = if self.editing_path {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -178,7 +177,12 @@ impl ExportDialogOverlay {
                 Span::raw("")
             },
         ]);
-        buf.set_line(output_area.x, output_area.y, &output_line, output_area.width);
+        buf.set_line(
+            output_area.x,
+            output_area.y,
+            &output_line,
+            output_area.width,
+        );
 
         // Help text
         let help_y = output_y + 2;

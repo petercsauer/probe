@@ -94,8 +94,9 @@ impl PcapFileReader {
             0x0a0d0d0a => {
                 // pcapng format
                 // Use 1MB buffer for streaming large captures
-                let pcapng_reader = PcapNGReader::new(1024 * 1024, reader)
-                    .map_err(|e| PcapError::Parse(format!("failed to create pcapng reader: {:?}", e)))?;
+                let pcapng_reader = PcapNGReader::new(1024 * 1024, reader).map_err(|e| {
+                    PcapError::Parse(format!("failed to create pcapng reader: {:?}", e))
+                })?;
                 Ok(Self {
                     reader: Box::new(pcapng_reader),
                     tls_keys: TlsKeyStore::new(),
@@ -106,8 +107,9 @@ impl PcapFileReader {
             0xa1b2c3d4 | 0xd4c3b2a1 => {
                 // pcap format (native or swapped endian)
                 // Use 1MB buffer for streaming large captures
-                let pcap_reader = LegacyPcapReader::new(1024 * 1024, reader)
-                    .map_err(|e| PcapError::Parse(format!("failed to create pcap reader: {:?}", e)))?;
+                let pcap_reader = LegacyPcapReader::new(1024 * 1024, reader).map_err(|e| {
+                    PcapError::Parse(format!("failed to create pcap reader: {:?}", e))
+                })?;
                 // Default to Ethernet (linktype 1) for legacy pcap
                 // We'll extract the actual linktype from the first header block
                 Ok(Self {
@@ -153,7 +155,8 @@ impl PcapFileReader {
                         }
                         PcapBlockOwned::Legacy(packet) => {
                             // Legacy pcap packet
-                            let timestamp_us = packet.ts_sec as u64 * 1_000_000 + packet.ts_usec as u64;
+                            let timestamp_us =
+                                packet.ts_sec as u64 * 1_000_000 + packet.ts_usec as u64;
                             packets.push(PcapPacket {
                                 linktype: default_linktype,
                                 timestamp_us,
@@ -258,10 +261,12 @@ impl PcapFileReader {
             }
 
             if parts[0] == "CLIENT_RANDOM" {
-                let client_random = hex::decode(parts[1])
-                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in client_random: {}", e)))?;
-                let master_secret = hex::decode(parts[2])
-                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in master_secret: {}", e)))?;
+                let client_random = hex::decode(parts[1]).map_err(|e| {
+                    PcapError::TlsKey(format!("invalid hex in client_random: {}", e))
+                })?;
+                let master_secret = hex::decode(parts[2]).map_err(|e| {
+                    PcapError::TlsKey(format!("invalid hex in master_secret: {}", e))
+                })?;
                 tls_keys.insert(client_random, master_secret);
             }
         }

@@ -1,4 +1,4 @@
-use prb_core::{DebugEvent, CorrelationKey};
+use prb_core::{CorrelationKey, DebugEvent};
 use std::collections::HashMap;
 
 /// A trace span representing a unit of work in a distributed trace.
@@ -50,7 +50,10 @@ pub fn extract_trace_context(event: &DebugEvent) -> Option<(String, String, Opti
     for key in &event.correlation_keys {
         if let CorrelationKey::TraceContext { trace_id, span_id } = key {
             // Try to find parent span ID in metadata
-            let parent_span_id = event.metadata.get(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID).cloned();
+            let parent_span_id = event
+                .metadata
+                .get(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID)
+                .cloned();
             return Some((trace_id.clone(), span_id.clone(), parent_span_id));
         }
     }
@@ -58,7 +61,10 @@ pub fn extract_trace_context(event: &DebugEvent) -> Option<(String, String, Opti
     // Fall back to metadata-based extraction
     let trace_id = event.metadata.get(prb_core::METADATA_KEY_OTEL_TRACE_ID)?;
     let span_id = event.metadata.get(prb_core::METADATA_KEY_OTEL_SPAN_ID)?;
-    let parent_span_id = event.metadata.get(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID).cloned();
+    let parent_span_id = event
+        .metadata
+        .get(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID)
+        .cloned();
 
     Some((trace_id.clone(), span_id.clone(), parent_span_id))
 }
@@ -117,7 +123,7 @@ pub fn build_trace_trees(events: &[&DebugEvent], event_indices: &[usize]) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prb_core::{DebugEvent, Timestamp, EventSource, TransportKind, Direction, Payload};
+    use prb_core::{DebugEvent, Direction, EventSource, Payload, Timestamp, TransportKind};
 
     #[test]
     fn test_extract_trace_context_from_correlation_keys() {
@@ -133,7 +139,9 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Inbound)
-            .payload(Payload::Raw { raw: Bytes::from(vec![]) })
+            .payload(Payload::Raw {
+                raw: Bytes::from(vec![]),
+            })
             .build();
 
         event.correlation_keys.push(CorrelationKey::TraceContext {
@@ -163,7 +171,9 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Outbound)
-            .payload(Payload::Raw { raw: Bytes::from(vec![]) })
+            .payload(Payload::Raw {
+                raw: Bytes::from(vec![]),
+            })
             .metadata(prb_core::METADATA_KEY_OTEL_TRACE_ID, "trace789")
             .metadata(prb_core::METADATA_KEY_OTEL_SPAN_ID, "span012")
             .metadata(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID, "parent345")
@@ -194,7 +204,9 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Inbound)
-            .payload(Payload::Raw { raw: Bytes::from(vec![]) })
+            .payload(Payload::Raw {
+                raw: Bytes::from(vec![]),
+            })
             .build();
         root.correlation_keys.push(CorrelationKey::TraceContext {
             trace_id: "trace1".into(),
@@ -212,7 +224,9 @@ mod tests {
             })
             .transport(TransportKind::Grpc)
             .direction(Direction::Outbound)
-            .payload(Payload::Raw { raw: Bytes::from(vec![]) })
+            .payload(Payload::Raw {
+                raw: Bytes::from(vec![]),
+            })
             .metadata(prb_core::METADATA_KEY_OTEL_PARENT_SPAN_ID, "root")
             .build();
         child1.correlation_keys.push(CorrelationKey::TraceContext {

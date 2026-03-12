@@ -1,7 +1,7 @@
 use prb_core::{DebugEvent, Timestamp, TransportKind};
 use prb_query::Filter;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 /// Index structure for fast lookups by protocol, source, and destination.
@@ -301,9 +301,7 @@ mod tests {
             },
             transport,
             direction: Direction::Inbound,
-            payload: Payload::Raw {
-                raw: Bytes::new(),
-            },
+            payload: Payload::Raw { raw: Bytes::new() },
             metadata: BTreeMap::new(),
             correlation_keys: vec![],
             sequence: None,
@@ -385,8 +383,14 @@ mod tests {
 
         // Should match 2 gRPC events
         assert_eq!(filtered.len(), 2);
-        assert_eq!(store.get(filtered[0]).unwrap().transport, TransportKind::Grpc);
-        assert_eq!(store.get(filtered[1]).unwrap().transport, TransportKind::Grpc);
+        assert_eq!(
+            store.get(filtered[0]).unwrap().transport,
+            TransportKind::Grpc
+        );
+        assert_eq!(
+            store.get(filtered[1]).unwrap().transport,
+            TransportKind::Grpc
+        );
     }
 
     #[test]
@@ -436,7 +440,10 @@ mod tests {
         let filter2 = Filter::parse(r#"transport == "ZMQ""#).unwrap();
         let filtered2 = store.filter_indices_incremental(&filter2);
         assert_eq!(filtered2.len(), 1);
-        assert_eq!(store.get(filtered2[0]).unwrap().transport, TransportKind::Zmq);
+        assert_eq!(
+            store.get(filtered2[0]).unwrap().transport,
+            TransportKind::Zmq
+        );
     }
 
     #[test]
@@ -491,7 +498,10 @@ mod tests {
         let index = store.index().unwrap();
 
         // Check protocol index
-        assert_eq!(index.by_protocol.get(&TransportKind::Grpc).unwrap().len(), 2);
+        assert_eq!(
+            index.by_protocol.get(&TransportKind::Grpc).unwrap().len(),
+            2
+        );
         assert_eq!(index.by_protocol.get(&TransportKind::Zmq).unwrap().len(), 1);
 
         // Check time_sorted
@@ -557,6 +567,10 @@ mod tests {
         assert!(filtered2.len() - filtered.len() <= 34);
 
         // Incremental filtering should be very fast (< 5ms for 100 new events)
-        assert!(duration2.as_millis() < 5, "Incremental filtering took {:?}", duration2);
+        assert!(
+            duration2.as_millis() < 5,
+            "Incremental filtering took {:?}",
+            duration2
+        );
     }
 }

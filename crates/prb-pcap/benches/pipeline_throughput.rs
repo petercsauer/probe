@@ -2,13 +2,12 @@
 
 mod fixtures;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use fixtures::SyntheticPcapBuilder;
 use prb_pcap::{
+    MmapPcapReader, OwnedNormalizedPacket, PacketNormalizer, PcapFileReader, TcpReassembler,
     parallel::{FlowPartitioner, NormalizeBatch, ParallelPipeline, PipelineConfig},
     tls::TlsKeyLog,
-    MmapPcapReader, OwnedNormalizedPacket, PacketNormalizer,
-    PcapFileReader, TcpReassembler,
 };
 use rayon::prelude::*;
 use std::io::Write;
@@ -77,9 +76,7 @@ fn bench_normalize(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("parallel", |b| {
-        b.iter(|| NormalizeBatch::run(&packets))
-    });
+    group.bench_function("parallel", |b| b.iter(|| NormalizeBatch::run(&packets)));
 
     group.finish();
 }
@@ -111,23 +108,27 @@ fn bench_tcp_reassembly(c: &mut Criterion) {
     });
 
     for shards in [2, 4, 8, 16] {
-        group.bench_with_input(BenchmarkId::new("parallel", shards), &shards, |b, &shards| {
-            b.iter(|| {
-                let partitioner = FlowPartitioner::new(shards);
-                let partitions = partitioner.partition(normalized.clone());
-                partitions
-                    .into_par_iter()
-                    .map(|shard| {
-                        let mut r = TcpReassembler::new();
-                        for pkt in &shard {
-                            let borrowed = pkt.as_normalized();
-                            let _ = r.process_segment(&borrowed);
-                        }
-                        r.flush_all()
-                    })
-                    .collect::<Vec<_>>()
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("parallel", shards),
+            &shards,
+            |b, &shards| {
+                b.iter(|| {
+                    let partitioner = FlowPartitioner::new(shards);
+                    let partitions = partitioner.partition(normalized.clone());
+                    partitions
+                        .into_par_iter()
+                        .map(|shard| {
+                            let mut r = TcpReassembler::new();
+                            for pkt in &shard {
+                                let borrowed = pkt.as_normalized();
+                                let _ = r.process_segment(&borrowed);
+                            }
+                            r.flush_all()
+                        })
+                        .collect::<Vec<_>>()
+                })
+            },
+        );
     }
 
     group.finish();
@@ -139,7 +140,9 @@ fn bench_tcp_reassembly(c: &mut Criterion) {
 
 fn bench_end_to_end(c: &mut Criterion) {
     for (name, flows, ppf) in [("small", 10, 100), ("medium", 100, 1000)] {
-        let fixture = SyntheticPcapBuilder::new().tcp_flows(flows, ppf).build_pcap();
+        let fixture = SyntheticPcapBuilder::new()
+            .tcp_flows(flows, ppf)
+            .build_pcap();
 
         let total_packets = flows * ppf;
 

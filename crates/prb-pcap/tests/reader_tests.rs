@@ -30,9 +30,11 @@ fn create_test_pcap() -> NamedTempFile {
     file.write_all(&500000u32.to_le_bytes()).unwrap();
     // Captured length
     let packet_data = b"Hello PCAP";
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
     // Original length
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
     // Packet data
     file.write_all(packet_data).unwrap();
 
@@ -88,9 +90,11 @@ fn create_test_pcapng() -> NamedTempFile {
     // Timestamp (low): 1500000 microseconds
     file.write_all(&1500000u32.to_le_bytes()).unwrap();
     // Captured Packet Length
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
     // Original Packet Length
-    file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(packet_data.len() as u32).to_le_bytes())
+        .unwrap();
     // Packet Data (padded to 4 bytes)
     file.write_all(packet_data).unwrap();
     let padding = (4 - (packet_data.len() % 4)) % 4;
@@ -137,11 +141,13 @@ fn create_test_pcapng_with_dsb() -> NamedTempFile {
     // Block Type: 0x0000000a (DSB)
     file.write_all(&0x0au32.to_le_bytes()).unwrap();
     // Block Total Length
-    file.write_all(&(dsb_total_len as u32).to_le_bytes()).unwrap();
+    file.write_all(&(dsb_total_len as u32).to_le_bytes())
+        .unwrap();
     // Secrets Type: 0x544c534b ("TLSK")
     file.write_all(&0x544c534bu32.to_le_bytes()).unwrap();
     // Secrets Length (unpadded)
-    file.write_all(&(key_log_bytes.len() as u32).to_le_bytes()).unwrap();
+    file.write_all(&(key_log_bytes.len() as u32).to_le_bytes())
+        .unwrap();
     // Secrets Data
     file.write_all(key_log_bytes).unwrap();
     // Padding to 4-byte boundary
@@ -149,7 +155,8 @@ fn create_test_pcapng_with_dsb() -> NamedTempFile {
         file.write_all(&vec![0u8; padding]).unwrap();
     }
     // Block Total Length (repeated)
-    file.write_all(&(dsb_total_len as u32).to_le_bytes()).unwrap();
+    file.write_all(&(dsb_total_len as u32).to_le_bytes())
+        .unwrap();
 
     file.flush().unwrap();
     file.as_file().sync_all().unwrap();
@@ -165,7 +172,11 @@ fn test_read_pcap_legacy() {
 
     assert_eq!(packets.len(), 1, "should read exactly one packet");
     assert_eq!(packets[0].linktype, 1, "linktype should be Ethernet (1)");
-    assert_eq!(packets[0].timestamp_us, 1000000 * 1_000_000 + 500000, "timestamp should match");
+    assert_eq!(
+        packets[0].timestamp_us,
+        1000000 * 1_000_000 + 500000,
+        "timestamp should match"
+    );
     assert_eq!(packets[0].data, b"Hello PCAP", "packet data should match");
 }
 
@@ -192,7 +203,8 @@ fn test_read_pcapng_dsb() {
 
     assert_eq!(tls_keys.len(), 1, "should extract one TLS key");
 
-    let client_random = hex::decode("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF").unwrap();
+    let client_random =
+        hex::decode("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF").unwrap();
     let expected_secret = hex::decode("FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210").unwrap();
 
     let secret = tls_keys.get(&client_random).unwrap();
@@ -244,8 +256,10 @@ fn test_streaming_large_file() {
         file.write_all(&0u32.to_le_bytes()).unwrap(); // Interface ID
         file.write_all(&0u32.to_le_bytes()).unwrap(); // Timestamp high
         file.write_all(&(i as u32).to_le_bytes()).unwrap(); // Timestamp low
-        file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
-        file.write_all(&(packet_data.len() as u32).to_le_bytes()).unwrap();
+        file.write_all(&(packet_data.len() as u32).to_le_bytes())
+            .unwrap();
+        file.write_all(&(packet_data.len() as u32).to_le_bytes())
+            .unwrap();
         file.write_all(&packet_data).unwrap();
         let padding = (4 - (packet_data.len() % 4)) % 4;
         file.write_all(&vec![0u8; padding]).unwrap();

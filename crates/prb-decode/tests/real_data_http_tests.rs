@@ -4,8 +4,8 @@
 //! through the decode pipeline without panicking. HTTP/1.x is text-based, not
 //! protobuf, so these tests focus on graceful handling of non-protobuf data.
 
-use prb_decode::wire_format::decode_wire_format;
 use prb_core::{CaptureAdapter, Payload};
+use prb_decode::wire_format::decode_wire_format;
 use prb_pcap::PcapCaptureAdapter;
 use std::path::PathBuf;
 
@@ -142,21 +142,22 @@ fn test_real_data_http_decode_error_handling() {
 #[test]
 fn test_real_data_http_response_decode() {
     // Test decoding HTTP response headers
-    let http_response = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 13\r\n\r\nHello, world!";
+    let http_response =
+        b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 13\r\n\r\nHello, world!";
 
     let result = decode_wire_format(http_response);
 
     // HTTP response is not valid protobuf
-    assert!(result.is_err(), "HTTP response should not be valid protobuf");
+    assert!(
+        result.is_err(),
+        "HTTP response should not be valid protobuf"
+    );
 }
 
 #[test]
 fn test_real_data_all_http_captures_no_panic() {
     // Comprehensive test: decode all payloads from all HTTP captures
-    let http_captures = vec![
-        "http/http-chunked-gzip.pcap",
-        "http/http_with_jpegs.cap",
-    ];
+    let http_captures = vec!["http/http-chunked-gzip.pcap", "http/http_with_jpegs.cap"];
 
     let mut total_payloads = 0;
 

@@ -1,0 +1,6 @@
+# Clippy configuration for strict linting
+cognitive-complexity-threshold = 30
+single-char-binding-names-threshold = 4
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250
+too-many-lines-threshold = 300

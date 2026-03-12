@@ -1,8 +1,8 @@
 //! Integration tests for prb-fixture JSON adapter.
 
-use prb_core::{CaptureAdapter, TransportKind, Direction, Payload};
-use prb_fixture::JsonFixtureAdapter;
 use camino::Utf8PathBuf;
+use prb_core::{CaptureAdapter, Direction, Payload, TransportKind};
+use prb_fixture::JsonFixtureAdapter;
 use std::path::PathBuf;
 
 /// Helper to get fixture path from workspace root
@@ -82,8 +82,11 @@ fn test_fixture_unsupported_version() {
     assert!(result.is_err(), "Expected unsupported version error");
     let err = result.unwrap_err();
     let err_msg = err.to_string();
-    assert!(err_msg.contains("version") || err_msg.contains("99"),
-            "Error should mention version: {}", err_msg);
+    assert!(
+        err_msg.contains("version") || err_msg.contains("99"),
+        "Error should mention version: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -93,14 +96,18 @@ fn test_fixture_missing_payload() {
     let temp_dir = tempfile::tempdir().unwrap();
     let path = temp_dir.path().join("missing_payload.json");
     let mut file = std::fs::File::create(&path).unwrap();
-    write!(file, r#"{{
+    write!(
+        file,
+        r#"{{
         "version": 1,
         "events": [{{
             "timestamp_ns": 1700000000000000000,
             "transport": "grpc",
             "direction": "outbound"
         }}]
-    }}"#).unwrap();
+    }}"#
+    )
+    .unwrap();
 
     let utf8_path = Utf8PathBuf::from_path_buf(path).unwrap();
     let mut adapter = JsonFixtureAdapter::new(utf8_path);
@@ -116,7 +123,9 @@ fn test_fixture_both_payloads() {
     let temp_dir = tempfile::tempdir().unwrap();
     let path = temp_dir.path().join("both_payloads.json");
     let mut file = std::fs::File::create(&path).unwrap();
-    write!(file, r#"{{
+    write!(
+        file,
+        r#"{{
         "version": 1,
         "events": [{{
             "timestamp_ns": 1700000000000000000,
@@ -125,7 +134,9 @@ fn test_fixture_both_payloads() {
             "payload_base64": "dGVzdA==",
             "payload_utf8": "test"
         }}]
-    }}"#).unwrap();
+    }}"#
+    )
+    .unwrap();
 
     let utf8_path = Utf8PathBuf::from_path_buf(path).unwrap();
     let mut adapter = JsonFixtureAdapter::new(utf8_path);
@@ -177,8 +188,14 @@ fn test_fixture_metadata_preserved() {
 
     // First event has metadata
     let metadata = &events[0].metadata;
-    assert!(metadata.contains_key("grpc.method"), "Expected grpc.method metadata");
-    assert_eq!(metadata.get("grpc.method").unwrap(), "/example.Service/GetUser");
+    assert!(
+        metadata.contains_key("grpc.method"),
+        "Expected grpc.method metadata"
+    );
+    assert_eq!(
+        metadata.get("grpc.method").unwrap(),
+        "/example.Service/GetUser"
+    );
     assert_eq!(metadata.get("h2.stream_id").unwrap(), "1");
 }
 
@@ -213,8 +230,8 @@ fn test_fixture_io_error_nonexistent_file() {
 #[cfg(test)]
 mod proptest_tests {
     use super::*;
-    use proptest::prelude::*;
     use prb_fixture::FixtureEvent;
+    use proptest::prelude::*;
     use std::collections::BTreeMap;
 
     /// Generate arbitrary FixtureEvent for property testing
@@ -225,25 +242,26 @@ mod proptest_tests {
             prop::sample::select(vec!["inbound", "outbound", "unknown"]),
             prop::option::of("[a-zA-Z0-9+/=]{1,100}"),
             prop::option::of("[a-zA-Z0-9 ]{1,100}"),
-        ).prop_map(|(ts, transport, direction, b64, utf8)| {
-            // Ensure only one payload type
-            let (payload_base64, payload_utf8) = match (b64, utf8) {
-                (Some(b), None) => (Some(b), None),
-                (None, Some(u)) => (None, Some(u)),
-                (Some(b), Some(_)) => (Some(b), None), // Prefer base64
-                (None, None) => (Some("dGVzdA==".to_string()), None), // Default valid base64
-            };
+        )
+            .prop_map(|(ts, transport, direction, b64, utf8)| {
+                // Ensure only one payload type
+                let (payload_base64, payload_utf8) = match (b64, utf8) {
+                    (Some(b), None) => (Some(b), None),
+                    (None, Some(u)) => (None, Some(u)),
+                    (Some(b), Some(_)) => (Some(b), None), // Prefer base64
+                    (None, None) => (Some("dGVzdA==".to_string()), None), // Default valid base64
+                };
 
-            FixtureEvent {
-                timestamp_ns: ts,
-                transport: transport.to_string(),
-                direction: direction.to_string(),
-                payload_base64,
-                payload_utf8,
-                metadata: BTreeMap::new(),
-                source: None,
-            }
-        })
+                FixtureEvent {
+                    timestamp_ns: ts,
+                    transport: transport.to_string(),
+                    direction: direction.to_string(),
+                    payload_base64,
+                    payload_utf8,
+                    metadata: BTreeMap::new(),
+                    source: None,
+                }
+            })
     }
 
     proptest! {

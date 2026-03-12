@@ -1,8 +1,8 @@
 //! Tests for parallel pipeline orchestrator.
 
 use prb_pcap::parallel::{ParallelPipeline, PipelineConfig};
-use prb_pcap::{OwnedNormalizedPacket, TcpSegmentInfo, TcpFlags, TransportInfo};
 use prb_pcap::tls::TlsKeyLog;
+use prb_pcap::{OwnedNormalizedPacket, TcpFlags, TcpSegmentInfo, TransportInfo};
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -50,10 +50,7 @@ fn make_udp_packet(
         timestamp_us,
         src_ip: IpAddr::V4(Ipv4Addr::from(src_ip)),
         dst_ip: IpAddr::V4(Ipv4Addr::from(dst_ip)),
-        transport: TransportInfo::Udp {
-            src_port,
-            dst_port,
-        },
+        transport: TransportInfo::Udp { src_port, dst_port },
         vlan_id: None,
         payload,
     }
@@ -75,7 +72,14 @@ fn test_orchestrator_single_packet() {
     let tls_keylog = Arc::new(TlsKeyLog::new());
     let pipeline = ParallelPipeline::new(config, PathBuf::from("/test.pcap"), tls_keylog);
 
-    let packet = make_udp_packet(1000, [192, 168, 1, 1], 12345, [10, 0, 0, 1], 80, b"test".to_vec());
+    let packet = make_udp_packet(
+        1000,
+        [192, 168, 1, 1],
+        12345,
+        [10, 0, 0, 1],
+        80,
+        b"test".to_vec(),
+    );
 
     let events = pipeline.run(vec![packet]).unwrap();
     assert_eq!(events.len(), 1);
@@ -272,8 +276,16 @@ fn test_orchestrator_mixed_protocols() {
     let events = pipeline.run(packets).unwrap();
     // TCP segments are reassembled, so we don't get 1:1 events.
     // UDP packets (2500) should produce events, TCP may be consolidated.
-    assert!(events.len() >= 2500, "Expected at least 2500 events (UDP packets), got {}", events.len());
-    assert!(events.len() <= 5000, "Expected at most 5000 events (all packets), got {}", events.len());
+    assert!(
+        events.len() >= 2500,
+        "Expected at least 2500 events (UDP packets), got {}",
+        events.len()
+    );
+    assert!(
+        events.len() <= 5000,
+        "Expected at most 5000 events (all packets), got {}",
+        events.len()
+    );
 }
 
 #[test]
@@ -299,10 +311,16 @@ fn test_orchestrator_varying_thread_counts() {
             batch_size: 2048,
             shard_count,
         };
-        let pipeline = ParallelPipeline::new(config, PathBuf::from("/test.pcap"), Arc::clone(&tls_keylog));
+        let pipeline =
+            ParallelPipeline::new(config, PathBuf::from("/test.pcap"), Arc::clone(&tls_keylog));
 
         let events = pipeline.run(packets.clone()).unwrap();
-        assert_eq!(events.len(), 1000, "Shard count {} should produce 1000 events", shard_count);
+        assert_eq!(
+            events.len(),
+            1000,
+            "Shard count {} should produce 1000 events",
+            shard_count
+        );
     }
 }
 
@@ -357,7 +375,10 @@ fn test_orchestrator_config_effective_shard_count() {
     };
 
     let effective_shards = config.effective_shard_count();
-    assert_eq!(effective_shards, 8, "Should be 2 * jobs when auto-detecting");
+    assert_eq!(
+        effective_shards, 8,
+        "Should be 2 * jobs when auto-detecting"
+    );
 }
 
 #[test]

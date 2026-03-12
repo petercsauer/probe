@@ -2,9 +2,9 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap};
-use ratatui::style::{Color, Modifier, Style};
 
 use prb_storage::SessionMetadata;
 
@@ -49,20 +49,35 @@ impl SessionInfoOverlay {
         let mut lines = vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled("File: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "File: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(&session_info.file_path),
             ]),
         ];
 
         // File size
         lines.push(Line::from(vec![
-            Span::styled("Size: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Size: ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(format_file_size(session_info.file_size)),
         ]));
 
         // Event count
         lines.push(Line::from(vec![
-            Span::styled("Events: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Events: ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(format!("{}", session_info.event_count)),
         ]));
 
@@ -70,14 +85,24 @@ impl SessionInfoOverlay {
         if let Some((start_us, end_us)) = session_info.time_range {
             let duration_us = end_us.saturating_sub(start_us);
             lines.push(Line::from(vec![
-                Span::styled("Duration: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Duration: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(format_duration(duration_us)),
             ]));
 
             // Format timestamp
             let start_time = format_timestamp(start_us);
             lines.push(Line::from(vec![
-                Span::styled("Captured: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Captured: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(start_time),
             ]));
         }
@@ -87,7 +112,9 @@ impl SessionInfoOverlay {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "MCAP Metadata:",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )));
 
             if let Some(ref tool) = metadata.capture_tool {
@@ -103,45 +130,55 @@ impl SessionInfoOverlay {
             ]));
 
             if let Some(ref source) = metadata.source_file {
-                lines.push(Line::from(vec![
-                    Span::raw("  Source: "),
-                    Span::raw(source),
-                ]));
+                lines.push(Line::from(vec![Span::raw("  Source: "), Span::raw(source)]));
             }
         }
 
         // Channel information
         if let Some(ref channels) = session_info.channel_info
-            && !channels.is_empty() {
-                lines.push(Line::from(""));
+            && !channels.is_empty()
+        {
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "Channels: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("{}", channels.len()),
+                    Style::default().fg(Color::Yellow),
+                ),
+            ]));
+
+            for channel in channels.iter().take(5) {
                 lines.push(Line::from(vec![
-                    Span::styled("Channels: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("{}", channels.len()), Style::default().fg(Color::Yellow)),
+                    Span::raw("  • "),
+                    Span::styled(&channel.topic, Style::default().fg(Color::Green)),
+                    Span::raw(format!(" ({} messages)", channel.message_count)),
                 ]));
-
-                for channel in channels.iter().take(5) {
-                    lines.push(Line::from(vec![
-                        Span::raw("  • "),
-                        Span::styled(&channel.topic, Style::default().fg(Color::Green)),
-                        Span::raw(format!(" ({} messages)", channel.message_count)),
-                    ]));
-                }
-
-                if channels.len() > 5 {
-                    lines.push(Line::from(vec![
-                        Span::raw("  "),
-                        Span::styled(
-                            format!("... and {} more", channels.len() - 5),
-                            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
-                        ),
-                    ]));
-                }
             }
+
+            if channels.len() > 5 {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(
+                        format!("... and {} more", channels.len() - 5),
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ]));
+            }
+        }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press ESC or 'i' to close",
-            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
         )));
 
         let paragraph = Paragraph::new(lines)

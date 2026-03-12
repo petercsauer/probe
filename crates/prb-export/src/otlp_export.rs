@@ -1,5 +1,8 @@
 use crate::{ExportError, Exporter};
-use prb_core::{CorrelationKey, DebugEvent, Direction, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_PARENT_SPAN_ID};
+use prb_core::{
+    CorrelationKey, DebugEvent, Direction, METADATA_KEY_OTEL_PARENT_SPAN_ID,
+    METADATA_KEY_OTEL_SPAN_ID, METADATA_KEY_OTEL_TRACE_ID,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
@@ -222,7 +225,10 @@ fn event_to_span(event: &DebugEvent) -> Span {
         .cloned()
         .unwrap_or_else(|| deterministic_span_id(event));
 
-    let parent_span_id = event.metadata.get(METADATA_KEY_OTEL_PARENT_SPAN_ID).cloned();
+    let parent_span_id = event
+        .metadata
+        .get(METADATA_KEY_OTEL_PARENT_SPAN_ID)
+        .cloned();
 
     Span {
         trace_id,
