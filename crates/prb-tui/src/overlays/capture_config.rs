@@ -47,6 +47,7 @@ pub struct CaptureConfigOverlay {
     pub promiscuous: bool,
     pub focused_field: ConfigField,
     pub privilege_warning: Option<String>,
+    pub bpf_validation_error: Option<String>,
 }
 
 impl CaptureConfigOverlay {
@@ -74,6 +75,7 @@ impl CaptureConfigOverlay {
             promiscuous: true,
             focused_field: ConfigField::Interface,
             privilege_warning,
+            bpf_validation_error: None,
         }
     }
 
@@ -146,6 +148,52 @@ impl CaptureConfigOverlay {
             && val > 0
         {
             self.snaplen = val;
+        }
+    }
+
+    /// Validate the BPF filter syntax.
+    ///
+    /// This attempts to compile the filter using libpcap to catch syntax errors
+    /// before starting capture. Returns Ok(()) if valid, or an error message.
+    pub fn validate_bpf_filter(&mut self) -> Result<(), String> {
+        // Empty filter is valid (captures all traffic)
+        if self.bpf_filter.is_empty() {
+            self.bpf_validation_error = None;
+            return Ok(());
+        }
+
+        // Get the selected interface (or use "any" as fallback for validation)
+        let interface = self
+            .get_selected_interface()
+            .map(|i| i.name.as_str())
+            .unwrap_or("any");
+
+        // Try to open a dummy capture device and compile the filter
+        let cap_result: Result<pcap::Capture<pcap::Active>, pcap::Error> =
+            pcap::Capture::from_device(interface)
+                .and_then(|c| c.open());
+
+        match cap_result {
+            Ok(mut active_cap) => {
+                match active_cap.filter(&self.bpf_filter, true) {
+                    Ok(_) => {
+                        self.bpf_validation_error = None;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Invalid BPF filter: {}", e);
+                        self.bpf_validation_error = Some(error_msg.clone());
+                        Err(error_msg)
+                    }
+                }
+            }
+            Err(e) => {
+                // Can't open device for validation, accept the filter
+                // (will be validated again when actually starting capture)
+                tracing::warn!("Cannot validate BPF filter (device open failed): {}", e);
+                self.bpf_validation_error = None;
+                Ok(())
+            }
         }
     }
 
@@ -303,7 +351,11 @@ impl CaptureConfigOverlay {
 
     fn render_bpf_filter(&self, area: Rect, buf: &mut Buffer) {
         let focused = self.focused_field == ConfigField::BpfFilter;
-        let border_style = if focused {
+
+        // Border color: red if validation error, cyan if focused, gray otherwise
+        let border_style = if self.bpf_validation_error.is_some() {
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        } else if focused {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
@@ -345,6 +397,17 @@ impl CaptureConfigOverlay {
 
             let line = Line::from(display_text);
             buf.set_line(inner.x, inner.y, &line, inner.width);
+        }
+
+        // Show validation error if present (on second line)
+        if let Some(ref error) = self.bpf_validation_error {
+            if inner.height > 1 {
+                let error_line = Line::from(Span::styled(
+                    format!("⚠ {}", error),
+                    Style::default().fg(Color::Red),
+                ));
+                buf.set_line(inner.x, inner.y + 1, &error_line, inner.width);
+            }
         }
     }
 

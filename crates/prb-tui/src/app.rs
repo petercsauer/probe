@@ -1459,7 +1459,7 @@ impl App {
                 self.input_mode = InputMode::SessionInfo;
                 return false;
             }
-            KeyCode::Char('I') => {
+            KeyCode::Char('L') => {
                 // Show live capture configuration overlay
                 self.capture_config = Some(CaptureConfigOverlay::new());
                 self.input_mode = InputMode::CaptureConfig;
@@ -2268,12 +2268,20 @@ impl App {
                 KeyCode::Tab => {
                     // Sync and move to next field
                     config.sync_inputs();
+                    // Validate BPF filter if leaving that field
+                    if config.focused_field == ConfigField::BpfFilter {
+                        let _ = config.validate_bpf_filter();
+                    }
                     config.focused_field = config.focused_field.next();
                     return false;
                 }
                 KeyCode::Enter => {
-                    // Sync and start capture
+                    // Sync and validate before starting capture
                     config.sync_inputs();
+                    if config.validate_bpf_filter().is_err() {
+                        // Don't start capture if validation fails
+                        return false;
+                    }
                     self.start_capture_from_config();
                     self.capture_config = None;
                     self.input_mode = InputMode::Normal;
@@ -2548,28 +2556,51 @@ impl App {
         };
 
         // Build capture configuration
-        let mut _capture_config = prb_capture::CaptureConfig::new(interface.name.clone())
+        let mut capture_config = prb_capture::CaptureConfig::new(interface.name.clone())
             .with_snaplen(config_overlay.snaplen)
             .with_promisc(config_overlay.promiscuous);
 
         if !config_overlay.bpf_filter.is_empty() {
-            _capture_config = _capture_config.with_filter(config_overlay.bpf_filter.clone());
+            capture_config = capture_config.with_filter(config_overlay.bpf_filter.clone());
         }
 
-        // Set status message with capture configuration
-        let filter_display = if config_overlay.bpf_filter.is_empty() {
-            "no filter".to_string()
-        } else {
-            format!("filter: {}", config_overlay.bpf_filter)
+        // Create and start live capture adapter
+        let adapter = match prb_capture::LiveCaptureAdapter::new(capture_config.clone()) {
+            Ok(adapter) => adapter,
+            Err(e) => {
+                self.set_status_message(&format!("Failed to create capture adapter: {}", e));
+                return;
+            }
         };
 
-        self.set_status_message(&format!(
-            "Capture configured: {} ({})",
-            interface.name, filter_display
-        ));
+        match LiveDataSource::start(adapter, interface.name.clone()) {
+            Ok(live_source) => {
+                // Initialize ring buffer if not already present
+                if self.ring_buffer.is_none() {
+                    self.ring_buffer = Some(RingBuffer::new(10000)); // 10k event buffer
+                }
 
-        // TODO: Actually start the live capture here using _capture_config
-        // This would integrate with the LiveDataSource from S11
+                // Store the live source
+                self.live_source = Some(live_source);
+                self.capture_state = CaptureState::Capturing;
+                self.auto_follow = true;
+                self.new_events_since_scroll = 0;
+
+                let filter_display = if config_overlay.bpf_filter.is_empty() {
+                    "no filter".to_string()
+                } else {
+                    format!("filter: {}", config_overlay.bpf_filter)
+                };
+
+                self.set_status_message(&format!(
+                    "Capture started: {} ({})",
+                    interface.name, filter_display
+                ));
+            }
+            Err(e) => {
+                self.set_status_message(&format!("Failed to start capture: {}", e));
+            }
+        }
     }
 
     fn perform_export(&mut self) {

@@ -50,6 +50,7 @@ camino = { workspace = true }
 dirs = { workspace = true }
 base64 = { workspace = true }
 prost-reflect = "0.16"
+pcap = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.13"
