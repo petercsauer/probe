@@ -4,7 +4,7 @@ expression: backend
 ---
 " / type / to filter                                                             "
 "╭ Events [*] ──────────────────────────────────────────────────────────────────╮"
-"│#     Time^        Origin              Protocol   Dir Summary                 │"
+"│#     Time^           Origin              Protocol    Dir  Summary            │"
 "│                                                                              │"
 "│         ┌ Welcome to prb ──────────────────────────────────────────┐         │"
 "│         │                                                          │         │"

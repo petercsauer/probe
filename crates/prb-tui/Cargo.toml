@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+parquet = ["prb-export/parquet"]
+
 [dependencies]
 prb-core = { path = "../prb-core" }
 prb-query = { path = "../prb-query" }

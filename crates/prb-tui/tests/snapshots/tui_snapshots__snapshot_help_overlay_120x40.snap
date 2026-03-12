@@ -4,8 +4,8 @@ expression: backend
 ---
 " / type / to filter                                                                                                     "
 "╭ Events [*] ──────────────────────────────────────────────────────────────────────────────────────────────────────────╮"
-"│#     Time^        Source             Destination        Protocol   Dir Summary                                       │"
-"│    1 00:00:01.000 10.0.0.1:1234      10.0.0.2:5678      gRPC       ←                                                 │"
+"│#     Time^           Source                      Destination                 Protocol    Dir  Summary                │"
+"│    1 00:00:01.000    10.0.0.1:1234               10.0.0.2:5678               gRPC        ←                           │"
 "│                                                                                                                      │"
 "│                                                                                                                      │"
 "│                                                                                                                      │"
