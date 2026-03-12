@@ -9,6 +9,7 @@ pub enum FixtureError {
     /// I/O error reading fixture file.
     #[error("I/O error: {source}")]
     Io {
+        /// The underlying I/O error.
         #[from]
         source: std::io::Error,
     },
@@ -16,6 +17,7 @@ pub enum FixtureError {
     /// JSON parse error.
     #[error("JSON parse error: {source}")]
     Parse {
+        /// The underlying JSON parse error.
         #[from]
         source: serde_json::Error,
     },

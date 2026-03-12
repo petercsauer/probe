@@ -1,3 +1,12 @@
+//! Terminal UI for the PRB universal message debugger.
+//!
+//! This crate provides an interactive terminal interface for analyzing debug events,
+//! with support for filtering, AI-powered explanations, and live capture.
+
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![allow(missing_docs)] // TODO: Complete TUI documentation in future segment
+
 pub mod ai_features;
 pub mod ai_smart;
 pub mod app;

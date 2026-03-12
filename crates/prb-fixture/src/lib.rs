@@ -3,6 +3,9 @@
 //! This crate provides a CaptureAdapter implementation that reads debug events
 //! from JSON fixture files for testing and offline analysis.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod adapter;
 pub mod error;
 pub mod format;

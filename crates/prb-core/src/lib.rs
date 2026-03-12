@@ -3,6 +3,9 @@
 //! This crate provides the foundational data model, error types, and traits
 //! used throughout the PRB ecosystem.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod conversation;
 pub mod decode;
 pub mod engine;

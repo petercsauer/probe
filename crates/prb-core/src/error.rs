@@ -19,6 +19,7 @@ pub enum CoreError {
     /// Serialization error.
     #[error("serialization error: {source}")]
     Serialization {
+        /// The underlying JSON serialization error.
         #[from]
         source: serde_json::Error,
     },

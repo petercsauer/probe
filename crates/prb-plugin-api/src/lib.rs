@@ -3,6 +3,9 @@
 //! This crate defines the stable contract between PRB and its plugins,
 //! supporting both native (shared library) and WASM plugins.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod dto;
 pub mod native;
 pub mod types;

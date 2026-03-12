@@ -1,3 +1,12 @@
+//! Export DebugEvents to various formats (CSV, HAR, OTLP, HTML, Parquet).
+//!
+//! This crate provides exporters for converting DebugEvents into various
+//! industry-standard and analysis-friendly formats.
+
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![allow(missing_docs)] // TODO: Complete documentation in future segment
+
 mod csv_export;
 mod error;
 mod har_export;

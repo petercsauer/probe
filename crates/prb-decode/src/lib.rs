@@ -4,6 +4,9 @@
 //! - `wire_format`: Best-effort decoding without schemas (field numbers only)
 //! - `schema_backed`: Schema-based decoding with field names and types
 
+#![warn(missing_docs)]
+#![warn(rustdoc::broken_intra_doc_links)]
+
 pub mod schema_backed;
 pub mod wire_format;
 

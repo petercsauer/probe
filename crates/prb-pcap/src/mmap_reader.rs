@@ -2,7 +2,7 @@
 //!
 //! Provides efficient random access to large capture files using memory-mapped I/O.
 //! Two-phase approach:
-//! 1. Index scan: Build Vec<PacketLocation> with file offsets
+//! 1. Index scan: Build `Vec<PacketLocation>` with file offsets
 //! 2. Zero-copy access: Read packet data directly from mmap without copying
 
 use crate::error::PcapError;

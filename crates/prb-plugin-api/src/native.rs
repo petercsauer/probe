@@ -37,7 +37,9 @@ pub struct DetectResultFfi {
 /// valid for the duration of the function call.
 #[repr(C)]
 pub struct ByteBuffer {
+    /// Pointer to the buffer data.
     pub ptr: *const u8,
+    /// Length of the buffer in bytes.
     pub len: usize,
 }
 
@@ -72,8 +74,11 @@ impl ByteBuffer {
 /// host frees it by calling `prb_plugin_buffer_free()`.
 #[repr(C)]
 pub struct OwnedBuffer {
+    /// Mutable pointer to the buffer data.
     pub ptr: *mut u8,
+    /// Length of the buffer in bytes.
     pub len: usize,
+    /// Capacity of the buffer in bytes.
     pub capacity: usize,
 }
 
@@ -152,7 +157,7 @@ pub trait PluginDecoder: Send {
 ///
 /// # Usage
 ///
-/// ```no_run
+/// ```ignore
 /// use prb_plugin_api::*;
 /// use prb_plugin_api::native::*;
 ///

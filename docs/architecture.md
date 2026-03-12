@@ -1,6 +1,8 @@
 # Architecture
 
-PRB is a Rust workspace organized as 19 crates with clear separation of concerns. This document describes the system design, data flow, and key abstractions.
+PRB is a Rust workspace organized as 20 crates with clear separation of concerns. This document describes the system design, data flow, and key abstractions.
+
+For architectural decisions and their rationale, see [Architecture Decision Records](adr/).
 
 ## Layered Architecture
 
@@ -70,7 +72,8 @@ PRB is a Rust workspace organized as 19 crates with clear separation of concerns
 | `prb-ai` | LLM-powered event explanation (Ollama, OpenAI) -- currently disabled |
 | `prb-plugin-api` | Stable plugin contract: DTOs, FFI types, version validation, `prb_export_plugin!` macro |
 | `prb-plugin-native` | Native shared library plugin loader (`.so`/`.dylib`/`.dll`) |
-| `prb-plugin-wasm` | WebAssembly plugin runtime via wasmtime |
+| `prb-plugin-wasm` | WebAssembly plugin runtime via Extism |
+| `prb-integration-tests` | Cross-crate integration tests |
 
 ## Data Flow
 
@@ -243,3 +246,12 @@ PRB extracts OpenTelemetry trace context from protocol headers using multiple fo
 - **Jaeger** -- `uber-trace-id: <trace_id>:<span_id>:<parent_id>:<flags>`
 
 Extracted contexts are stored as `CorrelationKey::TraceContext` and in event metadata (`otel.trace_id`, `otel.span_id`). Events can be filtered by trace/span ID and grouped into trace trees.
+
+## Architecture Decision Records
+
+Key design decisions are documented in the [adr/](adr/) directory:
+
+- [ADR 0001: Workspace Structure](adr/0001-workspace-structure.md) - Why 20 crates?
+- [ADR 0002: Error Handling](adr/0002-error-handling.md) - thiserror, anyhow, and warning patterns
+- [ADR 0003: Protocol Detection](adr/0003-protocol-detection.md) - Multi-stage detection pipeline
+- [ADR 0004: Plugin Architecture](adr/0004-plugin-architecture.md) - Native vs WASM plugins
