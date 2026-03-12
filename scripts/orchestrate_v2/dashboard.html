@@ -218,13 +218,22 @@
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
   .log-bottom-toolbar .spacer { flex: 1; }
+  .toolbar-interject-input {
+    flex: 1; max-width: 600px; background: rgba(0,0,0,0.3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px;
+    font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    outline: none; transition: border-color 0.15s;
+  }
+  .toolbar-interject-input:focus { border-color: var(--running); background: rgba(0,0,0,0.4); }
+  .toolbar-interject-input:disabled { opacity: 0.4; cursor: not-allowed; }
+  .toolbar-interject-input::placeholder { color: var(--text-muted); }
   .toolbar-interject-btn {
     padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
     background: var(--running); color: white; border: 1px solid var(--running);
     border-radius: 4px; white-space: nowrap; transition: all 0.15s;
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
   }
-  .toolbar-interject-btn:hover { background: #1a5fbf; opacity: 0.9; }
+  .toolbar-interject-btn:hover { background: #1a5fbf; }
   .toolbar-interject-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--pending); border-color: var(--pending); }
 
   /* ── Log content — Claude Code exact style ── */
@@ -449,9 +458,17 @@
     </div>
     <div class="log-content" id="log-content"></div>
     <div class="log-bottom-toolbar">
-      <span class="spacer"></span>
+      <input
+        type="text"
+        id="interject-input"
+        class="toolbar-interject-input"
+        placeholder="Enter interject message for running segment..."
+        maxlength="2000"
+        disabled
+        onkeydown="if(event.key==='Enter' && !this.disabled) interjectCurrentSeg()"
+      >
       <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
-        <i class="fa-solid fa-message"></i> Interject
+        <i class="fa-solid fa-message"></i> Send
       </button>
     </div>
   </div>
@@ -865,13 +882,18 @@
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
 
-        // Update interject button state if active segment status changed
+        // Update interject UI state if active segment status changed
         if (activeSeg != null) {
           const activeSgment = data.segments.find(s => s.num === activeSeg);
           if (activeSgment) {
             const interjectBtn = document.getElementById('interject-btn');
+            const interjectInput = document.getElementById('interject-input');
+            const isRunning = (activeSgment.status === 'running');
             if (interjectBtn) {
-              interjectBtn.disabled = (activeSgment.status !== 'running');
+              interjectBtn.disabled = !isRunning;
+            }
+            if (interjectInput) {
+              interjectInput.disabled = !isRunning;
             }
           }
         }
@@ -997,7 +1019,44 @@
       alert('No segment selected');
       return;
     }
-    await interjectSeg(activeSeg);
+
+    const input = document.getElementById('interject-input');
+    const message = (input ? input.value : '').trim();
+
+    if (!message) {
+      alert('Please enter a message');
+      return;
+    }
+
+    if (message.length > 2000) {
+      alert(`Message too long: ${message.length} chars (max 2000)`);
+      return;
+    }
+
+    // Simple confirmation
+    if (!confirm(`Send interject message to S${String(activeSeg).padStart(2,'0')}?\n\nThis will pause the segment execution.`)) {
+      return;
+    }
+
+    // Send request
+    try {
+      const r = await fetch('/api/control', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'interject', seg_num: activeSeg, message: message}),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        alert(`Failed to interject: ${data.error || 'unknown error'}`);
+      } else {
+        // Clear input on success
+        if (input) input.value = '';
+        alert(`Interject message sent to S${String(activeSeg).padStart(2,'0')}`);
+        refreshState();
+      }
+    } catch (e) {
+      alert(`Request failed: ${e.message}`);
+    }
   };
 
   window.changeStatus = async function(num, newStatus) {
@@ -1228,10 +1287,14 @@
       promptBtn.classList.remove('active');
     }
 
-    // Enable/disable interject button based on segment status
+    // Enable/disable interject UI based on segment status
     const interjectBtn = document.getElementById('interject-btn');
+    const interjectInput = document.getElementById('interject-input');
     if (interjectBtn) {
       interjectBtn.disabled = (status !== 'running');
+    }
+    if (interjectInput) {
+      interjectInput.disabled = (status !== 'running');
     }
 
     _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
