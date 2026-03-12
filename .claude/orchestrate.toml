@@ -18,8 +18,9 @@ strategy = "worktree"
 command = "cargo build --workspace && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings"
 
 [notifications]
-# Notifications enabled by default, topic auto-generated from project name
+# Notifications enabled by default
 enabled = true
+ntfy_topic = "probe"
 verbosity = "all"
 max_attempts = 3
 retry_delays = [10, 60, 300]
@@ -33,6 +34,7 @@ port = 8080
 enabled = true
 max_attempts = 2
 health_check_timeout = 120
+health_check_command = "cargo check --workspace --message-format=json"
 
 [retry_policy]
 max_retries = 3

@@ -150,6 +150,39 @@ just build
 
 See `justfile` for all available commands.
 
+## Orchestration
+
+This project uses [orchestrate](https://github.com/psauer/orchestrate) for managing large-scale refactoring and development plans.
+
+### Setup
+
+```bash
+# Install orchestrate
+cd ~/orchestrate
+pip install -e ".[dev]"
+
+# Verify installation
+orchestrate --help
+```
+
+### Running Plans
+
+```bash
+# Execute a plan
+cd /Users/psauer/probe
+orchestrate run .claude/plans/{plan-name}
+
+# Dry-run to see computed waves
+orchestrate dry-run .claude/plans/{plan-name}
+
+# Check plan status
+orchestrate status .claude/plans/{plan-name}
+```
+
+The orchestration dashboard is available at http://localhost:8080 when running plans.
+
+Configuration is in `.claude/orchestrate.toml`.
+
 ## Documentation
 
 | Document                                              | Description                                  |
