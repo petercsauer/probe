@@ -11,6 +11,22 @@ use crate::app::AppState;
 use crate::panes::{Action, PaneComponent};
 use crate::theme::ThemeConfig;
 
+/// Copy bytes to clipboard using OSC 52 escape sequence.
+fn copy_bytes_to_clipboard(bytes: &[u8]) {
+    use base64::Engine;
+    // Convert bytes to hex string for better readability
+    let hex_str = bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(hex_str.as_bytes());
+    // OSC 52 sequence: ESC ] 52 ; c ; <base64> ESC \
+    print!("\x1b]52;c;{}\x1b\\", encoded);
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteGrouping {
     One,
@@ -46,6 +62,9 @@ pub struct HexDumpPane {
     input_buffer: String,
     search_matches: Vec<usize>,
     current_match_index: Option<usize>,
+
+    // Diff mode state
+    marked_event_bytes: Option<Vec<u8>>,
 }
 
 impl Default for HexDumpPane {
@@ -65,6 +84,7 @@ impl HexDumpPane {
             input_buffer: String::new(),
             search_matches: Vec::new(),
             current_match_index: None,
+            marked_event_bytes: None,
         }
     }
 
@@ -255,6 +275,38 @@ impl PaneComponent for HexDumpPane {
                         self.scroll_offset = 0;
                         Action::None
                     }
+                    KeyCode::Char('m') => {
+                        // Mark current event bytes for diff
+                        if let Some(sel_idx) = state.selected_event
+                            && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                            && let Some(event) = state.store.get(*event_idx)
+                        {
+                            let payload_bytes = match &event.payload {
+                                Payload::Raw { raw } => raw.as_ref(),
+                                Payload::Decoded { raw, .. } => raw.as_ref(),
+                            };
+                            self.marked_event_bytes = Some(payload_bytes.to_vec());
+                        }
+                        Action::None
+                    }
+                    KeyCode::Char('y') => {
+                        // Copy selected bytes to clipboard
+                        if let Some((offset, len)) = self.highlight
+                            && let Some(sel_idx) = state.selected_event
+                            && let Some(event_idx) = state.filtered_indices.get(sel_idx)
+                            && let Some(event) = state.store.get(*event_idx)
+                        {
+                            let payload_bytes = match &event.payload {
+                                Payload::Raw { raw } => raw.as_ref(),
+                                Payload::Decoded { raw, .. } => raw.as_ref(),
+                            };
+                            if offset + len <= payload_bytes.len() {
+                                let selected = &payload_bytes[offset..offset + len];
+                                copy_bytes_to_clipboard(selected);
+                            }
+                        }
+                        Action::None
+                    }
                     _ => Action::None,
                 }
             }
@@ -264,15 +316,20 @@ impl PaneComponent for HexDumpPane {
     fn render(&mut self, area: Rect, buf: &mut Buffer, state: &AppState, theme: &ThemeConfig, focused: bool) {
         use ratatui::widgets::BorderType;
 
-        // Build title with search status
+        // Build title with search status and diff mode indicator
         let title = if focused {
             if !self.search_matches.is_empty() {
-                format!(" Hex Dump [*] ({}/{} matches) ",
+                format!(" Hex Dump [*] ({}/{} matches) {}",
                     self.current_match_index.map(|i| i + 1).unwrap_or(0),
-                    self.search_matches.len())
+                    self.search_matches.len(),
+                    if self.marked_event_bytes.is_some() { "(diff)" } else { "" })
+            } else if self.marked_event_bytes.is_some() {
+                " Hex Dump [*] (diff) ".to_string()
             } else {
                 " Hex Dump [*] ".to_string()
             }
+        } else if self.marked_event_bytes.is_some() {
+            " Hex Dump (diff) ".to_string()
         } else {
             " Hex Dump ".to_string()
         };
@@ -356,6 +413,7 @@ impl PaneComponent for HexDumpPane {
                 self.highlight,
                 self.byte_grouping,
                 &self.search_matches,
+                self.marked_event_bytes.as_deref(),
                 theme,
             );
             let y = inner.y + i as u16;
@@ -391,6 +449,7 @@ fn render_hex_line(
     highlight: Option<(usize, usize)>,
     byte_grouping: ByteGrouping,
     search_matches: &[usize],
+    marked_bytes: Option<&[u8]>,
     theme: &ThemeConfig,
 ) -> Line<'static> {
     let mut spans = Vec::new();
@@ -413,8 +472,13 @@ fn render_hex_line(
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
                     let is_search_match = search_matches.contains(&byte_pos);
+                    let is_diff = marked_bytes
+                        .and_then(|m| m.get(byte_pos))
+                        .is_some_and(|&marked_byte| marked_byte != bytes[i]);
                     let style = if is_search_match {
                         theme.hex_search_match()
+                    } else if is_diff {
+                        Style::default().fg(Color::Yellow)
                     } else if is_highlighted {
                         theme.hex_highlight()
                     } else {
@@ -436,8 +500,16 @@ fn render_hex_line(
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
                     let is_search_match = search_matches.contains(&byte_pos);
+                    let is_diff = marked_bytes
+                        .and_then(|m| m.get(byte_pos))
+                        .is_some_and(|&marked_byte| marked_byte != bytes[i])
+                        || (i + 1 < bytes.len() && marked_bytes
+                            .and_then(|m| m.get(byte_pos + 1))
+                            .is_some_and(|&marked_byte| marked_byte != bytes[i + 1]));
                     let style = if is_search_match {
                         theme.hex_search_match()
+                    } else if is_diff {
+                        Style::default().fg(Color::Yellow)
                     } else if is_highlighted {
                         theme.hex_highlight()
                     } else {
@@ -466,8 +538,23 @@ fn render_hex_line(
                     let is_highlighted = highlight
                         .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
                     let is_search_match = search_matches.contains(&byte_pos);
+                    let mut is_diff = false;
+                    for j in 0..4 {
+                        if i + j < bytes.len() {
+                            if let Some(marked) = marked_bytes {
+                                if let Some(&marked_byte) = marked.get(byte_pos + j) {
+                                    if marked_byte != bytes[i + j] {
+                                        is_diff = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     let style = if is_search_match {
                         theme.hex_search_match()
+                    } else if is_diff {
+                        Style::default().fg(Color::Yellow)
                     } else if is_highlighted {
                         theme.hex_highlight()
                     } else {
@@ -497,6 +584,9 @@ fn render_hex_line(
             let is_highlighted = highlight
                 .is_some_and(|(start, len)| byte_pos >= start && byte_pos < start + len);
             let is_search_match = search_matches.contains(&byte_pos);
+            let is_diff = marked_bytes
+                .and_then(|m| m.get(byte_pos))
+                .is_some_and(|&marked_byte| marked_byte != ch);
 
             let (c, base_style) = if ch.is_ascii_graphic() || ch == b' ' {
                 (ch as char, theme.hex_ascii())
@@ -505,6 +595,8 @@ fn render_hex_line(
             };
             let style = if is_search_match {
                 theme.hex_search_match()
+            } else if is_diff {
+                Style::default().fg(Color::Yellow)
             } else if is_highlighted {
                 theme.hex_highlight()
             } else {
@@ -607,7 +699,7 @@ mod tests {
     #[test]
     fn test_hex_line_formatting() {
         let bytes = b"Hello, World!";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &ThemeConfig::dark());
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], None, &ThemeConfig::dark());
 
         // Should have offset + hex bytes + ASCII
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
@@ -628,7 +720,7 @@ mod tests {
         let bytes = b"ABCDEFGH";
         // Highlight bytes 2-4 (CDE)
         let theme = ThemeConfig::dark();
-        let line = render_hex_line(0, bytes, Some((2, 3)), ByteGrouping::One, &[], &theme);
+        let line = render_hex_line(0, bytes, Some((2, 3)), ByteGrouping::One, &[], None, &theme);
 
         // Verify highlighting spans exist
         let highlighted_count = line.spans.iter()
@@ -643,7 +735,7 @@ mod tests {
     fn test_hex_line_partial_row() {
         let bytes = b"ABC"; // Less than 16 bytes
         let theme = ThemeConfig::dark();
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &theme);
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], None, &theme);
 
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 
@@ -657,7 +749,7 @@ mod tests {
     #[test]
     fn test_hex_line_non_printable() {
         let bytes = b"\x00\x01\x02\x03";
-        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], &ThemeConfig::dark());
+        let line = render_hex_line(0, bytes, None, ByteGrouping::One, &[], None, &ThemeConfig::dark());
 
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
 
@@ -733,8 +825,8 @@ mod tests {
 
         // Highlight bytes 8-16 (second half of first line + first half of second)
         let theme = ThemeConfig::dark();
-        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)), ByteGrouping::One, &[], &theme);
-        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)), ByteGrouping::One, &[], &theme);
+        let line1 = render_hex_line(0, &bytes[0..16], Some((8, 8)), ByteGrouping::One, &[], None, &theme);
+        let line2 = render_hex_line(16, &bytes[16..32], Some((8, 8)), ByteGrouping::One, &[], None, &theme);
 
         // Line 1 should have some highlighted spans (bytes 8-15)
         let hl1 = line1.spans.iter().filter(|s| s.style == theme.hex_highlight()).count();

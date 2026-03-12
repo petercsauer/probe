@@ -179,7 +179,7 @@ impl PaneComponent for DecodeTreePane {
                 self.state.toggle_selected();
                 Action::None
             }
-            KeyCode::Char('e') => {
+            KeyCode::Char('E') => {
                 // Expand all
                 if let Some(sel_idx) = state.selected_event
                     && let Some(event_idx) = state.filtered_indices.get(sel_idx)
@@ -190,7 +190,7 @@ impl PaneComponent for DecodeTreePane {
                 }
                 Action::None
             }
-            KeyCode::Char('E') => {
+            KeyCode::Char('C') => {
                 self.collapse_all();
                 Action::None
             }
