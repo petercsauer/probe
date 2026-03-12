@@ -254,31 +254,31 @@ pub enum CorrelationKey {
     /// Stream ID (e.g., HTTP/2 stream).
     StreamId {
         /// The stream identifier.
-        id: u32
+        id: u32,
     },
     /// Topic name (e.g., ZMQ, DDS).
     Topic {
         /// The topic name.
-        name: String
+        name: String,
     },
     /// Connection identifier.
     ConnectionId {
         /// The connection identifier string.
-        id: String
+        id: String,
     },
     /// OpenTelemetry trace context.
     TraceContext {
         /// The trace ID (32 hex characters).
         trace_id: String,
         /// The span ID (16 hex characters).
-        span_id: String
+        span_id: String,
     },
     /// Custom key-value pair.
     Custom {
         /// The custom key.
         key: String,
         /// The custom value.
-        value: String
+        value: String,
     },
 }
 
