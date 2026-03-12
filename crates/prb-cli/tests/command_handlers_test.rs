@@ -131,9 +131,10 @@ fn test_tui_command_struct() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        tls_keylog: None,
+        session: None,
         diff: false,
         diff_file: None,
-        tls_keylog: None,
     };
 
     assert_eq!(args.input.as_ref().unwrap().as_str(), "test.ndjson");
@@ -150,9 +151,10 @@ fn test_tui_args_no_filter() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        tls_keylog: None,
+        session: None,
         diff: false,
         diff_file: None,
-        tls_keylog: None,
     };
 
     assert_eq!(args.input.as_ref().unwrap().as_str(), "events.json");
@@ -684,9 +686,10 @@ fn test_tui_with_filter_syntax() {
             demo: false,
             interface: None,
             bpf_filter: None,
+            tls_keylog: None,
+            session: None,
             diff: false,
             diff_file: None,
-            tls_keylog: None,
         };
         assert_eq!(args.where_clause.as_ref().unwrap(), filter);
     }
@@ -1439,9 +1442,10 @@ fn test_tui_with_long_path() {
         demo: false,
         interface: None,
         bpf_filter: None,
+        tls_keylog: None,
+        session: None,
         diff: false,
         diff_file: None,
-        tls_keylog: None,
     };
 
     assert!(args.input.as_ref().unwrap().as_str().contains("events.ndjson"));

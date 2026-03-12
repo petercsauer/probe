@@ -162,6 +162,10 @@ pub struct TuiArgs {
     #[arg(long = "tls-keylog")]
     pub tls_keylog: Option<Utf8PathBuf>,
 
+    /// Restore session from file (loads input file, filter, and view state)
+    #[arg(long = "session")]
+    pub session: Option<Utf8PathBuf>,
+
     /// Compare two capture files side-by-side (requires exactly 2 file arguments)
     #[arg(long)]
     pub diff: bool,

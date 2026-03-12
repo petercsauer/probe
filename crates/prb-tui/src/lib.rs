@@ -11,6 +11,7 @@ pub mod loader;
 pub mod overlays;
 pub mod panes;
 pub mod ring_buffer;
+pub mod session;
 pub mod theme;
 
 pub use app::App;
@@ -18,6 +19,7 @@ pub use demo::generate_demo_events;
 pub use event_store::EventStore;
 pub use live::{AppEvent, CaptureState, LiveDataSource};
 pub use ring_buffer::RingBuffer;
+pub use session::Session;
 
 // Re-export schema types for external use
 pub use prb_schema::SchemaRegistry;

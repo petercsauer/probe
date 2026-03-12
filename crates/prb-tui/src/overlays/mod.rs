@@ -9,6 +9,7 @@ pub mod metrics;
 pub mod plugin_manager;
 pub mod session_info;
 pub mod theme_editor;
+pub mod tls_keylog_picker;
 pub mod welcome;
 pub mod which_key;
 
@@ -21,5 +22,6 @@ pub use metrics::MetricsOverlay;
 pub use plugin_manager::{PluginEntry, PluginManagerOverlay, PluginType};
 pub use session_info::{ChannelDisplay, SessionInfo, SessionInfoOverlay};
 pub use theme_editor::ThemeEditorOverlay;
+pub use tls_keylog_picker::TlsKeylogPickerOverlay;
 pub use welcome::WelcomeOverlay;
 pub use which_key::WhichKeyOverlay;

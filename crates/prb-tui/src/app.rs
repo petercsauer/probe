@@ -91,6 +91,7 @@ pub enum InputMode {
     SessionInfo,
     AiFilter,
     ThemeEditor,
+    TlsKeylogPicker,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,6 +171,7 @@ pub struct App {
     metrics_overlay: bool,
     diff_view_overlay: Option<crate::overlays::DiffViewOverlay>,
     theme_editor: Option<ThemeEditorOverlay>,
+    tls_keylog_picker: Option<crate::overlays::TlsKeylogPickerOverlay>,
     // Live capture mode
     live_source: Option<LiveDataSource>,
     capture_state: CaptureState,
@@ -272,6 +274,7 @@ impl App {
             metrics_overlay: false,
             diff_view_overlay: None,
             theme_editor: None,
+            tls_keylog_picker: None,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -335,6 +338,64 @@ impl App {
     /// Set TLS decryption statistics.
     pub fn set_tls_stats(&mut self, stats: crate::loader::TlsStats) {
         self.tls_stats = Some(stats);
+    }
+
+    /// Save current TUI session to a file.
+    pub fn save_session(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        use crate::session::{Session, PaneFocus};
+
+        let mut session = Session::new();
+        session.input_file = self.input_file_path.clone();
+        session.filter = if !self.state.filter_text.is_empty() {
+            Some(self.state.filter_text.clone())
+        } else {
+            None
+        };
+        session.scroll_offset = self.event_list.scroll_offset;
+        session.selected_event = self.state.selected_event;
+        session.pane_focus = PaneFocus::from(self.focus);
+        session.vertical_split = self.vertical_split;
+        session.horizontal_split = self.horizontal_split;
+        session.ai_panel_visible = self.ai_panel_visible;
+        session.showing_conversations = self.showing_conversations;
+        session.showing_waterfall = self.showing_waterfall;
+
+        session.save(path)?;
+        Ok(())
+    }
+
+    /// Restore TUI session from a file.
+    pub fn restore_session(&mut self, session: crate::session::Session) {
+        // Restore filter if present
+        if let Some(filter_text) = session.filter {
+            self.state.filter_text = filter_text.clone();
+            self.filter_input = Input::new(filter_text.clone());
+            // Apply filter
+            if let Ok(filter) = Filter::parse(&filter_text) {
+                self.state.filtered_indices = self.state.store.filter_indices(&filter);
+                self.state.filter = Some(filter.clone());
+                self.filter_state.set_text(filter_text.clone());
+                self.filter_state.commit(Some(filter));
+            }
+        }
+
+        // Restore selected event and scroll position
+        if let Some(selected) = session.selected_event {
+            self.state.selected_event = Some(selected);
+        }
+        self.event_list.scroll_offset = session.scroll_offset;
+
+        // Restore pane focus
+        self.focus = session.pane_focus.into();
+
+        // Restore splits
+        self.vertical_split = session.vertical_split;
+        self.horizontal_split = session.horizontal_split;
+
+        // Restore view modes
+        self.ai_panel_visible = session.ai_panel_visible;
+        self.showing_conversations = session.showing_conversations;
+        self.showing_waterfall = session.showing_waterfall;
     }
 
     /// Build session info from the current app state.
@@ -466,6 +527,8 @@ impl App {
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: None,
+            theme_editor: None,
+            tls_keylog_picker: None,
             live_source: Some(live_source),
             capture_state: CaptureState::Capturing,
             capture_stats: None,
@@ -475,7 +538,6 @@ impl App {
             status_message: None,
             session_info: None,
             input_file_path: None,
-            theme_editor: None,
             input_file_size: 0,
             tls_stats: None,
         }
@@ -564,6 +626,8 @@ impl App {
             follow_stream_overlay: None,
             metrics_overlay: false,
             diff_view_overlay: Some(diff_view),
+            theme_editor: None,
+            tls_keylog_picker: None,
             live_source: None,
             capture_state: CaptureState::Stopped,
             capture_stats: None,
@@ -573,7 +637,6 @@ impl App {
             status_message: None,
             session_info: None,
             input_file_path: Some(path1),
-            theme_editor: None,
             input_file_size: 0,
             tls_stats: None,
         }
@@ -1203,6 +1266,9 @@ impl App {
             InputMode::ThemeEditor => {
                 return self.handle_theme_editor_key(key);
             }
+            InputMode::TlsKeylogPicker => {
+                return self.handle_tls_keylog_picker_key(key);
+            }
             InputMode::Normal => {}
             InputMode::WhichKey => {
                 // Esc dismisses which-key overlay
@@ -1831,6 +1897,26 @@ impl App {
                     self.reload_config();
                     self.input_mode = InputMode::Normal;
                     return false;
+                } else if let Some(path_str) = input.strip_prefix("save-session ").or_else(|| input.strip_prefix("save ")) {
+                    // Save session command
+                    let path = std::path::Path::new(path_str.trim());
+                    match self.save_session(path) {
+                        Ok(_) => {
+                            self.set_status_message(&format!("Session saved to {}", path.display()));
+                        }
+                        Err(e) => {
+                            self.set_status_message(&format!("Failed to save session: {}", e));
+                        }
+                    }
+                    self.input_mode = InputMode::Normal;
+                    return false;
+                } else if input == "tls-keylog" || input == "keylog" {
+                    // Open TLS keylog picker
+                    self.tls_keylog_picker = Some(crate::overlays::TlsKeylogPickerOverlay::new(
+                        self.input_file_path.as_deref().and_then(|p| p.parent())
+                    ));
+                    self.input_mode = InputMode::TlsKeylogPicker;
+                    return false;
                 } else if let Some(query) = input.strip_prefix("/ai ").or_else(|| input.strip_prefix("ai ")) {
                     // AI natural language filter generation
                     let query = query.trim().to_string();
@@ -2236,6 +2322,74 @@ impl App {
                     self.config.tui.colors = crate::config::ColorOverrides::from_theme(&self.theme, &base_theme);
                     self.save_config();
                     self.set_status_message("Theme saved to config");
+                    false
+                }
+                _ => false,
+            }
+        }
+    }
+
+    fn handle_tls_keylog_picker_key(&mut self, key: KeyEvent) -> bool {
+        let Some(ref mut picker) = self.tls_keylog_picker else {
+            self.input_mode = InputMode::Normal;
+            return false;
+        };
+
+        if picker.editing_path {
+            // Editing path input
+            match key.code {
+                KeyCode::Esc => {
+                    picker.editing_path = false;
+                    false
+                }
+                KeyCode::Enter => {
+                    picker.editing_path = false;
+                    picker.refresh_files();
+                    false
+                }
+                KeyCode::Char(_c) => {
+                    picker.path_input.handle_event(&Event::Key(key));
+                    false
+                }
+                KeyCode::Backspace => {
+                    picker.path_input.handle_event(&Event::Key(key));
+                    false
+                }
+                _ => false,
+            }
+        } else {
+            // Navigating file list
+            match key.code {
+                KeyCode::Esc => {
+                    self.tls_keylog_picker = None;
+                    self.input_mode = InputMode::Normal;
+                    false
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    picker.move_selection(-1);
+                    false
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    picker.move_selection(1);
+                    false
+                }
+                KeyCode::Enter => {
+                    // Select current item
+                    if let Some(path) = picker.select_current() {
+                        // File selected - reload with TLS keylog
+                        self.set_status_message(&format!("Loading with TLS keylog: {}", path.display()));
+
+                        // TODO: Implement reload with TLS keylog
+                        // For now, just show message
+                        self.set_status_message(&format!("TLS keylog selected: {}", path.display()));
+
+                        self.tls_keylog_picker = None;
+                        self.input_mode = InputMode::Normal;
+                    }
+                    false
+                }
+                KeyCode::Char('e') => {
+                    picker.editing_path = true;
                     false
                 }
                 _ => false,
@@ -2967,6 +3121,12 @@ impl App {
         if self.input_mode == InputMode::ThemeEditor
             && let Some(ref theme_editor) = self.theme_editor {
                 theme_editor.render(area, buf);
+            }
+
+        // Render TLS keylog picker overlay
+        if self.input_mode == InputMode::TlsKeylogPicker
+            && let Some(ref picker) = self.tls_keylog_picker {
+                picker.render(area, buf);
             }
     }
 
