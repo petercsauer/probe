@@ -48,6 +48,9 @@ impl ThemeConfig {
             "catppuccin-mocha" | "catppuccin_mocha" | "catppuccin mocha" => Self::catppuccin_mocha(),
             "dracula" => Self::dracula(),
             "colorblind-safe" | "colorblind_safe" | "colorblind safe" | "accessible" => Self::colorblind_safe(),
+            "deuteranopia" => Self::deuteranopia(),
+            "protanopia" => Self::protanopia(),
+            "tritanopia" => Self::tritanopia(),
             "high-contrast" | "high_contrast" | "high contrast" => Self::high_contrast(),
             _ => {
                 tracing::warn!("Unknown theme '{}', defaulting to dark", name);
@@ -272,6 +275,141 @@ impl ThemeConfig {
             hex_nonprint_fg: Color::DarkGray,
             sparkline_fg: Color::Rgb(0, 119, 187), // Blue
             help_key_fg: Color::Rgb(238, 119, 51), // Orange
+            help_desc_fg: Color::White,
+            transport_colors,
+        }
+    }
+
+    pub fn deuteranopia() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Deuteranopia (no green cones): Use blue/yellow/orange palette
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(51, 102, 204)); // Blue
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(255, 204, 51)); // Yellow
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(153, 102, 204)); // Purple
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(51, 153, 204)); // Cyan
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(255, 153, 51)); // Orange
+        transport_colors.insert(TransportKind::JsonFixture, Color::White);
+
+        ThemeConfig {
+            name: "Deuteranopia".to_string(),
+            selected_row_fg: Color::Black,
+            selected_row_bg: Color::Rgb(51, 102, 204), // Blue
+            zebra_bg: Color::Rgb(25, 25, 35),
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(50, 30, 20),
+            focused_border: Color::Rgb(51, 102, 204), // Blue
+            unfocused_border: Color::DarkGray,
+            focused_title_fg: Color::Rgb(51, 102, 204), // Blue
+            unfocused_title_fg: Color::DarkGray,
+            header_fg: Color::Rgb(255, 204, 51), // Yellow
+            status_bar_fg: Color::White,
+            status_bar_bg: Color::DarkGray,
+            filter_bar_fg: Color::White,
+            filter_bar_bg: Color::Black,
+            filter_error_fg: Color::Rgb(255, 153, 51), // Orange instead of red
+            warning_fg: Color::Rgb(255, 153, 51), // Orange instead of red
+            tree_key_fg: Color::Rgb(51, 102, 204), // Blue
+            tree_value_fg: Color::White,
+            hex_offset_fg: Color::DarkGray,
+            hex_byte_fg: Color::White,
+            hex_highlight_fg: Color::Black,
+            hex_highlight_bg: Color::Rgb(255, 204, 51), // Yellow
+            hex_search_match_fg: Color::Black,
+            hex_search_match_bg: Color::Rgb(153, 102, 204), // Purple
+            hex_ascii_fg: Color::Rgb(51, 153, 204), // Cyan
+            hex_nonprint_fg: Color::DarkGray,
+            sparkline_fg: Color::Rgb(51, 102, 204), // Blue
+            help_key_fg: Color::Rgb(255, 204, 51), // Yellow
+            help_desc_fg: Color::White,
+            transport_colors,
+        }
+    }
+
+    pub fn protanopia() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Protanopia (no red cones): Use blue/yellow palette
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(0, 102, 204)); // Blue
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(255, 221, 51)); // Yellow
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(102, 153, 204)); // Light blue
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(0, 153, 204)); // Cyan
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(204, 187, 51)); // Gold
+        transport_colors.insert(TransportKind::JsonFixture, Color::White);
+
+        ThemeConfig {
+            name: "Protanopia".to_string(),
+            selected_row_fg: Color::Black,
+            selected_row_bg: Color::Rgb(0, 102, 204), // Blue
+            zebra_bg: Color::Rgb(25, 25, 35),
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(40, 35, 20),
+            focused_border: Color::Rgb(0, 102, 204), // Blue
+            unfocused_border: Color::DarkGray,
+            focused_title_fg: Color::Rgb(0, 102, 204), // Blue
+            unfocused_title_fg: Color::DarkGray,
+            header_fg: Color::Rgb(255, 221, 51), // Yellow
+            status_bar_fg: Color::White,
+            status_bar_bg: Color::DarkGray,
+            filter_bar_fg: Color::White,
+            filter_bar_bg: Color::Black,
+            filter_error_fg: Color::Rgb(204, 187, 51), // Gold instead of red
+            warning_fg: Color::Rgb(204, 187, 51), // Gold instead of red
+            tree_key_fg: Color::Rgb(0, 102, 204), // Blue
+            tree_value_fg: Color::White,
+            hex_offset_fg: Color::DarkGray,
+            hex_byte_fg: Color::White,
+            hex_highlight_fg: Color::Black,
+            hex_highlight_bg: Color::Rgb(255, 221, 51), // Yellow
+            hex_search_match_fg: Color::Black,
+            hex_search_match_bg: Color::Rgb(102, 153, 204), // Light blue
+            hex_ascii_fg: Color::Rgb(0, 153, 204), // Cyan
+            hex_nonprint_fg: Color::DarkGray,
+            sparkline_fg: Color::Rgb(0, 102, 204), // Blue
+            help_key_fg: Color::Rgb(255, 221, 51), // Yellow
+            help_desc_fg: Color::White,
+            transport_colors,
+        }
+    }
+
+    pub fn tritanopia() -> Self {
+        let mut transport_colors = HashMap::new();
+        // Tritanopia (no blue cones): Use red/pink and green/teal palette
+        transport_colors.insert(TransportKind::Grpc, Color::Rgb(0, 153, 136)); // Teal
+        transport_colors.insert(TransportKind::Zmq, Color::Rgb(204, 51, 102)); // Pink
+        transport_colors.insert(TransportKind::DdsRtps, Color::Rgb(153, 0, 102)); // Magenta
+        transport_colors.insert(TransportKind::RawTcp, Color::Rgb(0, 187, 153)); // Cyan-green
+        transport_colors.insert(TransportKind::RawUdp, Color::Rgb(255, 51, 51)); // Red
+        transport_colors.insert(TransportKind::JsonFixture, Color::White);
+
+        ThemeConfig {
+            name: "Tritanopia".to_string(),
+            selected_row_fg: Color::Black,
+            selected_row_bg: Color::Rgb(0, 153, 136), // Teal
+            zebra_bg: Color::Rgb(25, 25, 35),
+            normal_bg: Color::Reset,
+            warning_bg: Color::Rgb(50, 20, 30),
+            focused_border: Color::Rgb(0, 153, 136), // Teal
+            unfocused_border: Color::DarkGray,
+            focused_title_fg: Color::Rgb(0, 153, 136), // Teal
+            unfocused_title_fg: Color::DarkGray,
+            header_fg: Color::Rgb(204, 51, 102), // Pink
+            status_bar_fg: Color::White,
+            status_bar_bg: Color::DarkGray,
+            filter_bar_fg: Color::White,
+            filter_bar_bg: Color::Black,
+            filter_error_fg: Color::Rgb(255, 51, 51), // Red
+            warning_fg: Color::Rgb(255, 51, 51), // Red
+            tree_key_fg: Color::Rgb(0, 153, 136), // Teal
+            tree_value_fg: Color::White,
+            hex_offset_fg: Color::DarkGray,
+            hex_byte_fg: Color::White,
+            hex_highlight_fg: Color::Black,
+            hex_highlight_bg: Color::Rgb(204, 51, 102), // Pink
+            hex_search_match_fg: Color::Black,
+            hex_search_match_bg: Color::Rgb(153, 0, 102), // Magenta
+            hex_ascii_fg: Color::Rgb(0, 187, 153), // Cyan-green
+            hex_nonprint_fg: Color::DarkGray,
+            sparkline_fg: Color::Rgb(0, 153, 136), // Teal
+            help_key_fg: Color::Rgb(204, 51, 102), // Pink
             help_desc_fg: Color::White,
             transport_colors,
         }
