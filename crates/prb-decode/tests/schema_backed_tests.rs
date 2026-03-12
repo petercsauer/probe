@@ -860,3 +860,251 @@ fn test_zero_length_bytes() {
     // Empty bytes encoded as empty base64 string
     assert_eq!(json["bytes_field"], "");
 }
+
+#[test]
+fn test_decode_with_trailing_bytes() {
+    let descriptor = create_simple_descriptor();
+
+    // Valid complete message followed by extra valid-looking protobuf data
+    // that's beyond what the schema expects
+    let payload = vec![
+        0x08, 0x2a, // field 1 (id) = 42
+        0x12, 0x04, b't', b'e', b's', b't', // field 2 (name) = "test"
+        0x18, 0x01, // field 3 (not in schema) = 1 - this is valid protobuf but extra
+    ];
+
+    let result = decode_with_schema(&payload, &descriptor);
+
+    // prost-reflect decodes unknown fields, so this might succeed
+    // If it does, check that we don't have a SchemaMismatch
+    // If prost stops at known fields and leaves trailing data, we should get SchemaMismatch
+    match result {
+        Ok(_) => {
+            // prost-reflect consumed all bytes including unknown field
+            // This is valid behavior - prost handles unknown fields
+        }
+        Err(DecodeError::SchemaMismatch(msg)) => {
+            // Trailing data was detected
+            assert!(msg.contains("bytes remain"));
+        }
+        Err(e) => panic!("Unexpected error: {e:?}"),
+    }
+}
+
+/// Helper to create message with bool field for display testing.
+fn create_bool_descriptor() -> prost_reflect::MessageDescriptor {
+    let file = FileDescriptorProto {
+        name: Some("bool.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![DescriptorProto {
+            name: Some("BoolMessage".to_string()),
+            field: vec![FieldDescriptorProto {
+                name: Some("enabled".to_string()),
+                number: Some(1),
+                label: Some(field_descriptor_proto::Label::Optional as i32),
+                r#type: Some(field_descriptor_proto::Type::Bool as i32),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let fds = FileDescriptorSet { file: vec![file] };
+    let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
+    pool.get_message_by_name("test.BoolMessage").unwrap()
+}
+
+#[test]
+fn test_display_bool_field() {
+    let descriptor = create_bool_descriptor();
+
+    // Encode: field 1 (enabled) = true
+    let payload = vec![0x08, 0x01];
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let display = format!("{decoded}");
+
+    assert!(display.contains("enabled"));
+    assert!(display.contains("true"));
+}
+
+#[test]
+fn test_display_numeric_types() {
+    let descriptor = create_all_types_descriptor();
+
+    let mut payload = vec![];
+
+    // uint64_field = 999 (field 4)
+    payload.extend_from_slice(&[0x20, 0xe7, 0x07]);
+
+    // float_field = 3.14 (field 6, fixed32)
+    payload.push(0x35); // tag (6 << 3) | 5
+    payload.extend_from_slice(&3.14f32.to_le_bytes());
+
+    // double_field = 2.718 (field 7, fixed64)
+    payload.push(0x39); // tag (7 << 3) | 1
+    payload.extend_from_slice(&2.718f64.to_le_bytes());
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let display = format!("{decoded}");
+
+    // Verify numeric fields appear in display output
+    assert!(display.contains("uint64_field"));
+    assert!(display.contains("float_field"));
+    assert!(display.contains("double_field"));
+}
+
+#[test]
+fn test_display_bytes_field() {
+    let descriptor = create_all_types_descriptor();
+
+    let mut payload = vec![];
+
+    // bytes_field = [0xaa, 0xbb, 0xcc] (field 8)
+    payload.push(0x42); // tag (8 << 3) | 2
+    payload.push(0x03); // length = 3
+    payload.extend_from_slice(&[0xaa, 0xbb, 0xcc]);
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let display = format!("{decoded}");
+
+    assert!(display.contains("bytes_field"));
+    assert!(display.contains("0x")); // Bytes displayed as hex
+}
+
+#[test]
+fn test_display_enum_field() {
+    let descriptor = create_enum_descriptor();
+
+    // Encode: field 1 (status) = ACTIVE (1)
+    let payload = vec![0x08, 0x01];
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let display = format!("{decoded}");
+
+    assert!(display.contains("status"));
+    assert!(display.contains("1"));
+}
+
+/// Helper to create a message with integer-keyed map.
+fn create_int_key_map_descriptor() -> prost_reflect::MessageDescriptor {
+    let file = FileDescriptorProto {
+        name: Some("intmap.proto".to_string()),
+        package: Some("test".to_string()),
+        message_type: vec![
+            // Map entry message
+            DescriptorProto {
+                name: Some("IntMapMessage_CountsEntry".to_string()),
+                field: vec![
+                    FieldDescriptorProto {
+                        name: Some("key".to_string()),
+                        number: Some(1),
+                        label: Some(field_descriptor_proto::Label::Optional as i32),
+                        r#type: Some(field_descriptor_proto::Type::Int32 as i32),
+                        ..Default::default()
+                    },
+                    FieldDescriptorProto {
+                        name: Some("value".to_string()),
+                        number: Some(2),
+                        label: Some(field_descriptor_proto::Label::Optional as i32),
+                        r#type: Some(field_descriptor_proto::Type::Int32 as i32),
+                        ..Default::default()
+                    },
+                ],
+                options: Some(prost_types::MessageOptions {
+                    map_entry: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            // Actual message
+            DescriptorProto {
+                name: Some("IntMapMessage".to_string()),
+                field: vec![FieldDescriptorProto {
+                    name: Some("counts".to_string()),
+                    number: Some(1),
+                    label: Some(field_descriptor_proto::Label::Repeated as i32),
+                    r#type: Some(field_descriptor_proto::Type::Message as i32),
+                    type_name: Some(".test.IntMapMessage_CountsEntry".to_string()),
+                    ..Default::default()
+                }],
+                nested_type: vec![DescriptorProto {
+                    name: Some("CountsEntry".to_string()),
+                    field: vec![
+                        FieldDescriptorProto {
+                            name: Some("key".to_string()),
+                            number: Some(1),
+                            label: Some(field_descriptor_proto::Label::Optional as i32),
+                            r#type: Some(field_descriptor_proto::Type::Int32 as i32),
+                            ..Default::default()
+                        },
+                        FieldDescriptorProto {
+                            name: Some("value".to_string()),
+                            number: Some(2),
+                            label: Some(field_descriptor_proto::Label::Optional as i32),
+                            r#type: Some(field_descriptor_proto::Type::Int32 as i32),
+                            ..Default::default()
+                        },
+                    ],
+                    options: Some(prost_types::MessageOptions {
+                        map_entry: Some(true),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    let fds = FileDescriptorSet { file: vec![file] };
+    let pool = DescriptorPool::from_file_descriptor_set(fds).unwrap();
+    pool.get_message_by_name("test.IntMapMessage").unwrap()
+}
+
+#[test]
+fn test_display_map_field() {
+    let descriptor = create_map_descriptor();
+
+    // Encode map<string, string> with entry {"key1": "val1"}
+    let mut entry = vec![];
+    entry.push(0x0a); // field 1 (key)
+    entry.push(0x04);
+    entry.extend_from_slice(b"key1");
+    entry.push(0x12); // field 2 (value)
+    entry.push(0x04);
+    entry.extend_from_slice(b"val1");
+
+    let mut payload = vec![0x0a];
+    payload.push(entry.len() as u8);
+    payload.extend_from_slice(&entry);
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let display = format!("{decoded}");
+
+    assert!(display.contains("attributes"));
+}
+
+#[test]
+fn test_json_int_key_map() {
+    let descriptor = create_int_key_map_descriptor();
+
+    // Encode map<int32, int32> with entry {42: 100}
+    let mut entry = vec![];
+    entry.push(0x08); // field 1 (key), varint
+    entry.push(0x2a); // key = 42
+    entry.push(0x10); // field 2 (value), varint
+    entry.push(0x64); // value = 100
+
+    let mut payload = vec![0x0a]; // field 1
+    payload.push(entry.len() as u8);
+    payload.extend_from_slice(&entry);
+
+    let decoded = decode_with_schema(&payload, &descriptor).unwrap();
+    let json = decoded.to_json();
+
+    // Map should be in JSON (keys converted to strings)
+    assert!(json.get("counts").is_some());
+}
