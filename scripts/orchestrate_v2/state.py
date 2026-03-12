@@ -70,6 +70,19 @@ CREATE TABLE IF NOT EXISTS segment_interjections (
     attempt_num     INTEGER,
     FOREIGN KEY (seg_num) REFERENCES segments(num)
 );
+
+CREATE TABLE IF NOT EXISTS gate_attempts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    wave        INTEGER NOT NULL,
+    attempt     INTEGER NOT NULL,
+    started_at  REAL NOT NULL,
+    finished_at REAL,
+    passed      INTEGER NOT NULL DEFAULT 0,
+    exit_code   INTEGER,
+    log_file    TEXT NOT NULL,
+    UNIQUE(wave, attempt)
+);
+CREATE INDEX IF NOT EXISTS idx_gate_attempts_wave ON gate_attempts(wave);
 """
 
 _MIGRATIONS = [
@@ -426,6 +439,16 @@ class StateDB:
         segments = [s.to_dict() for s in all_segs]
         for seg in segments:
             seg["attempts_history"] = await self.get_attempts(seg["num"])
+
+        gate_attempts_raw = await self._conn.execute(
+            "SELECT wave, attempt, started_at, finished_at, passed, exit_code, log_file FROM gate_attempts ORDER BY wave, attempt"
+        )
+        gate_attempts = [
+            {"wave": r[0], "attempt": r[1], "started_at": r[2], "finished_at": r[3],
+             "passed": bool(r[4]), "exit_code": r[5], "log_file": r[6]}
+            for r in await gate_attempts_raw.fetchall()
+        ]
+
         return {
             "plan_title": await self.get_meta("plan_title") or "",
             "plan_goal": await self.get_meta("plan_goal") or "",
@@ -436,6 +459,7 @@ class StateDB:
             "segments": segments,
             "events": await self.get_events(limit=50),
             "notifications": await self.get_recent_notifications(limit=20),
+            "gate_attempts": gate_attempts,
         }
 
     # ── Interjections ──
@@ -491,3 +515,55 @@ class StateDB:
             (seg_num, limit),
         )
         return [dict(r) for r in await cur.fetchall()]
+
+    # ── Gate attempts ──
+
+    async def record_gate_attempt(
+        self,
+        wave: int,
+        attempt: int,
+        started_at: float,
+        finished_at: float,
+        passed: bool,
+        exit_code: int,
+        log_file: str,
+    ) -> int:
+        """Record a gate execution attempt."""
+        cur = await self._conn.execute(
+            """INSERT INTO gate_attempts
+               (wave, attempt, started_at, finished_at, passed, exit_code, log_file)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (wave, attempt, started_at, finished_at, 1 if passed else 0, exit_code, log_file),
+        )
+        await self._conn.commit()
+        return cur.lastrowid
+
+    async def get_gate_attempts(self, wave: int, limit: int = 10) -> list[dict]:
+        """Get all attempts for a wave, most recent first."""
+        cur = await self._conn.execute(
+            """SELECT id, wave, attempt, started_at, finished_at, passed, exit_code, log_file
+               FROM gate_attempts
+               WHERE wave = ?
+               ORDER BY attempt DESC
+               LIMIT ?""",
+            (wave, limit),
+        )
+        rows = await cur.fetchall()
+        return [
+            {
+                "id": r[0],
+                "wave": r[1],
+                "attempt": r[2],
+                "started_at": r[3],
+                "finished_at": r[4],
+                "passed": bool(r[5]),
+                "exit_code": r[6],
+                "log_file": r[7],
+            }
+            for r in rows
+        ]
+
+    async def get_latest_gate_attempt(self, wave: int) -> dict | None:
+        """Get the most recent gate attempt for a wave."""
+        attempts = await self.get_gate_attempts(wave, limit=1)
+        return attempts[0] if attempts else None
