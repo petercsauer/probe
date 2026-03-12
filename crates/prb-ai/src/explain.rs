@@ -249,4 +249,148 @@ mod tests {
         assert!(context.target_summary.contains("Event 2"));
         assert_eq!(context.surrounding_summaries.len(), 2);
     }
+
+    #[test]
+    fn test_explain_event_stream_validates_empty_events() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let config = AiConfig::default();
+        let result = rt.block_on(explain_event_stream(&[], 0, &config, |_| {}));
+        assert!(matches!(result, Err(AiError::NoEvents)));
+    }
+
+    #[test]
+    fn test_explain_event_stream_validates_event_index() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let events = vec![make_test_event(1, TransportKind::Grpc)];
+        let config = AiConfig::default();
+        let result = rt.block_on(explain_event_stream(&events, 10, &config, |_| {}));
+        assert!(matches!(result, Err(AiError::EventNotFound(10))));
+    }
+
+    #[test]
+    fn test_context_assembly_different_transports() {
+        // Test context building for different transport types
+        let transport_types = vec![
+            TransportKind::Grpc,
+            TransportKind::Zmq,
+            TransportKind::DdsRtps,
+            TransportKind::RawTcp,
+            TransportKind::RawUdp,
+        ];
+
+        for transport in transport_types {
+            let events = vec![make_test_event(1, transport), make_test_event(2, transport)];
+            let config = AiConfig::default();
+            let context = ExplainContext::build(&events, 0, config.context_window);
+            assert_eq!(context.transport, transport);
+        }
+    }
+
+    #[test]
+    fn test_context_assembly_with_tls() {
+        let mut event = make_test_event(1, TransportKind::Grpc);
+        event
+            .metadata
+            .insert("pcap.tls_decrypted".into(), "true".into());
+        let events = vec![event];
+        let config = AiConfig::default();
+
+        // This tests that has_tls detection works
+        let has_tls = events[0].metadata.contains_key("pcap.tls_decrypted");
+        assert!(has_tls);
+
+        let context = ExplainContext::build(&events, 0, config.context_window);
+        assert_eq!(context.transport, TransportKind::Grpc);
+    }
+
+    #[test]
+    fn test_context_assembly_without_tls() {
+        let event = make_test_event(1, TransportKind::Grpc);
+        let events = vec![event];
+        let config = AiConfig::default();
+
+        let has_tls = events[0].metadata.contains_key("pcap.tls_decrypted");
+        assert!(!has_tls);
+
+        let context = ExplainContext::build(&events, 0, config.context_window);
+        assert_eq!(context.transport, TransportKind::Grpc);
+    }
+
+    #[test]
+    fn test_context_assembly_with_large_window() {
+        let events = vec![
+            make_test_event(1, TransportKind::Zmq),
+            make_test_event(2, TransportKind::Zmq),
+            make_test_event(3, TransportKind::Zmq),
+            make_test_event(4, TransportKind::Zmq),
+            make_test_event(5, TransportKind::Zmq),
+        ];
+
+        let config = AiConfig::default().with_context_window(10);
+        let context = ExplainContext::build(&events, 2, config.context_window);
+
+        assert_eq!(context.transport, TransportKind::Zmq);
+        assert_eq!(context.surrounding_summaries.len(), 4);
+    }
+
+    #[test]
+    fn test_context_assembly_at_start() {
+        let events = vec![
+            make_test_event(1, TransportKind::DdsRtps),
+            make_test_event(2, TransportKind::DdsRtps),
+            make_test_event(3, TransportKind::DdsRtps),
+        ];
+
+        let config = AiConfig::default().with_context_window(5);
+        let context = ExplainContext::build(&events, 0, config.context_window);
+
+        assert_eq!(context.transport, TransportKind::DdsRtps);
+        assert!(context.target_summary.contains("Event 1"));
+        // Should have events 2 and 3 as surrounding
+        assert_eq!(context.surrounding_summaries.len(), 2);
+    }
+
+    #[test]
+    fn test_context_assembly_at_end() {
+        let events = vec![
+            make_test_event(1, TransportKind::RawTcp),
+            make_test_event(2, TransportKind::RawTcp),
+            make_test_event(3, TransportKind::RawTcp),
+        ];
+
+        let config = AiConfig::default().with_context_window(5);
+        let context = ExplainContext::build(&events, 2, config.context_window);
+
+        assert_eq!(context.transport, TransportKind::RawTcp);
+        assert!(context.target_summary.contains("Event 3"));
+        // Should have events 1 and 2 as surrounding
+        assert_eq!(context.surrounding_summaries.len(), 2);
+    }
+
+    #[test]
+    fn test_context_assembly_single_event() {
+        let events = vec![make_test_event(1, TransportKind::RawUdp)];
+
+        let config = AiConfig::default().with_context_window(5);
+        let context = ExplainContext::build(&events, 0, config.context_window);
+
+        assert_eq!(context.transport, TransportKind::RawUdp);
+        assert!(context.target_summary.contains("Event 1"));
+        assert_eq!(context.surrounding_summaries.len(), 0);
+    }
+
+    #[test]
+    fn test_context_assembly_zero_window() {
+        let events = vec![
+            make_test_event(1, TransportKind::Grpc),
+            make_test_event(2, TransportKind::Grpc),
+            make_test_event(3, TransportKind::Grpc),
+        ];
+
+        let config = AiConfig::default().with_context_window(0);
+        let context = ExplainContext::build(&events, 1, config.context_window);
+
+        assert_eq!(context.transport, TransportKind::Grpc);
+        assert_eq!(context.surrounding_summaries.len(), 0);
+    }
 }

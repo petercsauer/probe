@@ -365,4 +365,333 @@ mod tests {
         assert_eq!(grpc_status_meaning("16"), "UNAUTHENTICATED");
         assert_eq!(grpc_status_meaning("99"), "UNKNOWN_CODE");
     }
+
+    #[test]
+    fn test_context_with_very_large_window() {
+        // Window larger than entire event list
+        let events: Vec<DebugEvent> = (0..10).map(|i| make_grpc_event(i, "/test", "0")).collect();
+        let ctx = ExplainContext::build(&events, 5, 500);
+        // Should not panic, should include all surrounding events
+        assert_eq!(ctx.surrounding_summaries.len(), 9); // All except target
+    }
+
+    #[test]
+    fn test_context_single_event() {
+        // Single event - no surrounding context
+        let events = vec![make_grpc_event(1, "/test", "0")];
+        let ctx = ExplainContext::build(&events, 0, 5);
+        assert_eq!(ctx.surrounding_summaries.len(), 0);
+        assert!(ctx.target_summary.contains("Event 1"));
+    }
+
+    #[test]
+    fn test_context_with_warnings() {
+        let mut event = make_grpc_event(1, "/test", "0");
+        event.warnings.push("incomplete decode".into());
+        event.warnings.push("schema mismatch".into());
+        let events = vec![event];
+        let ctx = ExplainContext::build(&events, 0, 5);
+        assert!(ctx.has_warnings);
+        assert!(ctx.target_summary.contains("incomplete decode"));
+        assert!(ctx.target_summary.contains("schema mismatch"));
+    }
+
+    #[test]
+    fn test_context_with_error_metadata() {
+        let mut event = make_grpc_event(1, "/test", "14");
+        event.metadata.insert("error.type".into(), "timeout".into());
+        let events = vec![event];
+        let ctx = ExplainContext::build(&events, 0, 5);
+        assert!(ctx.has_errors);
+    }
+
+    #[test]
+    fn test_context_with_status_error() {
+        let event = make_grpc_event(1, "/test", "0");
+        let mut event_with_status = event.clone();
+        event_with_status
+            .metadata
+            .insert("http.status".into(), "500".into());
+        let events = vec![event_with_status];
+        let ctx = ExplainContext::build(&events, 0, 5);
+        assert!(ctx.has_errors);
+    }
+
+    #[test]
+    fn test_summarize_decoded_payload() {
+        use serde_json::json;
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: Some(prb_core::NetworkAddr {
+                    src: "10.0.0.1:52341".into(),
+                    dst: "10.0.0.2:50051".into(),
+                }),
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Inbound)
+            .payload(Payload::Decoded {
+                fields: json!({"user_id": 123, "name": "test"}),
+                raw: Bytes::new(),
+                schema_name: Some("user.User".into()),
+            })
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("Schema: user.User"));
+        assert!(summary.contains("Decoded fields:"));
+        assert!(summary.contains("user_id"));
+    }
+
+    #[test]
+    fn test_summarize_long_decoded_payload() {
+        use serde_json::json;
+        // Create a large JSON object that will exceed 500 chars
+        let mut large_fields = serde_json::Map::new();
+        for i in 0..50 {
+            large_fields.insert(
+                format!("field_{}", i),
+                json!(format!("very_long_value_with_lots_of_text_{}", i)),
+            );
+        }
+
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Inbound)
+            .payload(Payload::Decoded {
+                fields: json!(large_fields),
+                raw: Bytes::new(),
+                schema_name: Some("large.Message".into()),
+            })
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("Decoded fields (truncated):"));
+        assert!(summary.contains("..."));
+    }
+
+    #[test]
+    fn test_summarize_raw_utf8_payload() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::RawTcp)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from_static(b"Hello, this is UTF-8 text!"),
+            })
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("Payload (UTF-8): Hello, this is UTF-8 text!"));
+        assert!(summary.contains("Payload size: 26 bytes"));
+    }
+
+    #[test]
+    fn test_summarize_long_utf8_payload() {
+        let long_text = "x".repeat(250);
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::RawTcp)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from(long_text),
+            })
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("Payload (UTF-8):"));
+        // Should be truncated to 200 chars
+        assert!(summary.matches("x").count() <= 200);
+    }
+
+    #[test]
+    fn test_summarize_non_utf8_payload() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::RawTcp)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw {
+                raw: Bytes::from_static(&[0xFF, 0xFE, 0xFD, 0xFC]),
+            })
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("Payload size: 4 bytes"));
+        // Should NOT contain "Payload (UTF-8):" since it's not valid UTF-8
+        assert!(!summary.contains("Payload (UTF-8):"));
+    }
+
+    #[test]
+    fn test_format_timestamp() {
+        let nanos = 1_710_123_456_789_000_000u64;
+        let formatted = format_timestamp(nanos);
+        assert!(formatted.contains("1710123456.789s"));
+        assert!(formatted.contains("epoch"));
+    }
+
+    #[test]
+    fn test_all_grpc_status_codes() {
+        // Test all defined gRPC status codes for coverage
+        let codes = vec![
+            ("0", "OK"),
+            ("1", "CANCELLED"),
+            ("2", "UNKNOWN"),
+            ("3", "INVALID_ARGUMENT"),
+            ("4", "DEADLINE_EXCEEDED"),
+            ("5", "NOT_FOUND"),
+            ("6", "ALREADY_EXISTS"),
+            ("7", "PERMISSION_DENIED"),
+            ("8", "RESOURCE_EXHAUSTED"),
+            ("9", "FAILED_PRECONDITION"),
+            ("10", "ABORTED"),
+            ("11", "OUT_OF_RANGE"),
+            ("12", "UNIMPLEMENTED"),
+            ("13", "INTERNAL"),
+            ("15", "DATA_LOSS"),
+        ];
+        for (code, expected) in codes {
+            assert_eq!(grpc_status_meaning(code), expected);
+        }
+    }
+
+    #[test]
+    fn test_summarize_grpc_with_all_metadata() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: Some(prb_core::NetworkAddr {
+                    src: "10.0.0.1:52341".into(),
+                    dst: "10.0.0.2:50051".into(),
+                }),
+            })
+            .transport(TransportKind::Grpc)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw { raw: Bytes::new() })
+            .metadata("grpc.method", "/test.Service/Method")
+            .metadata("h2.stream_id", "3")
+            .metadata("grpc.status", "0")
+            .metadata("grpc.message", "success")
+            .metadata("grpc.authority", "example.com")
+            .metadata("grpc.encoding", "gzip")
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("/test.Service/Method"));
+        assert!(summary.contains("HTTP/2 stream ID: 3"));
+        assert!(summary.contains("gRPC status: 0"));
+        assert!(summary.contains("success"));
+        assert!(summary.contains("Authority: example.com"));
+        assert!(summary.contains("Compression: gzip"));
+        assert!(summary.contains("Client sending request"));
+    }
+
+    #[test]
+    fn test_summarize_zmq_with_identity() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::Zmq)
+            .direction(Direction::Unknown)
+            .payload(Payload::Raw { raw: Bytes::new() })
+            .metadata("zmq.topic", "test.topic")
+            .metadata("zmq.socket_type", "DEALER")
+            .metadata("zmq.identity", "worker-01")
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("ZMQ topic: test.topic"));
+        assert!(summary.contains("Socket type: DEALER"));
+        assert!(summary.contains("Identity: worker-01"));
+    }
+
+    #[test]
+    fn test_summarize_dds_with_writer() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: None,
+            })
+            .transport(TransportKind::DdsRtps)
+            .direction(Direction::Inbound)
+            .payload(Payload::Raw { raw: Bytes::new() })
+            .metadata("dds.topic_name", "rt/pose")
+            .metadata("dds.domain_id", "42")
+            .metadata("dds.writer_guid", "01.02.03.04.05.06.07.08.09.0a.0b.0c")
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("DDS topic: rt/pose"));
+        assert!(summary.contains("DDS domain: 42"));
+        assert!(summary.contains("Writer GUID: 01.02.03.04"));
+    }
+
+    #[test]
+    fn test_summarize_generic_with_tls() {
+        let event = DebugEvent::builder()
+            .id(prb_core::EventId::from_raw(1))
+            .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
+            .source(EventSource {
+                adapter: "pcap".into(),
+                origin: "test.pcap".into(),
+                network: Some(prb_core::NetworkAddr {
+                    src: "10.0.0.1:52341".into(),
+                    dst: "10.0.0.2:443".into(),
+                }),
+            })
+            .transport(TransportKind::RawTcp)
+            .direction(Direction::Outbound)
+            .payload(Payload::Raw { raw: Bytes::new() })
+            .metadata("pcap.tls_decrypted", "true")
+            .build();
+
+        let summary = summarize_event(&event);
+        assert!(summary.contains("TLS decrypted: true"));
+    }
+
+    #[test]
+    fn test_context_zero_window() {
+        let events: Vec<DebugEvent> = (0..5).map(|i| make_grpc_event(i, "/test", "0")).collect();
+        let ctx = ExplainContext::build(&events, 2, 0);
+        // With zero window, should only have target, no surrounding
+        assert_eq!(ctx.surrounding_summaries.len(), 0);
+    }
 }
