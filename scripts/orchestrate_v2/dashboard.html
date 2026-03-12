@@ -251,7 +251,7 @@
   /* Assistant prose */
   .cc-text {
     color: var(--cc-text); white-space: pre-wrap; word-break: break-word;
-    margin: 6px 0; line-height: 1.65;
+    margin: 6px 0; line-height: 1.65; padding: 0 20px;
   }
   .cc-text.highlight { background: rgba(224,175,104,0.2); border-radius: 2px; padding: 1px 2px; }
 
@@ -1265,12 +1265,25 @@
         const text = await response.text();
         currentPromptText = text;
 
-        // Parse frontmatter and render pills + content
+        // Parse frontmatter and render pills + content using same approach as logs
         const { metadata, content } = _parseYamlFrontmatter(text);
-        const pillsHtml = _renderMetadataPills(metadata);
-        const contentHtml = _renderMarkdown(content);
+        logContent.innerHTML = '';
 
-        logContent.innerHTML = `<div style="padding: 20px; color: var(--cc-text); line-height: 1.65; max-width: 900px;">${pillsHtml}${contentHtml}</div>`;
+        // Add pills if metadata exists
+        if (Object.keys(metadata).length > 0) {
+          const pillsDiv = document.createElement('div');
+          pillsDiv.innerHTML = _renderMetadataPills(metadata);
+          pillsDiv.style.padding = '12px 20px 0';
+          logContent.appendChild(pillsDiv);
+        }
+
+        // Render content using same text node approach as logs
+        const lines = content.split('\n\n');  // Split by paragraphs
+        lines.forEach(line => {
+          if (line.trim()) {
+            _appendTextNode(logContent, line);
+          }
+        });
       } catch (e) {
         logContent.innerHTML = `<div style="color: var(--cc-red); padding: 20px;">Failed to load prompt: ${_esc(e.message)}</div>`;
       }
