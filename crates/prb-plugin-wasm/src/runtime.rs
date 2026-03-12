@@ -25,7 +25,7 @@ impl WasmLimits {
     #[must_use]
     pub const fn for_detection() -> Self {
         Self {
-            memory_max_pages: 16, // 1MB
+            memory_max_pages: 128, // 8MB - enough for extism-pdk overhead
             timeout: Duration::from_millis(100),
         }
     }
@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn test_wasm_limits_for_detection() {
         let limits = WasmLimits::for_detection();
-        assert_eq!(limits.memory_max_pages, 16);
+        assert_eq!(limits.memory_max_pages, 128);
         assert_eq!(limits.timeout, Duration::from_millis(100));
     }
 
