@@ -71,6 +71,7 @@ pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, Co
 }
 
 /// Get payload size in bytes.
+#[allow(clippy::match_same_arms)]
 const fn payload_size(payload: &Payload) -> u64 {
     match payload {
         Payload::Raw { raw } => raw.len() as u64,
@@ -122,6 +123,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
 }
 
 /// Check for DDS sequence gaps.
+#[allow(clippy::cast_possible_truncation)]
 fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
     let mut sequences: Vec<u64> = events.iter().filter_map(|e| e.sequence).collect();
 
@@ -141,7 +143,8 @@ fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
 }
 
 /// Compute aggregate metrics for multiple conversations.
-#[must_use] 
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn compute_aggregate_metrics(
     conversations: &[&crate::conversation::Conversation],
 ) -> AggregateMetrics {
@@ -225,6 +228,7 @@ pub struct AggregateMetrics {
 }
 
 /// Calculate percentile from sorted values.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub(crate) fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;

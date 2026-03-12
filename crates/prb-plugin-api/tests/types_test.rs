@@ -43,7 +43,7 @@ fn test_decode_ctx_serde() {
     let ctx = DecodeCtx {
         src_addr: Some("192.168.1.1:8080".to_string()),
         dst_addr: Some("192.168.1.2:9090".to_string()),
-        timestamp_nanos: Some(1234567890),
+        timestamp_nanos: Some(1_234_567_890),
         metadata,
     };
 
@@ -52,7 +52,7 @@ fn test_decode_ctx_serde() {
 
     assert_eq!(deserialized.src_addr, Some("192.168.1.1:8080".to_string()));
     assert_eq!(deserialized.dst_addr, Some("192.168.1.2:9090".to_string()));
-    assert_eq!(deserialized.timestamp_nanos, Some(1234567890));
+    assert_eq!(deserialized.timestamp_nanos, Some(1_234_567_890));
     assert_eq!(deserialized.metadata.get("key1").unwrap(), "value1");
 }
 

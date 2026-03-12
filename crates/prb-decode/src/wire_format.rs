@@ -316,6 +316,7 @@ fn format_message(f: &mut fmt::Formatter<'_>, msg: &WireMessage, indent: usize) 
     Ok(())
 }
 
+#[allow(clippy::branches_sharing_code)]
 fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) -> fmt::Result {
     match value {
         WireValue::Varint(v) => {

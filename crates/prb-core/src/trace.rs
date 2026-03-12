@@ -140,7 +140,8 @@ pub fn parse_b3_single(header: &str) -> Option<TraceContext> {
 /// Headers: `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`
 ///
 /// Spec: <https://github.com/openzipkin/b3-propagation>
-#[must_use] 
+#[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn parse_b3_multi(headers: &HashMap<String, String>) -> Option<TraceContext> {
     let trace_id = headers
         .get("x-b3-traceid")
@@ -230,7 +231,8 @@ pub fn parse_uber_trace_id(header: &str) -> Option<TraceContext> {
 /// Extract trace context from headers, trying all known formats.
 ///
 /// Priority order: W3C traceparent > B3 single > B3 multi > uber-trace-id
-#[must_use] 
+#[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn extract_trace_context(headers: &HashMap<String, String>) -> Option<TraceContext> {
     // Try W3C traceparent first (standard)
     if let Some(traceparent) = headers.get("traceparent")

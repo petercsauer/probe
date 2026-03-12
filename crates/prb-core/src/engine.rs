@@ -265,16 +265,14 @@ const fn classify_grpc_kind(outbound: usize, inbound: usize) -> ConversationKind
 
 /// Classify ZMQ conversation kind from metadata.
 fn classify_zmq_kind(metadata: &std::collections::BTreeMap<String, String>) -> ConversationKind {
-    if let Some(socket_type) = metadata.get("zmq.socket_type") {
+    metadata.get("zmq.socket_type").map_or(ConversationKind::Unknown, |socket_type| {
         match socket_type.as_str() {
             "PUB" | "SUB" => ConversationKind::PubSubChannel,
             "REQ" | "REP" | "DEALER" | "ROUTER" => ConversationKind::RequestReply,
             "PUSH" | "PULL" => ConversationKind::Pipeline,
             _ => ConversationKind::Unknown,
         }
-    } else {
-        ConversationKind::Unknown
-    }
+    })
 }
 
 /// Generate a human-readable summary.
@@ -349,11 +347,10 @@ fn group_fallback_events(events: &[&DebugEvent]) -> Result<Vec<Conversation>, Co
     let mut groups: BTreeMap<String, Vec<&DebugEvent>> = BTreeMap::new();
 
     for event in events {
-        let key = if let Some(ref network) = event.source.network {
-            format!("{}:{}->{}", event.transport, network.src, network.dst)
-        } else {
-            format!("{}:{}", event.transport, event.source.origin)
-        };
+        let key = event.source.network.as_ref().map_or_else(
+            || format!("{}:{}", event.transport, event.source.origin),
+            |network| format!("{}:{}->{}", event.transport, network.src, network.dst),
+        );
         groups.entry(key).or_default().push(event);
     }
 

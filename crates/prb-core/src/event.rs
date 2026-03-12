@@ -87,7 +87,10 @@ impl Timestamp {
     }
 
     /// Get the current system time as a Timestamp.
-    #[must_use] 
+    ///
+    /// # Panics
+    /// Panics if the system time is before the Unix epoch.
+    #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn now() -> Self {
         let now = std::time::SystemTime::now()
@@ -412,6 +415,9 @@ impl DebugEventBuilder {
     }
 
     /// Build the `DebugEvent`.
+    ///
+    /// # Panics
+    /// Panics if required fields `source` or `transport` were not set.
     pub fn build(self) -> DebugEvent {
         DebugEvent {
             id: self.id.unwrap_or_else(EventId::next),

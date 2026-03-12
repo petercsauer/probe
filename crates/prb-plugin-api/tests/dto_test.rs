@@ -49,7 +49,7 @@ fn test_debug_event_dto_full_serde() {
     ];
 
     let dto = DebugEventDto {
-        timestamp_nanos: 1234567890,
+        timestamp_nanos: 1_234_567_890,
         transport: "zmtp".to_string(),
         direction: "publish".to_string(),
         payload_raw: Some(vec![1, 2, 3, 4]),
@@ -65,7 +65,7 @@ fn test_debug_event_dto_full_serde() {
     let json = serde_json::to_string(&dto).expect("serialize");
     let deserialized: DebugEventDto = serde_json::from_str(&json).expect("deserialize");
 
-    assert_eq!(deserialized.timestamp_nanos, 1234567890);
+    assert_eq!(deserialized.timestamp_nanos, 1_234_567_890);
     assert_eq!(deserialized.transport, "zmtp");
     assert_eq!(deserialized.direction, "publish");
     assert_eq!(deserialized.payload_raw, Some(vec![1, 2, 3, 4]));
