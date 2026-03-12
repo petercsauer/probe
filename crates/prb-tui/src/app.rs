@@ -29,6 +29,7 @@ use crate::panes::decode_tree::DecodeTreePane;
 use crate::panes::event_list::EventListPane;
 use crate::panes::hex_dump::HexDumpPane;
 use crate::panes::timeline::TimelinePane;
+use crate::panes::trace_correlation::TraceCorrelationPane;
 use crate::panes::waterfall::WaterfallPane;
 use crate::panes::{Action, PaneComponent};
 use crate::ring_buffer::RingBuffer;
@@ -129,6 +130,8 @@ pub struct App {
     waterfall: WaterfallPane,
     ai_panel: AiPanel,
     ai_panel_visible: bool,
+    trace_correlation: TraceCorrelationPane,
+    showing_trace_correlation: bool,
     theme: ThemeConfig,
     plugin_manager: PluginManagerOverlay,
 
@@ -245,6 +248,8 @@ impl App {
             waterfall: WaterfallPane::new(),
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
+            trace_correlation: TraceCorrelationPane::new(),
+            showing_trace_correlation: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -440,6 +445,8 @@ impl App {
             waterfall: WaterfallPane::new(),
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
+            trace_correlation: TraceCorrelationPane::new(),
+            showing_trace_correlation: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -538,6 +545,8 @@ impl App {
             waterfall: WaterfallPane::new(),
             ai_panel: AiPanel::new(),
             ai_panel_visible: false,
+            trace_correlation: TraceCorrelationPane::new(),
+            showing_trace_correlation: false,
             theme,
             plugin_manager,
             zoomed_pane: None,
@@ -1309,6 +1318,11 @@ impl App {
                     self.ai_panel.clear();
                     return false;
                 }
+                // Clear trace correlation if active
+                if self.showing_trace_correlation {
+                    self.showing_trace_correlation = false;
+                    return false;
+                }
                 // Clear zoom first if active
                 if self.zoomed_pane.is_some() {
                     self.zoomed_pane = None;
@@ -1440,6 +1454,11 @@ impl App {
                         self.set_status_message("No event selected");
                     }
                 }
+                return false;
+            }
+            KeyCode::Char('t') => {
+                // Toggle trace correlation view
+                self.showing_trace_correlation = !self.showing_trace_correlation;
                 return false;
             }
             KeyCode::Char('D') => {
@@ -2779,7 +2798,7 @@ impl App {
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);
         } else {
-            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme, self.showing_conversations, self.showing_waterfall, self.ai_panel_visible);
+            Self::render_status_bar_static(main_layout[3], buf, &self.state, self.focus, self.zoomed_pane, &self.status_message, &self.tls_stats, &self.theme, self.showing_conversations, self.showing_waterfall, self.ai_panel_visible, self.showing_trace_correlation);
         }
 
         if self.input_mode == InputMode::Help {
@@ -2958,6 +2977,19 @@ impl App {
             self.ai_panel.render(overlay_area, buf, &self.state, &self.theme, true);
         }
 
+        // Render trace correlation overlay
+        if self.showing_trace_correlation {
+            // Create a centered overlay for the trace correlation pane
+            let width = 100u16.min(area.width.saturating_sub(4));
+            let height = 30u16.min(area.height.saturating_sub(4));
+            let x = (area.width.saturating_sub(width)) / 2;
+            let y = (area.height.saturating_sub(height)) / 2;
+            let overlay_area = Rect::new(x, y, width, height);
+
+            Clear.render(overlay_area, buf);
+            self.trace_correlation.render(overlay_area, buf, &self.state, &self.theme, true);
+        }
+
         // Render diff view overlay if active
         if let Some(ref diff_view) = self.diff_view_overlay {
             diff_view.render(area, buf, &self.theme);
@@ -3114,7 +3146,7 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig, showing_conversations: bool, showing_waterfall: bool, ai_panel_visible: bool) {
+    fn render_status_bar_static(area: Rect, buf: &mut Buffer, state: &AppState, focus: PaneId, zoomed_pane: Option<PaneId>, status_message: &Option<(String, std::time::Instant)>, tls_stats: &Option<crate::loader::TlsStats>, theme: &ThemeConfig, showing_conversations: bool, showing_waterfall: bool, ai_panel_visible: bool, showing_trace_correlation: bool) {
         let total = state.store.len();
         let filtered = state.filtered_indices.len();
 
@@ -3175,6 +3207,14 @@ impl App {
             } else if showing_waterfall {
                 spans.push(Span::styled(
                     " [WATERFALL] ",
+                    Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
+                ));
+            }
+
+            // Trace correlation indicator
+            if showing_trace_correlation {
+                spans.push(Span::styled(
+                    " [TRACES] ",
                     Style::default().fg(ratatui::style::Color::Cyan).bg(ratatui::style::Color::DarkGray),
                 ));
             }

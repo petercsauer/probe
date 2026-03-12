@@ -12,6 +12,7 @@ pub mod overlays;
 pub mod panes;
 pub mod ring_buffer;
 pub mod theme;
+pub mod trace_extraction;
 
 pub use app::App;
 pub use demo::generate_demo_events;
