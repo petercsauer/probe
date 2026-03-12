@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "MCAP storage backend for protocol capture data"
+keywords = ["mcap", "storage", "serialization"]
+categories = ["encoding", "database"]
 
 [dependencies]
 # Core dependencies

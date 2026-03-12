@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Command-line interface for protocol debugging and analysis"
+keywords = ["cli", "protocol", "debugging", "network"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "prb"

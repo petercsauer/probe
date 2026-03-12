@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "DDS/RTPS protocol decoder for real-time publish-subscribe systems"
+keywords = ["dds", "rtps", "protocol", "decoder"]
+categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

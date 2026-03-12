@@ -24,12 +24,14 @@ impl<'a> Flow<'a> {
     }
 
     /// Add an event to the flow.
+    #[must_use]
     pub fn add_event(mut self, event: &'a DebugEvent) -> Self {
         self.events.push(event);
         self
     }
 
     /// Add metadata to the flow.
+    #[must_use]
     pub fn add_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self

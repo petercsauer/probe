@@ -3,6 +3,10 @@ name = "prb-plugin-native"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Native plugin runtime for dynamic protocol decoders"
+keywords = ["plugin", "native", "dynamic"]
+categories = ["development-tools"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

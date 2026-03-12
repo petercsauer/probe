@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Export DebugEvents to CSV, HAR, OTLP JSON, Parquet, and HTML"
+keywords = ["export", "protocol", "data", "csv", "parquet"]
+categories = ["encoding"]
 
 [features]
 default = []

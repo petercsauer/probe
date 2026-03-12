@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "ZeroMQ/ZMTP protocol decoder for message queue analysis"
+keywords = ["zeromq", "zmq", "zmtp", "decoder"]
+categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

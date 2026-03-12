@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "WebAssembly plugin runtime for sandboxed protocol decoders"
+keywords = ["plugin", "wasm", "webassembly"]
+categories = ["development-tools", "wasm"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

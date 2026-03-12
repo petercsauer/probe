@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Protocol detection and identification for network traffic"
+keywords = ["protocol", "detection", "network", "parser"]
+categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

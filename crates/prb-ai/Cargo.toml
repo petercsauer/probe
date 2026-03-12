@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "AI-powered packet explanation engine for Probe"
+description = "AI-powered analysis and explanation for protocol debugging"
+keywords = ["ai", "llm", "protocol", "analysis"]
+categories = ["development-tools"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

@@ -341,60 +341,70 @@ pub struct DebugEventBuilder {
 
 impl DebugEventBuilder {
     /// Set the event ID (defaults to auto-generated).
+    #[must_use]
     pub const fn id(mut self, id: EventId) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set the timestamp (defaults to current time).
+    #[must_use]
     pub const fn timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self
     }
 
     /// Set the event source.
+    #[must_use]
     pub fn source(mut self, source: EventSource) -> Self {
         self.source = Some(source);
         self
     }
 
     /// Set the transport kind.
+    #[must_use]
     pub const fn transport(mut self, transport: TransportKind) -> Self {
         self.transport = Some(transport);
         self
     }
 
     /// Set the direction.
+    #[must_use]
     pub const fn direction(mut self, direction: Direction) -> Self {
         self.direction = Some(direction);
         self
     }
 
     /// Set the payload.
+    #[must_use]
     pub fn payload(mut self, payload: Payload) -> Self {
         self.payload = Some(payload);
         self
     }
 
     /// Add a metadata entry.
+    #[must_use]
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
     }
 
     /// Add a correlation key.
+    #[must_use]
     pub fn correlation_key(mut self, key: CorrelationKey) -> Self {
         self.correlation_keys.push(key);
         self
     }
 
     /// Set the sequence number.
+    #[must_use]
     pub const fn sequence(mut self, seq: u64) -> Self {
         self.sequence = Some(seq);
         self
     }
 
     /// Add a warning.
+    #[must_use]
     pub fn warning(mut self, warning: impl Into<String>) -> Self {
         self.warnings.push(warning.into());
         self

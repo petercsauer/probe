@@ -126,6 +126,7 @@ impl ConversationError {
     }
 
     /// Set the error code.
+    #[must_use]
     pub fn with_code(mut self, code: impl Into<String>) -> Self {
         self.code = Some(code.into());
         self
