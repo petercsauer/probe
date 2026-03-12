@@ -1,3 +1,4 @@
+#![allow(clippy::cargo_common_metadata)]
 //! Plugin API for PRB protocol decoders.
 //!
 //! This crate defines the stable contract between PRB and its plugins,
@@ -21,11 +22,14 @@ pub use types::{DecodeCtx, DetectContext, PluginMetadata, TransportLayer};
 pub const API_VERSION: &str = "0.1.0";
 
 /// Validate that a plugin API version is compatible with this host.
+///
+/// # Errors
+/// Returns an error if the plugin API version is incompatible with the host.
 pub fn validate_api_version(plugin_version: &str) -> Result<(), String> {
     let host_ver = semver::Version::parse(API_VERSION)
-        .map_err(|e| format!("Invalid host API version: {}", e))?;
+        .map_err(|e| format!("Invalid host API version: {e}"))?;
     let plugin_ver = semver::Version::parse(plugin_version)
-        .map_err(|e| format!("Invalid plugin API version: {}", e))?;
+        .map_err(|e| format!("Invalid plugin API version: {e}"))?;
 
     if host_ver.major != plugin_ver.major {
         return Err(format!(

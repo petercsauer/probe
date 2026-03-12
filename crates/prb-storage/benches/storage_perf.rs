@@ -1,11 +1,11 @@
 //! Benchmarks for MCAP storage read/write performance.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use bytes::Bytes;
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use prb_core::{
     DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
 };
 use prb_storage::{SessionMetadata, SessionReader, SessionWriter};
-use bytes::Bytes;
 use std::collections::BTreeMap;
 use tempfile::NamedTempFile;
 
@@ -22,7 +22,7 @@ fn create_test_event(id: u64) -> DebugEvent {
             }),
         },
         transport: TransportKind::Grpc,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound
@@ -32,7 +32,10 @@ fn create_test_event(id: u64) -> DebugEvent {
         },
         metadata: {
             let mut m = BTreeMap::new();
-            m.insert("grpc.method".to_string(), "/test.Service/Method".to_string());
+            m.insert(
+                "grpc.method".to_string(),
+                "/test.Service/Method".to_string(),
+            );
             m
         },
         correlation_keys: vec![],
@@ -64,7 +67,7 @@ fn bench_storage_write_read(c: &mut Criterion) {
                 writer.write_event(event).unwrap();
             }
             writer.finish().unwrap();
-        })
+        });
     });
 
     group.throughput(Throughput::Elements(1000));
@@ -80,7 +83,7 @@ fn bench_storage_write_read(c: &mut Criterion) {
                 writer.write_event(event).unwrap();
             }
             writer.finish().unwrap();
-        })
+        });
     });
 
     // Pre-create file for read benchmark

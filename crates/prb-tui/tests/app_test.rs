@@ -130,7 +130,7 @@ fn test_app_state_with_filter() {
     let filtered_indices = store.filter_indices(&filter);
 
     let state = AppState {
-        filtered_indices: filtered_indices.clone(),
+        filtered_indices: filtered_indices,
         selected_event: Some(0),
         filter: Some(filter),
         filter_text: r#"transport == "gRPC""#.to_string(),

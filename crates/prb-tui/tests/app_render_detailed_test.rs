@@ -120,9 +120,8 @@ fn test_app_render_filter_bar_with_active_filter() {
     // Filter bar is typically at the top of the screen (row 0)
     let filter_bar = row_text(&buffer, 0);
     assert!(
-        filter_bar.contains("[") && filter_bar.contains("2"),
-        "Filter bar should show match count, got: {}",
-        filter_bar
+        filter_bar.contains('[') && filter_bar.contains('2'),
+        "Filter bar should show match count, got: {filter_bar}"
     );
 }
 
@@ -156,8 +155,7 @@ fn test_app_render_status_bar_content() {
     let status = row_text(&buffer, area.height - 1);
     assert!(
         status.contains("2 events"),
-        "Status bar should show event count, got: {}",
-        status
+        "Status bar should show event count, got: {status}"
     );
 }
 
@@ -186,7 +184,7 @@ fn test_app_render_with_filter_mode_active() {
     let first_line_text: String = (0..area.width).map(|x| buffer[(x, 0)].symbol()).collect();
 
     assert!(
-        first_line_text.contains("/") || first_line_text.contains("▏"),
+        first_line_text.contains('/') || first_line_text.contains("▏"),
         "Should show filter input indicator"
     );
 }
@@ -428,7 +426,7 @@ fn test_app_render_empty_filter_prompt() {
     let first_line_text: String = (0..area.width).map(|x| buffer[(x, 0)].symbol()).collect();
 
     assert!(
-        first_line_text.contains("/") || first_line_text.contains("filter"),
+        first_line_text.contains('/') || first_line_text.contains("filter"),
         "Should show filter prompt"
     );
 }

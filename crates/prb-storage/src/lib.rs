@@ -1,6 +1,6 @@
-//! MCAP-backed storage layer for DebugEvent sessions.
+//! MCAP-backed storage layer for `DebugEvent` sessions.
 //!
-//! This crate provides persistent storage for DebugEvents using the MCAP format,
+//! This crate provides persistent storage for `DebugEvents` using the MCAP format,
 //! enabling session-based analysis of captured protocol traffic.
 
 #![warn(missing_docs)]

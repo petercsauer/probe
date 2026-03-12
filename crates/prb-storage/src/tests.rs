@@ -8,7 +8,7 @@ use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, Fi
 use std::fs::File;
 use tempfile::TempDir;
 
-/// Helper to create a test DebugEvent.
+/// Helper to create a test `DebugEvent`.
 fn create_test_event(adapter: &str, origin: &str, timestamp: u64) -> DebugEvent {
     DebugEvent::builder()
         .source(EventSource {
@@ -38,7 +38,7 @@ fn test_session_roundtrip() {
     let mut events_written = Vec::new();
     {
         let file = File::create(&session_path).unwrap();
-        let mut writer = SessionWriter::new(file, metadata.clone()).unwrap();
+        let mut writer = SessionWriter::new(file, metadata).unwrap();
 
         for i in 0..100 {
             let event = create_test_event("pcap", "test.pcap", i * 1000);
@@ -76,7 +76,7 @@ fn test_session_metadata() {
 
     {
         let file = File::create(&session_path).unwrap();
-        let writer = SessionWriter::new(file, metadata.clone()).unwrap();
+        let writer = SessionWriter::new(file, metadata).unwrap();
         writer.finish().unwrap();
     }
 

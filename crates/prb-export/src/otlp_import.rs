@@ -96,7 +96,8 @@ pub fn parse_otlp_json(data: &[u8]) -> Result<ExportTraceServiceRequest, ExportE
     serde_json::from_slice(data).map_err(|e| ExportError::SerializationError(e.to_string()))
 }
 
-/// Convert OTLP spans to DebugEvents.
+/// Convert OTLP spans to `DebugEvents`.
+#[must_use]
 pub fn otlp_to_events(request: &ExportTraceServiceRequest) -> Vec<DebugEvent> {
     let mut events = Vec::new();
     let mut event_id_counter = 1u64;

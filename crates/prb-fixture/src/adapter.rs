@@ -10,7 +10,7 @@ use prb_core::{
 };
 use std::fs;
 
-/// CaptureAdapter that reads JSON fixture files.
+/// `CaptureAdapter` that reads JSON fixture files.
 pub struct JsonFixtureAdapter {
     path: Utf8PathBuf,
     events: Option<Vec<FixtureEvent>>,
@@ -18,7 +18,8 @@ pub struct JsonFixtureAdapter {
 
 impl JsonFixtureAdapter {
     /// Create a new JSON fixture adapter from a file path.
-    pub fn new(path: Utf8PathBuf) -> Self {
+    #[must_use]
+    pub const fn new(path: Utf8PathBuf) -> Self {
         Self { path, events: None }
     }
 
@@ -40,7 +41,7 @@ impl JsonFixtureAdapter {
         Ok(())
     }
 
-    /// Convert a FixtureEvent to a DebugEvent.
+    /// Convert a `FixtureEvent` to a `DebugEvent`.
     fn convert_event(&self, event: FixtureEvent) -> Result<DebugEvent, FixtureError> {
         // Parse transport
         let transport = parse_transport(&event.transport)?;
@@ -111,25 +112,23 @@ impl JsonFixtureAdapter {
         Ok(debug_event)
     }
 
-    /// Map FixtureError to CoreError for trait compliance.
+    /// Map `FixtureError` to `CoreError` for trait compliance.
     fn map_error(e: FixtureError) -> CoreError {
         match e {
             FixtureError::Base64Decode(msg) => {
-                CoreError::PayloadDecode(format!("base64 decode: {}", msg))
+                CoreError::PayloadDecode(format!("base64 decode: {msg}"))
             }
             FixtureError::InvalidTransport(t) => CoreError::UnsupportedTransport(t),
             FixtureError::InvalidFormat(msg) => {
-                CoreError::PayloadDecode(format!("invalid format: {}", msg))
+                CoreError::PayloadDecode(format!("invalid format: {msg}"))
             }
             FixtureError::Parse { source } => CoreError::from(source),
-            FixtureError::Io { source } => {
-                CoreError::PayloadDecode(format!("I/O error: {}", source))
-            }
+            FixtureError::Io { source } => CoreError::PayloadDecode(format!("I/O error: {source}")),
             FixtureError::UnsupportedVersion(v) => {
-                CoreError::PayloadDecode(format!("unsupported version: {}", v))
+                CoreError::PayloadDecode(format!("unsupported version: {v}"))
             }
             FixtureError::InvalidDirection(d) => {
-                CoreError::PayloadDecode(format!("invalid direction: {}", d))
+                CoreError::PayloadDecode(format!("invalid direction: {d}"))
             }
             FixtureError::Core(e) => e,
         }
@@ -137,7 +136,7 @@ impl JsonFixtureAdapter {
 }
 
 impl CaptureAdapter for JsonFixtureAdapter {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "json-fixture"
     }
 
@@ -158,7 +157,7 @@ impl CaptureAdapter for JsonFixtureAdapter {
     }
 }
 
-/// Parse a transport string into TransportKind.
+/// Parse a transport string into `TransportKind`.
 fn parse_transport(s: &str) -> Result<TransportKind, FixtureError> {
     match s.to_lowercase().as_str() {
         "grpc" => Ok(TransportKind::Grpc),

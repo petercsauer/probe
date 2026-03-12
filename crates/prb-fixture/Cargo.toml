@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "JSON test fixture adapter for protocol debugging"
+keywords = ["test", "fixture", "json", "mock"]
+categories = ["development-tools::testing"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

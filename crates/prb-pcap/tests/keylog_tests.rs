@@ -212,8 +212,16 @@ fn test_keylog_mixed_tls12_tls13() {
 
     let materials = keylog.lookup(&hex::decode(&cr).unwrap()).unwrap();
     assert_eq!(materials.len(), 2);
-    assert!(materials.iter().any(|m| m.is_tls12()));
-    assert!(materials.iter().any(|m| m.is_tls13()));
+    assert!(
+        materials
+            .iter()
+            .any(prb_pcap::tls::keylog::KeyMaterial::is_tls12)
+    );
+    assert!(
+        materials
+            .iter()
+            .any(prb_pcap::tls::keylog::KeyMaterial::is_tls13)
+    );
 }
 
 #[test]
@@ -332,7 +340,7 @@ fn test_keylog_multiple_client_randoms() {
 
     // Different client randoms
     for i in 0..10 {
-        let cr = format!("{:02x}", i).repeat(32);
+        let cr = format!("{i:02x}").repeat(32);
         keylog
             .parse_line(&format!("CLIENT_RANDOM {} {}", cr, "bb".repeat(48)))
             .unwrap();

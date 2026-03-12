@@ -1,4 +1,4 @@
-//! Integration tests for IoT protocol decoding with real-world captures.
+//! Integration tests for `IoT` protocol decoding with real-world captures.
 //! Tests RTPS/DDS, MQTT, CoAP, and AMQP protocol handling.
 
 use prb_core::CaptureAdapter;
@@ -19,7 +19,7 @@ fn mqtt_fixture_path(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// Helper to get the path to an IoT test fixture (CoAP, AMQP, etc).
+/// Helper to get the path to an `IoT` test fixture (CoAP, AMQP, etc).
 fn iot_fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/captures/iot")
@@ -32,8 +32,7 @@ fn test_rtps_discovery_real() {
 
     assert!(
         pcap_path.exists(),
-        "RTPS pcap file should exist: {:?}",
-        pcap_path
+        "RTPS pcap file should exist: {pcap_path:?}"
     );
 
     // Process RTPS capture through the pipeline
@@ -87,8 +86,7 @@ fn test_mqtt_connect_publish_subscribe() {
 
     assert!(
         pcap_path.exists(),
-        "MQTT pcap file should exist: {:?}",
-        pcap_path
+        "MQTT pcap file should exist: {pcap_path:?}"
     );
 
     // Process MQTT capture
@@ -144,8 +142,7 @@ fn test_coap_request_response() {
 
     assert!(
         pcap_path.exists(),
-        "CoAP pcap file should exist: {:?}",
-        pcap_path
+        "CoAP pcap file should exist: {pcap_path:?}"
     );
 
     // Process CoAP capture
@@ -198,8 +195,7 @@ fn test_amqp_connection_and_publish() {
 
     assert!(
         pcap_path.exists(),
-        "AMQP pcap file should exist: {:?}",
-        pcap_path
+        "AMQP pcap file should exist: {pcap_path:?}"
     );
 
     // Process AMQP capture
@@ -261,7 +257,7 @@ fn test_iot_protocols_no_panic_suite() {
 
     for (protocol, pcap_path) in captures {
         if !pcap_path.exists() {
-            eprintln!("Skipping {} - file not found", protocol);
+            eprintln!("Skipping {protocol} - file not found");
             continue;
         }
 
@@ -271,15 +267,13 @@ fn test_iot_protocols_no_panic_suite() {
         // Main assertion: no panic occurred during processing
         assert!(
             events.iter().all(|e| e.is_ok() || e.is_err()),
-            "{} capture processing should not panic",
-            protocol
+            "{protocol} capture processing should not panic"
         );
 
         let stats = adapter.stats();
         assert!(
             stats.packets_read > 0,
-            "{} capture should have packets read",
-            protocol
+            "{protocol} capture should have packets read"
         );
     }
 }

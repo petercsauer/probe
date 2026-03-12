@@ -25,9 +25,9 @@ pub struct FixtureEvent {
     /// Message direction ("inbound", "outbound", "unknown").
     #[serde(default = "default_direction")]
     pub direction: String,
-    /// Base64-encoded binary payload (mutually exclusive with payload_utf8).
+    /// Base64-encoded binary payload (mutually exclusive with `payload_utf8`).
     pub payload_base64: Option<String>,
-    /// UTF-8 text payload (mutually exclusive with payload_base64).
+    /// UTF-8 text payload (mutually exclusive with `payload_base64`).
     pub payload_utf8: Option<String>,
     /// Protocol-specific metadata.
     #[serde(default)]

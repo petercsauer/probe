@@ -30,7 +30,8 @@ pub struct SessionMetadata {
 }
 
 impl SessionMetadata {
-    /// Create a new SessionMetadata with minimal required fields.
+    /// Create a new `SessionMetadata` with minimal required fields.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             source_file: None,

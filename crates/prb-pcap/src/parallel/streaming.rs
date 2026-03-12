@@ -41,9 +41,10 @@ impl StreamingPipeline {
     /// # Arguments
     ///
     /// * `batch_size` - Number of packets to collect before parallel normalization
-    /// * `num_shards` - Number of parallel shard workers (typically 2 * num_cpus)
+    /// * `num_shards` - Number of parallel shard workers (typically 2 * `num_cpus`)
     /// * `capture_path` - Path to capture file for event metadata
     /// * `tls_keylog` - Shared TLS keylog for decryption
+    #[must_use]
     pub fn new(
         batch_size: usize,
         num_shards: usize,
@@ -72,9 +73,10 @@ impl StreamingPipeline {
     ///
     /// # Returns
     ///
-    /// A tuple of (packet_sender, pipeline_handle) where:
+    /// A tuple of (`packet_sender`, `pipeline_handle`) where:
     /// - `packet_sender` - Send packets here (bounded channel with backpressure)
     /// - `pipeline_handle` - Collect events and stats from here
+    #[must_use]
     pub fn start(&self) -> (Sender<PcapPacket>, PipelineHandle) {
         let stats = Arc::new(AtomicPipelineStats::new());
 
@@ -152,6 +154,7 @@ impl PipelineHandle {
     /// Receives the next event from the pipeline, blocking until available.
     ///
     /// Returns `None` when all shard workers have finished and the channel is empty.
+    #[must_use]
     pub fn recv(&self) -> Option<DebugEvent> {
         self.event_rx.recv().ok()
     }
@@ -159,6 +162,7 @@ impl PipelineHandle {
     /// Receives all remaining events, blocking until pipeline completes.
     ///
     /// This consumes all events from the channel until all shard workers exit.
+    #[must_use]
     pub fn recv_all(&self) -> Vec<DebugEvent> {
         let mut events = Vec::new();
         while let Ok(event) = self.event_rx.recv() {
@@ -168,12 +172,14 @@ impl PipelineHandle {
     }
 
     /// Returns a snapshot of current pipeline statistics.
+    #[must_use]
     pub fn stats(&self) -> PipelineStats {
         self.stats.snapshot()
     }
 
     /// Returns the number of shards in this pipeline.
-    pub fn num_shards(&self) -> usize {
+    #[must_use]
+    pub const fn num_shards(&self) -> usize {
         self.num_shards
     }
 }
@@ -228,9 +234,8 @@ fn normalize_and_route(
                     stats.packets_normalized.fetch_add(1, Ordering::Relaxed);
 
                     // Determine shard index
-                    let shard_idx = FlowKey::from_packet(&pkt)
-                        .map(|k| k.shard_index(num_shards))
-                        .unwrap_or(0);
+                    let shard_idx =
+                        FlowKey::from_packet(&pkt).map_or(0, |k| k.shard_index(num_shards));
 
                     // Send to shard (blocks on backpressure)
                     if shard_txs[shard_idx].send(pkt).is_ok() {
@@ -273,21 +278,20 @@ fn shard_worker(
                 Ok(stream_events) => {
                     for stream_event in stream_events {
                         if let StreamEvent::Data(stream) = stream_event {
-                            match tls_processor.decrypt_stream(stream.clone()) {
-                                Ok(decrypted_stream) => {
-                                    let event =
-                                        create_tcp_event(stream, decrypted_stream, &capture_path);
-                                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                                    if event_tx.send(event).is_err() {
-                                        return;
-                                    }
+                            if let Ok(decrypted_stream) =
+                                tls_processor.decrypt_stream(stream.clone())
+                            {
+                                let event =
+                                    create_tcp_event(stream, decrypted_stream, &capture_path);
+                                stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                                if event_tx.send(event).is_err() {
+                                    return;
                                 }
-                                Err(_) => {
-                                    let event = create_tcp_event_encrypted(stream, &capture_path);
-                                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                                    if event_tx.send(event).is_err() {
-                                        return;
-                                    }
+                            } else {
+                                let event = create_tcp_event_encrypted(stream, &capture_path);
+                                stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                                if event_tx.send(event).is_err() {
+                                    return;
                                 }
                             }
                         }
@@ -311,17 +315,14 @@ fn shard_worker(
     // Flush remaining TCP connections
     for stream_event in reassembler.flush_all() {
         if let StreamEvent::Data(stream) = stream_event {
-            match tls_processor.decrypt_stream(stream.clone()) {
-                Ok(decrypted_stream) => {
-                    let event = create_tcp_event(stream, decrypted_stream, &capture_path);
-                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                    let _ = event_tx.send(event);
-                }
-                Err(_) => {
-                    let event = create_tcp_event_encrypted(stream, &capture_path);
-                    stats.events_emitted.fetch_add(1, Ordering::Relaxed);
-                    let _ = event_tx.send(event);
-                }
+            if let Ok(decrypted_stream) = tls_processor.decrypt_stream(stream.clone()) {
+                let event = create_tcp_event(stream, decrypted_stream, &capture_path);
+                stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                let _ = event_tx.send(event);
+            } else {
+                let event = create_tcp_event_encrypted(stream, &capture_path);
+                stats.events_emitted.fetch_add(1, Ordering::Relaxed);
+                let _ = event_tx.send(event);
             }
         }
     }
@@ -486,7 +487,7 @@ mod tests {
                 [10, 0, 0, 1],
                 12345,
                 80,
-                format!("packet{}", i).as_bytes(),
+                format!("packet{i}").as_bytes(),
             );
             tx.send(pkt).unwrap();
         }
@@ -636,7 +637,7 @@ mod tests {
                 [10, 0, 0, 1],
                 12345,
                 80,
-                format!("packet{}", i).as_bytes(),
+                format!("packet{i}").as_bytes(),
             );
             tx.send(pkt).unwrap();
         }

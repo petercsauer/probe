@@ -52,7 +52,7 @@ pub struct LpmParser {
 
 impl LpmParser {
     /// Create a new LPM parser with the given compression algorithm.
-    pub fn new(compression: CompressionAlgorithm) -> Self {
+    pub const fn new(compression: CompressionAlgorithm) -> Self {
         Self {
             buffer: Vec::new(),
             compression,

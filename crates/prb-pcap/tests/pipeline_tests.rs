@@ -1,4 +1,4 @@
-//! Integration tests for pipeline: PCAP → TCP reassembly → TLS decryption → DebugEvents.
+//! Integration tests for pipeline: PCAP → TCP reassembly → TLS decryption → `DebugEvents`.
 
 use prb_core::{CaptureAdapter, TransportKind};
 use prb_pcap::{PcapCaptureAdapter, TcpFlags};
@@ -251,7 +251,7 @@ fn test_pipeline_udp_datagram() {
     for (i, event_result) in events.iter().enumerate() {
         let event = event_result
             .as_ref()
-            .unwrap_or_else(|_| panic!("Event {} should be Ok", i));
+            .unwrap_or_else(|_| panic!("Event {i} should be Ok"));
         assert_eq!(event.transport, TransportKind::RawUdp);
     }
 
@@ -494,7 +494,7 @@ fn test_pipeline_timestamp_propagation() {
 
     // Calculate expected timestamp in nanoseconds
     let expected_ns =
-        (pcap_timestamp_sec as u64) * 1_000_000_000 + (pcap_timestamp_usec as u64) * 1_000;
+        u64::from(pcap_timestamp_sec) * 1_000_000_000 + u64::from(pcap_timestamp_usec) * 1_000;
 
     assert_eq!(
         event.timestamp.as_nanos(),

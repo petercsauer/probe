@@ -104,7 +104,7 @@ fn test_orchestrator_sequential_threshold() {
             12345,
             [10, 0, 0, 1],
             80,
-            format!("packet{}", i).into_bytes(),
+            format!("packet{i}").into_bytes(),
         ));
     }
 
@@ -131,7 +131,7 @@ fn test_orchestrator_parallel_large() {
             12345,
             [10, 0, 0, 1],
             80,
-            format!("pkt{}", i).into_bytes(),
+            format!("pkt{i}").into_bytes(),
         ));
     }
 
@@ -226,7 +226,7 @@ fn test_orchestrator_flow_partitioning() {
                 [10, 0, 0, 1],
                 80,
                 1000 + seq as u32 * 100,
-                format!("flow{}_seq{}", flow_id, seq).into_bytes(),
+                format!("flow{flow_id}_seq{seq}").into_bytes(),
             ));
         }
     }
@@ -318,8 +318,7 @@ fn test_orchestrator_varying_thread_counts() {
         assert_eq!(
             events.len(),
             1000,
-            "Shard count {} should produce 1000 events",
-            shard_count
+            "Shard count {shard_count} should produce 1000 events"
         );
     }
 }

@@ -1,11 +1,11 @@
 //! Benchmarks for query filter evaluation performance.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use bytes::Bytes;
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use prb_core::{
     DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
 };
 use prb_query::Filter;
-use bytes::Bytes;
 use std::collections::BTreeMap;
 
 fn create_test_event(id: u64, transport: TransportKind, method: &str) -> DebugEvent {
@@ -21,7 +21,7 @@ fn create_test_event(id: u64, transport: TransportKind, method: &str) -> DebugEv
             }),
         },
         transport,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound

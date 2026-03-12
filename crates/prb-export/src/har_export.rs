@@ -9,12 +9,13 @@ fn timestamp_to_iso8601(ts: Timestamp) -> String {
     let nanos = ts.as_nanos();
     let secs = (nanos / 1_000_000_000) as i64;
     let subsec_nanos = (nanos % 1_000_000_000) as u32;
-    chrono::DateTime::from_timestamp(secs, subsec_nanos)
-        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into())
+    chrono::DateTime::from_timestamp(secs, subsec_nanos).map_or_else(
+        || "1970-01-01T00:00:00.000Z".into(),
+        |dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    )
 }
 
-fn payload_size(event: &DebugEvent) -> i64 {
+const fn payload_size(event: &DebugEvent) -> i64 {
     match &event.payload {
         Payload::Raw { raw } => raw.len() as i64,
         Payload::Decoded { raw, .. } => raw.len() as i64,
@@ -43,7 +44,7 @@ fn event_to_har_entry(event: &DebugEvent) -> v1_2::Entries {
         .or_else(|| event.source.network.as_ref().map(|n| n.dst.clone()))
         .unwrap_or_else(|| "unknown".into());
 
-    let url = format!("https://{}{}", authority, method);
+    let url = format!("https://{authority}{method}");
 
     let mut request_headers = vec![v1_2::Headers {
         name: "content-type".into(),
@@ -134,7 +135,11 @@ fn event_to_har_entry(event: &DebugEvent) -> v1_2::Entries {
 }
 
 fn grpc_status_to_http(event: &DebugEvent) -> i64 {
-    match event.metadata.get("grpc.status").map(|s| s.as_str()) {
+    match event
+        .metadata
+        .get("grpc.status")
+        .map(std::string::String::as_str)
+    {
         Some("0") | None => 200,
         Some("1") => 499,  // CANCELLED
         Some("3") => 400,  // INVALID_ARGUMENT
@@ -150,7 +155,11 @@ fn grpc_status_to_http(event: &DebugEvent) -> i64 {
 }
 
 fn grpc_status_text(event: &DebugEvent) -> String {
-    match event.metadata.get("grpc.status").map(|s| s.as_str()) {
+    match event
+        .metadata
+        .get("grpc.status")
+        .map(std::string::String::as_str)
+    {
         Some("0") | None => "OK".into(),
         Some("1") => "Cancelled".into(),
         Some("2") => "Unknown".into(),
@@ -162,7 +171,7 @@ fn grpc_status_text(event: &DebugEvent) -> String {
         Some("13") => "Internal".into(),
         Some("14") => "Unavailable".into(),
         Some("16") => "Unauthenticated".into(),
-        Some(other) => format!("gRPC status {}", other),
+        Some(other) => format!("gRPC status {other}"),
     }
 }
 
@@ -211,8 +220,7 @@ impl Exporter for HarExporter {
         let non_grpc_count = events.len() - grpc_events.len();
         let comment = if non_grpc_count > 0 {
             Some(format!(
-                "Exported by Probe. {} non-HTTP events (ZMQ/DDS/TCP/UDP) omitted.",
-                non_grpc_count
+                "Exported by Probe. {non_grpc_count} non-HTTP events (ZMQ/DDS/TCP/UDP) omitted."
             ))
         } else {
             None
@@ -493,8 +501,7 @@ mod tests {
             let entry = &parsed["log"]["entries"][0];
             assert_eq!(
                 entry["response"]["status"], expected_http,
-                "gRPC status {} should map to HTTP {}",
-                grpc_code, expected_http
+                "gRPC status {grpc_code} should map to HTTP {expected_http}"
             );
             assert_eq!(entry["response"]["statusText"], expected_text);
         }

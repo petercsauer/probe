@@ -38,7 +38,7 @@ fn detect_format(path: &Path) -> Result<InputFormat> {
     match &magic {
         [0x0a, 0x0d, 0x0d, 0x0a] => Ok(InputFormat::Pcapng),
         [0xa1, 0xb2, 0xc3, 0xd4] | [0xd4, 0xc3, 0xb2, 0xa1] => Ok(InputFormat::Pcap),
-        [b'{', ..] | [b'[', ..] => Ok(InputFormat::Json),
+        [b'{' | b'[', ..] => Ok(InputFormat::Json),
         _ => {
             // Fall back to extension
             match path.extension().and_then(|e| e.to_str()) {
@@ -89,7 +89,7 @@ fn run_json_ingest(args: IngestArgs) -> Result<()> {
     write_events_ndjson(&args, &mut *adapter)
 }
 
-/// Sequential PCAP ingest using the existing PcapCaptureAdapter.
+/// Sequential PCAP ingest using the existing `PcapCaptureAdapter`.
 fn run_sequential_pcap_ingest(args: IngestArgs) -> Result<()> {
     tracing::info!("Detected PCAP capture format (sequential mode)");
     let capture_path = PathBuf::from(args.input.as_str());
@@ -189,7 +189,7 @@ fn write_events_ndjson(args: &IngestArgs, adapter: &mut dyn CaptureAdapter) -> R
     let mut writer: Box<dyn Write> = if let Some(output_path) = &args.output {
         tracing::info!("Writing NDJSON output to: {}", output_path);
         let file = File::create(output_path)
-            .with_context(|| format!("Failed to create output file {}", output_path))?;
+            .with_context(|| format!("Failed to create output file {output_path}"))?;
         Box::new(BufWriter::new(file))
     } else {
         Box::new(BufWriter::new(io::stdout()))
@@ -230,7 +230,7 @@ fn write_events_from_vec(args: &IngestArgs, events: Vec<DebugEvent>) -> Result<(
     let mut writer: Box<dyn Write> = if let Some(output_path) = &args.output {
         tracing::info!("Writing NDJSON output to: {}", output_path);
         let file = File::create(output_path)
-            .with_context(|| format!("Failed to create output file {}", output_path))?;
+            .with_context(|| format!("Failed to create output file {output_path}"))?;
         Box::new(BufWriter::new(file))
     } else {
         Box::new(BufWriter::new(io::stdout()))
@@ -277,7 +277,7 @@ fn effective_jobs_with_env(cli_jobs: usize) -> usize {
     }
 
     std::thread::available_parallelism()
-        .map(|n| n.get())
+        .map(std::num::NonZero::get)
         .unwrap_or(4)
 }
 
@@ -291,7 +291,7 @@ fn run_ingest_mcap(args: IngestArgs, mut adapter: Box<dyn CaptureAdapter>) -> Re
         .with_capture_tool(adapter.name());
 
     let file = File::create(output_path)
-        .with_context(|| format!("Failed to create output file {}", output_path))?;
+        .with_context(|| format!("Failed to create output file {output_path}"))?;
 
     let mut writer =
         SessionWriter::new(file, metadata).context("Failed to create MCAP session writer")?;

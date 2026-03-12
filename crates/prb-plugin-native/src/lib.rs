@@ -1,3 +1,4 @@
+#![allow(clippy::cargo_common_metadata)]
 //! Native plugin loader for PRB.
 //!
 //! This crate provides the infrastructure to load and execute native (shared library)

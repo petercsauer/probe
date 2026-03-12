@@ -1,4 +1,4 @@
-//! Unit tests for OwnedPacket.
+//! Unit tests for `OwnedPacket`.
 
 use prb_capture::OwnedPacket;
 

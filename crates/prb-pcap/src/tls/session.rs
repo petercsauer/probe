@@ -24,7 +24,8 @@ pub struct SessionInfo {
 
 impl SessionInfo {
     /// Returns the key length in bytes for the cipher suite.
-    pub fn key_len(&self) -> usize {
+    #[must_use]
+    pub const fn key_len(&self) -> usize {
         match self.cipher_suite_id {
             // AES-128-GCM (16 bytes)
             0x009C | 0x009E | 0xC02F | 0xC02B | 0x1301 => 16,
@@ -40,7 +41,8 @@ impl SessionInfo {
     ///
     /// TLS 1.2 uses 4-byte implicit IV (fixed IV).
     /// TLS 1.3 uses 12-byte IV derived via HKDF.
-    pub fn iv_len(&self) -> usize {
+    #[must_use]
+    pub const fn iv_len(&self) -> usize {
         match self.version {
             TlsVersion::Tls12 => 4,  // TLS 1.2 uses 4-byte fixed IV
             TlsVersion::Tls13 => 12, // TLS 1.3 uses 12-byte IV
@@ -49,13 +51,15 @@ impl SessionInfo {
     }
 
     /// Returns true if this is a TLS 1.3 cipher suite.
+    #[must_use]
     pub fn is_tls13(&self) -> bool {
         // TLS 1.3 cipher suites: 0x1301-0x1305
         (0x1301..=0x1305).contains(&self.cipher_suite_id)
     }
 
     /// Returns true if the cipher suite uses SHA384 (for TLS 1.3 HKDF selection).
-    pub fn uses_sha384(&self) -> bool {
+    #[must_use]
+    pub const fn uses_sha384(&self) -> bool {
         matches!(
             self.cipher_suite_id,
             0x009D | 0x009F | 0xC030 | 0xC02C | 0x1302
@@ -63,7 +67,8 @@ impl SessionInfo {
     }
 
     /// Returns true if this cipher suite is supported for decryption.
-    pub fn is_supported(&self) -> bool {
+    #[must_use]
+    pub const fn is_supported(&self) -> bool {
         self.key_len() > 0
     }
 }
@@ -74,7 +79,7 @@ pub struct TlsSession;
 impl TlsSession {
     /// Parses a TLS stream and extracts session information from handshake.
     ///
-    /// Looks for ClientHello and ServerHello messages to extract randoms and cipher suite.
+    /// Looks for `ClientHello` and `ServerHello` messages to extract randoms and cipher suite.
     pub fn from_stream(data: &[u8]) -> Result<SessionInfo, PcapError> {
         let mut client_random: Option<Vec<u8>> = None;
         let mut server_random: Option<Vec<u8>> = None;

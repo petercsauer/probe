@@ -495,7 +495,7 @@ fn test_multiple_connections() {
         );
 
         let pkt = normalizer
-            .normalize(1, 9000000 + i as u64, &seg)
+            .normalize(1, 9000000 + u64::from(i), &seg)
             .unwrap()
             .unwrap();
         let _events = reassembler.process_segment(&pkt).unwrap();

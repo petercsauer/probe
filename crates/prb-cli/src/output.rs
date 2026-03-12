@@ -30,21 +30,18 @@ pub fn format_table(events: &[DebugEvent]) {
 
         // Format first metadata entry (if any) for compact display
         let metadata = if let Some((key, value)) = event.metadata.iter().next() {
-            format!("{}={}", key, value)
+            format!("{key}={value}")
         } else {
             String::from("-")
         };
 
-        println!(
-            "{:<20} {:<10} {:<5} {:<25} {}",
-            timestamp, transport, direction, source, metadata
-        );
+        println!("{timestamp:<20} {transport:<10} {direction:<5} {source:<25} {metadata}");
     }
 }
 
 /// Format events as pretty-printed JSON to stdout.
 pub fn format_json(events: &[DebugEvent]) -> Result<()> {
     let json = serde_json::to_string_pretty(events)?;
-    println!("{}", json);
+    println!("{json}");
     Ok(())
 }

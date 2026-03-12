@@ -1,4 +1,4 @@
-//! gRPC protocol decoder implementing the ProtocolDecoder trait.
+//! gRPC protocol decoder implementing the `ProtocolDecoder` trait.
 
 use crate::h2::{H2Codec, H2Event};
 use crate::lpm::{CompressionAlgorithm, LpmParser};
@@ -30,6 +30,7 @@ pub struct GrpcDecoder {
 
 impl GrpcDecoder {
     /// Create a new gRPC decoder.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             h2_codec: H2Codec::new(),
@@ -67,7 +68,7 @@ impl GrpcDecoder {
         builder
     }
 
-    /// Process HTTP/2 events and generate DebugEvents.
+    /// Process HTTP/2 events and generate `DebugEvents`.
     fn process_h2_events(
         &mut self,
         events: Vec<H2Event>,
@@ -161,8 +162,9 @@ impl GrpcDecoder {
                             .request_headers
                             .get("grpc-encoding")
                             .or_else(|| stream.response_headers.get("grpc-encoding"))
-                            .map(|s| CompressionAlgorithm::from_header(s))
-                            .unwrap_or(CompressionAlgorithm::Identity)
+                            .map_or(CompressionAlgorithm::Identity, |s| {
+                                CompressionAlgorithm::from_header(s)
+                            })
                     };
 
                     // Get or create LPM parser
@@ -231,7 +233,7 @@ impl GrpcDecoder {
         Ok(debug_events)
     }
 
-    /// Create a DebugEvent for a gRPC message.
+    /// Create a `DebugEvent` for a gRPC message.
     fn create_message_event(
         &mut self,
         stream_id: u32,
@@ -258,7 +260,7 @@ impl GrpcDecoder {
                 origin: ctx
                     .metadata
                     .get("origin")
-                    .map(|s| s.to_string())
+                    .cloned()
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
                     src: ctx
@@ -294,7 +296,7 @@ impl GrpcDecoder {
         Ok(Some(event_builder.build()))
     }
 
-    /// Create a DebugEvent for gRPC trailers (status).
+    /// Create a `DebugEvent` for gRPC trailers (status).
     fn create_trailers_event(
         &mut self,
         stream_id: u32,
@@ -312,8 +314,7 @@ impl GrpcDecoder {
                 adapter: "pcap".to_string(),
                 origin: ctx
                     .metadata
-                    .get("origin")
-                    .map(|s| s.to_string())
+                    .get("origin").cloned()
                     .unwrap_or_else(|| "unknown".to_string()),
                 network: Some(NetworkAddr {
                     src: ctx.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
@@ -323,7 +324,7 @@ impl GrpcDecoder {
             .transport(TransportKind::Grpc)
             .direction(Direction::Inbound) // Trailers/status are server responses
             .payload(Payload::Raw {
-                raw: Bytes::from(format!("status={} message={}", grpc_status, grpc_message)),
+                raw: Bytes::from(format!("status={grpc_status} message={grpc_message}")),
             })
             .metadata(METADATA_KEY_GRPC_METHOD, &method_name)
             .metadata(METADATA_KEY_H2_STREAM_ID, stream_id.to_string())

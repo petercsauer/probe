@@ -17,6 +17,7 @@ pub struct DetectionEngine {
 
 impl DetectionEngine {
     /// Create a new detection engine with default detectors.
+    #[must_use]
     pub fn with_defaults() -> Self {
         let detectors: Vec<Box<dyn ProtocolDetector>> = vec![
             Box::new(PortMappingDetector::with_defaults()),
@@ -33,6 +34,7 @@ impl DetectionEngine {
     }
 
     /// Create an empty detection engine.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             detectors: Vec::new(),
@@ -41,7 +43,8 @@ impl DetectionEngine {
     }
 
     /// Set the confidence threshold.
-    pub fn with_threshold(mut self, threshold: f32) -> Self {
+    #[must_use]
+    pub const fn with_threshold(mut self, threshold: f32) -> Self {
         self.confidence_threshold = threshold;
         self
     }

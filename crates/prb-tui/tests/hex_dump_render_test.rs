@@ -212,8 +212,7 @@ fn test_hex_dump_scroll_functionality() {
     let first_content_row = row_text(&buffer, 1); // row 1 = first data row (row 0 = border)
     assert!(
         first_content_row.starts_with("00000050") || first_content_row.contains("00000050"),
-        "offset should be 0x50 at scroll=5, got: {}",
-        first_content_row
+        "offset should be 0x50 at scroll=5, got: {first_content_row}"
     );
 }
 

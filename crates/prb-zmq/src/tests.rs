@@ -18,7 +18,7 @@ fn build_greeting(major: u8, minor: u8, mechanism: &str, as_server: bool) -> Vec
     let mech_bytes = mechanism.as_bytes();
     greeting[12..12 + mech_bytes.len()].copy_from_slice(mech_bytes);
     // as-server flag
-    greeting[32] = if as_server { 1 } else { 0 };
+    greeting[32] = u8::from(as_server);
     greeting
 }
 
@@ -49,7 +49,7 @@ fn build_ready_command(properties: &[(&str, &[u8])]) -> Vec<u8> {
 /// Helper to build a message frame.
 fn build_message_frame(data: &[u8], has_more: bool) -> Vec<u8> {
     let mut frame = Vec::new();
-    let flags = if has_more { 0x01 } else { 0x00 }; // MORE flag
+    let flags = u8::from(has_more); // MORE flag
     frame.push(flags);
     frame.push(data.len() as u8);
     frame.extend_from_slice(data);
@@ -189,11 +189,17 @@ fn test_zmtp_pubsub_topic() {
 
     let event = &events[0];
     assert_eq!(
-        event.metadata.get("zmq.topic").map(|s| s.as_str()),
+        event
+            .metadata
+            .get("zmq.topic")
+            .map(std::string::String::as_str),
         Some("sensor.temp")
     );
     assert_eq!(
-        event.metadata.get("zmq.socket_type").map(|s| s.as_str()),
+        event
+            .metadata
+            .get("zmq.socket_type")
+            .map(std::string::String::as_str),
         Some("PUB")
     );
 }

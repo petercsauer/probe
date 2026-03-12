@@ -13,7 +13,7 @@ use rayon::prelude::*;
 use std::io::Write;
 use std::sync::Arc;
 
-/// Helper: Parse a PCAP byte buffer into PcapPackets.
+/// Helper: Parse a PCAP byte buffer into `PcapPackets`.
 fn parse_fixture(pcap_data: &[u8]) -> Vec<prb_pcap::reader::PcapPacket> {
     let tmpfile = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(tmpfile.path(), pcap_data).unwrap();
@@ -73,7 +73,7 @@ fn bench_normalize(c: &mut Criterion) {
                 }
             }
             count
-        })
+        });
     });
 
     group.bench_function("parallel", |b| b.iter(|| NormalizeBatch::run(&packets)));
@@ -104,7 +104,7 @@ fn bench_tcp_reassembly(c: &mut Criterion) {
                 let _ = reassembler.process_segment(&pkt.as_normalized());
             }
             reassembler.flush_all()
-        })
+        });
     });
 
     for shards in [2, 4, 8, 16] {
@@ -126,7 +126,7 @@ fn bench_tcp_reassembly(c: &mut Criterion) {
                             r.flush_all()
                         })
                         .collect::<Vec<_>>()
-                })
+                });
             },
         );
     }
@@ -146,7 +146,7 @@ fn bench_end_to_end(c: &mut Criterion) {
 
         let total_packets = flows * ppf;
 
-        let mut group = c.benchmark_group(format!("e2e_{}", name));
+        let mut group = c.benchmark_group(format!("e2e_{name}"));
         group.throughput(Throughput::Elements(total_packets as u64));
         group.sample_size(10); // Larger fixtures need fewer samples
 
@@ -170,7 +170,7 @@ fn bench_end_to_end(c: &mut Criterion) {
                     }
                 }
                 count
-            })
+            });
         });
 
         for jobs in [2, 4, 8] {
@@ -194,7 +194,7 @@ fn bench_end_to_end(c: &mut Criterion) {
 
                     let events = pipeline.run(normalized).unwrap();
                     events.len()
-                })
+                });
             });
         }
 
@@ -220,14 +220,14 @@ fn bench_mmap_vs_streaming(c: &mut Criterion) {
         b.iter(|| {
             let mut reader = PcapFileReader::open(tmpfile.path()).unwrap();
             reader.read_all_packets().unwrap().len()
-        })
+        });
     });
 
     group.bench_function("mmap_reader", |b| {
         b.iter(|| {
             let reader = MmapPcapReader::open(tmpfile.path()).unwrap();
             reader.packet_count()
-        })
+        });
     });
 
     group.finish();

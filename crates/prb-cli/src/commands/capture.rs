@@ -18,14 +18,13 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
     }
 
     // Resolve interface
-    let interface = match &args.interface {
-        Some(name) => name.clone(),
-        None => {
-            let default = InterfaceEnumerator::default_device()
-                .context("failed to find default capture device")?;
-            tracing::info!("Using default interface: {}", default.name);
-            default.name
-        }
+    let interface = if let Some(name) = &args.interface {
+        name.clone()
+    } else {
+        let default = InterfaceEnumerator::default_device()
+            .context("failed to find default capture device")?;
+        tracing::info!("Using default interface: {}", default.name);
+        default.name
     };
 
     // Build capture config
@@ -54,7 +53,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
         use prb_tui::{App, EventStore, LiveDataSource};
 
         // Create live data source (will start the adapter)
-        let live_source = LiveDataSource::start(adapter, interface.clone())
+        let live_source = LiveDataSource::start(adapter, interface)
             .context("failed to start live capture data source")?;
 
         // Create empty event store for live mode
@@ -77,7 +76,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
                 ref remediation,
             } => anyhow::anyhow!("{message}\n\n  {remediation}"),
             CaptureError::FilterCompilationFailed(ref msg) => {
-                anyhow::anyhow!("BPF filter compilation failed: {}", msg)
+                anyhow::anyhow!("BPF filter compilation failed: {msg}")
             }
             _ => anyhow::anyhow!("{e}"),
         })
@@ -93,9 +92,9 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
 
     // Header
     if !args.quiet {
-        eprintln!("Capturing on interface {} ...", interface);
+        eprintln!("Capturing on interface {interface} ...");
         if let Some(ref filter) = args.bpf_filter {
-            eprintln!("BPF filter: {}", filter);
+            eprintln!("BPF filter: {filter}");
         }
     }
 
@@ -171,7 +170,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<()> {
     });
 
     eprintln!();
-    eprintln!("{} packets captured", count);
+    eprintln!("{count} packets captured");
     eprintln!("{} packets received by filter", stats.packets_received);
     eprintln!("{} packets dropped by kernel", stats.packets_dropped_kernel);
     eprintln!(

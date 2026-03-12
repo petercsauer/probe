@@ -41,7 +41,7 @@ fn create_headers_frame(stream_id: u32, headers: &[(&str, &str)], end_stream: bo
 }
 
 fn create_data_frame(stream_id: u32, data: &[u8], end_stream: bool) -> Vec<u8> {
-    let flags = if end_stream { 0x01 } else { 0x00 };
+    let flags = u8::from(end_stream);
     let mut frame = vec![
         ((data.len() >> 16) & 0xFF) as u8, // Length (24-bit big-endian)
         ((data.len() >> 8) & 0xFF) as u8,
@@ -60,7 +60,7 @@ fn create_data_frame(stream_id: u32, data: &[u8], end_stream: bool) -> Vec<u8> {
 fn create_grpc_message(payload: &[u8], compressed: bool) -> Vec<u8> {
     let mut msg = Vec::new();
     // Compressed flag
-    msg.push(if compressed { 1 } else { 0 });
+    msg.push(u8::from(compressed));
     // Length (32-bit big-endian)
     msg.extend_from_slice(&(payload.len() as u32).to_be_bytes());
     // Payload
@@ -271,7 +271,10 @@ fn test_grpc_streaming() {
     // Verify all events are for the correct stream
     for event in &events {
         assert_eq!(
-            event.metadata.get("h2.stream_id").map(|s| s.as_str()),
+            event
+                .metadata
+                .get("h2.stream_id")
+                .map(std::string::String::as_str),
             Some("1")
         );
     }
@@ -414,7 +417,7 @@ fn test_grpc_multi_frame_message() {
     ];
 
     // Frame 1: LPM header + first 10 bytes
-    let mut frame1_data = grpc_header.clone();
+    let mut frame1_data = grpc_header;
     frame1_data.extend_from_slice(&request_payload[..10]);
     stream.extend_from_slice(&create_data_frame(1, &frame1_data, false));
 

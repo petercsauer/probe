@@ -8,16 +8,16 @@ pub use crate::decode::DecodeContext;
 pub use crate::flow::Flow;
 pub use crate::schema::ResolvedSchema;
 
-/// Reads from a capture source and produces DebugEvents.
+/// Reads from a capture source and produces `DebugEvents`.
 ///
 /// Implemented by:
-/// - JsonFixtureAdapter (Subsection 1)
-/// - PcapAdapter (Subsection 3)
+/// - `JsonFixtureAdapter` (Subsection 1)
+/// - `PcapAdapter` (Subsection 3)
 pub trait CaptureAdapter {
     /// Returns the adapter name (e.g., "json-fixture", "pcap").
     fn name(&self) -> &str;
 
-    /// Produces an iterator of DebugEvents from the capture source.
+    /// Produces an iterator of `DebugEvents` from the capture source.
     ///
     /// The iterator yields events in order and may produce errors during iteration.
     fn ingest(&mut self) -> Box<dyn Iterator<Item = Result<DebugEvent, CoreError>> + '_>;
@@ -26,14 +26,14 @@ pub trait CaptureAdapter {
 /// Decodes protocol-specific byte sequences into structured events.
 ///
 /// Implemented by:
-/// - GrpcDecoder (Subsection 4)
-/// - ZmqDecoder (Subsection 4)
-/// - DdsDecoder (Subsection 4)
+/// - `GrpcDecoder` (Subsection 4)
+/// - `ZmqDecoder` (Subsection 4)
+/// - `DdsDecoder` (Subsection 4)
 pub trait ProtocolDecoder: Send {
     /// Returns the transport protocol this decoder handles.
     fn protocol(&self) -> TransportKind;
 
-    /// Decodes a byte stream into zero or more DebugEvents.
+    /// Decodes a byte stream into zero or more `DebugEvents`.
     ///
     /// # Arguments
     /// * `data` - The raw byte sequence to decode
@@ -41,6 +41,9 @@ pub trait ProtocolDecoder: Send {
     ///
     /// # Returns
     /// A vector of decoded events. May be empty if the data is incomplete or not yet decodable.
+    ///
+    /// # Errors
+    /// Returns an error if the data is malformed or cannot be decoded.
     fn decode_stream(
         &mut self,
         data: &[u8],
@@ -51,18 +54,21 @@ pub trait ProtocolDecoder: Send {
 /// Resolves message schemas for payload decoding.
 ///
 /// Implemented by:
-/// - ProtobufSchemaResolver (Subsection 2)
+/// - `ProtobufSchemaResolver` (Subsection 2)
 pub trait SchemaResolver {
     /// Resolves a schema by name.
     ///
     /// Returns `Ok(Some(schema))` if found, `Ok(None)` if not found, or an error if resolution fails.
+    ///
+    /// # Errors
+    /// Returns an error if schema resolution fails due to I/O or parsing errors.
     fn resolve(&self, schema_name: &str) -> Result<Option<ResolvedSchema>, CoreError>;
 
     /// Lists all available schema names.
     fn list_schemas(&self) -> Vec<String>;
 }
 
-/// Normalizes events from adapter-specific format to canonical DebugEvent.
+/// Normalizes events from adapter-specific format to canonical `DebugEvent`.
 ///
 /// Implemented by per-adapter normalizers as needed.
 pub trait EventNormalizer {
@@ -70,6 +76,9 @@ pub trait EventNormalizer {
     ///
     /// This can perform transformations like deduplication, timestamp adjustment,
     /// or metadata enrichment.
+    ///
+    /// # Errors
+    /// Returns an error if normalization fails due to invalid event data.
     fn normalize(&self, events: Vec<DebugEvent>) -> Result<Vec<DebugEvent>, CoreError>;
 }
 
@@ -83,5 +92,8 @@ pub trait CorrelationStrategy {
     /// Correlates a slice of events into flows.
     ///
     /// Returns a vector of flows, each containing references to related events.
+    ///
+    /// # Errors
+    /// Returns an error if correlation logic fails.
     fn correlate<'a>(&self, events: &'a [DebugEvent]) -> Result<Vec<Flow<'a>>, CoreError>;
 }

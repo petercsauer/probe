@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Protobuf schema registry and resolution"
+keywords = ["protobuf", "schema", "registry"]
+categories = ["encoding", "parser-implementations"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

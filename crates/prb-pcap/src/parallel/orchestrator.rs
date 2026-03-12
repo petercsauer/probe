@@ -15,7 +15,7 @@ pub struct PipelineConfig {
     pub jobs: usize,
     /// Packets per normalization batch (default: 4096).
     pub batch_size: usize,
-    /// Number of flow shards (0 = auto, default: 2 * num_cpus).
+    /// Number of flow shards (0 = auto, default: 2 * `num_cpus`).
     pub shard_count: usize,
 }
 
@@ -31,10 +31,11 @@ impl Default for PipelineConfig {
 
 impl PipelineConfig {
     /// Returns the effective number of jobs, auto-detecting if configured as 0.
+    #[must_use]
     pub fn effective_jobs(&self) -> usize {
         if self.jobs == 0 {
             std::thread::available_parallelism()
-                .map(|n| n.get())
+                .map(std::num::NonZero::get)
                 .unwrap_or(4)
         } else {
             self.jobs
@@ -42,6 +43,7 @@ impl PipelineConfig {
     }
 
     /// Returns the effective shard count, auto-detecting if configured as 0.
+    #[must_use]
     pub fn effective_shard_count(&self) -> usize {
         if self.shard_count == 0 {
             self.effective_jobs() * 2
@@ -74,6 +76,7 @@ impl ParallelPipeline {
     const PARALLEL_THRESHOLD: usize = 10_000;
 
     /// Creates a new parallel pipeline with the given configuration.
+    #[must_use]
     pub fn new(config: PipelineConfig, capture_path: PathBuf, tls_keylog: Arc<TlsKeyLog>) -> Self {
         let num_shards = if config.shard_count == 0 {
             std::thread::available_parallelism()
@@ -92,12 +95,14 @@ impl ParallelPipeline {
     }
 
     /// Returns the number of shards used for flow partitioning.
-    pub fn num_shards(&self) -> usize {
+    #[must_use]
+    pub const fn num_shards(&self) -> usize {
         self.num_shards
     }
 
     /// Returns the capture path.
-    pub fn capture_path(&self) -> &PathBuf {
+    #[must_use]
+    pub const fn capture_path(&self) -> &PathBuf {
         &self.capture_path
     }
 
@@ -116,7 +121,7 @@ impl ParallelPipeline {
     /// Sequential execution path using a single shard.
     ///
     /// For small captures (< 10k packets), the overhead of parallel processing
-    /// exceeds the benefit. This path uses ShardProcessor with 1 shard.
+    /// exceeds the benefit. This path uses `ShardProcessor` with 1 shard.
     fn run_sequential(
         &self,
         packets: Vec<OwnedNormalizedPacket>,
@@ -137,7 +142,7 @@ impl ParallelPipeline {
         Ok(events)
     }
 
-    /// Parallel execution path using ShardProcessor.
+    /// Parallel execution path using `ShardProcessor`.
     fn run_parallel(
         &self,
         packets: Vec<OwnedNormalizedPacket>,
@@ -151,7 +156,7 @@ impl ParallelPipeline {
 
         // Phase 2: Partition by flow
         let shards = self.partition_by_flow(packets);
-        let shard_sizes: Vec<_> = shards.iter().map(|s| s.len()).collect();
+        let shard_sizes: Vec<_> = shards.iter().map(std::vec::Vec::len).collect();
         tracing::info!(
             "Partitioned into {} shards: {:?}",
             shards.len(),
@@ -275,7 +280,7 @@ mod tests {
         let shards = pipeline.partition_by_flow(packets);
 
         // All shards together should have 3 packets
-        let total_packets: usize = shards.iter().map(|s| s.len()).sum();
+        let total_packets: usize = shards.iter().map(std::vec::Vec::len).sum();
         assert_eq!(total_packets, 3);
 
         // Packets from same flow (bidirectional) should be in same shard

@@ -1,6 +1,6 @@
 //! Benchmarks for DDS/RTPS decoder performance.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use prb_core::{DecodeContext, ProtocolDecoder};
 use prb_dds::DdsDecoder;
 
@@ -14,9 +14,7 @@ fn create_test_rtps_packet() -> Vec<u8> {
 
     // GUID prefix (12 bytes)
     data.extend_from_slice(&[
-        0x01, 0x02, 0x03, 0x04,
-        0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0A, 0x0B, 0x0C,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
     ]);
 
     // INFO_TS submessage (timestamp)

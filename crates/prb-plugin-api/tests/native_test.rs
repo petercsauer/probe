@@ -69,6 +69,7 @@ fn test_owned_buffer_roundtrip() {
     assert_eq!(recovered, original);
 }
 
+#[allow(clippy::float_cmp)]
 #[test]
 fn test_detect_result_ffi() {
     let result = DetectResultFfi {
@@ -81,6 +82,7 @@ fn test_detect_result_ffi() {
 }
 
 #[test]
+#[allow(clippy::float_cmp)]
 fn test_detect_result_ffi_not_detected() {
     let result = DetectResultFfi {
         detected: 0,
@@ -119,7 +121,7 @@ mod test_decoder {
         }
 
         fn new() -> Self {
-            TestDecoder
+            Self
         }
 
         fn decode(&mut self, _data: &[u8], _ctx: &DecodeCtx) -> Result<Vec<DebugEventDto>, String> {

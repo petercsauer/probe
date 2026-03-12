@@ -1,4 +1,4 @@
-//! Integration tests for InterfaceEnumerator.
+//! Integration tests for `InterfaceEnumerator`.
 
 use prb_capture::InterfaceEnumerator;
 
@@ -33,8 +33,7 @@ fn test_interface_info_display() {
         let status = iface.status();
         assert!(
             status == "UP" || status == "UP (no carrier)" || status == "DOWN",
-            "unexpected status: {}",
-            status
+            "unexpected status: {status}"
         );
 
         // Test addresses_display()
@@ -87,14 +86,11 @@ fn test_list_active_interfaces() {
 #[test]
 fn test_default_device() {
     // May fail on some systems without network interfaces, so we check both cases
-    match InterfaceEnumerator::default_device() {
-        Ok(iface) => {
-            // If we got a default device, it should have a name
-            assert!(!iface.name.is_empty());
-        }
-        Err(_) => {
-            // Some systems may not have a default device configured
-            // This is acceptable and not a test failure
-        }
+    if let Ok(iface) = InterfaceEnumerator::default_device() {
+        // If we got a default device, it should have a name
+        assert!(!iface.name.is_empty());
+    } else {
+        // Some systems may not have a default device configured
+        // This is acceptable and not a test failure
     }
 }

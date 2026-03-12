@@ -15,14 +15,15 @@ pub struct WasmPlugin {
     /// Path to the .wasm file.
     #[allow(dead_code)]
     pub path: PathBuf,
-    /// Cached metadata from prb_plugin_info().
+    /// Cached metadata from `prb_plugin_info()`.
     #[allow(dead_code)]
     pub info: PluginMetadata,
 }
 
 impl WasmPluginLoader {
     /// Create a new empty loader.
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             plugins: Vec::new(),
         }
@@ -32,8 +33,8 @@ impl WasmPluginLoader {
     ///
     /// Validates:
     /// 1. File exists and is valid WASM
-    /// 2. Required exports are present (prb_plugin_info, prb_plugin_detect, prb_plugin_decode)
-    /// 3. prb_plugin_info() returns valid metadata
+    /// 2. Required exports are present (`prb_plugin_info`, `prb_plugin_detect`, `prb_plugin_decode`)
+    /// 3. `prb_plugin_info()` returns valid metadata
     /// 4. API version is compatible
     pub fn load(&mut self, path: &Path) -> Result<PluginMetadata, PluginError> {
         if !path.exists() {
@@ -51,7 +52,7 @@ impl WasmPluginLoader {
             .with_timeout(std::time::Duration::from_secs(5));
 
         let mut plugin = Plugin::new(&manifest, [], true)
-            .map_err(|e| PluginError::Load(format!("Failed to instantiate plugin: {}", e)))?;
+            .map_err(|e| PluginError::Load(format!("Failed to instantiate plugin: {e}")))?;
 
         // Validate required exports
         self.validate_exports(&plugin)?;
@@ -59,12 +60,10 @@ impl WasmPluginLoader {
         // Call prb_plugin_info to get metadata
         let info_json = plugin
             .call::<&str, String>("prb_plugin_info", "")
-            .map_err(|e| {
-                PluginError::Execution(format!("Failed to call prb_plugin_info: {}", e))
-            })?;
+            .map_err(|e| PluginError::Execution(format!("Failed to call prb_plugin_info: {e}")))?;
 
         let info: PluginMetadata = serde_json::from_str(&info_json).map_err(|e| {
-            PluginError::Load(format!("Invalid metadata from prb_plugin_info: {}", e))
+            PluginError::Load(format!("Invalid metadata from prb_plugin_info: {e}"))
         })?;
 
         // Validate API version
@@ -109,6 +108,7 @@ impl WasmPluginLoader {
     }
 
     /// Get all loaded plugins.
+    #[must_use]
     pub fn plugins(&self) -> &[WasmPlugin] {
         &self.plugins
     }

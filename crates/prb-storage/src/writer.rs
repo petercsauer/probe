@@ -16,7 +16,7 @@ struct ChannelKey {
     origin: String,
 }
 
-/// MCAP session writer for DebugEvents.
+/// MCAP session writer for `DebugEvents`.
 pub struct SessionWriter<W: Write + Seek> {
     writer: Writer<W>,
     metadata: SessionMetadata,
@@ -25,7 +25,7 @@ pub struct SessionWriter<W: Write + Seek> {
 }
 
 impl<W: Write + Seek> SessionWriter<W> {
-    /// Create a new SessionWriter.
+    /// Create a new `SessionWriter`.
     pub fn new(writer: W, metadata: SessionMetadata) -> Result<Self> {
         let writer = Writer::new(writer)?;
         Ok(Self {
@@ -36,7 +36,7 @@ impl<W: Write + Seek> SessionWriter<W> {
         })
     }
 
-    /// Write a DebugEvent to the session.
+    /// Write a `DebugEvent` to the session.
     pub fn write_event(&mut self, event: &DebugEvent) -> Result<()> {
         // Determine channel key
         let channel_key = ChannelKey {
@@ -60,7 +60,7 @@ impl<W: Write + Seek> SessionWriter<W> {
                 self.writer
                     .add_channel(schema_id, &topic, "json", &BTreeMap::new())?;
 
-            self.channels.insert(channel_key.clone(), channel_id);
+            self.channels.insert(channel_key, channel_id);
             self.channel_sequences.insert(channel_id, 0);
             channel_id
         };
@@ -96,7 +96,7 @@ impl<W: Write + Seek> SessionWriter<W> {
     pub fn embed_schemas(&mut self, registry: &SchemaRegistry) -> Result<()> {
         // Get all descriptor sets from the registry
         for (idx, desc_bytes) in registry.descriptor_sets().iter().enumerate() {
-            let schema_name = format!("protobuf_descriptors_{}", idx);
+            let schema_name = format!("protobuf_descriptors_{idx}");
             self.writer
                 .add_schema(&schema_name, "protobuf", desc_bytes)?;
         }

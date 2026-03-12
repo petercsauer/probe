@@ -1,11 +1,11 @@
 //! Benchmarks for conversation reconstruction engine.
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
+use bytes::Bytes;
+use criterion::{BatchSize, Criterion, black_box, criterion_group, criterion_main};
 use prb_core::{
     ConversationEngine, CorrelationKey, DebugEvent, Direction, EventId, EventSource, NetworkAddr,
     Payload, Timestamp, TransportKind,
 };
-use bytes::Bytes;
 use std::collections::BTreeMap;
 
 fn create_test_event(
@@ -25,7 +25,7 @@ fn create_test_event(
             }),
         },
         transport,
-        direction: if id % 2 == 0 {
+        direction: if id.is_multiple_of(2) {
             Direction::Outbound
         } else {
             Direction::Inbound
@@ -52,13 +52,15 @@ fn create_test_events(count: usize) -> Vec<DebugEvent> {
         };
 
         let correlation_key = match i % 4 {
-            0 => CorrelationKey::StreamId { id: (i / 10) as u32 },
+            0 => CorrelationKey::StreamId {
+                id: (i / 10) as u32,
+            },
             1 => CorrelationKey::Topic {
                 name: format!("topic-{}", i / 20),
             },
             2 => CorrelationKey::TraceContext {
                 trace_id: format!("trace-{}", i / 30),
-                span_id: format!("span-{}", i),
+                span_id: format!("span-{i}"),
             },
             _ => CorrelationKey::Custom {
                 key: "connection".to_string(),

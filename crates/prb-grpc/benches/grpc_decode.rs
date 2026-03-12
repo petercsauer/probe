@@ -1,6 +1,6 @@
 //! Benchmarks for gRPC decoder performance.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use prb_core::{DecodeContext, ProtocolDecoder};
 use prb_grpc::GrpcDecoder;
 

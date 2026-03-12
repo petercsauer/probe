@@ -1,4 +1,4 @@
-//! Additional tests for event_list.rs to improve coverage
+//! Additional tests for `event_list.rs` to improve coverage
 
 use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

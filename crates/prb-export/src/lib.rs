@@ -1,6 +1,17 @@
-//! Export DebugEvents to various formats (CSV, HAR, OTLP, HTML, Parquet).
+#![allow(clippy::wildcard_enum_match_arm)]
+#![allow(clippy::wildcard_in_or_patterns)]
+#![allow(clippy::struct_field_names)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::single_match_else)]
+#![allow(clippy::multiple_crate_versions)]
+//! Export `DebugEvents` to various formats (CSV, HAR, OTLP, HTML, Parquet).
 //!
-//! This crate provides exporters for converting DebugEvents into various
+//! This crate provides exporters for converting `DebugEvents` into various
 //! industry-standard and analysis-friendly formats.
 
 #![warn(missing_docs)]
@@ -48,6 +59,7 @@ pub fn create_exporter(format: &str) -> Result<Box<dyn Exporter>, ExportError> {
     }
 }
 
+#[must_use]
 pub fn supported_formats() -> Vec<&'static str> {
     #[allow(unused_mut)]
     let mut formats = vec!["csv", "har", "otlp", "html"];

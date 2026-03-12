@@ -16,7 +16,10 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn collect_ok_events(adapter: &mut PcapCaptureAdapter) -> Vec<DebugEvent> {
-    adapter.ingest().filter_map(|r| r.ok()).collect()
+    adapter
+        .ingest()
+        .filter_map(std::result::Result::ok)
+        .collect()
 }
 
 #[test]
@@ -25,8 +28,7 @@ fn test_http_conversation_reconstruction() {
     let capture_path = fixtures_dir().join("http/http-chunked-gzip.pcap");
     assert!(
         capture_path.exists(),
-        "HTTP capture required: {:?}",
-        capture_path
+        "HTTP capture required: {capture_path:?}"
     );
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
@@ -53,8 +55,7 @@ fn test_dns_conversation_reconstruction() {
     let capture_path = fixtures_dir().join("dns/dns.pcap");
     assert!(
         capture_path.exists(),
-        "DNS capture required: {:?}",
-        capture_path
+        "DNS capture required: {capture_path:?}"
     );
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);
@@ -217,8 +218,7 @@ fn test_smb_conversation_reconstruction() {
     let capture_path = fixtures_dir().join("smb/smb2-peter.pcap");
     assert!(
         capture_path.exists(),
-        "SMB capture required: {:?}",
-        capture_path
+        "SMB capture required: {capture_path:?}"
     );
 
     let mut adapter = PcapCaptureAdapter::new(capture_path, None);

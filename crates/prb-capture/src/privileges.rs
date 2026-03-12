@@ -8,10 +8,10 @@ pub struct PrivilegeCheck;
 impl PrivilegeCheck {
     /// Check if the current process has sufficient privileges to capture packets.
     ///
-    /// On Linux, this checks for CAP_NET_RAW capability or root user.
+    /// On Linux, this checks for `CAP_NET_RAW` capability or root user.
     /// On other platforms, this always returns Ok (pcap will error if insufficient).
     #[allow(unused_variables)]
-    pub fn check(interface: &str) -> Result<(), CaptureError> {
+    pub const fn check(interface: &str) -> Result<(), CaptureError> {
         #[cfg(target_os = "linux")]
         {
             use caps::{CapSet, Capability};
@@ -48,6 +48,7 @@ impl PrivilegeCheck {
     }
 
     /// Get a human-readable privilege status message.
+    #[must_use]
     pub fn status() -> String {
         #[cfg(target_os = "linux")]
         {

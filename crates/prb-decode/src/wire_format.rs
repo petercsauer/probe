@@ -43,7 +43,7 @@ pub enum WireValue {
     LengthDelimited(LenValue),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VarintValue {
     pub unsigned: u64,
     pub signed_zigzag: i64,
@@ -74,7 +74,8 @@ pub enum LenValue {
 }
 
 impl WireMessage {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self { fields: Vec::new() }
     }
 }
@@ -85,10 +86,15 @@ impl Default for WireMessage {
     }
 }
 
+/// Decode protobuf wire format without a schema.
+///
+/// # Errors
+/// Returns a `WireDecodeError` if the bytes are malformed or recursion limit is exceeded.
 pub fn decode_wire_format(bytes: &[u8]) -> Result<WireMessage, WireDecodeError> {
     decode_with_depth(bytes, 0)
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn decode_with_depth(bytes: &[u8], depth: usize) -> Result<WireMessage, WireDecodeError> {
     if depth >= MAX_RECURSION_DEPTH {
         return Err(WireDecodeError::RecursionLimitExceeded);
@@ -176,7 +182,7 @@ fn read_varint(bytes: &[u8], start: usize) -> Result<(u64, usize), WireDecodeErr
         let byte = bytes[pos];
         pos += 1;
 
-        result |= ((byte & 0x7F) as u64) << shift;
+        result |= u64::from(byte & 0x7F) << shift;
 
         if byte & 0x80 == 0 {
             return Ok((result, pos - start));
@@ -188,7 +194,7 @@ fn read_varint(bytes: &[u8], start: usize) -> Result<(u64, usize), WireDecodeErr
     Err(WireDecodeError::InvalidVarint(start))
 }
 
-fn decode_varint(value: u64) -> VarintValue {
+const fn decode_varint(value: u64) -> VarintValue {
     let signed_zigzag = zigzag_decode(value);
     let as_bool = if value == 0 {
         Some(false)
@@ -205,10 +211,12 @@ fn decode_varint(value: u64) -> VarintValue {
     }
 }
 
-fn zigzag_decode(n: u64) -> i64 {
+#[allow(clippy::cast_possible_wrap)]
+const fn zigzag_decode(n: u64) -> i64 {
     ((n >> 1) as i64) ^ -((n & 1) as i64)
 }
 
+#[allow(clippy::similar_names)]
 fn decode_fixed64(bytes: [u8; 8]) -> Fixed64Value {
     let as_u64 = u64::from_le_bytes(bytes);
     let as_i64 = i64::from_le_bytes(bytes);
@@ -228,6 +236,7 @@ fn decode_fixed64(bytes: [u8; 8]) -> Fixed64Value {
     }
 }
 
+#[allow(clippy::similar_names)]
 fn decode_fixed32(bytes: [u8; 4]) -> Fixed32Value {
     let as_u32 = u32::from_le_bytes(bytes);
     let as_i32 = i32::from_le_bytes(bytes);
@@ -269,6 +278,7 @@ fn decode_length_delimited(data: &[u8], depth: usize) -> Result<LenValue, WireDe
     Ok(LenValue::Bytes(data.to_vec()))
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn is_mostly_printable(s: &str) -> bool {
     if s.is_empty() {
         return true;
@@ -280,7 +290,7 @@ fn is_mostly_printable(s: &str) -> bool {
     (printable_count as f64) / (total_count as f64) >= MIN_PRINTABLE_RATIO
 }
 
-fn is_printable(c: char) -> bool {
+const fn is_printable(c: char) -> bool {
     c.is_ascii_graphic() || c.is_ascii_whitespace()
 }
 
@@ -306,13 +316,14 @@ fn format_message(f: &mut fmt::Formatter<'_>, msg: &WireMessage, indent: usize) 
     Ok(())
 }
 
+#[allow(clippy::branches_sharing_code)]
 fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) -> fmt::Result {
     match value {
         WireValue::Varint(v) => {
             write!(f, "{}", v.unsigned)?;
             write!(f, " (varint")?;
             if let Some(b) = v.as_bool {
-                write!(f, "; bool={}", b)?;
+                write!(f, "; bool={b}")?;
             } else {
                 write!(f, "; bool=N/A")?;
             }
@@ -322,7 +333,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) ->
             write!(f, "{}", v.as_u64)?;
             write!(f, " (fixed64; u64={}; i64={}", v.as_u64, v.as_i64)?;
             if let Some(fval) = v.as_f64 {
-                write!(f, "; f64={}", fval)?;
+                write!(f, "; f64={fval}")?;
             }
             write!(f, ")")?;
         }
@@ -330,7 +341,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) ->
             write!(f, "{}", v.as_u32)?;
             write!(f, " (fixed32; u32={}; i32={}", v.as_u32, v.as_i32)?;
             if let Some(fval) = v.as_f32 {
-                write!(f, "; f32={}", fval)?;
+                write!(f, "; f32={fval}")?;
             }
             write!(f, ")")?;
         }
@@ -354,12 +365,12 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &WireValue, indent: usize) ->
                 if b.len() <= 16 {
                     write!(f, "0x")?;
                     for byte in b {
-                        write!(f, "{:02x}", byte)?;
+                        write!(f, "{byte:02x}")?;
                     }
                 } else {
                     write!(f, "0x")?;
                     for byte in &b[..16] {
-                        write!(f, "{:02x}", byte)?;
+                        write!(f, "{byte:02x}")?;
                     }
                     write!(f, "...")?;
                 }

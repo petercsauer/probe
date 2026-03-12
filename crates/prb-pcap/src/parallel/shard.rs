@@ -24,7 +24,8 @@ impl ShardProcessor {
     ///
     /// * `tls_keylog` - Shared TLS keylog for decryption
     /// * `capture_path` - Path to the capture file for event metadata
-    pub fn new(tls_keylog: Arc<TlsKeyLog>, capture_path: PathBuf) -> Self {
+    #[must_use]
+    pub const fn new(tls_keylog: Arc<TlsKeyLog>, capture_path: PathBuf) -> Self {
         Self {
             tls_keylog,
             capture_path,
@@ -33,7 +34,7 @@ impl ShardProcessor {
 
     /// Processes all shards in parallel.
     ///
-    /// Each shard gets its own TcpReassembler and TlsStreamProcessor.
+    /// Each shard gets its own `TcpReassembler` and `TlsStreamProcessor`.
     /// TCP state is isolated per shard, allowing true parallel processing.
     ///
     /// # Arguments
@@ -44,6 +45,7 @@ impl ShardProcessor {
     ///
     /// A vector of event vectors, one per shard. Events maintain their
     /// relative order within each shard.
+    #[must_use]
     pub fn process_shards(&self, shards: Vec<Vec<OwnedNormalizedPacket>>) -> Vec<Vec<DebugEvent>> {
         shards
             .into_par_iter()
@@ -56,7 +58,7 @@ impl ShardProcessor {
     /// This is where TCP reassembly and TLS decryption happen. Each shard
     /// maintains its own state, so multiple shards can run in parallel.
     ///
-    /// This method is also used by the sequential path in ParallelPipeline
+    /// This method is also used by the sequential path in `ParallelPipeline`
     /// to process small captures without parallelization overhead.
     pub fn process_single_shard(&self, packets: Vec<OwnedNormalizedPacket>) -> Vec<DebugEvent> {
         let mut reassembler = TcpReassembler::new();
@@ -124,7 +126,7 @@ impl ShardProcessor {
     }
 }
 
-/// Creates a DebugEvent for a UDP packet.
+/// Creates a `DebugEvent` for a UDP packet.
 fn create_udp_event(
     packet: &OwnedNormalizedPacket,
     src_port: u16,
@@ -153,7 +155,7 @@ fn create_udp_event(
         .build()
 }
 
-/// Creates a DebugEvent for a TCP stream with TLS decryption attempt.
+/// Creates a `DebugEvent` for a TCP stream with TLS decryption attempt.
 fn create_tcp_event(
     stream: crate::tcp::ReassembledStream,
     decrypted: crate::tls::DecryptedStream,
@@ -197,7 +199,7 @@ fn create_tcp_event(
     builder.build()
 }
 
-/// Creates a DebugEvent for an encrypted TCP stream (no decryption attempted).
+/// Creates a `DebugEvent` for an encrypted TCP stream (no decryption attempted).
 fn create_tcp_event_encrypted(
     stream: crate::tcp::ReassembledStream,
     capture_path: &std::path::Path,
@@ -281,7 +283,7 @@ mod tests {
         let results = processor.process_shards(shards);
 
         assert_eq!(results.len(), 3);
-        assert!(results.iter().all(|r| r.is_empty()));
+        assert!(results.iter().all(std::vec::Vec::is_empty));
     }
 
     #[test]

@@ -16,7 +16,7 @@ pub struct OwnedPacket {
     /// Packet timestamp in microseconds since Unix epoch.
     pub timestamp_us: u64,
 
-    /// Original packet length (may be larger than data.len() if truncated).
+    /// Original packet length (may be larger than `data.len()` if truncated).
     pub orig_len: u32,
 
     /// Packet data.
@@ -25,6 +25,7 @@ pub struct OwnedPacket {
 
 impl OwnedPacket {
     /// Convert from a pcap packet reference to owned data.
+    #[must_use]
     pub fn from_pcap(packet: &pcap::Packet<'_>) -> Self {
         let ts = packet.header.ts;
         let timestamp_us = ts.tv_sec as u64 * 1_000_000 + ts.tv_usec as u64;
@@ -40,7 +41,7 @@ impl OwnedPacket {
 ///
 /// Spawns a dedicated OS thread that continuously reads packets from a network
 /// interface and delivers them over a bounded channel. The thread uses blocking
-/// I/O but will never block on channel sends (uses try_send with drop counting).
+/// I/O but will never block on channel sends (uses `try_send` with drop counting).
 pub struct CaptureEngine {
     config: CaptureConfig,
     rx: Option<Receiver<OwnedPacket>>,
@@ -52,6 +53,7 @@ pub struct CaptureEngine {
 
 impl CaptureEngine {
     /// Create a new capture engine with the given configuration.
+    #[must_use]
     pub fn new(config: CaptureConfig) -> Self {
         Self {
             config,
@@ -91,7 +93,7 @@ impl CaptureEngine {
         // Apply BPF filter if specified
         if let Some(ref filter) = self.config.bpf_filter {
             cap.filter(filter, true).map_err(|e| {
-                CaptureError::FilterCompilationFailed(format!("filter '{}': {}", filter, e))
+                CaptureError::FilterCompilationFailed(format!("filter '{filter}': {e}"))
             })?;
         }
 
@@ -139,8 +141,7 @@ impl CaptureEngine {
                 Ok(result) => result?,
                 Err(e) => {
                     return Err(CaptureError::Other(format!(
-                        "capture thread panicked: {:?}",
-                        e
+                        "capture thread panicked: {e:?}"
                     )));
                 }
             }
@@ -154,11 +155,13 @@ impl CaptureEngine {
     /// Get the receiver for captured packets.
     ///
     /// Returns None if the engine hasn't been started yet.
-    pub fn receiver(&self) -> Option<&Receiver<OwnedPacket>> {
+    #[must_use]
+    pub const fn receiver(&self) -> Option<&Receiver<OwnedPacket>> {
         self.rx.as_ref()
     }
 
     /// Get a snapshot of current capture statistics.
+    #[must_use]
     pub fn stats(&self) -> CaptureStats {
         self.stats.snapshot(self.start_time)
     }
@@ -213,7 +216,7 @@ fn capture_loop(
                 {
                     stats
                         .packets_dropped_kernel
-                        .store(pcap_stats.dropped as u64, Ordering::Relaxed);
+                        .store(u64::from(pcap_stats.dropped), Ordering::Relaxed);
                 }
             }
             Err(pcap::Error::TimeoutExpired) => {
@@ -231,7 +234,7 @@ fn capture_loop(
     if let Ok(pcap_stats) = cap.stats() {
         stats
             .packets_dropped_kernel
-            .store(pcap_stats.dropped as u64, Ordering::Relaxed);
+            .store(u64::from(pcap_stats.dropped), Ordering::Relaxed);
     }
 
     Ok(())

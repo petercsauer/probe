@@ -24,8 +24,7 @@ fn test_dns_query_response_real_capture() {
 
     assert!(
         pcap_path.exists(),
-        "DNS pcap file should exist: {:?}",
-        pcap_path
+        "DNS pcap file should exist: {pcap_path:?}"
     );
 
     // Process DNS capture through the pipeline
@@ -59,8 +58,7 @@ fn test_dns_capture_produces_no_panics() {
 
     assert!(
         pcap_path.exists(),
-        "DNS pcap file should exist: {:?}",
-        pcap_path
+        "DNS pcap file should exist: {pcap_path:?}"
     );
 
     // Process the capture - main goal is to not panic
@@ -165,8 +163,7 @@ fn test_dhcp_dora_sequence() {
     let stats = adapter.stats();
     assert!(
         stats.packets_read > 0,
-        "Should read packets from DHCP capture, got stats: {:?}",
-        stats
+        "Should read packets from DHCP capture, got stats: {stats:?}"
     );
 
     // If events were produced, verify they don't cause panics

@@ -1,4 +1,4 @@
-//! Integration tests for DecoderRegistry with real decoder implementations.
+//! Integration tests for `DecoderRegistry` with real decoder implementations.
 
 use prb_core::{DecodeContext, ProtocolDecoder};
 use prb_dds::DdsDecoder;
@@ -62,7 +62,7 @@ fn test_process_stream_grpc() {
         .with_dst_addr("192.168.1.2:50051");
 
     // Process the stream - should detect gRPC and route to GrpcDecoder
-    let result = registry.process_stream(stream_key.clone(), preface, &ctx);
+    let result = registry.process_stream(stream_key, preface, &ctx);
 
     // Should succeed (even if no events are generated from just the preface)
     assert!(result.is_ok());
@@ -97,7 +97,7 @@ fn test_process_stream_zmtp() {
         .with_dst_addr("10.0.0.2:5555");
 
     // Process the stream - should detect ZMTP and route to ZmqDecoder
-    let result = registry.process_stream(stream_key.clone(), &greeting, &ctx);
+    let result = registry.process_stream(stream_key, &greeting, &ctx);
 
     assert!(result.is_ok());
     assert_eq!(registry.active_decoder_count(), 1);
@@ -122,7 +122,7 @@ fn test_process_datagram_rtps() {
         .with_dst_addr("192.168.1.200:7400");
 
     // Process the datagram - should detect RTPS and route to DdsDecoder
-    let result = registry.process_datagram(stream_key.clone(), rtps_header, &ctx);
+    let result = registry.process_datagram(stream_key, rtps_header, &ctx);
 
     assert!(result.is_ok());
     assert_eq!(registry.active_decoder_count(), 1);
@@ -179,7 +179,7 @@ fn test_user_override_bypasses_detection() {
         .with_dst_addr("10.0.0.2:9090");
 
     // Process the stream - should use gRPC decoder due to override
-    let result = registry.process_stream(stream_key.clone(), random_data, &ctx);
+    let result = registry.process_stream(stream_key, random_data, &ctx);
 
     // Should succeed (gRPC decoder will just not emit events for invalid data)
     assert!(result.is_ok());
@@ -251,7 +251,7 @@ fn test_same_stream_reuses_decoder() {
 
     let _ = registry.process_stream(stream_key.clone(), data1, &ctx);
     let _ = registry.process_stream(stream_key.clone(), data2, &ctx);
-    let _ = registry.process_stream(stream_key.clone(), data3, &ctx);
+    let _ = registry.process_stream(stream_key, data3, &ctx);
 
     // Should still only have one decoder instance for this stream
     assert_eq!(registry.active_decoder_count(), 1);

@@ -21,13 +21,12 @@ fn test_cli_inspect_wire_format() {
     // Create NDJSON event
     let payload_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &payload);
     let event_json = format!(
-        r#"{{"id":1,"timestamp":1000000000,"source":{{"adapter":"test","origin":"test.json"}},"transport":"grpc","direction":"inbound","payload":{{"type":"raw","raw":"{}"}}}}"#,
-        payload_b64
+        r#"{{"id":1,"timestamp":1000000000,"source":{{"adapter":"test","origin":"test.json"}},"transport":"grpc","direction":"inbound","payload":{{"type":"raw","raw":"{payload_b64}"}}}}"#
     );
 
     let event_path = temp_dir.path().join("events.ndjson");
     let mut event_file = std::fs::File::create(&event_path).unwrap();
-    writeln!(event_file, "{}", event_json).unwrap();
+    writeln!(event_file, "{event_json}").unwrap();
     drop(event_file);
 
     // Run prb inspect events.ndjson --wire-format
@@ -49,27 +48,22 @@ fn test_cli_inspect_wire_format() {
     // Verify wire-format output
     assert!(
         stdout.contains("WIRE FORMAT DECODE"),
-        "Output should indicate wire-format decode: {}",
-        stdout
+        "Output should indicate wire-format decode: {stdout}"
     );
     assert!(
         stdout.contains("field 1:"),
-        "Output should contain field 1: {}",
-        stdout
+        "Output should contain field 1: {stdout}"
     );
     assert!(
         stdout.contains("42"),
-        "Output should contain value 42: {}",
-        stdout
+        "Output should contain value 42: {stdout}"
     );
     assert!(
         stdout.contains("field 2:"),
-        "Output should contain field 2: {}",
-        stdout
+        "Output should contain field 2: {stdout}"
     );
     assert!(
         stdout.contains("hello"),
-        "Output should contain string 'hello': {}",
-        stdout
+        "Output should contain string 'hello': {stdout}"
     );
 }

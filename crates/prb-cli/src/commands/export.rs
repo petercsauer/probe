@@ -1,4 +1,4 @@
-//! Export command - convert DebugEvents to developer ecosystem formats.
+//! Export command - convert `DebugEvents` to developer ecosystem formats.
 
 use crate::cli::{ExportArgs, ExportFormat};
 use anyhow::{Context, Result};
@@ -30,13 +30,13 @@ pub fn run(args: ExportArgs) -> Result<()> {
     };
 
     let exporter = create_exporter(format_str)
-        .with_context(|| format!("Failed to create {} exporter", format_str))?;
+        .with_context(|| format!("Failed to create {format_str} exporter"))?;
 
     // Determine output destination
     let output: Box<dyn Write> = match args.output {
         Some(path) => {
             let file = File::create(&path)
-                .with_context(|| format!("Failed to create output file: {}", path))?;
+                .with_context(|| format!("Failed to create output file: {path}"))?;
             Box::new(BufWriter::new(file))
         }
         None => {
@@ -76,8 +76,7 @@ fn load_events(input: &camino::Utf8Path) -> Result<Vec<DebugEvent>> {
         "mcap" => load_mcap_events(input),
         "pcap" | "pcapng" => {
             anyhow::bail!(
-                "PCAP files must be ingested first: prb ingest {} --output events.mcap",
-                input
+                "PCAP files must be ingested first: prb ingest {input} --output events.mcap"
             )
         }
         _ => {
@@ -85,7 +84,7 @@ fn load_events(input: &camino::Utf8Path) -> Result<Vec<DebugEvent>> {
             load_ndjson_events(input)
                 .or_else(|_| load_json_events(input))
                 .or_else(|_| load_mcap_events(input))
-                .with_context(|| format!("Failed to load events from {}", input))
+                .with_context(|| format!("Failed to load events from {input}"))
         }
     }
 }
@@ -206,7 +205,7 @@ mod tests {
         let mut zmq_event = sample_event();
         zmq_event.transport = TransportKind::Zmq;
 
-        let events = vec![grpc_event.clone(), zmq_event];
+        let events = vec![grpc_event, zmq_event];
         let filtered = apply_filter(events, "transport == \"gRPC\"").unwrap();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].transport, TransportKind::Grpc);
@@ -230,7 +229,7 @@ mod tests {
         let event = sample_event();
         let line1 = serde_json::to_string(&event).unwrap();
         let line2 = serde_json::to_string(&event).unwrap();
-        let ndjson = format!("{}\n{}\n", line1, line2);
+        let ndjson = format!("{line1}\n{line2}\n");
 
         let tmp = NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), ndjson).unwrap();

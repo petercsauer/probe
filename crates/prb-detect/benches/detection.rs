@@ -17,7 +17,7 @@ fn bench_port_mapping_detector(c: &mut Criterion) {
     };
 
     c.bench_function("port_mapping_tcp_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -33,7 +33,7 @@ fn bench_grpc_detector_preface(c: &mut Criterion) {
     };
 
     c.bench_function("grpc_detector_preface_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -50,7 +50,7 @@ fn bench_grpc_detector_heuristic(c: &mut Criterion) {
     };
 
     c.bench_function("grpc_detector_heuristic_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -65,7 +65,7 @@ fn bench_grpc_detector_no_match(c: &mut Criterion) {
     };
 
     c.bench_function("grpc_detector_no_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -81,7 +81,7 @@ fn bench_zmtp_detector(c: &mut Criterion) {
     };
 
     c.bench_function("zmtp_detector_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -97,7 +97,7 @@ fn bench_rtps_detector(c: &mut Criterion) {
     };
 
     c.bench_function("rtps_detector_match", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -113,7 +113,7 @@ fn bench_guess_crate_detector(c: &mut Criterion) {
     };
 
     c.bench_function("guess_crate_detector", |b| {
-        b.iter(|| detector.detect(black_box(&ctx)))
+        b.iter(|| detector.detect(black_box(&ctx)));
     });
 }
 
@@ -129,7 +129,7 @@ fn bench_detection_engine_grpc(c: &mut Criterion) {
     };
 
     c.bench_function("detection_engine_grpc_match", |b| {
-        b.iter(|| engine.detect(black_box(&ctx)))
+        b.iter(|| engine.detect(black_box(&ctx)));
     });
 }
 
@@ -145,7 +145,7 @@ fn bench_detection_engine_zmtp(c: &mut Criterion) {
     };
 
     c.bench_function("detection_engine_zmtp_match", |b| {
-        b.iter(|| engine.detect(black_box(&ctx)))
+        b.iter(|| engine.detect(black_box(&ctx)));
     });
 }
 
@@ -161,7 +161,7 @@ fn bench_detection_engine_rtps(c: &mut Criterion) {
     };
 
     c.bench_function("detection_engine_rtps_match", |b| {
-        b.iter(|| engine.detect(black_box(&ctx)))
+        b.iter(|| engine.detect(black_box(&ctx)));
     });
 }
 
@@ -176,7 +176,7 @@ fn bench_detection_engine_unknown(c: &mut Criterion) {
     };
 
     c.bench_function("detection_engine_unknown_fallback", |b| {
-        b.iter(|| engine.detect(black_box(&ctx)))
+        b.iter(|| engine.detect(black_box(&ctx)));
     });
 }
 

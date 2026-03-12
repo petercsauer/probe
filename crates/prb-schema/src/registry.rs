@@ -13,7 +13,7 @@ use std::path::Path;
 pub struct SchemaRegistry {
     /// Descriptor pool containing all loaded schemas.
     pool: DescriptorPool,
-    /// Raw FileDescriptorSet bytes for MCAP embedding.
+    /// Raw `FileDescriptorSet` bytes for MCAP embedding.
     loaded_sets: Vec<Vec<u8>>,
     /// Accumulated file descriptors for merging
     all_files: Vec<prost_types::FileDescriptorProto>,
@@ -21,6 +21,7 @@ pub struct SchemaRegistry {
 
 impl SchemaRegistry {
     /// Create a new empty schema registry.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pool: DescriptorPool::global(),
@@ -56,7 +57,7 @@ impl SchemaRegistry {
 
     /// Load a descriptor set from a file.
     ///
-    /// Reads and parses a binary FileDescriptorSet file (typically .desc extension).
+    /// Reads and parses a binary `FileDescriptorSet` file (typically .desc extension).
     pub fn load_descriptor_set_file(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         tracing::debug!("Loading descriptor set from {}", path.display());
@@ -84,8 +85,8 @@ impl SchemaRegistry {
             return Ok(());
         }
 
-        let file_paths: Vec<_> = files.iter().map(|p| p.as_ref()).collect();
-        let include_paths: Vec<_> = includes.iter().map(|p| p.as_ref()).collect();
+        let file_paths: Vec<_> = files.iter().map(std::convert::AsRef::as_ref).collect();
+        let include_paths: Vec<_> = includes.iter().map(std::convert::AsRef::as_ref).collect();
 
         tracing::debug!(
             "Compiling proto files: {:?} with includes: {:?}",
@@ -117,6 +118,7 @@ impl SchemaRegistry {
     ///
     /// # Returns
     /// `Some(descriptor)` if found, `None` otherwise.
+    #[must_use]
     pub fn get_message(&self, fqn: &str) -> Option<MessageDescriptor> {
         self.pool.get_message_by_name(fqn)
     }
@@ -124,6 +126,7 @@ impl SchemaRegistry {
     /// List all known message type names.
     ///
     /// Returns fully qualified names of all messages in the registry.
+    #[must_use]
     pub fn list_messages(&self) -> Vec<String> {
         self.pool
             .all_messages()
@@ -134,6 +137,7 @@ impl SchemaRegistry {
     /// List all known service names.
     ///
     /// Returns fully qualified names of all services in the registry.
+    #[must_use]
     pub fn list_services(&self) -> Vec<String> {
         self.pool
             .services()
@@ -144,6 +148,7 @@ impl SchemaRegistry {
     /// Get raw descriptor set bytes for MCAP embedding.
     ///
     /// Returns a slice of all loaded descriptor sets as raw bytes.
+    #[must_use]
     pub fn descriptor_sets(&self) -> &[Vec<u8>] {
         &self.loaded_sets
     }

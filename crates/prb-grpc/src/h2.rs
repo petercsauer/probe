@@ -56,7 +56,7 @@ pub enum H2Event {
     },
     /// SETTINGS frame received.
     Settings,
-    /// RST_STREAM frame received.
+    /// `RST_STREAM` frame received.
     RstStream { stream_id: u32 },
     /// GOAWAY frame received.
     GoAway,
@@ -153,10 +153,7 @@ impl H2Codec {
                     let end_stream = (flags & 0x01) != 0;
                     let end_headers = (flags & 0x04) != 0;
 
-                    if !end_headers {
-                        // Start accumulating header block fragments
-                        self.header_block_buffer = Some((stream_id, payload.clone(), end_stream));
-                    } else {
+                    if end_headers {
                         // Complete header block in one frame
                         let headers = match self.parse_hpack_headers(&payload) {
                             Ok(h) => h,
@@ -178,6 +175,9 @@ impl H2Codec {
                             headers,
                             end_stream,
                         });
+                    } else {
+                        // Start accumulating header block fragments
+                        self.header_block_buffer = Some((stream_id, payload.clone(), end_stream));
                     }
                 }
                 0x09 => {
@@ -277,8 +277,7 @@ impl H2Codec {
                 } else {
                     // Dynamic table reference - requires context we may not have
                     return Err(GrpcError::HpackError(format!(
-                        "Dynamic table reference {} not available (mid-stream capture)",
-                        index
+                        "Dynamic table reference {index} not available (mid-stream capture)"
                     )));
                 }
             }
@@ -305,8 +304,7 @@ impl H2Codec {
                 } else {
                     // Indexed name from static table
                     self.static_table_lookup(name_index)
-                        .map(|(n, _)| n.to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 // Parse value (always literal)
@@ -350,8 +348,7 @@ impl H2Codec {
                     name
                 } else {
                     self.static_table_lookup(name_index)
-                        .map(|(n, _)| n.to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 if offset >= data.len() {
@@ -387,8 +384,7 @@ impl H2Codec {
                     name
                 } else {
                     self.static_table_lookup(name_index)
-                        .map(|(n, _)| n.to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
+                        .map_or_else(|| "unknown".to_string(), |(n, _)| n.to_string())
                 };
 
                 if offset >= data.len() {
@@ -410,7 +406,7 @@ impl H2Codec {
     }
 
     /// Parse HPACK integer with N-bit prefix.
-    /// Returns (value, bytes_consumed).
+    /// Returns (value, `bytes_consumed`).
     fn parse_integer(&self, data: &[u8], n: u8) -> Result<(usize, usize), GrpcError> {
         if data.is_empty() {
             return Err(GrpcError::HpackError("Unexpected end of data".to_string()));
@@ -445,7 +441,7 @@ impl H2Codec {
     }
 
     /// Lookup in HTTP/2 static table (RFC 7541 Appendix A).
-    fn static_table_lookup(&self, index: usize) -> Option<(&'static str, &'static str)> {
+    const fn static_table_lookup(&self, index: usize) -> Option<(&'static str, &'static str)> {
         match index {
             1 => Some((":authority", "")),
             2 => Some((":method", "GET")),
@@ -520,7 +516,7 @@ impl H2Codec {
     }
 
     /// Check if HPACK degradation has occurred.
-    pub fn is_hpack_degraded(&self) -> bool {
+    pub const fn is_hpack_degraded(&self) -> bool {
         self.hpack_degraded
     }
 }

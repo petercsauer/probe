@@ -233,7 +233,7 @@ mod tests {
 
         // If it fails, print the error for debugging
         if result.is_err() {
-            eprintln!("Error: {:?}", result);
+            eprintln!("Error: {result:?}");
         }
         assert!(result.is_ok());
 
@@ -282,7 +282,7 @@ mod tests {
             .map(|i| {
                 let src_ip = [192, 168, 1, (i % 256) as u8];
                 let dst_ip = [10, 0, 0, (i / 256 + 1) as u8];
-                create_pcap_tcp_packet(src_ip, dst_ip, format!("packet{}", i).as_bytes())
+                create_pcap_tcp_packet(src_ip, dst_ip, format!("packet{i}").as_bytes())
             })
             .collect();
 

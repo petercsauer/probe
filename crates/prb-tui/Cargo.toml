@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Terminal user interface for interactive protocol debugging"
+keywords = ["tui", "terminal", "ui", "interactive"]
+categories = ["command-line-utilities"]
 
 [features]
 default = []

@@ -1,6 +1,14 @@
-//! Query and filter language for DebugEvents.
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::single_match_else)]
+#![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+//! Query and filter language for `DebugEvents`.
 //!
-//! This crate provides a simple expression language for filtering DebugEvents
+//! This crate provides a simple expression language for filtering `DebugEvents`
 //! based on transport type, metadata fields, and other event properties.
 
 #![warn(missing_docs)]
@@ -31,7 +39,7 @@ impl Filter {
         } else {
             Some(parser::parse_expr(trimmed)?)
         };
-        Ok(Filter {
+        Ok(Self {
             expr,
             source: input.to_string(),
         })
@@ -44,6 +52,7 @@ impl Filter {
         }
     }
 
+    #[must_use]
     pub fn source(&self) -> &str {
         &self.source
     }

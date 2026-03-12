@@ -1,4 +1,4 @@
-//! Additional tests for event_store.rs to improve coverage
+//! Additional tests for `event_store.rs` to improve coverage
 
 use bytes::Bytes;
 use prb_core::{

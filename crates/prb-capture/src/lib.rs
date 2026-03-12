@@ -7,7 +7,7 @@
 //! - BPF filter compilation and application
 //! - Dedicated OS thread capture loop with bounded channel delivery
 //! - Real-time statistics tracking
-//! - Privilege checking (Linux CAP_NET_RAW)
+//! - Privilege checking (Linux `CAP_NET_RAW`)
 //!
 //! # Architecture
 //!

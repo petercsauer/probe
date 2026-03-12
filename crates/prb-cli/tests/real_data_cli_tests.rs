@@ -44,9 +44,8 @@ fn fixtures_dir() -> PathBuf {
 fn load_manifest() -> FixtureManifest {
     let manifest_path = fixtures_dir().join("manifest.json");
     let content = fs::read_to_string(&manifest_path)
-        .unwrap_or_else(|_| panic!("Failed to read manifest at {:?}", manifest_path));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("Failed to parse manifest.json: {}", e))
+        .unwrap_or_else(|_| panic!("Failed to read manifest at {manifest_path:?}"));
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse manifest.json: {e}"))
 }
 
 #[test]
@@ -93,10 +92,7 @@ fn test_all_fixtures_exist_in_manifest() {
         }
     }
 
-    eprintln!(
-        "Fixtures: {} present, {} missing from filesystem",
-        present, missing
-    );
+    eprintln!("Fixtures: {present} present, {missing} missing from filesystem");
 
     assert!(present > 0, "At least some fixtures should be present");
 }
@@ -111,7 +107,7 @@ fn test_fixture_categories_represented() {
         categories.insert(fixture.category.as_str());
     }
 
-    eprintln!("Fixture categories: {:?}", categories);
+    eprintln!("Fixture categories: {categories:?}");
 
     // Should have at least 5 different categories
     assert!(

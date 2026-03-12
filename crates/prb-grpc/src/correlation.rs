@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 /// gRPC correlation strategy.
 ///
-/// Groups events by (network.src, network.dst, h2.stream_id).
+/// Groups events by (network.src, network.dst, `h2.stream_id`).
 pub struct GrpcCorrelationStrategy;
 
 impl CorrelationStrategy for GrpcCorrelationStrategy {
@@ -90,13 +90,12 @@ fn grouping_key(event: &DebugEvent) -> String {
     let stream_id = event
         .metadata
         .get(METADATA_KEY_H2_STREAM_ID)
-        .map(|s| s.as_str())
-        .unwrap_or("?");
+        .map_or("?", std::string::String::as_str);
 
     if let Some(ref network) = event.source.network {
         format!("grpc:{}->{}/ s{}", network.src, network.dst, stream_id)
     } else {
-        format!("grpc:unknown/s{}", stream_id)
+        format!("grpc:unknown/s{stream_id}")
     }
 }
 

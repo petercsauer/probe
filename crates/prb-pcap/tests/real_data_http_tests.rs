@@ -120,8 +120,7 @@ fn test_real_data_http_no_panic_comprehensive() {
 
     assert!(
         tested >= 2,
-        "Should test at least 2 HTTP captures, tested {}",
-        tested
+        "Should test at least 2 HTTP captures, tested {tested}"
     );
 }
 

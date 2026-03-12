@@ -136,7 +136,7 @@ fn write_pcap_file(path: &PathBuf, packets: &[Vec<u8>]) {
     file.flush().unwrap();
 }
 
-/// Create a test DebugEvent.
+/// Create a test `DebugEvent`.
 fn make_test_event(
     id: u64,
     transport: TransportKind,
@@ -690,7 +690,7 @@ fn integration_empty_event_list_handling() {
 // SCHEMA-BACKED DECODE INTEGRATION TESTS
 // ============================================================================
 
-/// Create a simple test FileDescriptorSet programmatically.
+/// Create a simple test `FileDescriptorSet` programmatically.
 fn create_test_descriptor_set() -> Vec<u8> {
     use prost::Message;
     use prost_types::{

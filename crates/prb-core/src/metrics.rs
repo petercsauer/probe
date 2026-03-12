@@ -9,6 +9,14 @@ use crate::{
 ///
 /// This is protocol-agnostic and operates on event timestamps, directions,
 /// and metadata.
+///
+/// # Errors
+/// Returns an error if metric computation fails due to invalid timestamp data.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, CoreError> {
     if events.is_empty() {
         return Ok(ConversationMetrics::default());
@@ -67,7 +75,8 @@ pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, Co
 }
 
 /// Get payload size in bytes.
-fn payload_size(payload: &Payload) -> u64 {
+#[allow(clippy::match_same_arms)]
+const fn payload_size(payload: &Payload) -> u64 {
     match payload {
         Payload::Raw { raw } => raw.len() as u64,
         Payload::Decoded { raw, .. } => raw.len() as u64,
@@ -85,7 +94,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
                 .metadata
                 .get("grpc.message")
                 .cloned()
-                .unwrap_or_else(|| format!("gRPC error status {}", status));
+                .unwrap_or_else(|| format!("gRPC error status {status}"));
 
             return Some(ConversationError::new("grpc-status", message).with_code(status.clone()));
         }
@@ -102,7 +111,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
     {
         return Some(ConversationError::new(
             "sequence-gap",
-            format!("{} missing sequence numbers", gap_count),
+            format!("{gap_count} missing sequence numbers"),
         ));
     }
 
@@ -118,6 +127,7 @@ fn extract_error(events: &[&DebugEvent]) -> Option<ConversationError> {
 }
 
 /// Check for DDS sequence gaps.
+#[allow(clippy::cast_possible_truncation)]
 fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
     let mut sequences: Vec<u64> = events.iter().filter_map(|e| e.sequence).collect();
 
@@ -137,6 +147,8 @@ fn check_dds_sequence_gaps(events: &[&DebugEvent]) -> Option<usize> {
 }
 
 /// Compute aggregate metrics for multiple conversations.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn compute_aggregate_metrics(
     conversations: &[&crate::conversation::Conversation],
 ) -> AggregateMetrics {
@@ -220,6 +232,11 @@ pub struct AggregateMetrics {
 }
 
 /// Calculate percentile from sorted values.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub(crate) fn percentile(sorted: &[u64], p: f64) -> u64 {
     if sorted.is_empty() {
         return 0;

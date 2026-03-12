@@ -24,7 +24,8 @@ pub struct StreamKey {
 
 impl StreamKey {
     /// Create a new stream key.
-    pub fn new(src_addr: String, dst_addr: String, transport: TransportLayer) -> Self {
+    #[must_use]
+    pub const fn new(src_addr: String, dst_addr: String, transport: TransportLayer) -> Self {
         Self {
             src_addr,
             dst_addr,
@@ -32,7 +33,8 @@ impl StreamKey {
         }
     }
 
-    /// Create a stream key from DecodeContext.
+    /// Create a stream key from `DecodeContext`.
+    #[must_use]
     pub fn from_decode_context(ctx: &DecodeContext, transport: TransportLayer) -> Option<Self> {
         let src_addr = ctx.src_addr.clone()?;
         let dst_addr = ctx.dst_addr.clone()?;
@@ -72,6 +74,7 @@ pub struct DecoderRegistry {
 
 impl DecoderRegistry {
     /// Create a new registry with default detection engine.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             detection_engine: DetectionEngine::with_defaults(),
@@ -82,6 +85,7 @@ impl DecoderRegistry {
     }
 
     /// Create a registry with a custom detection engine.
+    #[must_use]
     pub fn with_engine(engine: DetectionEngine) -> Self {
         Self {
             detection_engine: engine,
@@ -93,7 +97,7 @@ impl DecoderRegistry {
 
     /// Register a decoder factory.
     pub fn register_factory(&mut self, factory: Box<dyn DecoderFactory>) {
-        let protocol_id = factory.protocol_id().0.clone();
+        let protocol_id = factory.protocol_id().0;
         tracing::debug!(protocol = %protocol_id, "Registering decoder factory");
         self.factories.insert(protocol_id, factory);
     }
@@ -255,6 +259,7 @@ impl DecoderRegistry {
     }
 
     /// Get the number of active decoder instances.
+    #[must_use]
     pub fn active_decoder_count(&self) -> usize {
         self.active_decoders.len()
     }

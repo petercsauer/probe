@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "gRPC protocol decoder for HTTP/2-based RPC analysis"
+keywords = ["grpc", "rpc", "protocol", "decoder"]
+categories = ["network-programming", "parser-implementations"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

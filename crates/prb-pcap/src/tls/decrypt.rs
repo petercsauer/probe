@@ -30,9 +30,9 @@ pub enum AeadCipher {
 impl AeadCipher {
     fn algorithm(&self) -> &'static ring::aead::Algorithm {
         match self {
-            AeadCipher::Aes128Gcm => &AES_128_GCM,
-            AeadCipher::Aes256Gcm => &AES_256_GCM,
-            AeadCipher::ChaCha20Poly1305 => &CHACHA20_POLY1305,
+            Self::Aes128Gcm => &AES_128_GCM,
+            Self::Aes256Gcm => &AES_256_GCM,
+            Self::ChaCha20Poly1305 => &CHACHA20_POLY1305,
         }
     }
 }
@@ -150,7 +150,7 @@ impl TlsDecryptor {
     /// Decrypts a single AEAD-encrypted payload directly (without TLS record framing).
     ///
     /// For TLS 1.3: `ciphertext` is the raw encrypted content + auth tag.
-    /// For TLS 1.2: `ciphertext` is explicit_nonce (8 bytes) + encrypted content + auth tag.
+    /// For TLS 1.2: `ciphertext` is `explicit_nonce` (8 bytes) + encrypted content + auth tag.
     pub fn decrypt_aead(
         &self,
         ciphertext: &[u8],
@@ -245,16 +245,16 @@ impl TlsDecryptor {
 
         let mut in_out = decrypt_input.to_vec();
         let unbound_key = UnboundKey::new(self.cipher.algorithm(), key)
-            .map_err(|e| PcapError::TlsKey(format!("failed to create key: {:?}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("failed to create key: {e:?}")))?;
 
         let nonce_obj = Nonce::try_assume_unique_for_key(&nonce)
-            .map_err(|e| PcapError::TlsKey(format!("invalid nonce: {:?}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("invalid nonce: {e:?}")))?;
 
         let mut opening_key = OpeningKey::new(unbound_key, FixedNonceSequence(Some(nonce_obj)));
 
         let plaintext_len = opening_key
             .open_in_place(Aad::from(&aad), &mut in_out)
-            .map_err(|e| PcapError::TlsKey(format!("decryption failed: {:?}", e)))?
+            .map_err(|e| PcapError::TlsKey(format!("decryption failed: {e:?}")))?
             .len();
 
         in_out.truncate(plaintext_len);
@@ -304,7 +304,7 @@ impl TlsDecryptor {
 
     /// Constructs the AAD (Additional Authenticated Data) for AEAD.
     ///
-    /// TLS 1.2 (RFC 5246 Section 6.2.3.3): seq_num (8) + type (1) + version (2) + length (2) = 13 bytes
+    /// TLS 1.2 (RFC 5246 Section 6.2.3.3): `seq_num` (8) + type (1) + version (2) + length (2) = 13 bytes
     /// TLS 1.3 (RFC 8446 Section 5.2): type (1) + version (2) + length (2) = 5 bytes
     fn construct_aad(
         &self,

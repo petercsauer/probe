@@ -2,7 +2,9 @@
 
 use crate::error::PcapError;
 use pcap_parser::traits::PcapReaderIterator;
-use pcap_parser::*;
+use pcap_parser::{
+    Block, DecryptionSecretsBlock, LegacyPcapReader, PcapBlockOwned, PcapNGReader, SecretsType,
+};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -13,7 +15,7 @@ pub type Linktype = u32;
 
 /// TLS key material extracted from pcapng Decryption Secrets Blocks.
 ///
-/// Maps client_random (48 bytes) to key material for TLS 1.2/1.3 decryption.
+/// Maps `client_random` (48 bytes) to key material for TLS 1.2/1.3 decryption.
 #[derive(Debug, Default)]
 pub struct TlsKeyStore {
     keys: HashMap<Vec<u8>, Vec<u8>>,
@@ -21,6 +23,7 @@ pub struct TlsKeyStore {
 
 impl TlsKeyStore {
     /// Creates an empty key store.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -30,17 +33,20 @@ impl TlsKeyStore {
         self.keys.insert(client_random, key_material);
     }
 
-    /// Looks up key material by client_random.
+    /// Looks up key material by `client_random`.
+    #[must_use]
     pub fn get(&self, client_random: &[u8]) -> Option<&[u8]> {
-        self.keys.get(client_random).map(|v| v.as_slice())
+        self.keys.get(client_random).map(std::vec::Vec::as_slice)
     }
 
     /// Returns the number of stored keys.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.keys.len()
     }
 
     /// Returns true if no keys are stored.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
@@ -95,7 +101,7 @@ impl PcapFileReader {
                 // pcapng format
                 // Use 1MB buffer for streaming large captures
                 let pcapng_reader = PcapNGReader::new(1024 * 1024, reader).map_err(|e| {
-                    PcapError::Parse(format!("failed to create pcapng reader: {:?}", e))
+                    PcapError::Parse(format!("failed to create pcapng reader: {e:?}"))
                 })?;
                 Ok(Self {
                     reader: Box::new(pcapng_reader),
@@ -108,7 +114,7 @@ impl PcapFileReader {
                 // pcap format (native or swapped endian)
                 // Use 1MB buffer for streaming large captures
                 let pcap_reader = LegacyPcapReader::new(1024 * 1024, reader).map_err(|e| {
-                    PcapError::Parse(format!("failed to create pcap reader: {:?}", e))
+                    PcapError::Parse(format!("failed to create pcap reader: {e:?}"))
                 })?;
                 // Default to Ethernet (linktype 1) for legacy pcap
                 // We'll extract the actual linktype from the first header block
@@ -127,11 +133,13 @@ impl PcapFileReader {
     }
 
     /// Returns a reference to the extracted TLS keys.
-    pub fn tls_keys(&self) -> &TlsKeyStore {
+    #[must_use]
+    pub const fn tls_keys(&self) -> &TlsKeyStore {
         &self.tls_keys
     }
 
     /// Consumes the reader and returns the TLS key store.
+    #[must_use]
     pub fn into_tls_keys(self) -> TlsKeyStore {
         self.tls_keys
     }
@@ -156,7 +164,7 @@ impl PcapFileReader {
                         PcapBlockOwned::Legacy(packet) => {
                             // Legacy pcap packet
                             let timestamp_us =
-                                packet.ts_sec as u64 * 1_000_000 + packet.ts_usec as u64;
+                                u64::from(packet.ts_sec) * 1_000_000 + u64::from(packet.ts_usec);
                             packets.push(PcapPacket {
                                 linktype: default_linktype,
                                 timestamp_us,
@@ -182,7 +190,7 @@ impl PcapFileReader {
                     break;
                 }
                 Err(e) => {
-                    return Err(PcapError::Parse(format!("parse error: {:?}", e)));
+                    return Err(PcapError::Parse(format!("parse error: {e:?}")));
                 }
             }
         }
@@ -207,7 +215,7 @@ impl PcapFileReader {
             Block::EnhancedPacket(epb) => {
                 // Enhanced packet with interface reference
                 let linktype = *interfaces.get(&epb.if_id).unwrap_or(&default_linktype);
-                let timestamp_us = (epb.ts_high as u64) << 32 | epb.ts_low as u64;
+                let timestamp_us = u64::from(epb.ts_high) << 32 | u64::from(epb.ts_low);
                 packets.push(PcapPacket {
                     linktype,
                     timestamp_us,
@@ -247,7 +255,7 @@ impl PcapFileReader {
         // Parse TLS key log format (NSS Key Log Format)
         // Format: "CLIENT_RANDOM <hex client_random> <hex master_secret>"
         let secrets_data = std::str::from_utf8(dsb.data)
-            .map_err(|e| PcapError::TlsKey(format!("invalid UTF-8 in DSB: {}", e)))?;
+            .map_err(|e| PcapError::TlsKey(format!("invalid UTF-8 in DSB: {e}")))?;
 
         for line in secrets_data.lines() {
             let line = line.trim();
@@ -261,12 +269,10 @@ impl PcapFileReader {
             }
 
             if parts[0] == "CLIENT_RANDOM" {
-                let client_random = hex::decode(parts[1]).map_err(|e| {
-                    PcapError::TlsKey(format!("invalid hex in client_random: {}", e))
-                })?;
-                let master_secret = hex::decode(parts[2]).map_err(|e| {
-                    PcapError::TlsKey(format!("invalid hex in master_secret: {}", e))
-                })?;
+                let client_random = hex::decode(parts[1])
+                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in client_random: {e}")))?;
+                let master_secret = hex::decode(parts[2])
+                    .map_err(|e| PcapError::TlsKey(format!("invalid hex in master_secret: {e}")))?;
                 tls_keys.insert(client_random, master_secret);
             }
         }

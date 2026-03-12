@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Live network packet capture using libpcap"
+keywords = ["pcap", "capture", "network", "packet"]
+categories = ["network-programming"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }

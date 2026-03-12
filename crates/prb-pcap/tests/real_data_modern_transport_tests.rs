@@ -1,5 +1,5 @@
 //! Integration tests for modern transport protocols with real-world PCAP captures.
-//! Tests QUIC, SSH, WireGuard, and SCTP protocol detection and decoding.
+//! Tests QUIC, SSH, `WireGuard`, and SCTP protocol detection and decoding.
 
 use prb_core::CaptureAdapter;
 use prb_pcap::PcapCaptureAdapter;
@@ -32,8 +32,7 @@ fn test_quic_initial_packet_detection() {
 
     assert!(
         pcap_path.exists(),
-        "QUIC initial packet capture should exist: {:?}",
-        pcap_path
+        "QUIC initial packet capture should exist: {pcap_path:?}"
     );
 
     // Process QUIC capture - should not panic
@@ -60,8 +59,7 @@ fn test_quic_encrypted_payload_handling() {
 
     assert!(
         pcap_path.exists(),
-        "QUIC capture should exist: {:?}",
-        pcap_path
+        "QUIC capture should exist: {pcap_path:?}"
     );
 
     // Process QUIC capture without keys - should not panic
@@ -84,8 +82,7 @@ fn test_ssh_banner_exchange_detection() {
 
     assert!(
         pcap_path.exists(),
-        "SSH banner capture should exist: {:?}",
-        pcap_path
+        "SSH banner capture should exist: {pcap_path:?}"
     );
 
     // Process SSH capture - should not panic
@@ -109,8 +106,7 @@ fn test_ssh_protocol_detection() {
 
     assert!(
         pcap_path.exists(),
-        "SSH capture should exist: {:?}",
-        pcap_path
+        "SSH capture should exist: {pcap_path:?}"
     );
 
     // Process SSH capture - should not panic
@@ -133,8 +129,7 @@ fn test_wireguard_handshake_detection() {
 
     assert!(
         pcap_path.exists(),
-        "WireGuard capture should exist: {:?}",
-        pcap_path
+        "WireGuard capture should exist: {pcap_path:?}"
     );
 
     // Process WireGuard capture - should not panic
@@ -158,8 +153,7 @@ fn test_wireguard_encrypted_handling() {
 
     assert!(
         pcap_path.exists(),
-        "WireGuard capture should exist: {:?}",
-        pcap_path
+        "WireGuard capture should exist: {pcap_path:?}"
     );
 
     // Process WireGuard capture - should not panic
@@ -182,8 +176,7 @@ fn test_sctp_multistream_real() {
 
     assert!(
         pcap_path.exists(),
-        "SCTP capture should exist: {:?}",
-        pcap_path
+        "SCTP capture should exist: {pcap_path:?}"
     );
 
     // Process SCTP capture - should not panic
@@ -207,8 +200,7 @@ fn test_sctp_chunk_detection() {
 
     assert!(
         pcap_path.exists(),
-        "SCTP capture should exist: {:?}",
-        pcap_path
+        "SCTP capture should exist: {pcap_path:?}"
     );
 
     // Process SCTP capture - should not panic

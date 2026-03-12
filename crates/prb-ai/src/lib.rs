@@ -1,13 +1,25 @@
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::single_match_else)]
+#![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
 //! AI-powered packet explanation engine for Probe.
 //!
 //! This crate provides LLM-powered plain-English explanations of decoded network events,
 //! grounded in structured protocol data to minimize hallucination. Supports privacy-first
-//! local models via Ollama and optional cloud providers (OpenAI, custom endpoints).
+//! local models via Ollama and optional cloud providers (`OpenAI`, custom endpoints).
 //!
 //! # Architecture
 //!
-//! - `config`: AI provider configuration (Ollama, OpenAI, custom)
-//! - `context`: Converts DebugEvents into structured summaries for LLM consumption
+//! - `config`: AI provider configuration (Ollama, `OpenAI`, custom)
+//! - `context`: Converts `DebugEvents` into structured summaries for LLM consumption
 //! - `prompt`: Protocol-specific system prompts with RFC grounding
 //! - `explain`: Main engine that orchestrates prompt building and LLM calls
 //! - `error`: Error types for AI operations

@@ -711,7 +711,7 @@ fn test_tui_with_filter_syntax() {
     let test_cases = vec![
         r#"transport == "gRPC""#,
         r#"direction == "inbound""#,
-        r#"timestamp > 1000000000"#,
+        r"timestamp > 1000000000",
     ];
 
     for filter in test_cases {
@@ -1024,7 +1024,7 @@ fn test_export_with_where_filter() {
 
     let args = ExportArgs {
         input: input_path,
-        output: Some(output_path.clone()),
+        output: Some(output_path),
         format: ExportFormat::Csv,
         where_clause: Some(r#"transport == "gRPC""#.to_string()),
     };
@@ -1120,7 +1120,7 @@ fn test_ingest_with_trace_id_filter() {
 
     let args = IngestArgs {
         input: input_path,
-        output: Some(output_path.clone()),
+        output: Some(output_path),
         tls_keylog: None,
         protocol: None,
         trace_id: Some("nonexistent-trace-id".to_string()),
@@ -1130,7 +1130,7 @@ fn test_ingest_with_trace_id_filter() {
 
     let result = run_ingest(args);
     if let Err(e) = result {
-        panic!("Ingest with trace filter should succeed. Error: {:?}", e);
+        panic!("Ingest with trace filter should succeed. Error: {e:?}");
     }
 }
 
@@ -1151,7 +1151,7 @@ fn test_ingest_with_span_id_filter() {
 
     let result = run_ingest(args);
     if let Err(e) = result {
-        panic!("Ingest with span filter should succeed. Error: {:?}", e);
+        panic!("Ingest with span filter should succeed. Error: {e:?}");
     }
 }
 
@@ -1208,7 +1208,7 @@ fn test_main_command_dispatch_coverage() {
 
     // Already tested above but ensures dispatch coverage
     let _ = run_inspect(InspectArgs {
-        input: Some(ndjson.clone()),
+        input: Some(ndjson),
         format: OutputFormat::Json,
         filter: None,
         where_clause: None,
@@ -1708,7 +1708,7 @@ fn test_merge_creates_output_directory() {
     let args = MergeArgs {
         packets,
         traces,
-        output: Some(output.clone()),
+        output: Some(output),
     };
 
     let result = run_merge(args);

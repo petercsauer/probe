@@ -13,7 +13,7 @@ use crate::tls::DecryptedStream;
 pub enum DetectedProtocol {
     /// gRPC over HTTP/2.
     Grpc,
-    /// ZeroMQ ZMTP.
+    /// `ZeroMQ` ZMTP.
     Zmtp,
     /// DDS-RTPS.
     Rtps,
@@ -32,6 +32,7 @@ const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 /// 5. Port-based fallback (50051, 443, 8443, 9090 → gRPC)
 ///
 /// Returns `None` if protocol cannot be determined.
+#[must_use]
 pub fn detect_protocol(stream: &DecryptedStream) -> Option<DetectedProtocol> {
     let data = &stream.data;
 

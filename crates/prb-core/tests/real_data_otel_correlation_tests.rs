@@ -1,4 +1,4 @@
-//! Real-world OTel trace correlation tests.
+//! Real-world `OTel` trace correlation tests.
 //!
 //! Tests OpenTelemetry trace context extraction and correlation with network captures.
 
@@ -31,7 +31,7 @@ struct OTelSpan {
     attributes: HashMap<String, String>,
 }
 
-/// Load OTel spans from a JSON file.
+/// Load `OTel` spans from a JSON file.
 fn load_spans(filename: &str) -> Vec<OTelSpan> {
     let path = fixtures_dir().join(filename);
     if !path.exists() {

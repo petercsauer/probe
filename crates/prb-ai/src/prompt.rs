@@ -145,6 +145,7 @@ If surrounding context events are provided, use them to identify patterns \
 (repeated errors, request/response pairs, timing anomalies).";
 
 /// Build the complete system prompt with protocol-specific grounding.
+#[must_use]
 pub fn build_system_prompt(transport: TransportKind, has_tls: bool) -> String {
     let mut prompt = String::with_capacity(4096);
 
@@ -171,6 +172,7 @@ pub fn build_system_prompt(transport: TransportKind, has_tls: bool) -> String {
 }
 
 /// Build the user message from the explain context.
+#[must_use]
 pub fn build_user_message(context: &ExplainContext) -> String {
     let mut msg = String::with_capacity(2048);
 

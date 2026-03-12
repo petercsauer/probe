@@ -16,8 +16,7 @@ fn test_grpc_status_codes_all_defined() {
     for code in 0..=16 {
         assert!(
             error_intel::grpc_status_name(code).is_some(),
-            "Status code {} should have a name",
-            code
+            "Status code {code} should have a name"
         );
     }
 
@@ -34,8 +33,7 @@ fn test_grpc_error_explanations_subset() {
     for &code in &common_errors {
         assert!(
             error_intel::grpc_status_explanation(code).is_some(),
-            "Common error code {} should have an explanation",
-            code
+            "Common error code {code} should have an explanation"
         );
     }
 
@@ -60,8 +58,7 @@ fn test_tls_alert_descriptions_comprehensive() {
     for &code in &important_alerts {
         assert!(
             error_intel::tls_alert_description(code).is_some(),
-            "TLS alert {} should have a description",
-            code
+            "TLS alert {code} should have a description"
         );
     }
 }
@@ -279,21 +276,18 @@ fn test_error_explanations_are_helpful() {
     let explanation = error_intel::grpc_status_explanation(4).unwrap();
     assert!(
         explanation.contains("deadline") || explanation.contains("expired"),
-        "Explanation should mention deadline/expired: {}",
-        explanation
+        "Explanation should mention deadline/expired: {explanation}"
     );
 
     let explanation = error_intel::grpc_status_explanation(14).unwrap();
     assert!(
         explanation.contains("unavailable") || explanation.contains("overloaded"),
-        "Explanation should mention unavailability: {}",
-        explanation
+        "Explanation should mention unavailability: {explanation}"
     );
 
     let tcp_explanation = error_intel::tcp_flag_explanation("RST").unwrap();
     assert!(
         tcp_explanation.contains("terminated") || tcp_explanation.contains("reset"),
-        "TCP RST explanation should mention connection termination: {}",
-        tcp_explanation
+        "TCP RST explanation should mention connection termination: {tcp_explanation}"
     );
 }
