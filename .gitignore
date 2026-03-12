@@ -66,6 +66,8 @@ ssl-keys.txt
 
 # VSCode (settings are checked in per-project preference; adjust as needed)
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # JetBrains / RustRover
 .idea/
