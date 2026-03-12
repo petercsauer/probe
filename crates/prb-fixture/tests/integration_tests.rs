@@ -1,3 +1,4 @@
+#![allow(clippy::match_same_arms)]
 //! Integration tests for prb-fixture JSON adapter.
 
 use camino::Utf8PathBuf;
