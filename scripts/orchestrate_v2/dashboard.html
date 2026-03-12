@@ -136,8 +136,6 @@
   .act-kill  { background: rgba(209,77,65,0.15); color: var(--fail); border: 1px solid var(--fail); }
   .act-retry { background: rgba(56,189,248,0.15); color: var(--running); border: 1px solid var(--running); }
   .act-skip  { background: rgba(100,100,100,0.1); color: var(--text-muted); border: 1px solid var(--border); }
-  .act-interject { background: var(--running); color: white; border: 1px solid var(--running); }
-  .act-interject:hover { background: #1a5fbf; opacity: 0.9; }
 
   /* Gate bar between waves */
   .gate-bar {
@@ -213,6 +211,21 @@
   .prompt-btn:hover { background: rgba(122,162,247,0.25); }
   .prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .prompt-btn.active { background: var(--running); color: #fff; }
+
+  /* ── Log bottom toolbar ── */
+  .log-bottom-toolbar {
+    padding: 8px 12px; border-top: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .log-bottom-toolbar .spacer { flex: 1; }
+  .toolbar-interject-btn {
+    padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--running); color: white; border: 1px solid var(--running);
+    border-radius: 4px; white-space: nowrap; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .toolbar-interject-btn:hover { background: #1a5fbf; opacity: 0.9; }
+  .toolbar-interject-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--pending); border-color: var(--pending); }
 
   /* ── Log content — Claude Code exact style ── */
   .log-content {
@@ -435,6 +448,12 @@
       <button class="prompt-btn" id="prompt-btn" onclick="showPrompt()" disabled>Prompt</button>
     </div>
     <div class="log-content" id="log-content"></div>
+    <div class="log-bottom-toolbar">
+      <span class="spacer"></span>
+      <button class="toolbar-interject-btn" id="interject-btn" onclick="interjectCurrentSeg()" disabled>
+        <i class="fa-solid fa-message"></i> Interject
+      </button>
+    </div>
   </div>
 
   <div class="events">
@@ -846,6 +865,17 @@
         renderTimeline(data.segments, data.max_wave, data.events || [], data.current_wave);
         lastSegments = data.segments;
 
+        // Update interject button state if active segment status changed
+        if (activeSeg != null) {
+          const activeSgment = data.segments.find(s => s.num === activeSeg);
+          if (activeSgment) {
+            const interjectBtn = document.getElementById('interject-btn');
+            if (interjectBtn) {
+              interjectBtn.disabled = (activeSgment.status !== 'running');
+            }
+          }
+        }
+
         // Auto-select first running segment only if nothing selected yet
         if (activeSeg == null) {
           const running = data.segments.find(s => s.status === 'running');
@@ -875,7 +905,6 @@
   function actionButtons(seg) {
     const btns = [];
     if (seg.status === 'running') {
-      btns.push(`<button class="act-btn act-interject" onclick="event.stopPropagation();interjectSeg(${seg.num})" title="Interject with message">✏️ Interject</button>`);
       btns.push(`<button class="act-btn act-kill" onclick="event.stopPropagation();controlSeg(${seg.num},'kill')" title="Kill process"><i class="fa-solid fa-stop"></i> Kill</button>`);
     }
     if (['failed','blocked','partial','timeout'].includes(seg.status)) {
@@ -961,6 +990,14 @@
     } catch (e) {
       alert(`Request failed: ${e.message}`);
     }
+  };
+
+  window.interjectCurrentSeg = async function() {
+    if (activeSeg == null) {
+      alert('No segment selected');
+      return;
+    }
+    await interjectSeg(activeSeg);
   };
 
   window.changeStatus = async function(num, newStatus) {
@@ -1189,6 +1226,12 @@
       promptBtn.disabled = false;
       promptBtn.textContent = 'Prompt';
       promptBtn.classList.remove('active');
+    }
+
+    // Enable/disable interject button based on segment status
+    const interjectBtn = document.getElementById('interject-btn');
+    if (interjectBtn) {
+      interjectBtn.disabled = (status !== 'running');
     }
 
     _openLogStream(`/api/logs/S${pad(num)}`, document.getElementById('log-content'), status === 'running');
