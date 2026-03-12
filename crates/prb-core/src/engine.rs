@@ -33,6 +33,9 @@ impl ConversationEngine {
     /// Each strategy handles events matching its transport. Events not claimed
     /// by any strategy are grouped into fallback TCP/UDP conversations by
     /// network address.
+    ///
+    /// # Errors
+    /// Returns an error if conversation building fails.
     pub fn build_conversations(&self, events: &[DebugEvent]) -> Result<ConversationSet, CoreError> {
         let mut all_conversations = Vec::new();
         let mut claimed_events = std::collections::HashSet::new();
@@ -275,6 +278,7 @@ fn classify_zmq_kind(metadata: &std::collections::BTreeMap<String, String>) -> C
 }
 
 /// Generate a human-readable summary.
+#[allow(clippy::cast_precision_loss)]
 fn generate_summary(
     metadata: &std::collections::BTreeMap<String, String>,
     kind: ConversationKind,

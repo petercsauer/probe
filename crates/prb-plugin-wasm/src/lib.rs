@@ -1,3 +1,4 @@
+#![allow(clippy::cargo_common_metadata)]
 //! WASM plugin system for PRB using Extism.
 //!
 //! This crate provides the host-side WASM runtime for loading and executing

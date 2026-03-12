@@ -86,10 +86,15 @@ impl Default for WireMessage {
     }
 }
 
+/// Decode protobuf wire format without a schema.
+///
+/// # Errors
+/// Returns a `WireDecodeError` if the bytes are malformed or recursion limit is exceeded.
 pub fn decode_wire_format(bytes: &[u8]) -> Result<WireMessage, WireDecodeError> {
     decode_with_depth(bytes, 0)
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn decode_with_depth(bytes: &[u8], depth: usize) -> Result<WireMessage, WireDecodeError> {
     if depth >= MAX_RECURSION_DEPTH {
         return Err(WireDecodeError::RecursionLimitExceeded);
@@ -206,10 +211,12 @@ const fn decode_varint(value: u64) -> VarintValue {
     }
 }
 
+#[allow(clippy::cast_possible_wrap)]
 const fn zigzag_decode(n: u64) -> i64 {
     ((n >> 1) as i64) ^ -((n & 1) as i64)
 }
 
+#[allow(clippy::similar_names)]
 fn decode_fixed64(bytes: [u8; 8]) -> Fixed64Value {
     let as_u64 = u64::from_le_bytes(bytes);
     let as_i64 = i64::from_le_bytes(bytes);
@@ -229,6 +236,7 @@ fn decode_fixed64(bytes: [u8; 8]) -> Fixed64Value {
     }
 }
 
+#[allow(clippy::similar_names)]
 fn decode_fixed32(bytes: [u8; 4]) -> Fixed32Value {
     let as_u32 = u32::from_le_bytes(bytes);
     let as_i32 = i32::from_le_bytes(bytes);
@@ -270,6 +278,7 @@ fn decode_length_delimited(data: &[u8], depth: usize) -> Result<LenValue, WireDe
     Ok(LenValue::Bytes(data.to_vec()))
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn is_mostly_printable(s: &str) -> bool {
     if s.is_empty() {
         return true;

@@ -41,6 +41,9 @@ pub trait ProtocolDecoder: Send {
     ///
     /// # Returns
     /// A vector of decoded events. May be empty if the data is incomplete or not yet decodable.
+    ///
+    /// # Errors
+    /// Returns an error if the data is malformed or cannot be decoded.
     fn decode_stream(
         &mut self,
         data: &[u8],
@@ -56,6 +59,9 @@ pub trait SchemaResolver {
     /// Resolves a schema by name.
     ///
     /// Returns `Ok(Some(schema))` if found, `Ok(None)` if not found, or an error if resolution fails.
+    ///
+    /// # Errors
+    /// Returns an error if schema resolution fails due to I/O or parsing errors.
     fn resolve(&self, schema_name: &str) -> Result<Option<ResolvedSchema>, CoreError>;
 
     /// Lists all available schema names.
@@ -70,6 +76,9 @@ pub trait EventNormalizer {
     ///
     /// This can perform transformations like deduplication, timestamp adjustment,
     /// or metadata enrichment.
+    ///
+    /// # Errors
+    /// Returns an error if normalization fails due to invalid event data.
     fn normalize(&self, events: Vec<DebugEvent>) -> Result<Vec<DebugEvent>, CoreError>;
 }
 
@@ -83,5 +92,8 @@ pub trait CorrelationStrategy {
     /// Correlates a slice of events into flows.
     ///
     /// Returns a vector of flows, each containing references to related events.
+    ///
+    /// # Errors
+    /// Returns an error if correlation logic fails.
     fn correlate<'a>(&self, events: &'a [DebugEvent]) -> Result<Vec<Flow<'a>>, CoreError>;
 }

@@ -9,6 +9,10 @@ use crate::{
 ///
 /// This is protocol-agnostic and operates on event timestamps, directions,
 /// and metadata.
+///
+/// # Errors
+/// Returns an error if metric computation fails due to invalid timestamp data.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn compute_metrics(events: &[&DebugEvent]) -> Result<ConversationMetrics, CoreError> {
     if events.is_empty() {
         return Ok(ConversationMetrics::default());

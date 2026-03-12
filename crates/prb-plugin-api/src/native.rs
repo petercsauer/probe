@@ -151,6 +151,9 @@ pub trait PluginDecoder: Send {
     /// Decode a byte stream chunk.
     ///
     /// Returns a vector of decoded events, or an error message on failure.
+    ///
+    /// # Errors
+    /// Returns an error string if decoding fails.
     fn decode(
         &mut self,
         data: &[u8],

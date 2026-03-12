@@ -95,6 +95,9 @@ impl serde::Serialize for DecodedMessage {
 /// # Returns
 /// A `DecodedMessage` on success, or a `DecodeError` on failure.
 ///
+/// # Errors
+/// Returns a `DecodeError` if the payload cannot be decoded or is malformed.
+///
 /// # Example
 /// ```no_run
 /// use prb_decode::schema_backed::decode_with_schema;

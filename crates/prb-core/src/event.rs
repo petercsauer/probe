@@ -88,6 +88,7 @@ impl Timestamp {
 
     /// Get the current system time as a Timestamp.
     #[must_use] 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn now() -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
