@@ -38,3 +38,8 @@ itertools = "0.13"
 tempfile = { workspace = true }
 prost = "0.14"
 prost-types = "0.14"
+criterion = { workspace = true }
+
+[[bench]]
+name = "storage_perf"
+harness = false

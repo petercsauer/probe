@@ -16,3 +16,8 @@ indexmap = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "rtps_decode"
+harness = false

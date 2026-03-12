@@ -16,3 +16,8 @@ base64 = { workspace = true }
 prb-pcap = { path = "../prb-pcap" }
 insta = { workspace = true }
 proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "conversation_engine"
+harness = false
