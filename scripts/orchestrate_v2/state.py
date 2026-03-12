@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS segment_attempts (
     tokens_in   INTEGER DEFAULT 0,
     tokens_out  INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS segment_interjections (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    seg_num         INTEGER NOT NULL,
+    created_at      REAL NOT NULL,
+    message         TEXT NOT NULL,
+    consumed_at     REAL,
+    attempt_num     INTEGER,
+    FOREIGN KEY (seg_num) REFERENCES segments(num)
+);
 """
 
 _MIGRATIONS = [
@@ -427,3 +437,57 @@ class StateDB:
             "events": await self.get_events(limit=50),
             "notifications": await self.get_recent_notifications(limit=20),
         }
+
+    # ── Interjections ──
+
+    async def enqueue_interject(self, seg_num: int, message: str) -> int:
+        """Store an operator message to be injected into segment prompt on restart.
+
+        Returns the ID of the created interjection.
+        """
+        cur = await self._conn.execute(
+            """INSERT INTO segment_interjections (seg_num, created_at, message)
+               VALUES (?, ?, ?)""",
+            (seg_num, time.time(), message),
+        )
+        await self._conn.commit()
+        return cur.lastrowid
+
+    async def get_pending_interject(self, seg_num: int) -> dict | None:
+        """Retrieve the most recent unconsumed interjection for a segment.
+
+        Returns a dict with id, seg_num, created_at, message, or None if no pending message.
+        """
+        cur = await self._conn.execute(
+            """SELECT id, seg_num, created_at, message
+               FROM segment_interjections
+               WHERE seg_num=? AND consumed_at IS NULL
+               ORDER BY created_at DESC
+               LIMIT 1""",
+            (seg_num,),
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def consume_interject(self, interject_id: int) -> None:
+        """Mark an interjection as consumed by setting consumed_at timestamp."""
+        await self._conn.execute(
+            "UPDATE segment_interjections SET consumed_at=? WHERE id=?",
+            (time.time(), interject_id),
+        )
+        await self._conn.commit()
+
+    async def get_interject_history(self, seg_num: int, limit: int = 10) -> list[dict]:
+        """Retrieve interjection history for a segment (consumed and unconsumed).
+
+        Returns list of dicts ordered by most recent first, limited to N entries.
+        """
+        cur = await self._conn.execute(
+            """SELECT id, seg_num, created_at, message, consumed_at, attempt_num
+               FROM segment_interjections
+               WHERE seg_num=?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (seg_num, limit),
+        )
+        return [dict(r) for r in await cur.fetchall()]
