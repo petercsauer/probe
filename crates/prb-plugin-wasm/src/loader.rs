@@ -48,7 +48,7 @@ impl WasmPluginLoader {
 
         // Create a temporary plugin instance to validate exports and get metadata
         let manifest = Manifest::new([Wasm::file(path)])
-            .with_memory_max(16) // Minimal memory for validation
+            .with_memory_max(256) // 16MB for validation
             .with_timeout(std::time::Duration::from_secs(5));
 
         let mut plugin = Plugin::new(&manifest, [], true)
