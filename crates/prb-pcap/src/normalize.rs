@@ -139,6 +139,8 @@ pub struct PacketNormalizer {
     defrag_pool: etherparse::defrag::IpDefragPool<u64, ()>,
     packet_count: u64,
     last_timestamp_us: u64,
+    /// Cache of reassembled fragment payloads with timestamps for periodic cleanup.
+    reassembled_cache: Vec<(u64, Vec<u8>)>,
 }
 
 impl PacketNormalizer {
@@ -149,6 +151,7 @@ impl PacketNormalizer {
             defrag_pool: etherparse::defrag::IpDefragPool::new(),
             packet_count: 0,
             last_timestamp_us: 0,
+            reassembled_cache: Vec::new(),
         }
     }
 
@@ -169,6 +172,9 @@ impl PacketNormalizer {
         if self.packet_count.is_multiple_of(DEFRAG_CLEANUP_INTERVAL) {
             let cutoff = timestamp_us.saturating_sub(DEFRAG_TIMEOUT_US);
             self.defrag_pool.retain(|ts| *ts >= cutoff);
+
+            // Also clean up reassembled fragment cache (keep entries from last 5 seconds)
+            self.reassembled_cache.retain(|(ts, _)| *ts >= cutoff);
         }
 
         // Dispatch based on linktype
@@ -339,31 +345,25 @@ impl PacketNormalizer {
 
     /// Creates a normalized packet from reassembled IP fragment data.
     fn create_normalized_packet_from_reassembled(
-        &self,
+        &mut self,
         timestamp_us: u64,
         src_ip: IpAddr,
         dst_ip: IpAddr,
         vlan_id: Option<u16>,
         reassembled: etherparse::defrag::IpDefragPayloadVec,
-    ) -> Result<Option<NormalizedPacket<'static>>, PcapError> {
+    ) -> Result<Option<NormalizedPacket<'_>>, PcapError> {
         let data = reassembled.payload;
         let (transport, payload) = Self::parse_transport_from_bytes(&data)?;
 
         // Convert to owned data since reassembled is owned
         let payload_owned = payload.to_vec();
 
-        // SAFETY: We intentionally leak reassembled fragment payloads here to satisfy the
-        // 'static lifetime requirement for NormalizedPacket. In practice, IP fragments are
-        // relatively rare in most network captures, and this leak is bounded by the
-        // defragmentation timeout (5 seconds via DEFRAG_TIMEOUT_US). Incomplete fragment
-        // trains are evicted every 1000 packets, but completed/reassembled payloads remain
-        // leaked for the lifetime of the process.
-        //
-        // For long-running captures with heavy fragmentation, this will cause unbounded
-        // memory growth. Future improvements could use an arena allocator with explicit
-        // lifetime management to avoid this leak. See memory tests in
-        // tests/normalize_memory_test.rs for profiling of this behavior.
-        let payload_static: &'static [u8] = Box::leak(payload_owned.into_boxed_slice());
+        // Store in cache instead of leaking. This fixes the memory leak described in the old
+        // comment below (Box::leak caused unbounded memory growth). The cache is cleaned up
+        // periodically in normalize() every DEFRAG_CLEANUP_INTERVAL packets, removing entries
+        // older than DEFRAG_TIMEOUT_US (5 seconds). See tests/normalize_memory_test.rs.
+        self.reassembled_cache.push((timestamp_us, payload_owned));
+        let payload_ref = &self.reassembled_cache.last().unwrap().1[..];
 
         Ok(Some(NormalizedPacket {
             timestamp_us,
@@ -371,7 +371,7 @@ impl PacketNormalizer {
             dst_ip,
             transport,
             vlan_id,
-            payload: payload_static,
+            payload: payload_ref,
         }))
     }
 
