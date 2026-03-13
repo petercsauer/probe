@@ -134,7 +134,8 @@ fn decode_with_depth(bytes: &[u8], depth: usize) -> Result<WireMessage, WireDeco
                 pos += bytes_read;
 
                 let len = len as usize;
-                if pos + len > bytes.len() {
+                // Check for overflow before addition
+                if len > bytes.len() || pos > bytes.len() - len {
                     return Err(WireDecodeError::UnexpectedEof(pos));
                 }
 

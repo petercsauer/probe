@@ -21,3 +21,5 @@ base64 = { workspace = true }
 [dev-dependencies]
 prb-core = { path = "../prb-core" }
 prb-pcap = { path = "../prb-pcap" }
+rstest = "0.24"
+proptest = "1.6"
