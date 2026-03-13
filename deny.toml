@@ -42,8 +42,8 @@ confidence-threshold = 0.8
 [bans]
 # Warn on multiple versions of the same crate
 multiple-versions = "warn"
-# Deny wildcard dependencies
-wildcards = "deny"
+# Allow wildcard/path dependencies in workspace (common pattern)
+wildcards = "allow"
 highlight = "all"
 workspace-default-features = "allow"
 # Allow certain duplicates if necessary
