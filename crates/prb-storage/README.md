@@ -26,7 +26,7 @@ writer.finish()?;
 
 // Read events back
 let reader = SessionReader::open("session.mcap")?;
-for event in reader.events()? {
+for event in reader.events() {
     println!("{:?}", event?.transport);
 }
 ```
