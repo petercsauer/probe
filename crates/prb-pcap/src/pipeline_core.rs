@@ -16,6 +16,9 @@ use prb_detect::{DecoderRegistry, StreamKey, TransportLayer};
 use std::net::IpAddr;
 use std::path::Path;
 
+/// Maximum warnings per packet before dropping oldest warnings.
+const MAX_WARNINGS_PER_PACKET: usize = 100;
+
 /// Result from processing a single packet through the pipeline.
 #[derive(Debug, Default)]
 pub struct ProcessedEvents {
@@ -23,6 +26,20 @@ pub struct ProcessedEvents {
     pub events: Vec<DebugEvent>,
     /// Non-fatal warnings encountered during processing.
     pub warnings: Vec<String>,
+}
+
+impl ProcessedEvents {
+    /// Add a warning with capacity limiting to prevent unbounded growth.
+    ///
+    /// If the warning list exceeds MAX_WARNINGS_PER_PACKET, the oldest
+    /// warning is dropped (FIFO eviction).
+    fn add_warning(&mut self, warning: String) {
+        if self.warnings.len() >= MAX_WARNINGS_PER_PACKET {
+            // Drop the oldest warning (FIFO)
+            self.warnings.remove(0);
+        }
+        self.warnings.push(warning);
+    }
 }
 
 /// Stateful pipeline core for packet processing.
@@ -117,7 +134,7 @@ impl PipelineCore {
             Err(e) => {
                 // Parse error - log warning and continue
                 self.stats.packets_failed += 1;
-                result.warnings.push(format!("normalize failed: {e}"));
+                result.add_warning(format!("normalize failed: {e}"));
                 return result;
             }
         };
@@ -159,7 +176,7 @@ impl PipelineCore {
         let stream_events = match self.tcp_reassembler.process_segment(&borrowed) {
             Ok(events) => events,
             Err(e) => {
-                result.warnings.push(format!("TCP reassembly error: {e}"));
+                result.add_warning(format!("TCP reassembly error: {e}"));
                 return;
             }
         };
@@ -174,9 +191,7 @@ impl PipelineCore {
                     }
                 }
                 StreamEvent::GapSkipped { gap_size, .. } => {
-                    result
-                        .warnings
-                        .push(format!("TCP gap skipped: {gap_size} bytes"));
+                    result.add_warning(format!("TCP gap skipped: {gap_size} bytes"));
                 }
                 StreamEvent::Timeout { .. } => {
                     tracing::debug!("TCP connection timeout");
@@ -273,7 +288,19 @@ impl PipelineCore {
             Ok(events) if !events.is_empty() => {
                 self.stats.protocol_decoded += events.len() as u64;
                 // Return the first event (multi-event streams will be handled in future work)
-                Some(events.into_iter().next().unwrap())
+                match events.into_iter().next() {
+                    Some(event) => Some(event),
+                    None => {
+                        // Defensive: events was non-empty but iterator returned None
+                        tracing::error!(
+                            "Unexpected empty events after non-empty check at {}:{}",
+                            file!(),
+                            line!()
+                        );
+                        self.stats.unexpected_empty_events += 1;
+                        None
+                    }
+                }
             }
             Ok(_) | Err(_) => {
                 // No events produced or decode failed — emit raw fallback
