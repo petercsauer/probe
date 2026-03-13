@@ -54,13 +54,13 @@ fn test_fragment_memory_usage() {
         let timestamp_us = i * 1000; // 1ms apart
 
         // First fragment (100 bytes)
-        let frag0 = create_ipv4_fragment(id, true, 0, &vec![0xaa; 100]);
+        let frag0 = create_ipv4_fragment(id, true, 0, &[0xaa; 100]);
         let result = normalizer.normalize(1, timestamp_us, &frag0);
         assert!(result.is_ok());
         assert!(result.unwrap().is_none(), "First fragment should buffer");
 
         // Last fragment (100 bytes)
-        let frag1 = create_ipv4_fragment(id, false, 13, &vec![0xbb; 100]); // offset 13 = 100/8 rounded up
+        let frag1 = create_ipv4_fragment(id, false, 13, &[0xbb; 100]); // offset 13 = 100/8 rounded up
         let result = normalizer.normalize(1, timestamp_us + 100, &frag1);
         assert!(result.is_ok());
         assert!(
@@ -94,7 +94,7 @@ fn test_incomplete_fragments_memory_cleanup() {
         let timestamp_us = i * 1000;
 
         // Send only first fragment, never complete it
-        let frag0 = create_ipv4_fragment(id, true, 0, &vec![0xaa; 100]);
+        let frag0 = create_ipv4_fragment(id, true, 0, &[0xaa; 100]);
         let result = normalizer.normalize(1, timestamp_us, &frag0);
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
@@ -137,10 +137,10 @@ fn test_memory_growth_pattern() {
             let id = (batch * 1000 + i) as u16;
             let ts = (batch * 500_000 + i * 1000) as u64;
 
-            let frag0 = create_ipv4_fragment(id, true, 0, &vec![0xaa; 100]);
+            let frag0 = create_ipv4_fragment(id, true, 0, &[0xaa; 100]);
             let _ = normalizer.normalize(1, ts, &frag0);
 
-            let frag1 = create_ipv4_fragment(id, false, 13, &vec![0xbb; 100]);
+            let frag1 = create_ipv4_fragment(id, false, 13, &[0xbb; 100]);
             let result = normalizer.normalize(1, ts + 100, &frag1);
             assert!(result.unwrap().is_some());
         }
@@ -150,7 +150,7 @@ fn test_memory_growth_pattern() {
             let id = (batch * 1000 + i) as u16;
             let ts = (batch * 500_000 + i * 1000) as u64;
 
-            let frag0 = create_ipv4_fragment(id, true, 0, &vec![0xcc; 100]);
+            let frag0 = create_ipv4_fragment(id, true, 0, &[0xcc; 100]);
             let _ = normalizer.normalize(1, ts, &frag0);
             // Never send second fragment
         }

@@ -38,7 +38,7 @@ fn test_keyboard_navigate_all_panes() {
 
     app.test_set_terminal_size(80, 24);
 
-    let panes = vec![
+    let panes = [
         PaneId::EventList,
         PaneId::DecodeTree,
         PaneId::HexDump,

@@ -140,6 +140,7 @@ fn test_tls_decrypt_stream_incomplete() {
     // Test decrypt_stream with incomplete stream
     let processor = TlsStreamProcessor::new();
 
+    #[allow(clippy::single_range_in_vec_init)]
     let stream = ReassembledStream {
         src_ip: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
         src_port: 12345,
@@ -148,7 +149,7 @@ fn test_tls_decrypt_stream_incomplete() {
         direction: StreamDirection::ClientToServer,
         data: vec![0x16, 0x03, 0x03, 0x00, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05],
         is_complete: false, // Stream not complete
-        missing_ranges: vec![100..200],
+        missing_ranges: vec![100..200_u64],
         timestamp_us: 1000,
     };
 

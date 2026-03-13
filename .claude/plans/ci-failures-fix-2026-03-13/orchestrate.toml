@@ -1,0 +1,49 @@
+# CI Failures Fix Plan - Orchestrate Configuration
+# This plan fixes all CI pipeline failures: formatting, WASM linking, security vulnerabilities
+
+[plan]
+# Preamble files injected before each segment
+preamble = [".claude/commands/iterative-builder.md", ".claude/commands/devcontainer-exec.md"]
+
+[execution]
+# Allow up to 2 segments to run in parallel (Wave 1: S01 and S02 can run together)
+max_parallel = 2
+# Quick fixes should complete fast, but allow buffer for security patching
+segment_timeout = 3600  # 1 hour
+max_retries = 2
+heartbeat_interval = 300  # 5 minutes (more frequent for quick fixes)
+
+[isolation]
+# Use worktree isolation for safe parallel execution
+strategy = "worktree"
+
+[gate]
+# Run full workspace tests after each wave
+command = "cargo nextest run --workspace"
+timeout = 1800  # 30 minutes
+required = true
+
+[notifications]
+# Enable notifications for this critical fix
+enabled = true
+ntfy_topic = "probe-ci-fix"
+verbosity = "errors_and_completions"
+
+[monitor]
+# Enable dashboard for tracking progress
+enabled = true
+port = 8080
+
+[recovery]
+enabled = true
+max_attempts = 1
+health_check_command = "cargo check --workspace --message-format=json"
+
+[retry_policy]
+max_retries = 3
+initial_delay = 30
+max_delay = 600
+exponential_base = 2.0
+jitter = true
+retry_on = ["timeout", "failed", "unknown"]
+no_retry_on = ["blocked"]

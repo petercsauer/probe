@@ -90,7 +90,7 @@ fn run_wycheproof_test(test: &WycheproofTest, algorithm: &'static ring::aead::Al
             // Decryption succeeded
             if test.result == "valid" {
                 // Check if plaintext matches expected
-                plaintext == &msg
+                plaintext == msg
             } else {
                 // Decryption should have failed for invalid tests
                 false

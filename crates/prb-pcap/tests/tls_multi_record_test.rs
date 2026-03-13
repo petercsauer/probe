@@ -128,7 +128,7 @@ fn test_sequence_number_boundaries() {
                 0x0303,
                 StreamDirection::ClientToServer,
             )
-            .expect(&format!("decryption succeeds for sequence {seq}"));
+            .unwrap_or_else(|_| panic!("decryption succeeds for sequence {seq}"));
 
         assert_eq!(
             decrypted, plaintext,

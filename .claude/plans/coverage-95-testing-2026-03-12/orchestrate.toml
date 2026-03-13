@@ -1,0 +1,44 @@
+# Coverage 95% Testing Plan - Override project defaults
+# This plan adds comprehensive test coverage across the Rust workspace
+
+[plan]
+preamble = [".claude/commands/iterative-builder.md", ".claude/commands/devcontainer-exec.md"]
+
+[execution]
+# Allow up to 4 parallel segments (as noted in parallelization strategy)
+max_parallel = 4
+# Testing segments may take longer than default (running large test suites)
+segment_timeout = 4800  # 80 minutes for test-heavy segments
+max_retries = 2
+
+[isolation]
+# Use worktree isolation for safe parallel testing
+strategy = "worktree"
+
+[gate]
+# Per-segment: only test the affected crate, not full workspace
+# Full workspace gate runs after all segments complete
+# Format: cargo nextest run -p <crate> (specified in segment exit criteria)
+command = "cargo nextest run --workspace"
+
+[monitor]
+# Enable dashboard on default port
+enabled = true
+port = 8080
+
+[git]
+# Use commit messages from segment frontmatter
+auto_commit = true
+auto_push = false
+
+[notifications]
+# Enable notifications for long-running test segments
+enabled = true
+ntfy_topic = "probe-coverage"
+verbosity = "errors_and_completions"  # Don't spam on every cycle
+
+[recovery]
+enabled = true
+max_attempts = 2
+# Health check: verify cargo can build
+health_check_command = "cargo check --workspace --message-format=json"

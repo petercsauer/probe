@@ -95,7 +95,7 @@ fn malformed_wrong_key_lengths() {
     // CLIENT_RANDOM (TLS 1.2) - must be exactly 48 bytes
     // 0 bytes would result in malformed line (< 3 fields) - ignored
     assert_parse_ignored(&format!("CLIENT_RANDOM {} {}", cr, ""));
-    assert_parse_error(&format!("CLIENT_RANDOM {} {}", cr, "bb".repeat(1))); // 1 byte
+    assert_parse_error(&format!("CLIENT_RANDOM {} {}", cr, "bb")); // 1 byte
     assert_parse_error(&format!("CLIENT_RANDOM {} {}", cr, "bb".repeat(16))); // 16 bytes
     assert_parse_error(&format!("CLIENT_RANDOM {} {}", cr, "bb".repeat(31))); // 31 bytes
     assert_parse_error(&format!("CLIENT_RANDOM {} {}", cr, "bb".repeat(32))); // 32 bytes (wrong)
@@ -108,11 +108,7 @@ fn malformed_wrong_key_lengths() {
     // TLS 1.3 traffic secrets - must be 32 or 48 bytes
     // 0 bytes would result in malformed line (< 3 fields) - ignored
     assert_parse_ignored(&format!("CLIENT_TRAFFIC_SECRET_0 {} {}", cr, ""));
-    assert_parse_error(&format!(
-        "CLIENT_TRAFFIC_SECRET_0 {} {}",
-        cr,
-        "bb".repeat(1)
-    )); // 1 byte
+    assert_parse_error(&format!("CLIENT_TRAFFIC_SECRET_0 {} {}", cr, "bb")); // 1 byte
     assert_parse_error(&format!(
         "CLIENT_TRAFFIC_SECRET_0 {} {}",
         cr,
@@ -172,7 +168,7 @@ fn malformed_client_random_lengths() {
     // 0 bytes would result in malformed line (< 3 fields) - ignored
     assert_parse_ignored(&format!("CLIENT_RANDOM {} {}", "", key));
 
-    assert_parse_error(&format!("CLIENT_RANDOM {} {}", "aa".repeat(1), key)); // 1 byte
+    assert_parse_error(&format!("CLIENT_RANDOM {} {}", "aa", key)); // 1 byte
     assert_parse_error(&format!("CLIENT_RANDOM {} {}", "aa".repeat(16), key)); // 16 bytes
     assert_parse_error(&format!("CLIENT_RANDOM {} {}", "aa".repeat(31), key)); // 31 bytes
     // 32 bytes OK

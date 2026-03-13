@@ -190,7 +190,7 @@ proptest! {
 
         // After tab_count tabs, we should have cycled through panes
         // The focus should be valid
-        let valid_panes = vec![
+        let valid_panes = [
             PaneId::EventList,
             PaneId::DecodeTree,
             PaneId::HexDump,
