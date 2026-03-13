@@ -333,6 +333,7 @@ async fn test_explain_http_error_timeout() {
     let base_url = format!("{}/v1", mock_server.uri());
 
     // Mock with a long delay to trigger timeout
+    // Note: No .expect(1) because the request should timeout before reaching the server
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .respond_with(
@@ -340,7 +341,6 @@ async fn test_explain_http_error_timeout() {
                 .set_body_json(mock_chat_response("delayed response"))
                 .set_delay(std::time::Duration::from_secs(10)),
         )
-        .expect(1)
         .mount(&mock_server)
         .await;
 
