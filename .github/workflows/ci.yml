@@ -37,7 +37,13 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Run audit
-        run: cargo audit
+        run: |
+          # Ignore accepted risks documented in SECURITY.md
+          # wasmtime CVEs - pending upstream extism fix (https://github.com/extism/extism/issues/889)
+          cargo audit \
+            --ignore RUSTSEC-2026-0020 \
+            --ignore RUSTSEC-2026-0021 \
+            --ignore RUSTSEC-2026-0006
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
       - name: Run deny

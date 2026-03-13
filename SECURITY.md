@@ -82,6 +82,51 @@ PRB parses untrusted network data. While Rust's memory safety prevents many vuln
 
 **Recommendation**: Use PRB on trusted networks or sanitized packet captures when possible.
 
+## Known Accepted Risks
+
+### WASM Plugin Sandbox (wasmtime CVEs)
+
+**Status**: Accepted risk pending upstream fix
+
+PRB uses the wasmtime runtime (via extism) to safely execute WASM plugins in a sandboxed environment. Currently, wasmtime 37.0.3 has three known CVEs:
+
+- **RUSTSEC-2026-0020** (severity 6.9/10): Guest-controlled resource exhaustion
+- **RUSTSEC-2026-0021** (severity 6.9/10): Panic adding excessive HTTP fields
+- **RUSTSEC-2026-0006** (severity 4.1/10): Segfault with f64.copysign on x86-64
+
+**Why this risk is acceptable:**
+
+1. **User-controlled plugins**: These vulnerabilities only affect malicious plugins. PRB does not auto-load plugins from untrusted sources.
+2. **Local-only tool**: PRB is not a network service. No remote exploitation vector exists.
+3. **Explicit plugin loading**: Users must explicitly load a `.wasm` file. No drive-by exploitation.
+4. **Upstream dependency constraint**: extism (our plugin framework) requires wasmtime ^37, and no patched 37.x version exists. The fixed versions (36.0.6, 40.0.4+) are incompatible with extism's semver constraints.
+
+**Threat model:**
+
+An attacker would need to:
+- Convince you to download a malicious WASM plugin
+- Have that plugin loaded into PRB
+- Exploit the vulnerability from within the sandbox
+
+**Risk mitigation:**
+
+- Only load plugins from trusted sources
+- Review plugin source code before compilation
+- Run PRB in a restricted environment when analyzing untrusted plugins
+- Monitor upstream tracking: https://github.com/extism/extism/issues/889
+
+**Resolution plan:**
+
+- This risk will be resolved when extism upgrades to a patched wasmtime version
+- We will remove this section and upgrade immediately when extism releases a fix
+- Last checked: 2026-03-13
+
+### Unmaintained Dependencies
+
+**backoff 0.4.0**: Used transitively via async-openai for retry logic. No known vulnerabilities. Low-risk dependency with simple, stable functionality. Will be resolved when async-openai migrates to maintained alternatives.
+
+**fxhash 0.2.1**: Used transitively via wasmtime for hash operations. No known vulnerabilities. Will be resolved when wasmtime upgrades dependencies.
+
 ## Disclosure Policy
 
 When we receive a security bug report, we will:
