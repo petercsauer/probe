@@ -58,6 +58,8 @@ prb-zmq = { path = "../prb-zmq" }
 prb-dds = { path = "../prb-dds" }
 criterion.workspace = true
 walkdir.workspace = true
+rstest = "0.23"
+proptest.workspace = true
 
 [[bench]]
 name = "pipeline_throughput"

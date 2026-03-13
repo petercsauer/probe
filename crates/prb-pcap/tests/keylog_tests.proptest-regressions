@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 133e5e9cdd4d8b959a2e8b44f04afdf2b9d1b6dd064b6e2d3f8cc37a67f8b78d # shrinks to invalid_hex = "gGGgGgGggG", valid_hex = "000000a0aaa0000aa00a0000aa0a000aaa0aaa00aaa000aa00a0000aa00aa0aa"
