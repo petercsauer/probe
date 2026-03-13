@@ -34,14 +34,18 @@ The foundational crate of the PRB ecosystem, providing the shared data model, er
 ## Usage
 
 ```rust
-use prb_core::{DebugEventBuilder, TransportKind, Direction, Timestamp};
+use prb_core::{DebugEventBuilder, TransportKind, Direction, Timestamp, EventSource, Payload};
 
 let event = DebugEventBuilder::new()
     .timestamp(Timestamp::from_nanos(1_700_000_000_000_000_000))
     .transport(TransportKind::Grpc)
     .direction(Direction::Request)
-    .source_addr("10.0.0.1:50051".parse().unwrap())
-    .dest_addr("10.0.0.2:8080".parse().unwrap())
+    .source(EventSource {
+        adapter: "example".to_string(),
+        origin: "10.0.0.1:50051".to_string(),
+        network: Some("10.0.0.1:50051".parse().unwrap()),
+    })
+    .payload(Payload::Raw(vec![].into()))
     .build();
 ```
 

@@ -22,14 +22,14 @@ The main ingestion engine for PRB, responsible for reading PCAP and pcapng captu
 ## Usage
 
 ```rust
-use prb_pcap::{PcapCaptureAdapter, PipelineConfig};
+use prb_pcap::PcapCaptureAdapter;
 use prb_core::CaptureAdapter;
 
-let config = PipelineConfig::default();
-let adapter = PcapCaptureAdapter::from_path("capture.pcapng", config)?;
+let mut adapter = PcapCaptureAdapter::new("capture.pcapng".into(), None);
 
-for event in adapter.events()? {
-    println!("[{}] {} → {}", event.transport, event.source_addr, event.dest_addr);
+for event in adapter.ingest() {
+    let event = event?;
+    println!("[{}] {}", event.transport, event.source.origin);
 }
 ```
 

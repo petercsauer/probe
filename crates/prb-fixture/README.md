@@ -18,8 +18,9 @@ A JSON fixture adapter for PRB that implements the `CaptureAdapter` trait. This 
 use prb_fixture::JsonFixtureAdapter;
 use prb_core::CaptureAdapter;
 
-let adapter = JsonFixtureAdapter::from_path("tests/data/grpc_exchange.json")?;
-for event in adapter.events()? {
+let mut adapter = JsonFixtureAdapter::new("tests/data/grpc_exchange.json".into());
+for event in adapter.ingest() {
+    let event = event?;
     println!("{:?}", event.transport);
 }
 ```
