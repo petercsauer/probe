@@ -628,14 +628,14 @@ mod tests {
         // Find the stream with buffered data
         let mut found_gap = false;
         for event in flush_events {
-            if let StreamEvent::Data(stream) = event {
-                if !stream.missing_ranges.is_empty() {
-                    // We should have a gap from 50 to 100
-                    assert_eq!(stream.missing_ranges.len(), 1);
-                    assert_eq!(stream.missing_ranges[0].start, 50);
-                    assert_eq!(stream.missing_ranges[0].end, 100);
-                    found_gap = true;
-                }
+            if let StreamEvent::Data(stream) = event
+                && !stream.missing_ranges.is_empty()
+            {
+                // We should have a gap from 50 to 100
+                assert_eq!(stream.missing_ranges.len(), 1);
+                assert_eq!(stream.missing_ranges[0].start, 50);
+                assert_eq!(stream.missing_ranges[0].end, 100);
+                found_gap = true;
             }
         }
 
