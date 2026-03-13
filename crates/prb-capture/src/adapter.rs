@@ -91,12 +91,11 @@ impl LiveCaptureAdapter {
     pub fn start(&mut self) -> Result<(), CaptureError> {
         self.engine.start()?;
 
-        // Get the actual link type from the pcap handle
-        // LINKTYPE_ETHERNET = 1 is the most common
-        self.linktype = 1; // TODO: Extract from engine if possible
+        // Get the actual link type from the engine
+        self.linktype = self.engine.linktype();
 
         self.started = true;
-        tracing::info!(interface = %self.origin, "live capture adapter started");
+        tracing::info!(interface = %self.origin, linktype = self.linktype, "live capture adapter started");
         Ok(())
     }
 

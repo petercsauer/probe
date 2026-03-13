@@ -49,6 +49,7 @@ pub struct CaptureEngine {
     capture_thread: Option<JoinHandle<Result<(), CaptureError>>>,
     stats: Arc<CaptureStatsInner>,
     start_time: Instant,
+    linktype: u32,
 }
 
 impl CaptureEngine {
@@ -62,6 +63,7 @@ impl CaptureEngine {
             capture_thread: None,
             stats: Arc::new(CaptureStatsInner::new()),
             start_time: Instant::now(),
+            linktype: 1, // Default to LINKTYPE_ETHERNET, updated after start
         }
     }
 
@@ -96,6 +98,9 @@ impl CaptureEngine {
                 CaptureError::FilterCompilationFailed(format!("filter '{filter}': {e}"))
             })?;
         }
+
+        // Get the actual link type from the pcap handle
+        self.linktype = cap.get_datalink().0 as u32;
 
         // Create bounded channel for packet delivery
         // Channel size of 8192 packets provides good buffering without excessive memory
@@ -158,6 +163,15 @@ impl CaptureEngine {
     #[must_use]
     pub const fn receiver(&self) -> Option<&Receiver<OwnedPacket>> {
         self.rx.as_ref()
+    }
+
+    /// Get the link-layer type of the capture.
+    ///
+    /// Returns the LINKTYPE value (e.g., 1 for Ethernet, 228 for IPv4, 229 for IPv6).
+    /// This is only valid after `start()` has been called.
+    #[must_use]
+    pub const fn linktype(&self) -> u32 {
+        self.linktype
     }
 
     /// Get a snapshot of current capture statistics.
