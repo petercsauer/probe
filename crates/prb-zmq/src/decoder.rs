@@ -3,8 +3,8 @@
 use crate::parser::{ZmtpEvent, ZmtpParser};
 use bytes::Bytes;
 use prb_core::{
-    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource,
-    METADATA_KEY_ZMQ_TOPIC, NetworkAddr, Payload, ProtocolDecoder, Timestamp, TransportKind,
+    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, METADATA_KEY_ZMQ_TOPIC,
+    Payload, ProtocolDecoder, TransportKind,
 };
 use std::collections::HashMap;
 
@@ -159,28 +159,9 @@ impl ZmqDecoder {
             Direction::Inbound
         };
 
-        // Build event
-        let mut event_builder = DebugEvent::builder()
-            .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
-            .source(EventSource {
-                adapter: "pcap".to_string(),
-                origin: ctx
-                    .metadata
-                    .get("origin")
-                    .cloned()
-                    .unwrap_or_else(|| "unknown".to_string()),
-                network: Some(NetworkAddr {
-                    src: ctx
-                        .src_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx
-                        .dst_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                }),
-            })
-            .transport(TransportKind::Zmq)
+        // Build event using context helper
+        let mut event_builder = ctx
+            .create_event_builder(TransportKind::Zmq)
             .direction(direction)
             .payload(Payload::Raw {
                 raw: Bytes::from(payload_data),

@@ -8,9 +8,8 @@ use crate::rtps_parser::{
 };
 use bytes::Bytes;
 use prb_core::{
-    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, EventSource,
-    METADATA_KEY_DDS_DOMAIN_ID, METADATA_KEY_DDS_TOPIC_NAME, NetworkAddr, Payload, ProtocolDecoder,
-    Timestamp, TransportKind,
+    CoreError, CorrelationKey, DebugEvent, DecodeContext, Direction, METADATA_KEY_DDS_DOMAIN_ID,
+    METADATA_KEY_DDS_TOPIC_NAME, Payload, ProtocolDecoder, Timestamp, TransportKind,
 };
 
 /// DDS/RTPS protocol decoder.
@@ -333,32 +332,25 @@ impl DdsDecoder {
         // Look up topic name from discovery
         let topic_name = self.discovery.lookup_topic_name(writer_guid);
 
+        // DDS-specific: Prefer INFO_TS timestamp over context timestamp
         let timestamp = self
             .last_timestamp
             .or(ctx.timestamp)
             .unwrap_or_else(Timestamp::now);
 
-        let mut event_builder = DebugEvent::builder()
-            .timestamp(timestamp)
-            .source(EventSource {
-                adapter: "pcap".to_string(),
-                origin: ctx
-                    .metadata
-                    .get("origin")
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "unknown".to_string()),
-                network: Some(NetworkAddr {
-                    src: ctx
-                        .src_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx
-                        .dst_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                }),
-            })
-            .transport(TransportKind::DdsRtps)
+        // Build base context and override timestamp if needed
+        let ctx_with_timestamp = if self.last_timestamp.is_some() || ctx.timestamp.is_none() {
+            DecodeContext {
+                timestamp: Some(timestamp),
+                ..ctx.clone()
+            }
+        } else {
+            ctx.clone()
+        };
+
+        // Build event using context helper
+        let mut event_builder = ctx_with_timestamp
+            .create_event_builder(TransportKind::DdsRtps)
             .direction(Direction::Inbound)
             .payload(Payload::Raw {
                 raw: Bytes::copy_from_slice(payload),

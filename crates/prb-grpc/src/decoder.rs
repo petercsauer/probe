@@ -5,9 +5,9 @@ use crate::lpm::{CompressionAlgorithm, LpmParser};
 use bytes::Bytes;
 use prb_core::{
     CoreError, CorrelationKey, DebugEvent, DebugEventBuilder, DecodeContext, Direction,
-    EventSource, METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_OTEL_SPAN_ID,
+    METADATA_KEY_GRPC_METHOD, METADATA_KEY_H2_STREAM_ID, METADATA_KEY_OTEL_SPAN_ID,
     METADATA_KEY_OTEL_TRACE_FLAGS, METADATA_KEY_OTEL_TRACE_ID, METADATA_KEY_OTEL_TRACE_SAMPLED,
-    NetworkAddr, Payload, ProtocolDecoder, Timestamp, TransportKind, extract_trace_context,
+    Payload, ProtocolDecoder, TransportKind, extract_trace_context,
 };
 use std::collections::HashMap;
 
@@ -252,28 +252,9 @@ impl GrpcDecoder {
             Direction::Inbound
         };
 
-        // Build event
-        let mut event_builder = DebugEvent::builder()
-            .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
-            .source(EventSource {
-                adapter: "pcap".to_string(),
-                origin: ctx
-                    .metadata
-                    .get("origin")
-                    .cloned()
-                    .unwrap_or_else(|| "unknown".to_string()),
-                network: Some(NetworkAddr {
-                    src: ctx
-                        .src_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx
-                        .dst_addr
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                }),
-            })
-            .transport(TransportKind::Grpc)
+        // Build event using context helper
+        let mut event_builder = ctx
+            .create_event_builder(TransportKind::Grpc)
             .direction(direction)
             .payload(Payload::Raw { raw: payload })
             .metadata(METADATA_KEY_GRPC_METHOD, &method_name)
@@ -307,21 +288,8 @@ impl GrpcDecoder {
     ) -> Result<Option<DebugEvent>, CoreError> {
         self.sequence += 1;
 
-        // Build event for status
-        let mut event_builder = DebugEvent::builder()
-            .timestamp(ctx.timestamp.unwrap_or_else(Timestamp::now))
-            .source(EventSource {
-                adapter: "pcap".to_string(),
-                origin: ctx
-                    .metadata
-                    .get("origin").cloned()
-                    .unwrap_or_else(|| "unknown".to_string()),
-                network: Some(NetworkAddr {
-                    src: ctx.src_addr.clone().unwrap_or_else(|| "unknown".to_string()),
-                    dst: ctx.dst_addr.clone().unwrap_or_else(|| "unknown".to_string()),
-                }),
-            })
-            .transport(TransportKind::Grpc)
+        // Build event for status using context helper
+        let mut event_builder = ctx.create_event_builder(TransportKind::Grpc)
             .direction(Direction::Inbound) // Trailers/status are server responses
             .payload(Payload::Raw {
                 raw: Bytes::from(format!("status={grpc_status} message={grpc_message}")),
