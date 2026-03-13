@@ -16,7 +16,8 @@ fn create_raw_ipv4_packet() -> Vec<u8> {
         IpNumber(6), // TCP
         [192, 168, 1, 1],
         [10, 0, 0, 1],
-    ).unwrap();
+    )
+    .unwrap();
     ipv4.write(&mut packet).unwrap();
 
     // TCP header
@@ -36,13 +37,7 @@ fn create_loopback_ipv4_packet() -> Vec<u8> {
     packet.extend_from_slice(&2u32.to_le_bytes());
 
     // IPv4 header
-    let ipv4 = Ipv4Header::new(
-        20,
-        64,
-        IpNumber(6),
-        [127, 0, 0, 1],
-        [127, 0, 0, 2],
-    ).unwrap();
+    let ipv4 = Ipv4Header::new(20, 64, IpNumber(6), [127, 0, 0, 1], [127, 0, 0, 2]).unwrap();
     ipv4.write(&mut packet).unwrap();
 
     // TCP header
@@ -66,13 +61,7 @@ fn create_sll_packet() -> Vec<u8> {
     packet.extend_from_slice(&0x0800u16.to_be_bytes()); // protocol_type (IPv4)
 
     // IPv4 header
-    let ipv4 = Ipv4Header::new(
-        20,
-        64,
-        IpNumber(6),
-        [192, 168, 1, 1],
-        [10, 0, 0, 1],
-    ).unwrap();
+    let ipv4 = Ipv4Header::new(20, 64, IpNumber(6), [192, 168, 1, 1], [10, 0, 0, 1]).unwrap();
     ipv4.write(&mut packet).unwrap();
 
     // TCP header
@@ -88,7 +77,10 @@ fn test_normalize_linktype_raw_ip() {
     let packet = create_raw_ipv4_packet();
 
     let result = normalizer.normalize(101, 1000, &packet);
-    assert!(result.is_ok(), "Raw IP packet should normalize successfully");
+    assert!(
+        result.is_ok(),
+        "Raw IP packet should normalize successfully"
+    );
 
     let normalized = result.unwrap().expect("Should produce a normalized packet");
     assert_eq!(normalized.src_ip, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
@@ -101,7 +93,10 @@ fn test_normalize_linktype_loopback() {
     let packet = create_loopback_ipv4_packet();
 
     let result = normalizer.normalize(0, 1000, &packet);
-    assert!(result.is_ok(), "Loopback packet should normalize successfully");
+    assert!(
+        result.is_ok(),
+        "Loopback packet should normalize successfully"
+    );
 
     let normalized = result.unwrap().expect("Should produce a normalized packet");
     assert_eq!(normalized.src_ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
@@ -213,7 +208,7 @@ fn test_normalize_owned_packet_conversion() {
 
 #[test]
 fn test_transport_info_variants() {
-    use prb_pcap::{TcpSegmentInfo, TcpFlags, TransportInfo};
+    use prb_pcap::{TcpFlags, TcpSegmentInfo, TransportInfo};
 
     // Test TCP variant
     let tcp_info = TransportInfo::Tcp(TcpSegmentInfo {
