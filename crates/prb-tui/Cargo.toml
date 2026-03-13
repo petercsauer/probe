@@ -59,6 +59,7 @@ pcap = { workspace = true }
 tempfile = { workspace = true }
 etherparse = { workspace = true }
 insta = { workspace = true }
+proptest = { workspace = true }
 
 [[bench]]
 name = "large_file_perf"

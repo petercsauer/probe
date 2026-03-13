@@ -3938,6 +3938,7 @@ dependencies = [
  "prb-schema",
  "prb-storage",
  "prb-zmq",
+ "proptest",
  "prost-reflect",
  "ratatui",
  "serde",

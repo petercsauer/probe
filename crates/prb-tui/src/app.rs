@@ -3995,6 +3995,102 @@ impl App {
         &self.filter_error
     }
 
+    #[doc(hidden)]
+    pub fn test_handle_mouse(&mut self, mouse: MouseEvent) {
+        self.handle_mouse(mouse);
+    }
+
+    #[doc(hidden)]
+    pub fn get_vertical_split(&self) -> u16 {
+        self.vertical_split
+    }
+
+    #[doc(hidden)]
+    pub fn get_horizontal_split(&self) -> u16 {
+        self.horizontal_split
+    }
+
+    #[doc(hidden)]
+    pub fn get_zoomed_pane(&self) -> Option<PaneId> {
+        self.zoomed_pane
+    }
+
+    #[doc(hidden)]
+    pub fn set_zoomed_pane(&mut self, pane: Option<PaneId>) {
+        self.zoomed_pane = pane;
+    }
+
+    #[doc(hidden)]
+    pub fn get_pane_rects(&self) -> &HashMap<PaneId, Rect> {
+        &self.pane_rects
+    }
+
+    #[doc(hidden)]
+    pub fn test_set_terminal_size(&mut self, width: u16, height: u16) {
+        // Update pane_rects based on new size
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        };
+
+        // Recalculate layout similar to render_all
+        let outer_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1), // Control bar
+                Constraint::Min(0),    // Main content
+                Constraint::Length(1), // Status bar
+            ])
+            .split(area);
+
+        let main_area = outer_chunks[1];
+
+        if self.zoomed_pane.is_none() {
+            // Normal layout with splits
+            let vertical_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(self.vertical_split),
+                    Constraint::Percentage(100 - self.vertical_split),
+                ])
+                .split(main_area);
+
+            let event_list_area = vertical_chunks[0];
+            let bottom_area = vertical_chunks[1];
+
+            let horizontal_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(self.horizontal_split),
+                    Constraint::Percentage(100 - self.horizontal_split),
+                ])
+                .split(bottom_area);
+
+            let decode_tree_area = horizontal_chunks[0];
+            let right_area = horizontal_chunks[1];
+
+            let right_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(right_area);
+
+            let hex_dump_area = right_chunks[0];
+            let timeline_area = right_chunks[1];
+
+            self.pane_rects.insert(PaneId::EventList, event_list_area);
+            self.pane_rects.insert(PaneId::DecodeTree, decode_tree_area);
+            self.pane_rects.insert(PaneId::HexDump, hex_dump_area);
+            self.pane_rects.insert(PaneId::Timeline, timeline_area);
+        } else {
+            // Zoomed - single pane fills main_area
+            if let Some(zoomed) = self.zoomed_pane {
+                self.pane_rects.insert(zoomed, main_area);
+            }
+        }
+    }
+
     /// Apply quick filter for source address.
     fn apply_quick_filter_source(&mut self) {
         if let Some(selected_idx) = self.state.selected_event
