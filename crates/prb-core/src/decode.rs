@@ -106,21 +106,21 @@ impl DecodeContext {
         }
 
         // Set source with network addresses if available
-        if let Some(ref src) = self.src_addr {
-            if let Some(ref dst) = self.dst_addr {
-                builder = builder.source(EventSource {
-                    adapter: "pcap".to_string(),
-                    origin: self
-                        .metadata
-                        .get("origin")
-                        .cloned()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    network: Some(NetworkAddr {
-                        src: src.clone(),
-                        dst: dst.clone(),
-                    }),
-                });
-            }
+        if let Some(ref src) = self.src_addr
+            && let Some(ref dst) = self.dst_addr
+        {
+            builder = builder.source(EventSource {
+                adapter: "pcap".to_string(),
+                origin: self
+                    .metadata
+                    .get("origin")
+                    .cloned()
+                    .unwrap_or_else(|| "unknown".to_string()),
+                network: Some(NetworkAddr {
+                    src: src.clone(),
+                    dst: dst.clone(),
+                }),
+            });
         }
 
         builder
