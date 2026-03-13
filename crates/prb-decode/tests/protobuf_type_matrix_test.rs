@@ -350,8 +350,8 @@ fn test_sfixed64_values(#[case] value: i64) {
 
 #[rstest]
 #[case::zero(0.0f32)]
-#[case::negative(-3.14f32)]
-#[case::positive(3.14f32)]
+#[case::negative(-std::f32::consts::PI)]
+#[case::positive(std::f32::consts::PI)]
 #[case::large(1e20f32)]
 #[case::small(1e-20f32)]
 fn test_float_values(#[case] value: f32) {
@@ -377,8 +377,8 @@ fn test_float_values(#[case] value: f32) {
 
 #[rstest]
 #[case::zero(0.0f64)]
-#[case::negative(-2.718f64)]
-#[case::positive(2.718f64)]
+#[case::negative(-std::f64::consts::E)]
+#[case::positive(std::f64::consts::E)]
 #[case::large(1e100f64)]
 #[case::small(1e-100f64)]
 fn test_double_values(#[case] value: f64) {
