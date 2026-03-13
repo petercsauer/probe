@@ -48,6 +48,29 @@ pub struct TlsDecryptor {
 }
 
 impl TlsDecryptor {
+    /// Creates a new TLS decryptor for testing with explicit keys.
+    ///
+    /// # Note
+    /// This constructor is intended for testing purposes only.
+    #[doc(hidden)]
+    pub fn new_for_test(
+        cipher: AeadCipher,
+        client_key: Vec<u8>,
+        client_iv: Vec<u8>,
+        server_key: Vec<u8>,
+        server_iv: Vec<u8>,
+        is_tls13: bool,
+    ) -> Self {
+        Self {
+            cipher,
+            client_key,
+            client_iv,
+            server_key,
+            server_iv,
+            is_tls13,
+        }
+    }
+
     /// Creates a new TLS decryptor from session info and key materials.
     ///
     /// For TLS 1.2, only the first key material (master secret) is used.
@@ -93,8 +116,9 @@ impl TlsDecryptor {
                     let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
                     (keys.key, keys.iv)
                 } else {
-                    // No client secret - use empty keys (decryption will fail gracefully)
-                    (vec![0u8; session.key_len()], vec![0u8; 12])
+                    return Err(PcapError::TlsKey(
+                        "No client key material found for TLS 1.3 session".to_string(),
+                    ));
                 };
 
             let (server_key, server_iv) =
@@ -102,8 +126,9 @@ impl TlsDecryptor {
                     let keys = derive_tls13_keys(secret, session.key_len(), session.uses_sha384())?;
                     (keys.key, keys.iv)
                 } else {
-                    // No server secret - use empty keys (decryption will fail gracefully)
-                    (vec![0u8; session.key_len()], vec![0u8; 12])
+                    return Err(PcapError::TlsKey(
+                        "No server key material found for TLS 1.3 session".to_string(),
+                    ));
                 };
 
             (client_key, client_iv, server_key, server_iv)

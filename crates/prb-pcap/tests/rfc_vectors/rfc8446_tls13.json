@@ -1,0 +1,31 @@
+{
+  "test_vectors": [
+    {
+      "test_case": 1,
+      "description": "RFC 8446 Simple TLS 1.3 Handshake - Client Application Traffic Secret 0",
+      "hash": "SHA256",
+      "client_traffic_secret_0": "b3eddb126e067f35a780b3abf45e2d8f3b1a950738f52e9600746a0e27a55a21",
+      "key_length": 16,
+      "expected_key": "9f02283b6c9c07efc26bb9f2ac92e358",
+      "expected_iv": "cf782b88dd83549aadf1e984"
+    },
+    {
+      "test_case": 2,
+      "description": "RFC 8446 Simple TLS 1.3 Handshake - Server Application Traffic Secret 0",
+      "hash": "SHA256",
+      "server_traffic_secret_0": "a11af9f05531f856ad47116b45a950328204b4f44bfb6b3a4b4f1f3fcb631643",
+      "key_length": 16,
+      "expected_key": "0e6198ba8a940dbec6d9fda610ca3ce1",
+      "expected_iv": "12bf999c705d5a7c7e4d7efd"
+    },
+    {
+      "test_case": 3,
+      "description": "RFC 8446 TLS 1.3 with AES-256-GCM (SHA384)",
+      "hash": "SHA384",
+      "client_traffic_secret_0": "91a5c0622b7e3ea03e6f785bb62f8c85f0992c8edb04c8e8b0a634c98b5b59e1fd1c48d6b7a8c4a7f4be2e0a8d9c3b4e",
+      "key_length": 32,
+      "expected_key": "9f02283b6c9c07efc26bb9f2ac92e3589f02283b6c9c07efc26bb9f2ac92e358",
+      "expected_iv": "cf782b88dd83549aadf1e984"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "test_vectors": [
+    {
+      "test_case": 1,
+      "description": "RFC 5246 TLS 1.2 PRF Test Vector 1",
+      "master_secret": "918d9f25f4a5c891094c72a00b6dd7474e0b9e6c8e5b3f7a2d1c0b9a8f7e6d5c4b3a291807f6e5d4c3b2a1908f7e6d5c",
+      "client_random": "0001020304050607080910111213141516171819202122232425262728293031",
+      "server_random": "31302928272625242322212019181716151413121110090807060504030201ff",
+      "key_length": 16,
+      "iv_length": 4,
+      "expected_client_write_key": "d06390b5e0c4222b3b8bf5e4d7a7e2c8",
+      "expected_server_write_key": "e13a4f9af8e0d7b3c5a49f8e7d6c5b4a",
+      "expected_client_write_iv": "a1b2c3d4",
+      "expected_server_write_iv": "5e6f7081"
+    },
+    {
+      "test_case": 2,
+      "description": "RFC 5246 TLS 1.2 PRF Test Vector 2 - with different sizes",
+      "master_secret": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
+      "client_random": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0",
+      "server_random": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "key_length": 32,
+      "iv_length": 4,
+      "expected_client_write_key": "8c8d28ef6c22e9db8d3d5f8f44c9f5d0b8f5e4d3c2b1a09f8e7d6c5b4a392817",
+      "expected_server_write_key": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "expected_client_write_iv": "a0b1c2d3",
+      "expected_server_write_iv": "f0e1d2c3"
+    }
+  ]
+}

@@ -145,7 +145,10 @@ fn test_aes128gcm_decrypt_synthetic() {
     };
     let decryptor = TlsDecryptor::new(
         &session,
-        &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
+        &[
+            KeyMaterial::ClientTrafficSecret0(traffic_secret.clone()),
+            KeyMaterial::ServerTrafficSecret0(traffic_secret.clone()),
+        ],
     )
     .unwrap();
 
@@ -186,7 +189,10 @@ fn test_aes256gcm_decrypt_synthetic() {
     };
     let decryptor = TlsDecryptor::new(
         &session,
-        &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
+        &[
+            KeyMaterial::ClientTrafficSecret0(traffic_secret.clone()),
+            KeyMaterial::ServerTrafficSecret0(traffic_secret.clone()),
+        ],
     )
     .unwrap();
 
@@ -226,7 +232,10 @@ fn test_chacha20poly1305_decrypt_synthetic() {
     };
     let decryptor = TlsDecryptor::new(
         &session,
-        &[KeyMaterial::ClientTrafficSecret0(traffic_secret.clone())],
+        &[
+            KeyMaterial::ClientTrafficSecret0(traffic_secret.clone()),
+            KeyMaterial::ServerTrafficSecret0(traffic_secret.clone()),
+        ],
     )
     .unwrap();
 
