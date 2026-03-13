@@ -37,6 +37,18 @@ pub const METADATA_KEY_OTEL_PARENT_SPAN_ID: &str = "otel.parent_span_id";
 pub const METADATA_KEY_OTEL_TRACE_SAMPLED: &str = "otel.trace_sampled";
 
 /// Monotonic event identifier.
+///
+/// Each event is assigned a unique, monotonically increasing ID.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::EventId;
+///
+/// let id1 = EventId::next();
+/// let id2 = EventId::next();
+/// assert!(id2.as_u64() > id1.as_u64());
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EventId(u64);
@@ -69,6 +81,18 @@ impl fmt::Display for EventId {
 }
 
 /// Nanosecond-precision timestamp since Unix epoch.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::Timestamp;
+///
+/// let ts = Timestamp::from_nanos(1_000_000_000); // 1 second
+/// assert_eq!(ts.as_nanos(), 1_000_000_000);
+///
+/// let now = Timestamp::now();
+/// assert!(now.as_nanos() > 0);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Timestamp(u64);
@@ -107,6 +131,18 @@ impl fmt::Display for Timestamp {
 }
 
 /// Network address information.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::NetworkAddr;
+///
+/// let addr = NetworkAddr {
+///     src: "192.168.1.100:8080".to_string(),
+///     dst: "10.0.0.1:443".to_string(),
+/// };
+/// assert_eq!(addr.src, "192.168.1.100:8080");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkAddr {
     /// Source IP address and port.
@@ -138,6 +174,19 @@ impl fmt::Display for EventSource {
 }
 
 /// Transport protocol kind.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::TransportKind;
+/// use std::str::FromStr;
+///
+/// let transport = TransportKind::Grpc;
+/// assert_eq!(transport.to_string(), "gRPC");
+///
+/// let parsed = TransportKind::from_str("grpc").unwrap();
+/// assert_eq!(parsed, TransportKind::Grpc);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TransportKind {
@@ -292,6 +341,34 @@ pub enum CorrelationKey {
 }
 
 /// Main debug event structure.
+///
+/// `DebugEvent` is the universal event type used throughout probe.
+/// All adapters (pcap, fixture, etc.) produce `DebugEvent`s, and all
+/// decoders consume them.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{DebugEvent, EventSource, TransportKind, Direction, Payload};
+/// use bytes::Bytes;
+///
+/// let event = DebugEvent::builder()
+///     .source(EventSource {
+///         adapter: "test".to_string(),
+///         origin: "test.pcap".to_string(),
+///         network: None,
+///     })
+///     .transport(TransportKind::Grpc)
+///     .direction(Direction::Inbound)
+///     .payload(Payload::Raw {
+///         raw: Bytes::from("response data"),
+///     })
+///     .metadata("grpc.method", "/api.v1.Users/Get")
+///     .build();
+///
+/// assert_eq!(event.transport, TransportKind::Grpc);
+/// assert_eq!(event.metadata.get("grpc.method").unwrap(), "/api.v1.Users/Get");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DebugEvent {
     /// Unique event identifier.
@@ -329,6 +406,32 @@ impl DebugEvent {
 }
 
 /// Builder for `DebugEvent`.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{DebugEvent, EventSource, TransportKind, Direction, Payload, CorrelationKey};
+/// use bytes::Bytes;
+///
+/// let event = DebugEvent::builder()
+///     .source(EventSource {
+///         adapter: "pcap".to_string(),
+///         origin: "capture.pcap".to_string(),
+///         network: None,
+///     })
+///     .transport(TransportKind::Grpc)
+///     .direction(Direction::Outbound)
+///     .payload(Payload::Raw {
+///         raw: Bytes::from("request"),
+///     })
+///     .metadata("grpc.method", "/api.Service/Method")
+///     .correlation_key(CorrelationKey::StreamId { id: 3 })
+///     .sequence(1)
+///     .build();
+///
+/// assert_eq!(event.sequence, Some(1));
+/// assert_eq!(event.correlation_keys.len(), 1);
+/// ```
 #[derive(Default)]
 pub struct DebugEventBuilder {
     id: Option<EventId>,

@@ -10,6 +10,35 @@ use crate::{
 use std::collections::HashMap;
 
 /// Orchestrates conversation reconstruction across protocols.
+///
+/// The engine coordinates multiple protocol-specific correlation strategies
+/// to group debug events into logical conversations.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{ConversationEngine, DebugEvent, EventSource, TransportKind, Direction, Payload};
+/// use bytes::Bytes;
+///
+/// let mut engine = ConversationEngine::new();
+/// // Register correlation strategies here
+///
+/// let events = vec![
+///     DebugEvent::builder()
+///         .source(EventSource {
+///             adapter: "test".to_string(),
+///             origin: "test".to_string(),
+///             network: None,
+///         })
+///         .transport(TransportKind::Grpc)
+///         .direction(Direction::Outbound)
+///         .payload(Payload::Raw { raw: Bytes::new() })
+///         .build(),
+/// ];
+///
+/// let conversations = engine.build_conversations(&events).unwrap();
+/// assert_eq!(conversations.conversations.len(), 1);
+/// ```
 pub struct ConversationEngine {
     pub(crate) strategies: Vec<Box<dyn CorrelationStrategy>>,
 }

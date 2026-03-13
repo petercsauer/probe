@@ -1,7 +1,38 @@
-//! Core types and traits for the PRB universal message debugger.
+//! # prb-core
 //!
-//! This crate provides the foundational data model, error types, and traits
-//! used throughout the PRB ecosystem.
+//! The foundational crate for the probe network debugging toolkit.
+//!
+//! This crate provides core types and traits used throughout the probe ecosystem:
+//! - [`DebugEvent`]: The universal event type representing protocol messages
+//! - [`ProtocolDecoder`]: Trait for implementing protocol decoders
+//! - [`CaptureAdapter`]: Trait for packet capture sources
+//! - [`ConversationEngine`]: Reconstructs logical conversations from events
+//! - [`TraceContext`]: OpenTelemetry distributed trace context
+//!
+//! # Examples
+//!
+//! Creating a debug event:
+//!
+//! ```
+//! use prb_core::{DebugEvent, EventSource, TransportKind, Direction, Payload};
+//! use bytes::Bytes;
+//!
+//! let event = DebugEvent::builder()
+//!     .source(EventSource {
+//!         adapter: "test".to_string(),
+//!         origin: "example".to_string(),
+//!         network: None,
+//!     })
+//!     .transport(TransportKind::Grpc)
+//!     .direction(Direction::Outbound)
+//!     .payload(Payload::Raw {
+//!         raw: Bytes::from("test data"),
+//!     })
+//!     .build();
+//!
+//! assert_eq!(event.transport, TransportKind::Grpc);
+//! assert_eq!(event.warnings.len(), 0);
+//! ```
 
 #![warn(missing_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]
