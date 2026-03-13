@@ -3,6 +3,34 @@
 use crate::DebugEvent;
 
 /// A correlation flow grouping related events.
+///
+/// Flows are intermediate structures used by correlation strategies to
+/// group related events before they are converted into conversations.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{Flow, DebugEvent, EventSource, TransportKind, Direction, Payload};
+/// use bytes::Bytes;
+///
+/// let event = DebugEvent::builder()
+///     .source(EventSource {
+///         adapter: "test".to_string(),
+///         origin: "test".to_string(),
+///         network: None,
+///     })
+///     .transport(TransportKind::Grpc)
+///     .direction(Direction::Outbound)
+///     .payload(Payload::Raw { raw: Bytes::new() })
+///     .build();
+///
+/// let flow = Flow::new("stream-1")
+///     .add_event(&event)
+///     .add_metadata("method", "/api.Service/Method");
+///
+/// assert_eq!(flow.id, "stream-1");
+/// assert_eq!(flow.events.len(), 1);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Flow<'a> {
     /// Unique flow identifier.

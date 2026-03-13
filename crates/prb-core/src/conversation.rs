@@ -155,6 +155,29 @@ pub struct ConversationMetrics {
 }
 
 /// A reconstructed conversation grouping related events.
+///
+/// Conversations are logical groupings of related debug events, typically
+/// representing a request-response exchange or a stream of related messages.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{Conversation, ConversationId, ConversationKind, ConversationState, TransportKind, EventId};
+///
+/// let mut conv = Conversation::new(
+///     ConversationId::new("grpc:stream-1"),
+///     ConversationKind::UnaryRpc,
+///     TransportKind::Grpc,
+///     ConversationState::Complete,
+/// );
+///
+/// conv.add_event(EventId::from_raw(1));
+/// conv.add_metadata("grpc.method", "/api.v1.Service/Method");
+/// conv.set_summary("POST /api.v1.Service/Method → OK (12ms)".to_string());
+///
+/// assert_eq!(conv.event_ids.len(), 1);
+/// assert_eq!(conv.state, ConversationState::Complete);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     /// Unique conversation identifier.

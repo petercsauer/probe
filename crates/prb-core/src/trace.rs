@@ -6,6 +6,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// W3C Trace Context extracted from protocol headers.
+///
+/// Represents distributed tracing context that can be propagated across
+/// service boundaries. Supports W3C traceparent, B3, and Jaeger formats.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{TraceContext, parse_w3c_traceparent};
+///
+/// let header = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+/// let ctx = parse_w3c_traceparent(header).unwrap();
+///
+/// assert_eq!(ctx.trace_id, "4bf92f3577b34da6a3ce929d0e0e4736");
+/// assert_eq!(ctx.span_id, "00f067aa0ba902b7");
+/// assert!(ctx.is_sampled());
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TraceContext {
     /// Trace ID (32 lowercase hex characters).

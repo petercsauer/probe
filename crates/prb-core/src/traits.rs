@@ -13,6 +13,48 @@ pub use crate::schema::ResolvedSchema;
 /// Implemented by:
 /// - `JsonFixtureAdapter` (Subsection 1)
 /// - `PcapAdapter` (Subsection 3)
+///
+/// # Examples
+///
+/// Implementing a simple adapter:
+///
+/// ```
+/// use prb_core::{CaptureAdapter, DebugEvent, CoreError, EventSource, TransportKind, Direction, Payload};
+/// use bytes::Bytes;
+///
+/// struct TestAdapter {
+///     events: Vec<DebugEvent>,
+/// }
+///
+/// impl CaptureAdapter for TestAdapter {
+///     fn name(&self) -> &str {
+///         "test-adapter"
+///     }
+///
+///     fn ingest(&mut self) -> Box<dyn Iterator<Item = Result<DebugEvent, CoreError>> + '_> {
+///         Box::new(self.events.drain(..).map(Ok))
+///     }
+/// }
+///
+/// let mut adapter = TestAdapter {
+///     events: vec![
+///         DebugEvent::builder()
+///             .source(EventSource {
+///                 adapter: "test".to_string(),
+///                 origin: "test".to_string(),
+///                 network: None,
+///             })
+///             .transport(TransportKind::Grpc)
+///             .direction(Direction::Outbound)
+///             .payload(Payload::Raw { raw: Bytes::new() })
+///             .build(),
+///     ],
+/// };
+///
+/// assert_eq!(adapter.name(), "test-adapter");
+/// let events: Vec<_> = adapter.ingest().collect();
+/// assert_eq!(events.len(), 1);
+/// ```
 pub trait CaptureAdapter {
     /// Returns the adapter name (e.g., "json-fixture", "pcap").
     fn name(&self) -> &str;
@@ -29,6 +71,54 @@ pub trait CaptureAdapter {
 /// - `GrpcDecoder` (Subsection 4)
 /// - `ZmqDecoder` (Subsection 4)
 /// - `DdsDecoder` (Subsection 4)
+///
+/// # Examples
+///
+/// Implementing a simple decoder:
+///
+/// ```
+/// use prb_core::{ProtocolDecoder, DebugEvent, CoreError, TransportKind, DecodeContext};
+/// use prb_core::{EventSource, Direction, Payload};
+/// use bytes::Bytes;
+///
+/// struct TestDecoder;
+///
+/// impl ProtocolDecoder for TestDecoder {
+///     fn protocol(&self) -> TransportKind {
+///         TransportKind::Grpc
+///     }
+///
+///     fn decode_stream(
+///         &mut self,
+///         data: &[u8],
+///         ctx: &DecodeContext,
+///     ) -> Result<Vec<DebugEvent>, CoreError> {
+///         if data.is_empty() {
+///             return Ok(Vec::new());
+///         }
+///
+///         let event = DebugEvent::builder()
+///             .source(EventSource {
+///                 adapter: "decoder".to_string(),
+///                 origin: ctx.src_addr.clone().unwrap_or_default(),
+///                 network: None,
+///             })
+///             .transport(self.protocol())
+///             .direction(Direction::Inbound)
+///             .payload(Payload::Raw {
+///                 raw: Bytes::copy_from_slice(data),
+///             })
+///             .build();
+///
+///         Ok(vec![event])
+///     }
+/// }
+///
+/// let mut decoder = TestDecoder;
+/// let ctx = DecodeContext::new();
+/// let events = decoder.decode_stream(b"test", &ctx).unwrap();
+/// assert_eq!(events.len(), 1);
+/// ```
 pub trait ProtocolDecoder: Send {
     /// Returns the transport protocol this decoder handles.
     fn protocol(&self) -> TransportKind;
@@ -55,6 +145,42 @@ pub trait ProtocolDecoder: Send {
 ///
 /// Implemented by:
 /// - `ProtobufSchemaResolver` (Subsection 2)
+///
+/// # Examples
+///
+/// Implementing a simple schema resolver:
+///
+/// ```
+/// use prb_core::{SchemaResolver, ResolvedSchema, CoreError};
+/// use bytes::Bytes;
+/// use std::collections::HashMap;
+///
+/// struct TestResolver {
+///     schemas: HashMap<String, Bytes>,
+/// }
+///
+/// impl SchemaResolver for TestResolver {
+///     fn resolve(&self, schema_name: &str) -> Result<Option<ResolvedSchema>, CoreError> {
+///         Ok(self.schemas.get(schema_name).map(|content| ResolvedSchema {
+///             name: schema_name.to_string(),
+///             content: content.clone(),
+///             format: "test".to_string(),
+///         }))
+///     }
+///
+///     fn list_schemas(&self) -> Vec<String> {
+///         self.schemas.keys().cloned().collect()
+///     }
+/// }
+///
+/// let mut schemas = HashMap::new();
+/// schemas.insert("test.Message".to_string(), Bytes::from("schema data"));
+/// let resolver = TestResolver { schemas };
+///
+/// let schema = resolver.resolve("test.Message").unwrap();
+/// assert!(schema.is_some());
+/// assert_eq!(resolver.list_schemas().len(), 1);
+/// ```
 pub trait SchemaResolver {
     /// Resolves a schema by name.
     ///

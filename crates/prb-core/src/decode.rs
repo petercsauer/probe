@@ -3,6 +3,24 @@
 use crate::event::Timestamp;
 
 /// Decoding context for `ProtocolDecoder`.
+///
+/// Provides metadata and context information to protocol decoders during
+/// the decoding process.
+///
+/// # Examples
+///
+/// ```
+/// use prb_core::{DecodeContext, Timestamp};
+///
+/// let ctx = DecodeContext::new()
+///     .with_src_addr("192.168.1.100:8080")
+///     .with_dst_addr("10.0.0.1:443")
+///     .with_metadata("interface", "eth0")
+///     .with_timestamp(Timestamp::from_nanos(1_000_000_000));
+///
+/// assert_eq!(ctx.src_addr.as_ref().unwrap(), "192.168.1.100:8080");
+/// assert_eq!(ctx.metadata.get("interface").unwrap(), "eth0");
+/// ```
 #[derive(Debug, Clone)]
 pub struct DecodeContext {
     /// Source address information (e.g., "192.168.1.1:8080").
