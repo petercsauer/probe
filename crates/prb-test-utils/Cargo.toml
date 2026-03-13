@@ -1,0 +1,9 @@
+[package]
+name = "prb-test-utils"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+prb-core = { path = "../prb-core" }
+bytes = { workspace = true }
