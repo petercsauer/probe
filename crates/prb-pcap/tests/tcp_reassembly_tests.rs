@@ -1,51 +1,9 @@
 //! Integration tests for TCP stream reassembly.
 
+mod helpers;
+
+use helpers::create_tcp_segment;
 use prb_pcap::{PacketNormalizer, TcpFlags, TcpReassembler};
-
-/// Helper to create a TCP segment packet.
-#[allow(clippy::too_many_arguments)]
-fn create_tcp_segment(
-    src_ip: [u8; 4],
-    dst_ip: [u8; 4],
-    src_port: u16,
-    dst_port: u16,
-    seq: u32,
-    ack: u32,
-    flags: TcpFlags,
-    payload: &[u8],
-) -> Vec<u8> {
-    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
-
-    let mut packet = Vec::new();
-
-    // Ethernet header
-    let eth = Ethernet2Header {
-        source: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
-        destination: [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
-        ether_type: EtherType(0x0800), // IPv4
-    };
-    eth.write(&mut packet).unwrap();
-
-    // IPv4 header
-    let payload_len = (20 + payload.len()) as u16; // TCP header (20) + payload
-    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), src_ip, dst_ip).unwrap();
-    ipv4.write(&mut packet).unwrap();
-
-    // TCP header
-    let mut tcp = TcpHeader::new(src_port, dst_port, seq, 4096);
-    tcp.acknowledgment_number = ack;
-    tcp.syn = flags.syn;
-    tcp.ack = flags.ack;
-    tcp.fin = flags.fin;
-    tcp.rst = flags.rst;
-    tcp.psh = flags.psh;
-    tcp.write(&mut packet).unwrap();
-
-    // Payload
-    packet.extend_from_slice(payload);
-
-    packet
-}
 
 #[test]
 fn test_simple_stream() {

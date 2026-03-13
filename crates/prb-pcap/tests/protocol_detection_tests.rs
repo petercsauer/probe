@@ -1,102 +1,11 @@
 //! Integration tests for protocol detection and decoding in the pipeline.
 
+mod helpers;
+
+use helpers::{create_tcp_segment, create_udp_datagram, write_pcap_file};
 use prb_core::{CaptureAdapter, TransportKind};
 use prb_pcap::{PcapCaptureAdapter, TcpFlags};
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
 use tempfile::TempDir;
-
-/// Helper to create a TCP segment packet.
-#[allow(clippy::too_many_arguments)]
-fn create_tcp_segment(
-    src_ip: [u8; 4],
-    dst_ip: [u8; 4],
-    src_port: u16,
-    dst_port: u16,
-    seq: u32,
-    ack: u32,
-    flags: TcpFlags,
-    payload: &[u8],
-) -> Vec<u8> {
-    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, TcpHeader};
-
-    let mut packet = Vec::new();
-
-    // Ethernet header
-    let eth = Ethernet2Header {
-        source: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
-        destination: [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
-        ether_type: EtherType(0x0800), // IPv4
-    };
-    eth.write(&mut packet).unwrap();
-
-    // IPv4 header
-    let payload_len = (20 + payload.len()) as u16; // TCP header (20) + payload
-    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(6), src_ip, dst_ip).unwrap();
-    ipv4.write(&mut packet).unwrap();
-
-    // TCP header
-    let mut tcp = TcpHeader::new(src_port, dst_port, seq, 4096);
-    tcp.acknowledgment_number = ack;
-    tcp.syn = flags.syn;
-    tcp.ack = flags.ack;
-    tcp.fin = flags.fin;
-    tcp.rst = flags.rst;
-    tcp.psh = flags.psh;
-    tcp.write(&mut packet).unwrap();
-
-    // Payload
-    packet.extend_from_slice(payload);
-
-    packet
-}
-
-/// Helper to write a simple PCAP file.
-fn write_pcap_file(path: &PathBuf, packets: &[Vec<u8>]) {
-    let mut file = File::create(path).unwrap();
-
-    // PCAP global header
-    let header = [
-        0xd4, 0xc3, 0xb2, 0xa1, // magic (little endian)
-        0x02, 0x00, 0x04, 0x00, // version 2.4
-        0x00, 0x00, 0x00, 0x00, // timezone offset
-        0x00, 0x00, 0x00, 0x00, // timestamp accuracy
-        0xff, 0xff, 0x00, 0x00, // snaplen (65535)
-        0x01, 0x00, 0x00, 0x00, // linktype 1 (Ethernet)
-    ];
-    file.write_all(&header).unwrap();
-
-    // Write each packet
-    let mut timestamp_sec = 1000000;
-    for packet in packets {
-        // Packet header
-        let packet_header = [
-            (timestamp_sec & 0xff) as u8,
-            ((timestamp_sec >> 8) & 0xff) as u8,
-            ((timestamp_sec >> 16) & 0xff) as u8,
-            ((timestamp_sec >> 24) & 0xff) as u8,
-            0x00,
-            0x00,
-            0x00,
-            0x00, // timestamp microseconds
-            (packet.len() as u32).to_le_bytes()[0],
-            (packet.len() as u32).to_le_bytes()[1],
-            (packet.len() as u32).to_le_bytes()[2],
-            (packet.len() as u32).to_le_bytes()[3],
-            (packet.len() as u32).to_le_bytes()[0],
-            (packet.len() as u32).to_le_bytes()[1],
-            (packet.len() as u32).to_le_bytes()[2],
-            (packet.len() as u32).to_le_bytes()[3],
-        ];
-        file.write_all(&packet_header).unwrap();
-        file.write_all(packet).unwrap();
-
-        timestamp_sec += 1;
-    }
-
-    file.flush().unwrap();
-}
 
 #[test]
 fn test_grpc_stream_auto_detected() {
@@ -481,46 +390,6 @@ fn test_pipeline_stats_tracking() {
         detection_attempted > 0,
         "Expected protocol detection to be attempted"
     );
-}
-
-/// Helper to create a UDP datagram packet.
-fn create_udp_datagram(
-    src_ip: [u8; 4],
-    dst_ip: [u8; 4],
-    src_port: u16,
-    dst_port: u16,
-    payload: &[u8],
-) -> Vec<u8> {
-    use etherparse::{EtherType, Ethernet2Header, IpNumber, Ipv4Header, UdpHeader};
-
-    let mut packet = Vec::new();
-
-    // Ethernet header
-    let eth = Ethernet2Header {
-        source: [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
-        destination: [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff],
-        ether_type: EtherType(0x0800), // IPv4
-    };
-    eth.write(&mut packet).unwrap();
-
-    // IPv4 header
-    let payload_len = (8 + payload.len()) as u16; // UDP header (8) + payload
-    let ipv4 = Ipv4Header::new(payload_len, 64, IpNumber(17), src_ip, dst_ip).unwrap();
-    ipv4.write(&mut packet).unwrap();
-
-    // UDP header
-    let udp = UdpHeader {
-        source_port: src_port,
-        destination_port: dst_port,
-        length: (8 + payload.len()) as u16,
-        checksum: 0, // Not validated in tests
-    };
-    udp.write(&mut packet).unwrap();
-
-    // Payload
-    packet.extend_from_slice(payload);
-
-    packet
 }
 
 #[test]
