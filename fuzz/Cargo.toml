@@ -1,0 +1,22 @@
+[package]
+name = "prb-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+prb-pcap = { path = "../crates/prb-pcap" }
+
+# Prevent this from interfering with normal workspace builds
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "keylog_parser"
+path = "fuzz_targets/keylog_parser.rs"
+test = false
+doc = false

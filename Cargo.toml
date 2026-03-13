@@ -23,6 +23,9 @@ members = [
     "crates/prb-plugin-wasm-test-fixture",
     "crates/prb-integration-tests",
 ]
+exclude = [
+    "fuzz",
+]
 
 [workspace.package]
 edition = "2024"
