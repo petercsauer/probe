@@ -96,6 +96,29 @@ pub struct NativePluginLoader {
     loaded_plugins: Vec<Arc<LoadedPlugin>>,
 }
 
+/// Validate plugin metadata for completeness and correctness.
+fn validate_metadata(metadata: &PluginMetadata) -> Result<(), PluginError> {
+    if metadata.name.is_empty() {
+        return Err(PluginError::InvalidMetadata("name is required".to_string()));
+    }
+    if metadata.version.is_empty() {
+        return Err(PluginError::InvalidMetadata(
+            "version is required".to_string(),
+        ));
+    }
+    if metadata.protocol_id.is_empty() {
+        return Err(PluginError::InvalidMetadata(
+            "protocol_id is required".to_string(),
+        ));
+    }
+
+    // Validate version is valid semver
+    semver::Version::parse(&metadata.version)
+        .map_err(|e| PluginError::InvalidMetadata(format!("Invalid version format: {e}")))?;
+
+    Ok(())
+}
+
 impl NativePluginLoader {
     /// Create a new plugin loader.
     #[must_use]
@@ -199,6 +222,9 @@ impl NativePluginLoader {
             protocol_id,
             api_version,
         };
+
+        // Validate metadata completeness
+        validate_metadata(&metadata)?;
 
         tracing::info!(
             name = %metadata.name,

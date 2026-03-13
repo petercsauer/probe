@@ -13,6 +13,9 @@ pub enum PluginError {
     #[error("Plugin API version mismatch: {0}")]
     ApiVersion(String),
 
+    #[error("Invalid plugin metadata: {0}")]
+    InvalidMetadata(String),
+
     #[error("Missing required export: {0}")]
     MissingExport(String),
 

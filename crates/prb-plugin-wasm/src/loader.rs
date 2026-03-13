@@ -20,6 +20,29 @@ pub struct WasmPlugin {
     pub info: PluginMetadata,
 }
 
+/// Validate plugin metadata for completeness and correctness.
+fn validate_metadata(metadata: &PluginMetadata) -> Result<(), PluginError> {
+    if metadata.name.is_empty() {
+        return Err(PluginError::InvalidMetadata("name is required".to_string()));
+    }
+    if metadata.version.is_empty() {
+        return Err(PluginError::InvalidMetadata(
+            "version is required".to_string(),
+        ));
+    }
+    if metadata.protocol_id.is_empty() {
+        return Err(PluginError::InvalidMetadata(
+            "protocol_id is required".to_string(),
+        ));
+    }
+
+    // Validate version is valid semver
+    semver::Version::parse(&metadata.version)
+        .map_err(|e| PluginError::InvalidMetadata(format!("Invalid version format: {e}")))?;
+
+    Ok(())
+}
+
 impl WasmPluginLoader {
     /// Create a new empty loader.
     #[must_use]
@@ -68,6 +91,9 @@ impl WasmPluginLoader {
 
         // Validate API version
         validate_api_version(&info.api_version).map_err(PluginError::ApiVersion)?;
+
+        // Validate metadata completeness
+        validate_metadata(&info)?;
 
         debug!(
             plugin = %info.name,

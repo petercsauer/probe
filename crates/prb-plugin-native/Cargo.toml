@@ -17,6 +17,7 @@ bytes.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+semver = "1.0.27"
 
 [dev-dependencies]
 tempfile.workspace = true
