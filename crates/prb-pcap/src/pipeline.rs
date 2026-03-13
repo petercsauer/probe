@@ -30,6 +30,8 @@ pub struct PipelineStats {
     pub protocol_decoded: u64,
     /// Streams that fell back to raw events (no decoder or decode failed).
     pub protocol_fallback: u64,
+    /// Unexpected empty events after non-empty check (defensive error).
+    pub unexpected_empty_events: u64,
 }
 
 /// PCAP capture adapter implementing the `CaptureAdapter` trait.
