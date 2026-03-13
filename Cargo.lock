@@ -3849,15 +3849,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prb-plugin-wasm-test-fixture"
-version = "0.1.0"
-dependencies = [
- "extism-pdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "prb-query"
 version = "0.1.0"
 dependencies = [
