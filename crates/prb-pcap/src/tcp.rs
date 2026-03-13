@@ -93,6 +93,52 @@ impl DirectionState {
             None => 0,
         }
     }
+
+    /// Computes missing ranges (gaps) in the buffered data.
+    fn get_missing_ranges(&self) -> Vec<Range<u64>> {
+        if self.payload_buffer.is_empty() {
+            return Vec::new();
+        }
+
+        // Collect all (offset, end_offset) pairs from buffered chunks
+        let mut ranges: Vec<(usize, usize)> = self
+            .payload_buffer
+            .iter()
+            .map(|(offset, data)| (*offset, *offset + data.len()))
+            .collect();
+
+        // Sort by start offset
+        ranges.sort_by_key(|r| r.0);
+
+        // Find gaps between consumed_offset and buffered ranges
+        let mut gaps = Vec::new();
+
+        // Check for gap from consumed_offset to first buffered chunk
+        if let Some(&(first_start, _)) = ranges.first() {
+            if self.consumed_offset < first_start {
+                gaps.push(Range {
+                    start: self.consumed_offset as u64,
+                    end: first_start as u64,
+                });
+            }
+        }
+
+        // Find gaps between consecutive ranges
+        for i in 0..ranges.len().saturating_sub(1) {
+            let (_start1, end1) = ranges[i];
+            let (start2, _end2) = ranges[i + 1];
+
+            // If there's a gap between end1 and start2
+            if end1 < start2 {
+                gaps.push(Range {
+                    start: end1 as u64,
+                    end: start2 as u64,
+                });
+            }
+        }
+
+        gaps
+    }
 }
 
 /// State of a bidirectional TCP connection.
@@ -236,7 +282,7 @@ impl TcpReassembler {
             direction,
             data,
             is_complete: dir_state.fin_seen,
-            missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+            missing_ranges: dir_state.get_missing_ranges(),
             timestamp_us: dir_state
                 .first_packet_timestamp_us
                 .unwrap_or(dir_state.last_activity_us),
@@ -445,7 +491,7 @@ impl TcpReassembler {
                     direction,
                     data,
                     is_complete: dir_state.fin_seen,
-                    missing_ranges: Vec::new(), // TODO: Extract gap ranges from assembler if needed
+                    missing_ranges: dir_state.get_missing_ranges(),
                     timestamp_us: dir_state.first_packet_timestamp_us.unwrap_or(timestamp_us),
                 }));
             }
@@ -522,5 +568,100 @@ impl TcpReassembler {
 impl Default for TcpReassembler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    /// Helper to create a TCP segment packet for testing.
+    fn create_tcp_segment<'a>(
+        src_port: u16,
+        dst_port: u16,
+        seq: u32,
+        payload: &'a [u8],
+        timestamp_us: u64,
+    ) -> NormalizedPacket<'a> {
+        NormalizedPacket {
+            timestamp_us,
+            src_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
+            dst_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)),
+            transport: TransportInfo::Tcp(crate::normalize::TcpSegmentInfo {
+                src_port,
+                dst_port,
+                seq,
+                ack: 0,
+                flags: TcpFlags {
+                    syn: false,
+                    ack: false,
+                    fin: false,
+                    rst: false,
+                    psh: false,
+                },
+            }),
+            vlan_id: None,
+            payload,
+        }
+    }
+
+    #[test]
+    fn test_tcp_gaps_exposed() {
+        let mut reassembler = TcpReassembler::new();
+
+        // Create segments with a gap: 0-50, then 100-150 (gap: 50-100)
+        let pkt1 = create_tcp_segment(12345, 80, 1000, &[0x01; 50], 1000);
+        let pkt2 = create_tcp_segment(12345, 80, 1100, &[0x02; 50], 2000);
+
+        // Process first segment (0-50 relative)
+        let events1 = reassembler.process_segment(&pkt1).unwrap();
+        assert_eq!(events1.len(), 1, "Should emit reassembled data");
+
+        // Process second segment (100-150 relative), which creates a gap
+        let _events2 = reassembler.process_segment(&pkt2).unwrap();
+
+        // Second segment should not emit data yet (out of order)
+        // But when we flush, we should see the gap
+        let flush_events = reassembler.flush_all();
+
+        // Find the stream with buffered data
+        let mut found_gap = false;
+        for event in flush_events {
+            if let StreamEvent::Data(stream) = event {
+                if !stream.missing_ranges.is_empty() {
+                    // We should have a gap from 50 to 100
+                    assert_eq!(stream.missing_ranges.len(), 1);
+                    assert_eq!(stream.missing_ranges[0].start, 50);
+                    assert_eq!(stream.missing_ranges[0].end, 100);
+                    found_gap = true;
+                }
+            }
+        }
+
+        assert!(found_gap, "Should have found a gap in the TCP stream");
+    }
+
+    #[test]
+    fn test_tcp_no_gaps_when_contiguous() {
+        let mut reassembler = TcpReassembler::new();
+
+        // Create contiguous segments: 0-50, then 50-100
+        let pkt1 = create_tcp_segment(12345, 80, 1000, &[0x01; 50], 1000);
+        let pkt2 = create_tcp_segment(12345, 80, 1050, &[0x02; 50], 2000);
+
+        // Process both segments
+        let events1 = reassembler.process_segment(&pkt1).unwrap();
+        let events2 = reassembler.process_segment(&pkt2).unwrap();
+
+        // Verify no gaps in emitted events
+        for event in events1.iter().chain(events2.iter()) {
+            if let StreamEvent::Data(stream) = event {
+                assert!(
+                    stream.missing_ranges.is_empty(),
+                    "Contiguous data should have no gaps"
+                );
+            }
+        }
     }
 }
