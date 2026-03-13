@@ -11,7 +11,7 @@ impl PrivilegeCheck {
     /// On Linux, this checks for `CAP_NET_RAW` capability or root user.
     /// On other platforms, this always returns Ok (pcap will error if insufficient).
     #[allow(unused_variables)]
-    pub const fn check(interface: &str) -> Result<(), CaptureError> {
+    pub fn check(interface: &str) -> Result<(), CaptureError> {
         #[cfg(target_os = "linux")]
         {
             use caps::{CapSet, Capability};
