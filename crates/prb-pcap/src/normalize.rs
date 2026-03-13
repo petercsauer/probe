@@ -351,6 +351,18 @@ impl PacketNormalizer {
 
         // Convert to owned data since reassembled is owned
         let payload_owned = payload.to_vec();
+
+        // SAFETY: We intentionally leak reassembled fragment payloads here to satisfy the
+        // 'static lifetime requirement for NormalizedPacket. In practice, IP fragments are
+        // relatively rare in most network captures, and this leak is bounded by the
+        // defragmentation timeout (5 seconds via DEFRAG_TIMEOUT_US). Incomplete fragment
+        // trains are evicted every 1000 packets, but completed/reassembled payloads remain
+        // leaked for the lifetime of the process.
+        //
+        // For long-running captures with heavy fragmentation, this will cause unbounded
+        // memory growth. Future improvements could use an arena allocator with explicit
+        // lifetime management to avoid this leak. See memory tests in
+        // tests/normalize_memory_test.rs for profiling of this behavior.
         let payload_static: &'static [u8] = Box::leak(payload_owned.into_boxed_slice());
 
         Ok(Some(NormalizedPacket {
