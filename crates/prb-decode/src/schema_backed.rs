@@ -72,7 +72,7 @@ impl DecodedMessage {
 impl fmt::Display for DecodedMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{} {{", self.descriptor.full_name())?;
-        format_message_fields(f, &self.message, 1)?;
+        format_message_fields(f, &self.message, 1, 0)?;
         write!(f, "}}")
     }
 }
@@ -134,12 +134,20 @@ pub fn decode_with_schema(
     Ok(DecodedMessage::new(message, descriptor.clone()))
 }
 
+/// Maximum recursion depth for formatting nested messages.
+const MAX_FORMAT_DEPTH: usize = 64;
+
 /// Format message fields with indentation.
 fn format_message_fields(
     f: &mut fmt::Formatter<'_>,
     message: &DynamicMessage,
     indent: usize,
+    depth: usize,
 ) -> fmt::Result {
+    if depth >= MAX_FORMAT_DEPTH {
+        return write!(f, "<max recursion depth reached>");
+    }
+
     let descriptor = message.descriptor();
     let indent_str = "  ".repeat(indent);
 
@@ -148,7 +156,7 @@ fn format_message_fields(
 
         write!(f, "{}{}: ", indent_str, field.name())?;
 
-        format_value(f, &value, indent)?;
+        format_value(f, &value, indent, depth)?;
         writeln!(f)?;
     }
 
@@ -168,7 +176,16 @@ fn format_map_key(f: &mut fmt::Formatter<'_>, key: &MapKey) -> fmt::Result {
 }
 
 /// Format a protobuf value.
-fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt::Result {
+fn format_value(
+    f: &mut fmt::Formatter<'_>,
+    value: &Value,
+    indent: usize,
+    depth: usize,
+) -> fmt::Result {
+    if depth >= MAX_FORMAT_DEPTH {
+        return write!(f, "<max recursion depth reached>");
+    }
+
     match value {
         Value::Bool(b) => write!(f, "{b}"),
         Value::I32(i) => write!(f, "{i}"),
@@ -191,7 +208,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt
         }
         Value::Message(msg) => {
             writeln!(f, "{{")?;
-            format_message_fields(f, msg, indent + 1)?;
+            format_message_fields(f, msg, indent + 1, depth + 1)?;
             write!(f, "{}}}", "  ".repeat(indent))
         }
         Value::List(items) => {
@@ -200,7 +217,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt
                 if i > 0 {
                     write!(f, ", ")?;
                 }
-                format_value(f, item, indent)?;
+                format_value(f, item, indent, depth)?;
             }
             write!(f, "]")
         }
@@ -211,7 +228,7 @@ fn format_value(f: &mut fmt::Formatter<'_>, value: &Value, indent: usize) -> fmt
                 write!(f, "{indent_str}")?;
                 format_map_key(f, key)?;
                 write!(f, ": ")?;
-                format_value(f, val, indent + 1)?;
+                format_value(f, val, indent + 1, depth + 1)?;
                 writeln!(f)?;
             }
             write!(f, "{}}}", "  ".repeat(indent))
