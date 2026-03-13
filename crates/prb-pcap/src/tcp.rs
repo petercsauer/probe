@@ -114,13 +114,13 @@ impl DirectionState {
         let mut gaps = Vec::new();
 
         // Check for gap from consumed_offset to first buffered chunk
-        if let Some(&(first_start, _)) = ranges.first() {
-            if self.consumed_offset < first_start {
-                gaps.push(Range {
-                    start: self.consumed_offset as u64,
-                    end: first_start as u64,
-                });
-            }
+        if let Some(&(first_start, _)) = ranges.first()
+            && self.consumed_offset < first_start
+        {
+            gaps.push(Range {
+                start: self.consumed_offset as u64,
+                end: first_start as u64,
+            });
         }
 
         // Find gaps between consecutive ranges

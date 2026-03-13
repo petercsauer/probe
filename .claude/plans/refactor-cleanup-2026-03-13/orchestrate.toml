@@ -1,0 +1,70 @@
+# Orchestrate v3 Plan Configuration
+# Generated: 2026-03-13
+# Plan: Refactor and Cleanup Sprint
+# Goal: Eliminate code duplication, fix bugs, update documentation, remove stale files
+
+[plan]
+title = "Refactor and Cleanup Sprint"
+goal = "Extract duplicated code into shared utilities, fix critical bugs, update documentation, remove unused files"
+created = "2026-03-13"
+status = "ready"
+entry_point = "fresh_goal"
+rules_version = "2026-03-13"
+estimated_complexity = "high"
+estimated_duration = "8-10 days"
+total_segments = 21
+
+[execution]
+# Wave-based parallel execution
+max_parallel_builders = 4
+cycle_budget_per_segment = 20
+max_retries = 2
+continue_on_segment_failure = false
+
+# Execution order strategy
+ordering_strategy = "dependency_order"
+# Available: fail_fast (highest risk first), confidence_first (lowest risk first),
+# dependency_order (topological), user_specified
+
+[isolation]
+# Worktree isolation for parallel execution
+enabled = true
+worktree_pool = ".claude/worktrees/refactor-cleanup-pool"
+cleanup_on_success = true
+cleanup_on_failure = false
+
+[gate]
+# Quality gates that must pass for each segment
+targeted_tests_required = true
+regression_tests_required = true
+full_build_required = true
+full_test_suite_required = true
+self_review_required = true
+scope_verification_required = true
+
+# Coverage enforcement
+coverage_threshold = 80.0
+coverage_check_enabled = true
+
+# Lint enforcement
+clippy_deny_warnings = true
+rustfmt_check = true
+cargo_doc_warnings_deny = true
+
+[monitor]
+# Progress tracking and reporting
+checkpoint_frequency = 5  # Create checkpoint every 5 cycles
+report_format = "structured"
+metrics_enabled = true
+
+[notifications]
+# Notification triggers (currently placeholder - no actual notification system)
+on_segment_complete = false
+on_segment_failure = true
+on_plan_complete = true
+
+[recovery]
+# Recovery strategy for failures
+create_recovery_plan = true
+recovery_plan_entry_point = "enrich_existing_plan"
+max_follow_up_cycles = 2
