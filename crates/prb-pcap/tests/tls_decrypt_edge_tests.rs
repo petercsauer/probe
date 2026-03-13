@@ -44,8 +44,11 @@ fn test_tls13_missing_client_secret() {
     let key_materials = vec![KeyMaterial::ServerTrafficSecret0(server_secret)];
 
     let result = TlsDecryptor::new(&session, &key_materials);
-    // Should succeed but use empty keys for client direction
-    assert!(result.is_ok());
+    // Should fail because client secret is missing
+    assert!(
+        result.is_err(),
+        "Should return error when client secret is missing"
+    );
 }
 
 /// Test creating TLS 1.3 decryptor with missing server traffic secret.
@@ -63,8 +66,11 @@ fn test_tls13_missing_server_secret() {
     let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
 
     let result = TlsDecryptor::new(&session, &key_materials);
-    // Should succeed but use empty keys for server direction
-    assert!(result.is_ok());
+    // Should fail because server secret is missing
+    assert!(
+        result.is_err(),
+        "Should return error when server secret is missing"
+    );
 }
 
 /// Test creating TLS 1.3 decryptor with no secrets at all.
@@ -80,8 +86,11 @@ fn test_tls13_no_secrets() {
     let key_materials = vec![]; // No secrets
 
     let result = TlsDecryptor::new(&session, &key_materials);
-    // Should succeed but use empty keys for both directions
-    assert!(result.is_ok());
+    // Should fail because no secrets are provided
+    assert!(
+        result.is_err(),
+        "Should return error when no secrets are provided"
+    );
 }
 
 /// Test creating TLS 1.2 decryptor without master secret.
@@ -175,9 +184,13 @@ fn test_tls13_wrong_key_decryption_failure() {
         version: TlsVersion::Tls13,
     };
 
-    // Use wrong/random secret
-    let wrong_secret = vec![0xAA; 32];
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(wrong_secret)];
+    // Use wrong/random secrets (need both client and server for successful construction)
+    let wrong_client_secret = vec![0xAA; 32];
+    let wrong_server_secret = vec![0xBB; 32];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(wrong_client_secret),
+        KeyMaterial::ServerTrafficSecret0(wrong_server_secret),
+    ];
 
     let decryptor = TlsDecryptor::new(&session, &key_materials).unwrap();
 
@@ -249,7 +262,11 @@ fn test_decrypt_stream_parse_failure() {
     };
 
     let client_secret = vec![0u8; 32];
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
+    let server_secret = vec![0u8; 32];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let decryptor = TlsDecryptor::new(&session, &key_materials).unwrap();
 
@@ -279,7 +296,11 @@ fn test_decrypt_stream_partial_record() {
     };
 
     let client_secret = vec![0u8; 32];
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
+    let server_secret = vec![0u8; 32];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let decryptor = TlsDecryptor::new(&session, &key_materials).unwrap();
 
@@ -310,7 +331,11 @@ fn test_aes256_gcm_cipher_suite() {
     };
 
     let client_secret = vec![0u8; 48]; // 384-bit secret for SHA384
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
+    let server_secret = vec![0u8; 48];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let result = TlsDecryptor::new(&session, &key_materials);
     assert!(result.is_ok());
@@ -327,7 +352,11 @@ fn test_chacha20_poly1305_cipher_suite() {
     };
 
     let client_secret = vec![0u8; 32];
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
+    let server_secret = vec![0u8; 32];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let result = TlsDecryptor::new(&session, &key_materials);
     assert!(result.is_ok());
@@ -377,8 +406,12 @@ fn test_decrypt_server_to_client_direction() {
         version: TlsVersion::Tls13,
     };
 
+    let client_secret = vec![0u8; 32];
     let server_secret = vec![0u8; 32];
-    let key_materials = vec![KeyMaterial::ServerTrafficSecret0(server_secret)];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let decryptor = TlsDecryptor::new(&session, &key_materials).unwrap();
 
@@ -444,7 +477,11 @@ fn test_decrypt_stream_skips_non_app_data() {
     };
 
     let client_secret = vec![0u8; 32];
-    let key_materials = vec![KeyMaterial::ClientTrafficSecret0(client_secret)];
+    let server_secret = vec![0u8; 32];
+    let key_materials = vec![
+        KeyMaterial::ClientTrafficSecret0(client_secret),
+        KeyMaterial::ServerTrafficSecret0(server_secret),
+    ];
 
     let decryptor = TlsDecryptor::new(&session, &key_materials).unwrap();
 
