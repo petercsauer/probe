@@ -102,6 +102,52 @@ docs:
 docs-check:
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
+# Generate READMEs from lib.rs
+readme-sync:
+    cargo install cargo-rdme --locked
+    cd crates/prb-ai && cargo rdme
+    cd crates/prb-capture && cargo rdme
+    cd crates/prb-cli && cargo rdme
+    cd crates/prb-core && cargo rdme
+    cd crates/prb-dds && cargo rdme
+    cd crates/prb-decode && cargo rdme
+    cd crates/prb-detect && cargo rdme
+    cd crates/prb-export && cargo rdme
+    cd crates/prb-fixture && cargo rdme
+    cd crates/prb-grpc && cargo rdme
+    cd crates/prb-pcap && cargo rdme
+    cd crates/prb-plugin-api && cargo rdme
+    cd crates/prb-plugin-native && cargo rdme
+    cd crates/prb-plugin-wasm && cargo rdme
+    cd crates/prb-query && cargo rdme
+    cd crates/prb-schema && cargo rdme
+    cd crates/prb-storage && cargo rdme
+    cd crates/prb-tui && cargo rdme
+    cd crates/prb-zmq && cargo rdme
+
+# Check if READMEs are in sync (CI)
+readme-check:
+    cargo install cargo-rdme --locked
+    cargo rdme --check --workspace-project prb-ai
+    cargo rdme --check --workspace-project prb-capture
+    cargo rdme --check --workspace-project prb-cli
+    cargo rdme --check --workspace-project prb-core
+    cargo rdme --check --workspace-project prb-dds
+    cargo rdme --check --workspace-project prb-decode
+    cargo rdme --check --workspace-project prb-detect
+    cargo rdme --check --workspace-project prb-export
+    cargo rdme --check --workspace-project prb-fixture
+    cargo rdme --check --workspace-project prb-grpc
+    cargo rdme --check --workspace-project prb-pcap
+    cargo rdme --check --workspace-project prb-plugin-api
+    cargo rdme --check --workspace-project prb-plugin-native
+    cargo rdme --check --workspace-project prb-plugin-wasm
+    cargo rdme --check --workspace-project prb-query
+    cargo rdme --check --workspace-project prb-schema
+    cargo rdme --check --workspace-project prb-storage
+    cargo rdme --check --workspace-project prb-tui
+    cargo rdme --check --workspace-project prb-zmq
+
 # Install development dependencies
 setup:
     @echo "Installing developer tools..."

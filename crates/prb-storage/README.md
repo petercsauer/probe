@@ -36,3 +36,12 @@ for event in reader.events() {
 `prb-storage` depends on `prb-core` for event types and `prb-schema` for embedding protobuf descriptors into MCAP files. It is used by `prb-cli` whenever MCAP output is requested (`prb ingest -o session.mcap`) and by the TUI and export commands to read stored sessions. The MCAP format allows other tools in the robotics and observability ecosystem to consume PRB sessions directly.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+MCAP-backed storage layer for `DebugEvent` sessions.
+
+This crate provides persistent storage for `DebugEvents` using the MCAP format,
+enabling session-based analysis of captured protocol traffic.
+
+<!-- cargo-rdme end -->

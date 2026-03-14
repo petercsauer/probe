@@ -39,3 +39,14 @@ for event in &events {
 `prb-grpc` depends on `prb-core` for the `ProtocolDecoder` and `CorrelationStrategy` traits, and on `prb-decode` for protobuf payload decoding. It is used by `prb-pcap` as a builtin protocol decoder (behind the `builtin-decoders` feature) and can also be loaded as a decoder by the plugin system. The `prb-detect` crate identifies gRPC traffic on the wire and routes it to this decoder.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+gRPC/HTTP2 protocol decoder for offline PCAP analysis.
+
+This crate implements gRPC protocol decoding from reassembled TCP streams,
+including HTTP/2 frame parsing, HPACK header decompression, gRPC message
+extraction with compression support, trailer/status parsing, and graceful
+degradation for mid-stream captures.
+
+<!-- cargo-rdme end -->

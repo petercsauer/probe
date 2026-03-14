@@ -99,3 +99,5 @@ The fixture implements the three required Extism exports:
 - `extism-pdk = "1"` - Extism Plugin Development Kit
 - Provides `#[plugin_fn]` macro for exports
 - Provides memory management utilities for WASM
+
+<!-- cargo-rdme -->

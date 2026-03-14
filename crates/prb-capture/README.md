@@ -43,3 +43,53 @@ println!("{}", stats);
 `prb-capture` depends on `prb-core` for the `CaptureAdapter` trait and event types, and on `prb-pcap` for TCP reassembly and pipeline processing of captured packets. It is used by `prb-cli`'s `capture` subcommand to provide live network capture with real-time protocol decoding and optional TUI display.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Live packet capture engine for the PRB universal message debugger.
+
+This crate provides live packet capture from network interfaces using libpcap.
+It includes:
+
+- Interface enumeration and selection
+- BPF filter compilation and application
+- Dedicated OS thread capture loop with bounded channel delivery
+- Real-time statistics tracking
+- Privilege checking (Linux `CAP_NET_RAW`)
+
+### Architecture
+
+The capture engine uses a dedicated OS thread (not a tokio task) for the packet
+capture loop. This is critical for production capture systems because:
+
+1. `cap.next_packet()` must be called continuously without interruption
+2. Tokio tasks can be preempted by the scheduler on a loaded runtime
+3. Preemption causes packet drops in the kernel ring buffer
+4. A real OS thread guarantees the capture loop is never preempted
+
+All production capture systems (Hubble, Suricata, Zeek, Wireshark) use this model.
+
+### Example
+
+```rust
+use prb_capture::{CaptureEngine, CaptureConfig};
+
+let config = CaptureConfig::new("eth0")
+    .with_filter("tcp port 443");
+
+let mut engine = CaptureEngine::new(config);
+engine.start().expect("failed to start capture");
+
+// Receive packets
+if let Some(rx) = engine.receiver() {
+    for packet in rx.iter() {
+        println!("Captured {} bytes", packet.data.len());
+    }
+}
+
+// Stop and get statistics
+let stats = engine.stop().expect("failed to stop capture");
+println!("{}", stats);
+```
+
+<!-- cargo-rdme end -->

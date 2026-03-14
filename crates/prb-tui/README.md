@@ -48,3 +48,12 @@ async fn main() -> anyhow::Result<()> {
 - **prb-capture** — live packet capture data source
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Terminal UI for the PRB universal message debugger.
+
+This crate provides an interactive terminal interface for analyzing debug events,
+with support for filtering, AI-powered explanations, and live capture.
+
+<!-- cargo-rdme end -->

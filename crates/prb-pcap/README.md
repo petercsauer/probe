@@ -38,3 +38,13 @@ for event in adapter.ingest() {
 `prb-pcap` depends on `prb-core` for types/traits and `prb-detect` for automatic protocol detection. It optionally uses `prb-grpc`, `prb-zmq`, and `prb-dds` as builtin protocol decoders (behind the `builtin-decoders` feature flag). The `prb-cli` crate drives `prb-pcap` for all pcap/pcapng ingestion workflows. `prb-capture` reuses `prb-pcap`'s TCP reassembly and pipeline logic for live captures.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+PCAP/pcapng file reading and TLS key extraction for PRB.
+
+This crate provides transparent reading of both legacy PCAP and modern pcapng
+capture formats, with support for extracting embedded TLS keys from pcapng
+Decryption Secrets Blocks (DSB).
+
+<!-- cargo-rdme end -->

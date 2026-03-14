@@ -46,3 +46,12 @@ for event in &events {
 - **prb-tui** — uses `Filter` to drive the interactive filter bar
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Query and filter language for `DebugEvents`.
+
+This crate provides a simple expression language for filtering `DebugEvents`
+based on transport type, metadata fields, and other event properties.
+
+<!-- cargo-rdme end -->

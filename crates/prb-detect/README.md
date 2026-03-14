@@ -55,3 +55,13 @@ if let Some(result) = engine.detect(&ctx) {
 - **prb-tui** — uses the registry for live and offline decoding
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Protocol detection for PRB.
+
+This crate provides the `ProtocolDetector` trait and built-in detectors
+for gRPC/HTTP2, ZMTP, and DDS/RTPS protocols, plus a central registry
+for coordinating detection and decoding.
+
+<!-- cargo-rdme end -->

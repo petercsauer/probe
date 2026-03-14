@@ -48,3 +48,12 @@ A fixture file looks like:
 `prb-fixture` depends on `prb-core` for the `CaptureAdapter` trait, `DebugEvent`, and related types. It is used by `prb-cli` as one of the ingestion backends (alongside `prb-pcap` for packet captures) and is heavily used across the test suites of other crates to provide deterministic event data.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+JSON fixture file adapter for PRB.
+
+This crate provides a `CaptureAdapter` implementation that reads debug events
+from JSON fixture files for testing and offline analysis.
+
+<!-- cargo-rdme end -->

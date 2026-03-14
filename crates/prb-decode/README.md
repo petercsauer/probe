@@ -44,3 +44,13 @@ println!("{}", serde_json::to_string_pretty(&decoded)?);
 `prb-decode` is a standalone library with no PRB crate dependencies — it operates purely on byte buffers and prost-reflect descriptors. It is used by `prb-grpc` to decode gRPC message payloads and by `prb-cli` for the `--wire-format` inspection flag. Schema descriptors are typically obtained from `prb-schema`'s `SchemaRegistry`.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Protobuf decoding library for PRB.
+
+This crate provides two decoding strategies:
+- `wire_format`: Best-effort decoding without schemas (field numbers only)
+- `schema_backed`: Schema-based decoding with field names and types
+
+<!-- cargo-rdme end -->

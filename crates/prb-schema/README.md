@@ -35,3 +35,13 @@ if let Some(descriptor) = registry.resolve("mypackage.MyMessage") {
 `prb-schema` depends on `prb-core` for the `SchemaResolver` trait. It is used by `prb-storage` to embed schemas into MCAP session files, and by `prb-cli` for the `schemas` subcommand family (`load`, `list`, `export`). Schema descriptors from this registry feed into `prb-decode` for schema-backed protobuf decoding with full field names and types.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Protobuf schema registry for PRB.
+
+This crate provides schema loading, storage, and resolution for protobuf message types.
+It supports both pre-compiled descriptor sets (.desc files) and runtime compilation of
+.proto files via protox.
+
+<!-- cargo-rdme end -->

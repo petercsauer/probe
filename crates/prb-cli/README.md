@@ -49,3 +49,9 @@ prb capture -i eth0 --tui
 `prb-cli` is the **top-level integration crate** — it depends on nearly every other crate in the workspace. It uses `prb-core` for types, `prb-pcap` and `prb-fixture` for ingestion, `prb-storage` for MCAP I/O, `prb-schema` and `prb-decode` for protobuf handling, `prb-grpc`/`prb-zmq` for protocol decoding, `prb-capture` for live capture, `prb-tui` for the terminal UI, `prb-export` for output formats, `prb-query` for filtering, and `prb-plugin-api`/`prb-plugin-native`/`prb-plugin-wasm` for extensibility.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+PRB CLI library - exposes command handlers and CLI definitions for testing.
+
+<!-- cargo-rdme end -->
