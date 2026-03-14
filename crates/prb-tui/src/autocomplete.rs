@@ -151,6 +151,62 @@ impl AutocompleteState {
             category: SuggestionCategory::Field,
         });
 
+        // TCP/UDP protocol fields (Wireshark-style)
+        suggestions.push(Suggestion {
+            text: "tcp.port".to_string(),
+            description: "TCP port (source or destination)".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "tcp.srcport".to_string(),
+            description: "TCP source port".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "tcp.dstport".to_string(),
+            description: "TCP destination port".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "udp.port".to_string(),
+            description: "UDP port (source or destination)".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "udp.srcport".to_string(),
+            description: "UDP source port".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "udp.dstport".to_string(),
+            description: "UDP destination port".to_string(),
+            category: SuggestionCategory::Field,
+        });
+
+        // IP protocol fields
+        suggestions.push(Suggestion {
+            text: "ip.addr".to_string(),
+            description: "IP address (source or destination)".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "ip.src".to_string(),
+            description: "IP source address".to_string(),
+            category: SuggestionCategory::Field,
+        });
+        suggestions.push(Suggestion {
+            text: "ip.dst".to_string(),
+            description: "IP destination address".to_string(),
+            category: SuggestionCategory::Field,
+        });
+
+        // Frame-level fields
+        suggestions.push(Suggestion {
+            text: "frame.len".to_string(),
+            description: "Frame length (packet size)".to_string(),
+            category: SuggestionCategory::Field,
+        });
+
         // Protocol-specific metadata fields (gRPC)
         suggestions.push(Suggestion {
             text: "grpc.method".to_string(),

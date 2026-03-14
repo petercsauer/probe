@@ -1672,7 +1672,18 @@ impl App {
     fn handle_filter_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Enter => {
-                // Commit the filter from FilterState
+                // Accept autocomplete suggestion if visible
+                if self.filter_autocomplete.is_visible() {
+                    if let Some(text) = self.filter_autocomplete.accept() {
+                        // Replace current word with suggestion
+                        self.insert_autocomplete_suggestion(&text);
+                        // Dismiss autocomplete after accepting
+                        self.filter_autocomplete.dismiss();
+                    }
+                    return false;
+                }
+
+                // Otherwise, commit the filter from FilterState
                 let text = self.filter_input.value().to_string();
                 self.filter_state.set_text(text.clone());
 
@@ -1730,6 +1741,8 @@ impl App {
                     if let Some(text) = self.filter_autocomplete.accept() {
                         // Replace current word with suggestion
                         self.insert_autocomplete_suggestion(&text);
+                        // Dismiss autocomplete after accepting
+                        self.filter_autocomplete.dismiss();
                     }
                     return false;
                 }
@@ -1853,27 +1866,21 @@ impl App {
             .unwrap_or(0);
 
         // Build new text: everything before word + suggestion + space + everything after cursor
-        let mut new_text = String::new();
-        new_text.push_str(&current_value[..word_start]);
-        new_text.push_str(suggestion);
-        new_text.push(' '); // Add space after suggestion
-        new_text.push_str(&current_value[cursor_pos..]);
+        let new_text = if cursor_pos < current_value.len() {
+            // There's text after cursor, preserve it
+            format!(
+                "{}{} {}",
+                &current_value[..word_start],
+                suggestion,
+                &current_value[cursor_pos..]
+            )
+        } else {
+            // Cursor at end, just append suggestion + space
+            format!("{}{} ", &current_value[..word_start], suggestion)
+        };
 
-        // Create new input with text, cursor will be at end
-        let mut new_input = Input::default();
-        for ch in new_text.chars() {
-            new_input.handle(tui_input::InputRequest::InsertChar(ch));
-        }
-
-        // Position cursor after the suggestion + space
-        let target_pos = word_start + suggestion.len() + 1;
-        // Move cursor backwards from end to target position
-        let current_cursor = new_input.cursor();
-        for _ in 0..(current_cursor.saturating_sub(target_pos)) {
-            new_input.handle(tui_input::InputRequest::GoToPrevChar);
-        }
-
-        self.filter_input = new_input;
+        // Create new input with the text - cursor will be at end by default
+        self.filter_input = Input::new(new_text.clone());
 
         // Sync to filter state
         self.filter_state.set_text(new_text.clone());
@@ -3471,7 +3478,8 @@ impl App {
                 height: dropdown_height,
             };
 
-            // Render autocomplete dropdown
+            // Clear background before rendering autocomplete dropdown
+            Clear.render(dropdown_area, buf);
             self.filter_autocomplete.render(dropdown_area, buf);
         }
 
