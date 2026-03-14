@@ -62,4 +62,4 @@ pub use config::CaptureConfig;
 pub use error::CaptureError;
 pub use interfaces::{InterfaceEnumerator, InterfaceInfo};
 pub use privileges::PrivilegeCheck;
-pub use stats::CaptureStats;
+pub use stats::{CaptureStats, CaptureStatsInner};

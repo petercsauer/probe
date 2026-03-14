@@ -113,6 +113,21 @@ impl LiveCaptureAdapter {
         self.core.stats()
     }
 
+    /// Get a snapshot of current capture statistics.
+    #[must_use]
+    pub fn stats(&self) -> crate::CaptureStats {
+        self.engine.stats()
+    }
+
+    /// Get a handle to the statistics that can be polled independently.
+    ///
+    /// Returns a tuple of (Arc<CaptureStatsInner>, start_time) that can be
+    /// used to snapshot statistics without needing a reference to the adapter.
+    #[must_use]
+    pub fn stats_handle(&self) -> (std::sync::Arc<crate::CaptureStatsInner>, std::time::Instant) {
+        self.engine.stats_handle()
+    }
+
     /// Flushes idle TCP connections.
     ///
     /// Call this periodically (e.g., every second) to emit buffered data from
