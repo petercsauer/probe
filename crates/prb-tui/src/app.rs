@@ -3563,6 +3563,9 @@ impl App {
         let chars: Vec<char> = text.chars().collect();
         let mut i = 0;
 
+        // Try to parse filter for error detection
+        let has_parse_error = prb_query::Filter::parse(text).is_err();
+
         while i < chars.len() {
             // Skip whitespace
             if chars[i].is_whitespace() {
@@ -3578,10 +3581,15 @@ impl App {
             if chars[i] == '"' {
                 let start = i;
                 i += 1;
-                while i < chars.len() && chars[i] != '"' {
-                    if chars[i] == '\\' && i + 1 < chars.len() {
-                        i += 2; // Skip escaped character
+                let mut escaped = false;
+                while i < chars.len() {
+                    if chars[i] == '\\' && !escaped {
+                        escaped = true;
+                        i += 1;
+                    } else if chars[i] == '"' && !escaped {
+                        break;
                     } else {
+                        escaped = false;
                         i += 1;
                     }
                 }
@@ -3590,6 +3598,23 @@ impl App {
                 }
                 let text: String = chars[start..i].iter().collect();
                 spans.push(Span::styled(text, Style::default().fg(Color::Green)));
+                continue;
+            }
+
+            // Special characters for set and slice syntax
+            if matches!(chars[i], '{' | '}' | '[' | ']' | '(' | ')' | ':' | ',') {
+                let ch = chars[i];
+                i += 1;
+
+                let color = match ch {
+                    '{' | '}' => Color::Cyan,   // Set syntax
+                    '[' | ']' => Color::Yellow, // Slice syntax
+                    '(' | ')' => Color::Yellow, // Function calls and grouping
+                    ':' | ',' => Color::Yellow, // Slice/set separators
+                    _ => Color::White,
+                };
+
+                spans.push(Span::styled(ch.to_string(), Style::default().fg(color)));
                 continue;
             }
 
@@ -3604,38 +3629,72 @@ impl App {
                 continue;
             }
 
-            // Operators and keywords
+            // Operators, keywords, fields, and functions
             let start = i;
-            while i < chars.len() && !chars[i].is_whitespace() && chars[i] != '"' {
+            while i < chars.len()
+                && !chars[i].is_whitespace()
+                && !matches!(
+                    chars[i],
+                    '"' | '{' | '}' | '[' | ']' | '(' | ')' | ':' | ','
+                )
+            {
                 i += 1;
             }
             let text: String = chars[start..i].iter().collect();
 
-            // Check if it's an operator
-            if matches!(
+            if text.is_empty() {
+                continue;
+            }
+
+            // Determine color based on token type
+            let color = if matches!(
                 text.as_str(),
-                "==" | "!=" | "contains" | ">" | "<" | ">=" | "<=" | "&&" | "||" | "and" | "or"
+                "==" | "!="
+                    | "contains"
+                    | ">"
+                    | "<"
+                    | ">="
+                    | "<="
+                    | "&&"
+                    | "||"
+                    | "and"
+                    | "or"
+                    | "matches"
+                    | "in"
+                    | "exists"
+                    | "!"
             ) {
-                spans.push(Span::styled(text, Style::default().fg(Color::Yellow)));
-            }
-            // Check if it's a field name
-            else if matches!(
-                text.as_str(),
-                "transport"
-                    | "source"
-                    | "dest"
-                    | "origin"
-                    | "direction"
-                    | "payload"
-                    | "metadata"
-                    | "conversation"
-            ) {
-                spans.push(Span::styled(text, Style::default().fg(Color::Cyan)));
-            }
-            // Default
-            else {
-                spans.push(Span::raw(text));
-            }
+                // Operators (including new ones from S2)
+                Color::Yellow
+            } else if matches!(text.as_str(), "len" | "lower" | "upper") {
+                // Functions from S2
+                Color::Blue
+            } else if text.contains('.')
+                || matches!(
+                    text.as_str(),
+                    "transport"
+                        | "source"
+                        | "dest"
+                        | "origin"
+                        | "direction"
+                        | "payload"
+                        | "metadata"
+                        | "conversation"
+                )
+            {
+                // Fields (with dots or known field names)
+                Color::Cyan
+            } else {
+                // Default
+                Color::White
+            };
+
+            spans.push(Span::styled(text, Style::default().fg(color)));
+        }
+
+        // Add parse error indicator if filter is invalid
+        if has_parse_error && !text.is_empty() {
+            spans.push(Span::styled(" ⚠", Style::default().fg(Color::Red)));
         }
 
         spans
