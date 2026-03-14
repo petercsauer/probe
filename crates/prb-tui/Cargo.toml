@@ -35,6 +35,7 @@ crossterm = { workspace = true }
 tui-tree-widget = { workspace = true }
 tui-input = { workspace = true }
 unicode-width = { workspace = true }
+nucleo-matcher = "0.3"
 
 tokio = { workspace = true }
 tokio-stream = { workspace = true }

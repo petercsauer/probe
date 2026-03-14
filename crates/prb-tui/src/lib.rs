@@ -10,6 +10,7 @@
 pub mod ai_features;
 pub mod ai_smart;
 pub mod app;
+pub mod autocomplete;
 pub mod config;
 pub mod demo;
 pub mod error_intel;
