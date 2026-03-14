@@ -95,14 +95,20 @@ prb tui <INPUT> [OPTIONS]
 | `<INPUT>` | Path to input file (JSON, PCAP, pcapng, or MCAP) |
 | `--where <EXPR>` | Pre-apply a filter expression on open |
 
-The TUI supports keyboard navigation:
+The TUI supports keyboard navigation and mouse interaction. See [TUI Reference](tui-reference.md) for complete documentation.
+
+**Quick Reference:**
 
 | Key | Action |
 |-----|--------|
 | `j` / `k` or Arrow keys | Navigate events |
-| `Tab` | Cycle between panes |
+| `Tab` / `Shift+Tab` | Cycle between panes |
 | `/` | Open filter input |
-| `Enter` | Expand/collapse decode tree nodes |
+| `Enter` | Accept autocomplete or expand tree nodes |
+| `a` | AI explain selected event |
+| `e` | Export dialog |
+| `:` | Command palette |
+| `?` | Help overlay |
 | `q` | Quit |
 
 ### prb export

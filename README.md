@@ -28,8 +28,9 @@ PRB decodes, inspects, and correlates protocol messages from packet captures, li
 - **Parallel pipeline** -- Shard-based parallel decoding with configurable worker count
 - **Conversation reconstruction** -- Automatically groups related events into request/response conversations
 - **OpenTelemetry correlation** -- Extract and filter by W3C traceparent, B3, and Jaeger trace contexts
-- **Interactive TUI** -- Terminal UI with event list, decode tree, hex dump, and timeline panes
-- **Query language** -- Filter events with expressions like `transport == "gRPC" && grpc.method contains "Users"`
+- **Interactive TUI** -- Terminal UI with 8 specialized panes, 70+ keyboard shortcuts, mouse support, and 13 interactive overlays
+- **AI-powered analysis** -- Event explanation, anomaly detection, protocol identification, and natural language filters
+- **Query language** -- Filter events with expressions, regex, functions, and set operations
 - **Multiple export formats** -- CSV, HAR, OTLP JSON, HTML, and Parquet
 - **Plugin system** -- Extend protocol support with native (.so/.dylib) or WebAssembly plugins
 - **Protobuf schema support** -- Load .proto or .desc files for rich message decoding
@@ -189,6 +190,8 @@ Configuration is in `.claude/orchestrate.toml`.
 |-------------------------------------------------------|----------------------------------------------|
 | [Getting Started](docs/getting-started.md)            | Installation, build, and first-use tutorial  |
 | [User Guide](docs/user-guide.md)                      | Command reference and common workflows       |
+| [TUI Reference](docs/tui-reference.md)                 | Complete TUI keyboard shortcuts and features |
+| [AI Features](docs/ai-features.md)                     | Event explanation, anomaly detection, NL filters |
 | [Architecture](docs/architecture.md)                   | System design, crate map, data flow          |
 | [Protocols](docs/protocols.md)                         | gRPC, ZMTP, DDS-RTPS decoding details        |
 | [TLS Decryption](docs/tls-decryption.md)               | SSLKEYLOGFILE setup and TLS troubleshooting  |
