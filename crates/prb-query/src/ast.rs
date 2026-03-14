@@ -17,6 +17,23 @@ pub enum Expr {
     Exists {
         field: FieldPath,
     },
+    Matches {
+        field: FieldPath,
+        pattern: String,
+    },
+    In {
+        field: FieldPath,
+        values: Vec<Value>,
+    },
+    Slice {
+        field: FieldPath,
+        start: usize,
+        end: usize,
+    },
+    Function {
+        name: String,
+        args: Vec<Box<Self>>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
