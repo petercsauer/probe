@@ -317,3 +317,111 @@ impl Default for NativePluginLoader {
 // Implement Send and Sync for LoadedPlugin since the function pointers are stateless
 unsafe impl Send for LoadedPlugin {}
 unsafe impl Sync for LoadedPlugin {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_metadata(name: &str, version: &str, protocol_id: &str) -> PluginMetadata {
+        PluginMetadata {
+            name: name.to_string(),
+            version: version.to_string(),
+            description: "Test plugin".to_string(),
+            protocol_id: protocol_id.to_string(),
+            api_version: "0.1.0".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_validate_metadata_success() {
+        let metadata = create_test_metadata("test-plugin", "1.0.0", "test-proto");
+        assert!(validate_metadata(&metadata).is_ok());
+    }
+
+    #[test]
+    fn test_validate_metadata_empty_name() {
+        let metadata = create_test_metadata("", "1.0.0", "test-proto");
+        let result = validate_metadata(&metadata);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            PluginError::InvalidMetadata(msg) => {
+                assert!(msg.contains("name is required"));
+            }
+            _ => panic!("Expected InvalidMetadata error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_metadata_empty_version() {
+        let metadata = create_test_metadata("test-plugin", "", "test-proto");
+        let result = validate_metadata(&metadata);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            PluginError::InvalidMetadata(msg) => {
+                assert!(msg.contains("version is required"));
+            }
+            _ => panic!("Expected InvalidMetadata error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_metadata_empty_protocol_id() {
+        let metadata = create_test_metadata("test-plugin", "1.0.0", "");
+        let result = validate_metadata(&metadata);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            PluginError::InvalidMetadata(msg) => {
+                assert!(msg.contains("protocol_id is required"));
+            }
+            _ => panic!("Expected InvalidMetadata error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_metadata_invalid_semver() {
+        let metadata = create_test_metadata("test-plugin", "not-a-version", "test-proto");
+        let result = validate_metadata(&metadata);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            PluginError::InvalidMetadata(msg) => {
+                assert!(msg.contains("Invalid version format"));
+            }
+            _ => panic!("Expected InvalidMetadata error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_metadata_valid_semver_variants() {
+        // Test various valid semver formats
+        let test_cases = vec![
+            "1.0.0",
+            "0.1.0",
+            "1.2.3",
+            "1.0.0-alpha",
+            "1.0.0-beta.1",
+            "1.0.0+build123",
+            "1.0.0-rc.1+build456",
+        ];
+
+        for version in test_cases {
+            let metadata = create_test_metadata("test-plugin", version, "test-proto");
+            assert!(
+                validate_metadata(&metadata).is_ok(),
+                "Version '{}' should be valid",
+                version
+            );
+        }
+    }
+
+    #[test]
+    fn test_loader_creation() {
+        let loader = NativePluginLoader::new();
+        assert_eq!(loader.plugins().len(), 0);
+    }
+
+    #[test]
+    fn test_loader_default() {
+        let loader = NativePluginLoader::default();
+        assert_eq!(loader.plugins().len(), 0);
+    }
+}
