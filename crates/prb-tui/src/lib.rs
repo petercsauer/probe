@@ -15,6 +15,7 @@ pub mod config;
 pub mod demo;
 pub mod error_intel;
 pub mod event_store;
+pub mod filter_persistence;
 pub mod filter_state;
 pub mod live;
 pub mod loader;
