@@ -1,3 +1,4 @@
+use crate::filter_persistence::{FilterFavorite, FilterPersistence};
 use prb_query::Filter;
 use std::time::Instant;
 
@@ -30,6 +31,9 @@ pub struct FilterState {
 
     /// Temporary text buffer when browsing history (to restore when exiting history mode)
     history_temp_text: Option<String>,
+
+    /// Persistent storage for history and favorites
+    persistence: FilterPersistence,
 }
 
 impl Default for FilterState {
@@ -40,15 +44,31 @@ impl Default for FilterState {
 
 impl FilterState {
     pub fn new() -> Self {
+        Self::new_with_persistence(true)
+    }
+
+    /// Create a new FilterState, optionally loading persistence.
+    /// Use `load_persistence=false` for testing.
+    pub fn new_with_persistence(load_persistence: bool) -> Self {
+        let persistence = if load_persistence {
+            FilterPersistence::load().unwrap_or_default()
+        } else {
+            FilterPersistence::default()
+        };
+
+        // Initialize history from persistence
+        let history = persistence.history.clone();
+
         FilterState {
             text: String::new(),
             last_change: Instant::now(),
             preview_filter: None,
             preview_count: None,
             committed_filter: None,
-            history: Vec::new(),
+            history,
             history_cursor: None,
             history_temp_text: None,
+            persistence,
         }
     }
 
@@ -85,6 +105,10 @@ impl FilterState {
             if self.history.len() > MAX_HISTORY_SIZE {
                 self.history.remove(0);
             }
+
+            // Persist to disk
+            self.persistence.add_to_history(text.clone());
+            let _ = self.persistence.save(); // Ignore errors, don't block UX
         }
 
         self.committed_filter = filter;
@@ -169,6 +193,49 @@ impl FilterState {
         self.committed_filter = Some(filter);
         self.last_change = Instant::now();
     }
+
+    /// Toggle favorite status for the current filter.
+    pub fn toggle_favorite(&mut self) {
+        let current_filter = self.text.clone();
+
+        if current_filter.trim().is_empty() {
+            return;
+        }
+
+        if self.persistence.is_favorited(&current_filter) {
+            // Remove from favorites
+            if let Some(index) = self
+                .persistence
+                .favorites
+                .iter()
+                .position(|f| f.filter == current_filter)
+            {
+                self.persistence.remove_favorite(index);
+            }
+        } else {
+            // Add to favorites (use first 30 chars of filter as name for MVP)
+            let name = if current_filter.len() > 30 {
+                format!("{}...", &current_filter[..27])
+            } else {
+                current_filter.clone()
+            };
+
+            self.persistence
+                .add_favorite(name, current_filter, String::new());
+        }
+
+        let _ = self.persistence.save(); // Ignore errors, don't block UX
+    }
+
+    /// Check if the current filter is favorited.
+    pub fn is_current_favorited(&self) -> bool {
+        self.persistence.is_favorited(&self.text)
+    }
+
+    /// Get all favorites.
+    pub fn get_favorites(&self) -> &[FilterFavorite] {
+        &self.persistence.favorites
+    }
 }
 
 #[cfg(test)]
@@ -179,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_debounce_timing() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
         state.set_text("test".to_string());
 
         // Should not update immediately
@@ -192,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_history_management() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
 
         // Commit a few filters
         state.set_text("filter1".to_string());
@@ -211,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_history_navigation() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
 
         // Build history
         state.set_text("first".to_string());
@@ -253,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_history_deduplication() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
 
         // Commit same filter twice
         state.set_text("filter".to_string());
@@ -268,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_history_max_size() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
 
         // Add more than MAX_HISTORY_SIZE entries
         for i in 0..60 {
@@ -283,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
         state.set_text("test".to_string());
         state.commit(Some(Filter::parse("test == 1").unwrap()));
 
@@ -296,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_set_text_clears_history_browsing() {
-        let mut state = FilterState::new();
+        let mut state = FilterState::new_with_persistence(false);
         state.set_text("old".to_string());
         state.commit(None);
 

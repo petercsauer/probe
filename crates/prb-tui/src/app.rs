@@ -1749,6 +1749,11 @@ impl App {
                     .update(self.filter_input.value(), cursor_pos);
                 false
             }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                // Toggle favorite for current filter (Ctrl+F)
+                self.filter_state.toggle_favorite();
+                false
+            }
             _ => {
                 self.filter_input.handle_event(&Event::Key(key));
                 // Sync filter_input changes to filter_state
@@ -3839,6 +3844,14 @@ impl App {
                 spans.extend(Self::highlight_filter_syntax(&filter_display, theme));
             } else {
                 spans.push(Span::styled(filter_display, theme.filter_bar()));
+            }
+
+            // Show star icon if filter is favorited
+            if filter_state.is_current_favorited() {
+                spans.push(Span::styled(
+                    " ★",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
             }
         }
 
