@@ -62,7 +62,12 @@ tempfile = { workspace = true }
 etherparse = { workspace = true }
 insta = { workspace = true }
 proptest = { workspace = true }
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "large_file_perf"
+harness = false
+
+[[bench]]
+name = "filter_performance"
 harness = false
