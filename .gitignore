@@ -119,3 +119,4 @@ __pycache__/
 .claude/plans/*/logs/*.log
 .claude/plans/*/state.db
 .claude/worktrees/*/
+**/*.profraw
