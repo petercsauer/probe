@@ -346,7 +346,11 @@ fn test_app_filter_mode_typing_simulation() {
     assert_eq!(app.get_input_mode(), prb_tui::app::InputMode::Filter);
 
     // Exit filter mode without applying
+    // First Esc dismisses autocomplete if visible, second Esc exits filter mode
     let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    app.test_handle_key(esc_key);
+
+    // Press Esc again to exit filter mode (first Esc dismisses autocomplete)
     app.test_handle_key(esc_key);
 
     assert_eq!(app.get_input_mode(), prb_tui::app::InputMode::Normal);

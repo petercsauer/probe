@@ -20,6 +20,7 @@ use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 use unicode_width::UnicodeWidthStr;
 
+use crate::autocomplete::AutocompleteState;
 use crate::config::Config;
 use crate::event_store::EventStore;
 use crate::filter_state::FilterState;
@@ -127,6 +128,7 @@ pub struct App {
     filter_input: Input,
     filter_error: Option<String>,
     filter_state: FilterState,
+    filter_autocomplete: AutocompleteState,
     quick_filter_prefix: bool,
 
     event_list: EventListPane,
@@ -257,6 +259,7 @@ impl App {
             filter_input: Input::default(),
             filter_error: None,
             filter_state: FilterState::new(),
+            filter_autocomplete: AutocompleteState::new(),
             quick_filter_prefix: false,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
@@ -520,6 +523,7 @@ impl App {
             focus: PaneId::EventList,
             input_mode: InputMode::Normal,
             filter_state: FilterState::new(),
+            filter_autocomplete: AutocompleteState::new(),
             filter_input: Input::default(),
             filter_error: None,
             quick_filter_prefix: false,
@@ -618,6 +622,7 @@ impl App {
             filter_input: Input::default(),
             filter_error: None,
             filter_state: FilterState::new(),
+            filter_autocomplete: AutocompleteState::new(),
             quick_filter_prefix: false,
             event_list: EventListPane::new(),
             decode_tree: DecodeTreePane::new(),
@@ -1686,6 +1691,11 @@ impl App {
                 false
             }
             KeyCode::Esc => {
+                // Dismiss autocomplete first if visible
+                if self.filter_autocomplete.is_visible() {
+                    self.filter_autocomplete.dismiss();
+                    return false;
+                }
                 // Clear zoom first if active
                 if self.zoomed_pane.is_some() {
                     self.zoomed_pane = None;
@@ -1696,26 +1706,58 @@ impl App {
                 self.filter_error = None;
                 false
             }
+            KeyCode::Tab => {
+                // Accept autocomplete suggestion if visible
+                if self.filter_autocomplete.is_visible() {
+                    if let Some(text) = self.filter_autocomplete.accept() {
+                        // Replace current word with suggestion
+                        self.insert_autocomplete_suggestion(&text);
+                    }
+                    return false;
+                }
+                false
+            }
             KeyCode::Up => {
+                // Navigate autocomplete if visible, otherwise history
+                if self.filter_autocomplete.is_visible() {
+                    self.filter_autocomplete.select_prev();
+                    return false;
+                }
                 // Navigate to previous history entry
                 self.filter_state.history_up();
                 self.filter_input = Input::new(self.filter_state.text.clone());
                 self.filter_error = None;
+                // Update autocomplete after history navigation
+                let cursor_pos = self.filter_input.cursor();
+                self.filter_autocomplete
+                    .update(self.filter_input.value(), cursor_pos);
                 false
             }
             KeyCode::Down => {
+                // Navigate autocomplete if visible, otherwise history
+                if self.filter_autocomplete.is_visible() {
+                    self.filter_autocomplete.select_next();
+                    return false;
+                }
                 // Navigate to next history entry
                 self.filter_state.history_down();
                 self.filter_input = Input::new(self.filter_state.text.clone());
                 self.filter_error = None;
+                // Update autocomplete after history navigation
+                let cursor_pos = self.filter_input.cursor();
+                self.filter_autocomplete
+                    .update(self.filter_input.value(), cursor_pos);
                 false
             }
             _ => {
                 self.filter_input.handle_event(&Event::Key(key));
                 // Sync filter_input changes to filter_state
                 let text = self.filter_input.value().to_string();
-                self.filter_state.set_text(text);
+                self.filter_state.set_text(text.clone());
                 self.filter_error = None;
+                // Update autocomplete suggestions
+                let cursor_pos = self.filter_input.cursor();
+                self.filter_autocomplete.update(&text, cursor_pos);
                 false
             }
         }
@@ -1774,6 +1816,48 @@ impl App {
                 false
             }
         }
+    }
+
+    /// Insert autocomplete suggestion by replacing the current word at cursor.
+    fn insert_autocomplete_suggestion(&mut self, suggestion: &str) {
+        let current_value = self.filter_input.value();
+        let cursor_pos = self.filter_input.cursor();
+
+        // Find the start of the current word
+        let word_start = current_value[..cursor_pos]
+            .rfind(|c: char| c.is_whitespace() || "()&|!".contains(c))
+            .map(|pos| pos + 1)
+            .unwrap_or(0);
+
+        // Build new text: everything before word + suggestion + space + everything after cursor
+        let mut new_text = String::new();
+        new_text.push_str(&current_value[..word_start]);
+        new_text.push_str(suggestion);
+        new_text.push(' '); // Add space after suggestion
+        new_text.push_str(&current_value[cursor_pos..]);
+
+        // Create new input with text, cursor will be at end
+        let mut new_input = Input::default();
+        for ch in new_text.chars() {
+            new_input.handle(tui_input::InputRequest::InsertChar(ch));
+        }
+
+        // Position cursor after the suggestion + space
+        let target_pos = word_start + suggestion.len() + 1;
+        // Move cursor backwards from end to target position
+        let current_cursor = new_input.cursor();
+        for _ in 0..(current_cursor.saturating_sub(target_pos)) {
+            new_input.handle(tui_input::InputRequest::GoToPrevChar);
+        }
+
+        self.filter_input = new_input;
+
+        // Sync to filter state
+        self.filter_state.set_text(new_text.clone());
+
+        // Update autocomplete for new position
+        let new_cursor = self.filter_input.cursor();
+        self.filter_autocomplete.update(&new_text, new_cursor);
     }
 
     fn start_ai_filter_generation(&mut self, query: &str) {
@@ -3296,6 +3380,26 @@ impl App {
             &self.filter_state,
             &self.theme,
         );
+
+        // Render autocomplete dropdown if visible and in filter mode
+        if self.input_mode == InputMode::Filter && self.filter_autocomplete.is_visible() {
+            // Position dropdown below filter bar
+            let dropdown_y = main_layout[0].y + 1;
+            let dropdown_height = 12.min(main_layout[1].height.saturating_sub(1));
+            let dropdown_width = 80.min(area.width.saturating_sub(4));
+            let dropdown_x = 2;
+
+            let dropdown_area = Rect {
+                x: dropdown_x,
+                y: dropdown_y,
+                width: dropdown_width,
+                height: dropdown_height,
+            };
+
+            // Render autocomplete dropdown
+            self.filter_autocomplete.render(dropdown_area, buf);
+        }
+
         // Render status bar or capture control bar depending on mode
         if self.is_live_mode() {
             self.render_capture_control_bar(main_layout[3], buf);

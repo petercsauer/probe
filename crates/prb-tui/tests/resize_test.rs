@@ -136,7 +136,8 @@ fn test_resize_during_filter_input() {
     // Should still be in filter mode
     assert_eq!(app.get_input_mode(), InputMode::Filter);
 
-    // Exit filter mode
+    // Exit filter mode (first Esc dismisses autocomplete if visible, second exits filter mode)
+    app.test_handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     app.test_handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert_eq!(app.get_input_mode(), InputMode::Normal);
 }
