@@ -101,7 +101,8 @@ fn capture_event_forwarder(
     tx: mpsc::Sender<AppEvent>,
     stop_flag: Arc<AtomicBool>,
 ) {
-    let mut event_count = 0u64;
+    // Get a handle to the stats that can be polled independently
+    let (stats_inner, start_time) = adapter.stats_handle();
     let mut last_stats = std::time::Instant::now();
 
     for event_result in adapter.ingest() {
@@ -111,8 +112,6 @@ fn capture_event_forwarder(
 
         match event_result {
             Ok(event) => {
-                event_count += 1;
-
                 // Send event to TUI (blocking send from non-async context)
                 if tx
                     .blocking_send(AppEvent::CapturedEvent(Box::new(event)))
@@ -124,16 +123,7 @@ fn capture_event_forwarder(
 
                 // Send stats update every second
                 if last_stats.elapsed() >= Duration::from_secs(1) {
-                    // TODO: Get real stats from the capture engine
-                    let stats = CaptureStats {
-                        packets_received: event_count,
-                        packets_dropped_kernel: 0,
-                        packets_dropped_channel: 0,
-                        bytes_received: 0,
-                        capture_duration: last_stats.elapsed(),
-                        packets_per_second: event_count as f64 / last_stats.elapsed().as_secs_f64(),
-                        bytes_per_second: 0.0,
-                    };
+                    let stats = stats_inner.snapshot(start_time);
                     let _ = tx.blocking_send(AppEvent::CaptureStats(stats));
                     last_stats = std::time::Instant::now();
                 }

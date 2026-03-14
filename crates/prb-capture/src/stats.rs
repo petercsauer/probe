@@ -68,8 +68,11 @@ impl fmt::Display for CaptureStats {
 }
 
 /// Internal atomic statistics counters.
+///
+/// This is exposed through stats handles to allow polling statistics
+/// without holding references to the capture engine or adapter.
 #[derive(Debug)]
-pub(crate) struct CaptureStatsInner {
+pub struct CaptureStatsInner {
     pub packets_received: AtomicU64,
     pub packets_dropped_kernel: AtomicU64,
     pub packets_dropped_channel: AtomicU64,
@@ -87,6 +90,7 @@ impl CaptureStatsInner {
     }
 
     /// Take a snapshot of current statistics.
+    #[must_use]
     pub fn snapshot(&self, start_time: Instant) -> CaptureStats {
         let now = Instant::now();
         let duration = now.duration_since(start_time);

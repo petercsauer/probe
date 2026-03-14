@@ -179,6 +179,15 @@ impl CaptureEngine {
     pub fn stats(&self) -> CaptureStats {
         self.stats.snapshot(self.start_time)
     }
+
+    /// Get a handle to the statistics that can be polled independently.
+    ///
+    /// Returns a tuple of (Arc<CaptureStatsInner>, start_time) that can be
+    /// used to snapshot statistics without needing a reference to the engine.
+    #[must_use]
+    pub fn stats_handle(&self) -> (Arc<CaptureStatsInner>, Instant) {
+        (Arc::clone(&self.stats), self.start_time)
+    }
 }
 
 impl Drop for CaptureEngine {
