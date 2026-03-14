@@ -1,3 +1,4 @@
+use crate::query_planner::{QueryPlan, QueryPlanner};
 use prb_core::{DebugEvent, Timestamp, TransportKind};
 use prb_query::Filter;
 use std::collections::HashMap;
@@ -59,6 +60,7 @@ pub struct EventStore {
     time_range: Option<(Timestamp, Timestamp)>,
     index: Option<EventIndex>,
     filter_cache: Option<FilterCache>,
+    planner: QueryPlanner,
 }
 
 impl EventStore {
@@ -76,6 +78,7 @@ impl EventStore {
             time_range,
             index: None,
             filter_cache: None,
+            planner: QueryPlanner::new(),
         }
     }
 
@@ -97,6 +100,7 @@ impl EventStore {
             time_range: None,
             index: None,
             filter_cache: None,
+            planner: QueryPlanner::new(),
         }
     }
 
@@ -230,6 +234,123 @@ impl EventStore {
     /// Clear the filter cache, forcing a full re-filter on next call.
     pub fn clear_filter_cache(&mut self) {
         self.filter_cache = None;
+    }
+
+    /// Apply a filter using the query planner for optimized execution.
+    ///
+    /// This method parses and caches the filter, generates an execution plan,
+    /// and uses indices when possible for faster filtering.
+    pub fn apply_filter_with_plan(&mut self, filter_str: &str) -> Result<Vec<usize>, String> {
+        // Parse and cache the filter
+        let filter = self
+            .planner
+            .parse_filter(filter_str)
+            .map_err(|e| format!("Parse error: {}", e))?;
+
+        // If filter is empty, return all indices
+        if filter.source().trim().is_empty() {
+            return Ok(self.all_indices());
+        }
+
+        // Get the expression from the filter
+        let Some(expr) = filter.expr() else {
+            // Empty expression - return all indices
+            return Ok(self.all_indices());
+        };
+
+        // Generate query plan
+        let plan = self.planner.plan(expr);
+
+        // Execute the plan
+        self.execute_plan(&plan, &filter)
+    }
+
+    /// Execute a query plan using the appropriate strategy.
+    fn execute_plan(&self, plan: &QueryPlan, filter: &Filter) -> Result<Vec<usize>, String> {
+        match plan {
+            QueryPlan::IndexedByTransport { kind, remaining } => {
+                // Get candidates from transport index if available
+                let candidates = if let Some(ref index) = self.index {
+                    index.by_protocol.get(kind).cloned().unwrap_or_default()
+                } else {
+                    // No index available, fall back to full scan
+                    return Ok(self.filter_indices(filter));
+                };
+
+                // Apply remaining filter if present
+                if let Some(remaining_expr) = remaining {
+                    Ok(candidates
+                        .into_iter()
+                        .filter(|&idx| {
+                            if let Some(event) = self.events.get(idx) {
+                                prb_query::eval::eval(remaining_expr, event)
+                            } else {
+                                false
+                            }
+                        })
+                        .collect())
+                } else {
+                    Ok(candidates)
+                }
+            }
+
+            QueryPlan::IndexedBySrc { addr, remaining } => {
+                // Get candidates from source index if available
+                let candidates = if let Some(ref index) = self.index {
+                    index.by_source.get(addr).cloned().unwrap_or_default()
+                } else {
+                    // No index available, fall back to full scan
+                    return Ok(self.filter_indices(filter));
+                };
+
+                // Apply remaining filter if present
+                if let Some(remaining_expr) = remaining {
+                    Ok(candidates
+                        .into_iter()
+                        .filter(|&idx| {
+                            if let Some(event) = self.events.get(idx) {
+                                prb_query::eval::eval(remaining_expr, event)
+                            } else {
+                                false
+                            }
+                        })
+                        .collect())
+                } else {
+                    Ok(candidates)
+                }
+            }
+
+            QueryPlan::IndexedByDst { addr, remaining } => {
+                // Get candidates from destination index if available
+                let candidates = if let Some(ref index) = self.index {
+                    index.by_dest.get(addr).cloned().unwrap_or_default()
+                } else {
+                    // No index available, fall back to full scan
+                    return Ok(self.filter_indices(filter));
+                };
+
+                // Apply remaining filter if present
+                if let Some(remaining_expr) = remaining {
+                    Ok(candidates
+                        .into_iter()
+                        .filter(|&idx| {
+                            if let Some(event) = self.events.get(idx) {
+                                prb_query::eval::eval(remaining_expr, event)
+                            } else {
+                                false
+                            }
+                        })
+                        .collect())
+                } else {
+                    Ok(candidates)
+                }
+            }
+
+            QueryPlan::FullScan(_) => {
+                // Fall back to full scan
+                Ok(self.filter_indices(filter))
+            }
+        }
     }
 
     pub fn all_indices(&self) -> Vec<usize> {

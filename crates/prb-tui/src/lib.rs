@@ -19,6 +19,7 @@ pub mod live;
 pub mod loader;
 pub mod overlays;
 pub mod panes;
+pub mod query_planner;
 pub mod ring_buffer;
 pub mod session;
 pub mod theme;

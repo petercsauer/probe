@@ -20,9 +20,9 @@ pub mod error;
 pub mod eval;
 pub mod parser;
 
+pub use ast::Expr;
 pub use error::QueryError;
 
-use ast::Expr;
 use prb_core::DebugEvent;
 
 #[derive(Debug, Clone)]
@@ -55,6 +55,12 @@ impl Filter {
     #[must_use]
     pub fn source(&self) -> &str {
         &self.source
+    }
+
+    /// Get the underlying expression for query planning.
+    #[must_use]
+    pub fn expr(&self) -> Option<&Expr> {
+        self.expr.as_ref()
     }
 }
 
