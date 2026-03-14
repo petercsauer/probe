@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FilterPersistence {
     /// Recent filter history (max 50)
     pub history: Vec<String>,
@@ -104,15 +104,6 @@ impl FilterPersistence {
             .unwrap()
             .as_secs()
             .to_string()
-    }
-}
-
-impl Default for FilterPersistence {
-    fn default() -> Self {
-        Self {
-            history: Vec::new(),
-            favorites: Vec::new(),
-        }
     }
 }
 
