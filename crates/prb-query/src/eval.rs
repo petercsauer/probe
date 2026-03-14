@@ -1,5 +1,6 @@
 use crate::ast::{CmpOp, Expr, FieldPath, Value};
 use prb_core::DebugEvent;
+use regex::Regex;
 
 pub fn eval(expr: &Expr, event: &DebugEvent) -> bool {
     match expr {
@@ -10,6 +11,10 @@ pub fn eval(expr: &Expr, event: &DebugEvent) -> bool {
         Expr::Contains { field, substring } => resolve_field(field, event)
             .is_some_and(|v| v.to_lowercase().contains(&substring.to_lowercase())),
         Expr::Exists { field } => eval_exists(field, event),
+        Expr::Matches { field, pattern } => eval_matches(field, pattern, event),
+        Expr::In { field, values } => eval_in(field, values, event),
+        Expr::Slice { field, start, end } => eval_slice(field, *start, *end, event),
+        Expr::Function { name, args } => eval_function(name, args, event),
     }
 }
 
@@ -91,6 +96,77 @@ fn apply_f64_cmp(op: CmpOp, lhs: f64, rhs: f64) -> bool {
         CmpOp::Ge => lhs >= rhs,
         CmpOp::Lt => lhs < rhs,
         CmpOp::Le => lhs <= rhs,
+    }
+}
+
+fn eval_matches(field: &FieldPath, pattern: &str, event: &DebugEvent) -> bool {
+    let value = match resolve_field(field, event) {
+        Some(v) => v,
+        None => return false,
+    };
+    match Regex::new(pattern) {
+        Ok(regex) => regex.is_match(&value),
+        Err(_) => false,
+    }
+}
+
+fn eval_in(field: &FieldPath, values: &[Value], event: &DebugEvent) -> bool {
+    let resolved = match resolve_field(field, event) {
+        Some(v) => v,
+        None => return false,
+    };
+
+    values.iter().any(|v| match v {
+        Value::String(s) => resolved == *s,
+        Value::Number(n) => {
+            if let Ok(parsed) = resolved.parse::<f64>() {
+                (parsed - n).abs() < f64::EPSILON
+            } else {
+                false
+            }
+        }
+        Value::Bool(b) => {
+            let resolved_bool = match resolved.as_str() {
+                "true" => true,
+                "false" => false,
+                _ => return false,
+            };
+            resolved_bool == *b
+        }
+    })
+}
+
+fn eval_slice(field: &FieldPath, _start: usize, end: usize, event: &DebugEvent) -> bool {
+    // Slices are evaluated by returning the slice as a synthetic field
+    // This is a placeholder that returns true if slice exists
+    // In practice, slices would be used with comparison operators
+    let value = match resolve_field(field, event) {
+        Some(v) => v,
+        None => return false,
+    };
+    let bytes = value.as_bytes();
+    bytes.len() >= end
+}
+
+fn eval_function(name: &str, args: &[Box<Expr>], event: &DebugEvent) -> bool {
+    // Functions return string values which are then evaluated
+    // For boolean context, we check if the function succeeds
+    match name {
+        "len" => {
+            if args.len() != 1 {
+                return false;
+            }
+            // For len(), we just check if the field exists
+            // In practice, len() would be used in comparisons
+            eval(&args[0], event)
+        }
+        "lower" | "upper" => {
+            if args.len() != 1 {
+                return false;
+            }
+            eval(&args[0], event)
+        }
+        _ => false,
     }
 }
 

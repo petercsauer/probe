@@ -3859,6 +3859,7 @@ dependencies = [
  "criterion",
  "nom 8.0.0",
  "prb-core",
+ "regex",
  "thiserror 2.0.18",
 ]
 

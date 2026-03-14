@@ -5,8 +5,8 @@ use nom::{
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{char, multispace0},
     combinator::{map, opt, recognize},
-    multi::separated_list1,
-    sequence::preceded,
+    multi::{separated_list0, separated_list1},
+    sequence::{delimited, preceded},
 };
 
 use crate::ast::{CmpOp, Expr, FieldPath, Value};
@@ -150,6 +150,36 @@ fn not_expr(input: &str) -> IResult<&str, Expr> {
     Ok((input, Expr::Not(Box::new(inner))))
 }
 
+fn function_arg(input: &str) -> IResult<&str, Box<Expr>> {
+    // Try to parse as a nested function call first
+    if let Ok((rest, expr)) = function_call(input) {
+        return Ok((rest, Box::new(expr)));
+    }
+    // Otherwise parse as field path (wrapped in Exists for evaluation)
+    let (input, field) = ws(field_path).parse(input)?;
+    Ok((input, Box::new(Expr::Exists { field })))
+}
+
+fn function_call(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = multispace0.parse(input)?;
+    let (input, name) = ident(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, _) = char('(').parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, args) =
+        separated_list0(delimited(multispace0, char(','), multispace0), function_arg)
+            .parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, _) = char(')').parse(input)?;
+    Ok((
+        input,
+        Expr::Function {
+            name: name.to_string(),
+            args,
+        },
+    ))
+}
+
 fn atom(input: &str) -> IResult<&str, Expr> {
     if let Ok(result) = paren_expr(input) {
         return Ok(result);
@@ -157,11 +187,53 @@ fn atom(input: &str) -> IResult<&str, Expr> {
     if let Ok(result) = not_expr(input) {
         return Ok(result);
     }
+    if let Ok(result) = function_call(input) {
+        return Ok(result);
+    }
     field_expr(input)
 }
 
 fn field_expr(input: &str) -> IResult<&str, Expr> {
     let (input, field) = ws(field_path).parse(input)?;
+
+    // Try slice `[start:end]`
+    if let Ok((rest, _)) = char::<&str, nom::error::Error<&str>>('[').parse(input) {
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, start) = nom::character::complete::u32(rest)?;
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, _) = char(':').parse(rest)?;
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, end) = nom::character::complete::u32(rest)?;
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, _) = char(']').parse(rest)?;
+        return Ok((
+            rest,
+            Expr::Slice {
+                field,
+                start: start as usize,
+                end: end as usize,
+            },
+        ));
+    }
+
+    // Try `matches "pattern"`
+    if let Ok((rest, _)) = tag::<&str, &str, nom::error::Error<&str>>("matches").parse(input)
+        && let Ok((rest, pattern)) = ws(string_lit).parse(rest)
+    {
+        return Ok((rest, Expr::Matches { field, pattern }));
+    }
+
+    // Try `in {val1, val2, ...}`
+    if let Ok((rest, _)) = tag::<&str, &str, nom::error::Error<&str>>("in").parse(input) {
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, _) = char('{').parse(rest)?;
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, values) =
+            separated_list1(delimited(multispace0, char(','), multispace0), value).parse(rest)?;
+        let (rest, _) = multispace0.parse(rest)?;
+        let (rest, _) = char('}').parse(rest)?;
+        return Ok((rest, Expr::In { field, values }));
+    }
 
     // Try `contains "string"`
     if let Ok((rest, _)) = tag::<&str, &str, nom::error::Error<&str>>("contains").parse(input)
