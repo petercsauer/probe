@@ -9,6 +9,43 @@ use crate::error::GrpcError;
 use bytes::Bytes;
 use std::collections::HashMap;
 
+/// HTTP/2 parsing errors with context for debugging.
+#[derive(Debug, thiserror::Error)]
+enum H2Error {
+    /// HPACK parsing error with context.
+    #[error("HPACK error in stream {stream_id} at offset {offset}: {reason}")]
+    HpackError {
+        stream_id: u32,
+        offset: usize,
+        reason: String,
+    },
+
+    /// CONTINUATION frame without preceding HEADERS.
+    #[error(
+        "CONTINUATION frame (stream {stream_id}) at position {position} without preceding HEADERS"
+    )]
+    ContinuationWithoutHeaders { stream_id: u32, position: usize },
+
+    /// Stream ID mismatch in CONTINUATION frame.
+    #[error(
+        "CONTINUATION frame stream ID mismatch at position {position}: expected {expected}, got {actual}"
+    )]
+    ContinuationStreamMismatch {
+        expected: u32,
+        actual: u32,
+        position: usize,
+    },
+}
+
+impl From<H2Error> for GrpcError {
+    fn from(err: H2Error) -> Self {
+        match err {
+            H2Error::HpackError { .. } => GrpcError::HpackError(err.to_string()),
+            _ => GrpcError::H2FrameError(err.to_string()),
+        }
+    }
+}
+
 /// HTTP/2 stream state.
 #[derive(Debug)]
 pub struct StreamState {
@@ -155,7 +192,7 @@ impl H2Codec {
 
                     if end_headers {
                         // Complete header block in one frame
-                        let headers = match self.parse_hpack_headers(&payload) {
+                        let headers = match self.parse_hpack_headers(&payload, stream_id) {
                             Ok(h) => h,
                             Err(e) => {
                                 // HPACK degradation - log warning and continue
@@ -193,7 +230,7 @@ impl H2Codec {
 
                             if end_headers {
                                 // Complete header block - parse it
-                                let headers = match self.parse_hpack_headers(&buffer) {
+                                let headers = match self.parse_hpack_headers(&buffer, stream_id) {
                                     Ok(h) => h,
                                     Err(e) => {
                                         if !self.hpack_degraded {
@@ -219,15 +256,20 @@ impl H2Codec {
                             }
                         } else {
                             // Stream ID mismatch - protocol error, clear buffer
-                            tracing::warn!(
-                                "CONTINUATION frame stream ID mismatch: expected {}, got {}",
-                                buffered_stream_id,
-                                stream_id
-                            );
+                            let err = H2Error::ContinuationStreamMismatch {
+                                expected: buffered_stream_id,
+                                actual: stream_id,
+                                position: self.buffer.len(),
+                            };
+                            tracing::warn!("{}", err);
                         }
                     } else {
                         // CONTINUATION without HEADERS - protocol error, ignore
-                        tracing::warn!("CONTINUATION frame without preceding HEADERS");
+                        let err = H2Error::ContinuationWithoutHeaders {
+                            stream_id,
+                            position: self.buffer.len(),
+                        };
+                        tracing::warn!("{}", err);
                     }
                 }
                 0x04 => {
@@ -259,7 +301,11 @@ impl H2Codec {
     ///
     /// This is a simplified implementation that handles literal headers without indexing.
     /// In production, this should use h2-sans-io's HPACK decoder.
-    fn parse_hpack_headers(&mut self, data: &[u8]) -> Result<HashMap<String, String>, GrpcError> {
+    fn parse_hpack_headers(
+        &mut self,
+        data: &[u8],
+        stream_id: u32,
+    ) -> Result<HashMap<String, String>, GrpcError> {
         let mut headers = HashMap::new();
         let mut offset = 0;
 
@@ -268,7 +314,8 @@ impl H2Codec {
 
             // Check for indexed header (0x80 prefix, 7-bit index)
             if (byte & 0x80) != 0 {
-                let (index, index_bytes) = self.parse_integer(&data[offset..], 7)?;
+                let (index, index_bytes) =
+                    self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                 offset += index_bytes;
 
                 // Static table lookup
@@ -276,14 +323,20 @@ impl H2Codec {
                     headers.insert(name.to_string(), value.to_string());
                 } else {
                     // Dynamic table reference - requires context we may not have
-                    return Err(GrpcError::HpackError(format!(
-                        "Dynamic table reference {index} not available (mid-stream capture)"
-                    )));
+                    return Err(H2Error::HpackError {
+                        stream_id,
+                        offset,
+                        reason: format!(
+                            "Dynamic table reference {index} not available (mid-stream capture)"
+                        ),
+                    }
+                    .into());
                 }
             }
             // Check for literal header with incremental indexing (0x40 prefix, 6-bit index)
             else if (byte & 0x40) != 0 {
-                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 6)?;
+                let (name_index, name_index_bytes) =
+                    self.parse_integer(&data[offset..], 6, stream_id, offset)?;
                 offset += name_index_bytes;
 
                 // If name_index == 0, name is literal; otherwise it's from table
@@ -292,7 +345,8 @@ impl H2Codec {
                     if offset >= data.len() {
                         break;
                     }
-                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    let (name_len, name_len_bytes) =
+                        self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                     offset += name_len_bytes;
                     if offset + name_len > data.len() {
                         break;
@@ -311,7 +365,8 @@ impl H2Codec {
                 if offset >= data.len() {
                     break;
                 }
-                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                let (value_len, value_len_bytes) =
+                    self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                 offset += value_len_bytes;
                 if offset + value_len > data.len() {
                     break;
@@ -323,13 +378,15 @@ impl H2Codec {
             }
             // Check for dynamic table size update (0x20 prefix, 5-bit value)
             else if (byte & 0xE0) == 0x20 {
-                let (_new_size, size_bytes) = self.parse_integer(&data[offset..], 5)?;
+                let (_new_size, size_bytes) =
+                    self.parse_integer(&data[offset..], 5, stream_id, offset)?;
                 offset += size_bytes;
                 // We don't maintain a dynamic table, so just consume the bytes
             }
             // Check for literal header never indexed (0x10 prefix, 4-bit index)
             else if (byte & 0x10) != 0 {
-                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 4)?;
+                let (name_index, name_index_bytes) =
+                    self.parse_integer(&data[offset..], 4, stream_id, offset)?;
                 offset += name_index_bytes;
 
                 // Same parsing as literal-with-indexing
@@ -337,7 +394,8 @@ impl H2Codec {
                     if offset >= data.len() {
                         break;
                     }
-                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    let (name_len, name_len_bytes) =
+                        self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                     offset += name_len_bytes;
                     if offset + name_len > data.len() {
                         break;
@@ -354,7 +412,8 @@ impl H2Codec {
                 if offset >= data.len() {
                     break;
                 }
-                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                let (value_len, value_len_bytes) =
+                    self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                 offset += value_len_bytes;
                 if offset + value_len > data.len() {
                     break;
@@ -366,14 +425,16 @@ impl H2Codec {
             }
             // Check for literal header without indexing (0x00 prefix, 4-bit index)
             else {
-                let (name_index, name_index_bytes) = self.parse_integer(&data[offset..], 4)?;
+                let (name_index, name_index_bytes) =
+                    self.parse_integer(&data[offset..], 4, stream_id, offset)?;
                 offset += name_index_bytes;
 
                 let name = if name_index == 0 {
                     if offset >= data.len() {
                         break;
                     }
-                    let (name_len, name_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                    let (name_len, name_len_bytes) =
+                        self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                     offset += name_len_bytes;
                     if offset + name_len > data.len() {
                         break;
@@ -390,7 +451,8 @@ impl H2Codec {
                 if offset >= data.len() {
                     break;
                 }
-                let (value_len, value_len_bytes) = self.parse_integer(&data[offset..], 7)?;
+                let (value_len, value_len_bytes) =
+                    self.parse_integer(&data[offset..], 7, stream_id, offset)?;
                 offset += value_len_bytes;
                 if offset + value_len > data.len() {
                     break;
@@ -407,9 +469,20 @@ impl H2Codec {
 
     /// Parse HPACK integer with N-bit prefix.
     /// Returns (value, `bytes_consumed`).
-    fn parse_integer(&self, data: &[u8], n: u8) -> Result<(usize, usize), GrpcError> {
+    fn parse_integer(
+        &self,
+        data: &[u8],
+        n: u8,
+        stream_id: u32,
+        offset: usize,
+    ) -> Result<(usize, usize), GrpcError> {
         if data.is_empty() {
-            return Err(GrpcError::HpackError("Unexpected end of data".to_string()));
+            return Err(H2Error::HpackError {
+                stream_id,
+                offset,
+                reason: "Unexpected end of data".to_string(),
+            }
+            .into());
         }
 
         let mask = (1u8 << n) - 1;
@@ -420,24 +493,29 @@ impl H2Codec {
         }
 
         // Multi-byte integer
-        let mut offset = 1;
+        let mut bytes_offset = 1;
         let mut m = 0;
         loop {
-            if offset >= data.len() {
-                return Err(GrpcError::HpackError("Unexpected end of data".to_string()));
+            if bytes_offset >= data.len() {
+                return Err(H2Error::HpackError {
+                    stream_id,
+                    offset: offset + bytes_offset,
+                    reason: "Unexpected end of data in integer encoding".to_string(),
+                }
+                .into());
             }
 
-            let byte = data[offset];
+            let byte = data[bytes_offset];
             value += ((byte & 0x7F) as usize) << m;
             m += 7;
-            offset += 1;
+            bytes_offset += 1;
 
             if (byte & 0x80) == 0 {
                 break;
             }
         }
 
-        Ok((value, offset))
+        Ok((value, bytes_offset))
     }
 
     /// Lookup in HTTP/2 static table (RFC 7541 Appendix A).
