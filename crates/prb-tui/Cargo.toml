@@ -56,6 +56,7 @@ prost-reflect = "0.16"
 pcap = { workspace = true }
 
 [dev-dependencies]
+prb-test-utils = { path = "../prb-test-utils" }
 tempfile = { workspace = true }
 etherparse = { workspace = true }
 insta = { workspace = true }

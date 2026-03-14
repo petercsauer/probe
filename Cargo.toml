@@ -21,6 +21,7 @@ members = [
     "crates/prb-plugin-native",
     "crates/prb-plugin-wasm",
     "crates/prb-integration-tests",
+    "crates/prb-test-utils",
 ]
 exclude = [
     "fuzz",

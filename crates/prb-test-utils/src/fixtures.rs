@@ -15,9 +15,7 @@ use crate::event_builder;
 /// assert_eq!(evt.direction, Direction::Inbound);
 /// ```
 pub fn event() -> DebugEvent {
-    event_builder()
-        .transport(TransportKind::Grpc)
-        .build()
+    event_builder().transport(TransportKind::Grpc).build()
 }
 
 /// Creates a gRPC test event with the given ID.

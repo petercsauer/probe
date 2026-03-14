@@ -2,16 +2,13 @@
 
 mod buf_helpers;
 
-use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use prb_core::{
-    DebugEvent, Direction, EventId, EventSource, NetworkAddr, Payload, Timestamp, TransportKind,
-};
+use prb_core::{DebugEvent, EventId, Timestamp, TransportKind};
+use prb_test_utils::event_builder_with_network;
 use prb_tui::App;
 use prb_tui::event_store::EventStore;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use std::collections::BTreeMap;
 
 use buf_helpers::row_text;
 
@@ -22,27 +19,11 @@ fn make_test_event(
     src: &str,
     dst: &str,
 ) -> DebugEvent {
-    DebugEvent {
-        id: EventId::from_raw(id),
-        timestamp: Timestamp::from_nanos(timestamp_nanos),
-        source: EventSource {
-            adapter: "test".into(),
-            origin: "test".into(),
-            network: Some(NetworkAddr {
-                src: src.to_string(),
-                dst: dst.to_string(),
-            }),
-        },
-        transport,
-        direction: Direction::Inbound,
-        payload: Payload::Raw {
-            raw: Bytes::from(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]),
-        },
-        metadata: BTreeMap::new(),
-        correlation_keys: vec![],
-        sequence: None,
-        warnings: vec![],
-    }
+    event_builder_with_network(src, dst)
+        .id(EventId::from_raw(id))
+        .timestamp(Timestamp::from_nanos(timestamp_nanos))
+        .transport(transport)
+        .build()
 }
 
 #[test]

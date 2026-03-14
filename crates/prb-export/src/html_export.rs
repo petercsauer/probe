@@ -396,26 +396,15 @@ impl Exporter for HtmlExporter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::Bytes;
     use prb_core::*;
+    use prb_test_utils::event_builder_with_network;
 
     fn sample_event() -> DebugEvent {
-        DebugEvent::builder()
+        event_builder_with_network("10.0.0.1:50051", "10.0.0.2:8080")
             .id(EventId::from_raw(1))
             .timestamp(Timestamp::from_nanos(1_710_000_000_000_000_000))
-            .source(EventSource {
-                adapter: "pcap".into(),
-                origin: "test.pcap".into(),
-                network: Some(NetworkAddr {
-                    src: "10.0.0.1:50051".into(),
-                    dst: "10.0.0.2:8080".into(),
-                }),
-            })
             .transport(TransportKind::Grpc)
             .direction(Direction::Outbound)
-            .payload(Payload::Raw {
-                raw: Bytes::from_static(b"hello"),
-            })
             .metadata("grpc.method", "/api.v1.Users/Get")
             .build()
     }

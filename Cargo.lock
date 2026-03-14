@@ -3714,6 +3714,7 @@ dependencies = [
  "parquet",
  "prb-core",
  "prb-pcap",
+ "prb-test-utils",
  "serde",
  "serde_json",
  "tempfile",
@@ -3900,6 +3901,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "prb-test-utils"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "prb-core",
+]
+
+[[package]]
 name = "prb-tui"
 version = "0.1.0"
 dependencies = [
@@ -3930,6 +3939,7 @@ dependencies = [
  "prb-query",
  "prb-schema",
  "prb-storage",
+ "prb-test-utils",
  "prb-zmq",
  "proptest",
  "prost-reflect",
