@@ -28,6 +28,27 @@ fn eval_exists(field: &FieldPath, event: &DebugEvent) -> bool {
     }
 }
 
+/// Extract port from IP:port address string (handles both IPv4 and IPv6).
+fn extract_port(addr: &str) -> Option<u16> {
+    addr.parse::<std::net::SocketAddr>()
+        .ok()
+        .map(|sa| sa.port())
+}
+
+/// Extract IP address from IP:port address string (handles both IPv4 and IPv6).
+fn extract_ip(addr: &str) -> Option<std::net::IpAddr> {
+    addr.parse::<std::net::SocketAddr>().ok().map(|sa| sa.ip())
+}
+
+/// Check if event's transport matches the expected protocol.
+fn matches_protocol(event: &DebugEvent, expected: &str) -> bool {
+    event
+        .transport
+        .to_string()
+        .to_lowercase()
+        .contains(&expected.to_lowercase())
+}
+
 fn resolve_field(field: &FieldPath, event: &DebugEvent) -> Option<String> {
     let key = field.dotted();
     match key.as_str() {
@@ -40,11 +61,94 @@ fn resolve_field(field: &FieldPath, event: &DebugEvent) -> Option<String> {
         "source.src" | "src" => event.source.network.as_ref().map(|n| n.src.clone()),
         "source.dst" | "dst" => event.source.network.as_ref().map(|n| n.dst.clone()),
         "sequence" => event.sequence.map(|s| s.to_string()),
+
+        // TCP-specific fields (with protocol validation)
+        // Only extract from network if network data exists; otherwise fall through to metadata
+        "tcp.port" if matches_protocol(event, "tcp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.src).or_else(|| extract_port(&n.dst)))
+            .map(|p| p.to_string()),
+        "tcp.srcport" if matches_protocol(event, "tcp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.src))
+            .map(|p| p.to_string()),
+        "tcp.dstport" if matches_protocol(event, "tcp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.dst))
+            .map(|p| p.to_string()),
+
+        // UDP-specific fields (with protocol validation)
+        "udp.port" if matches_protocol(event, "udp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.src).or_else(|| extract_port(&n.dst)))
+            .map(|p| p.to_string()),
+        "udp.srcport" if matches_protocol(event, "udp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.src))
+            .map(|p| p.to_string()),
+        "udp.dstport" if matches_protocol(event, "udp") && event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_port(&n.dst))
+            .map(|p| p.to_string()),
+
+        // IP-only fields (protocol-agnostic)
+        "ip.src" if event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_ip(&n.src))
+            .map(|ip| ip.to_string()),
+        "ip.dst" if event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_ip(&n.dst))
+            .map(|ip| ip.to_string()),
+        "ip.addr" if event.source.network.is_some() => event
+            .source
+            .network
+            .as_ref()
+            .and_then(|n| extract_ip(&n.src).or_else(|| extract_ip(&n.dst)))
+            .map(|ip| ip.to_string()),
+
+        // Frame-level fields
+        "frame.len" => Some(event.id.as_u64().to_string()), // Using frame number as proxy
+
+        // Fallback to metadata
         _ => event.metadata.get(&key).cloned(),
     }
 }
 
 fn eval_compare(field: &FieldPath, op: CmpOp, value: &Value, event: &DebugEvent) -> bool {
+    let key = field.dotted();
+
+    // Handle bidirectional fields that should match either src or dst
+    // Only use special handling if network data is available; otherwise fall through to metadata
+    match key.as_str() {
+        "tcp.port" if matches_protocol(event, "tcp") && event.source.network.is_some() => {
+            return eval_bidirectional_port(event, op, value, "tcp");
+        }
+        "udp.port" if matches_protocol(event, "udp") && event.source.network.is_some() => {
+            return eval_bidirectional_port(event, op, value, "udp");
+        }
+        "ip.addr" if event.source.network.is_some() => {
+            return eval_bidirectional_ip(event, op, value);
+        }
+        _ => {}
+    }
+
     let resolved = match resolve_field(field, event) {
         Some(v) => v,
         None => return false,
@@ -73,6 +177,77 @@ fn eval_compare(field: &FieldPath, op: CmpOp, value: &Value, event: &DebugEvent)
                 CmpOp::Ne => resolved_bool != *b,
                 _ => false,
             }
+        }
+    }
+}
+
+/// Evaluate comparison for bidirectional port fields (tcp.port, udp.port).
+/// These fields match if EITHER src or dst port matches the value.
+fn eval_bidirectional_port(event: &DebugEvent, op: CmpOp, value: &Value, proto: &str) -> bool {
+    if !matches_protocol(event, proto) {
+        return false;
+    }
+
+    let network = match &event.source.network {
+        Some(n) => n,
+        None => return false,
+    };
+
+    let src_port = extract_port(&network.src);
+    let dst_port = extract_port(&network.dst);
+
+    let Value::Number(target) = value else {
+        return false;
+    };
+
+    // For equality, match if either port equals the target
+    // For other comparisons, apply to both and OR the results
+    match op {
+        CmpOp::Eq => {
+            src_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+                || dst_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+        }
+        CmpOp::Ne => {
+            // For inequality, match if either port doesn't equal the target
+            src_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+                || dst_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+        }
+        _ => {
+            // For other comparisons (>, <, >=, <=), match if either port satisfies the condition
+            src_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+                || dst_port.is_some_and(|p| apply_f64_cmp(op, p as f64, *target))
+        }
+    }
+}
+
+/// Evaluate comparison for bidirectional IP field (ip.addr).
+/// This field matches if EITHER src or dst IP matches the value.
+fn eval_bidirectional_ip(event: &DebugEvent, op: CmpOp, value: &Value) -> bool {
+    let network = match &event.source.network {
+        Some(n) => n,
+        None => return false,
+    };
+
+    let src_ip = extract_ip(&network.src).map(|ip| ip.to_string());
+    let dst_ip = extract_ip(&network.dst).map(|ip| ip.to_string());
+
+    let Value::String(target) = value else {
+        return false;
+    };
+
+    // For equality, match if either IP equals the target
+    // For other comparisons, apply string comparison to both and OR the results
+    match op {
+        CmpOp::Eq => {
+            src_ip.is_some_and(|ip| ip == *target) || dst_ip.is_some_and(|ip| ip == *target)
+        }
+        CmpOp::Ne => {
+            src_ip.is_some_and(|ip| ip != *target) || dst_ip.is_some_and(|ip| ip != *target)
+        }
+        _ => {
+            // For other comparisons, apply to both and OR the results
+            src_ip.is_some_and(|ip| apply_ordering(op, ip.as_str().cmp(target.as_str())))
+                || dst_ip.is_some_and(|ip| apply_ordering(op, ip.as_str().cmp(target.as_str())))
         }
     }
 }

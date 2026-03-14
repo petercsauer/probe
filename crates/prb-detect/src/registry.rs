@@ -246,10 +246,11 @@ impl DecoderRegistry {
     }
 
     /// Extract port number from address string (IP:port format).
+    /// Handles both IPv4 (192.168.1.1:8080) and IPv6 ([::1]:8080) addresses.
     fn extract_port(addr: &str) -> u16 {
-        addr.split(':')
-            .nth(1)
-            .and_then(|s| s.parse().ok())
+        addr.parse::<std::net::SocketAddr>()
+            .ok()
+            .map(|sa| sa.port())
             .unwrap_or(0)
     }
 

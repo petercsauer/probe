@@ -61,6 +61,7 @@ impl AutocompleteState {
     }
 
     /// Build comprehensive suggestion catalog from DebugEvent fields and operators.
+    #[allow(clippy::vec_init_then_push)]
     fn build_suggestions() -> Vec<Suggestion> {
         let mut suggestions = Vec::new();
 
@@ -363,7 +364,7 @@ impl AutocompleteState {
         // Apply fuzzy matching with nucleo-matcher
         // Convert strings to UTF-32 for nucleo-matcher
         let mut needle_buf = Vec::new();
-        let needle = Utf32Str::new(&prefix, &mut needle_buf);
+        let needle = Utf32Str::new(prefix, &mut needle_buf);
         let mut scored: Vec<(u16, &Suggestion)> = candidates
             .into_iter()
             .filter_map(|s| {
@@ -412,14 +413,14 @@ impl AutocompleteState {
 
         // Check if cursor is after a field name (with or without trailing space)
         // If we have whitespace before cursor but after the last word, suggest operators
-        if before_cursor.ends_with(' ') && !trimmed.is_empty() {
-            if let Some(last_word) = trimmed.split_whitespace().last() {
-                // Check if it looks like a field (contains dot or is an identifier)
-                if last_word.contains('.')
-                    || last_word.chars().all(|c| c.is_alphanumeric() || c == '_')
-                {
-                    return SuggestionCategory::Operator;
-                }
+        if before_cursor.ends_with(' ')
+            && !trimmed.is_empty()
+            && let Some(last_word) = trimmed.split_whitespace().last()
+        {
+            // Check if it looks like a field (contains dot or is an identifier)
+            if last_word.contains('.') || last_word.chars().all(|c| c.is_alphanumeric() || c == '_')
+            {
+                return SuggestionCategory::Operator;
             }
         }
 
