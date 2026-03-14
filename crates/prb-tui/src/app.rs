@@ -2195,15 +2195,15 @@ impl App {
                 false
             }
             KeyCode::Enter => {
-                if let Some(ref overlay) = self.filter_template_overlay {
-                    if let Some(template) = overlay.selected_template() {
-                        // Apply the template filter
-                        self.filter_state.apply_template(template);
-                        self.input_mode = InputMode::Filter;
-                        self.filter_input = Input::new(template.filter.clone());
-                        self.filter_error = None;
-                        self.filter_template_overlay = None;
-                    }
+                if let Some(ref overlay) = self.filter_template_overlay
+                    && let Some(template) = overlay.selected_template()
+                {
+                    // Apply the template filter
+                    self.filter_state.apply_template(template);
+                    self.input_mode = InputMode::Filter;
+                    self.filter_input = Input::new(template.filter.clone());
+                    self.filter_error = None;
+                    self.filter_template_overlay = None;
                 }
                 false
             }
@@ -3655,10 +3655,10 @@ impl App {
             self.command_palette.render(area, buf);
         }
         // Render FilterTemplate overlay
-        if self.input_mode == InputMode::FilterTemplates {
-            if let Some(ref overlay) = self.filter_template_overlay {
-                overlay.render(area, buf);
-            }
+        if self.input_mode == InputMode::FilterTemplates
+            && let Some(ref overlay) = self.filter_template_overlay
+        {
+            overlay.render(area, buf);
         }
         // Render follow stream overlay
         if let Some(ref overlay) = self.follow_stream_overlay
