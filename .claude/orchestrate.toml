@@ -45,6 +45,10 @@ jitter = true
 retry_on = ["timeout", "failed", "unknown"]
 no_retry_on = ["blocked"]
 
+[commit]
+# Run formatting before commits to satisfy pre-commit hooks
+format_command = "cargo fmt --all"
+
 [git]
 main_branch = "main"
 auto_commit = true
