@@ -79,6 +79,12 @@ pub struct CaptureStatsInner {
     pub bytes_received: AtomicU64,
 }
 
+impl Default for CaptureStatsInner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CaptureStatsInner {
     pub const fn new() -> Self {
         Self {
