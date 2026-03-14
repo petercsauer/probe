@@ -49,3 +49,12 @@ println!("Exported {} bytes of {}", output.len(), exporter.format_name());
 - CLI binary uses `create_exporter` for `prb export` subcommand
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+Export `DebugEvents` to various formats (CSV, HAR, OTLP, HTML, Parquet).
+
+This crate provides exporters for converting `DebugEvents` into various
+industry-standard and analysis-friendly formats.
+
+<!-- cargo-rdme end -->

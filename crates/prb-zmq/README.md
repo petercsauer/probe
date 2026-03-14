@@ -38,3 +38,13 @@ for event in &events {
 `prb-zmq` depends on `prb-core` for the `ProtocolDecoder` and `CorrelationStrategy` traits. It is used by `prb-pcap` as a builtin protocol decoder (behind the `builtin-decoders` feature) and can also be loaded via the plugin system. The `prb-detect` crate identifies ZMTP traffic by its greeting signature and routes streams to this decoder.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+ZMTP wire protocol decoder for offline PCAP analysis.
+
+This crate implements `ZeroMQ` ZMTP 3.0/3.1 protocol decoding from reassembled
+TCP streams, including greeting/handshake parsing, multipart message reassembly,
+metadata extraction (socket type, identity), and mid-stream graceful degradation.
+
+<!-- cargo-rdme end -->

@@ -35,3 +35,14 @@ for event in &events {
 - **prb-tui** — renders decoded DDS events in the interactive terminal UI
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+DDS/RTPS protocol decoder for offline PCAP analysis.
+
+This crate implements DDS/RTPS protocol decoding from UDP datagrams,
+including RTPS message parsing, DATA submessage payload extraction,
+SEDP discovery tracking for topic name resolution, and GUID-based
+correlation metadata.
+
+<!-- cargo-rdme end -->

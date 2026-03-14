@@ -54,3 +54,43 @@ let event = DebugEventBuilder::new()
 `prb-core` has **no dependencies** on other PRB crates — it is the leaf of the dependency tree. Every other crate in the workspace (`prb-pcap`, `prb-grpc`, `prb-storage`, `prb-cli`, etc.) depends on `prb-core` for its type definitions and trait contracts.
 
 See the [PRB documentation](../../docs/) for the full user guide.
+
+<!-- cargo-rdme start -->
+
+### prb-core
+
+The foundational crate for the probe network debugging toolkit.
+
+This crate provides core types and traits used throughout the probe ecosystem:
+- [`DebugEvent`]: The universal event type representing protocol messages
+- [`ProtocolDecoder`]: Trait for implementing protocol decoders
+- [`CaptureAdapter`]: Trait for packet capture sources
+- [`ConversationEngine`]: Reconstructs logical conversations from events
+- [`TraceContext`]: OpenTelemetry distributed trace context
+
+### Examples
+
+Creating a debug event:
+
+```rust
+use prb_core::{DebugEvent, EventSource, TransportKind, Direction, Payload};
+use bytes::Bytes;
+
+let event = DebugEvent::builder()
+    .source(EventSource {
+        adapter: "test".to_string(),
+        origin: "example".to_string(),
+        network: None,
+    })
+    .transport(TransportKind::Grpc)
+    .direction(Direction::Outbound)
+    .payload(Payload::Raw {
+        raw: Bytes::from("test data"),
+    })
+    .build();
+
+assert_eq!(event.transport, TransportKind::Grpc);
+assert_eq!(event.warnings.len(), 0);
+```
+
+<!-- cargo-rdme end -->

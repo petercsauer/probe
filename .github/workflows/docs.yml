@@ -1,0 +1,72 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Verify READMEs are in sync with lib.rs
+  readme:
+    name: README Sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-rdme
+        run: cargo install cargo-rdme --locked
+
+      - name: Check README sync
+        run: |
+          cargo rdme --check --workspace-project prb-ai
+          cargo rdme --check --workspace-project prb-capture
+          cargo rdme --check --workspace-project prb-cli
+          cargo rdme --check --workspace-project prb-core
+          cargo rdme --check --workspace-project prb-dds
+          cargo rdme --check --workspace-project prb-decode
+          cargo rdme --check --workspace-project prb-detect
+          cargo rdme --check --workspace-project prb-export
+          cargo rdme --check --workspace-project prb-fixture
+          cargo rdme --check --workspace-project prb-grpc
+          cargo rdme --check --workspace-project prb-pcap
+          cargo rdme --check --workspace-project prb-plugin-api
+          cargo rdme --check --workspace-project prb-plugin-native
+          cargo rdme --check --workspace-project prb-plugin-wasm
+          cargo rdme --check --workspace-project prb-query
+          cargo rdme --check --workspace-project prb-schema
+          cargo rdme --check --workspace-project prb-storage
+          cargo rdme --check --workspace-project prb-tui
+          cargo rdme --check --workspace-project prb-zmq
+
+  # Check for broken links
+  links:
+    name: Link Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for broken links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: '--exclude-path target/ --exclude-path .git/ .'
+          fail: true
+
+  # Check documentation builds without missing_docs warnings
+  coverage:
+    name: Doc Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check documentation completeness
+        run: cargo doc --workspace --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: "-D warnings -D missing_docs"
