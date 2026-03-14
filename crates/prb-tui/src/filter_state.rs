@@ -1,4 +1,4 @@
-use crate::filter_persistence::{FilterFavorite, FilterPersistence};
+use crate::filter_persistence::{FilterFavorite, FilterPersistence, FilterTemplate};
 use prb_query::Filter;
 use std::time::Instant;
 
@@ -235,6 +235,21 @@ impl FilterState {
     /// Get all favorites.
     pub fn get_favorites(&self) -> &[FilterFavorite] {
         &self.persistence.favorites
+    }
+
+    /// Apply a template filter - sets the text and triggers preview update
+    pub fn apply_template(&mut self, template: &FilterTemplate) {
+        self.set_text(template.filter.clone());
+    }
+
+    /// Get all available templates
+    pub fn get_templates(&self) -> Vec<FilterTemplate> {
+        self.persistence.get_templates()
+    }
+
+    /// Search templates by query
+    pub fn search_templates(&self, query: &str) -> Vec<FilterTemplate> {
+        self.persistence.search_templates(query)
     }
 }
 

@@ -26,8 +26,9 @@ use crate::event_store::EventStore;
 use crate::filter_state::FilterState;
 use crate::live::{AppEvent, CaptureState, LiveDataSource};
 use crate::overlays::{
-    CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, MetricsOverlay,
-    PluginManagerOverlay, PluginType, ThemeEditorOverlay, WelcomeOverlay, WhichKeyOverlay,
+    CaptureConfigOverlay, CommandPaletteOverlay, ExportDialogOverlay, FilterTemplateOverlay,
+    MetricsOverlay, PluginManagerOverlay, PluginType, ThemeEditorOverlay, WelcomeOverlay,
+    WhichKeyOverlay,
 };
 use crate::panes::ai_panel::AiPanel;
 use crate::panes::conversation_list::ConversationListPane;
@@ -99,6 +100,7 @@ pub enum InputMode {
     AiFilter,
     ThemeEditor,
     TlsKeylogPicker,
+    FilterTemplates,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +169,8 @@ pub struct App {
     // Command palette and overlays
     #[allow(dead_code)]
     command_palette: CommandPaletteOverlay,
+    #[allow(dead_code)]
+    filter_template_overlay: Option<FilterTemplateOverlay>,
     #[allow(dead_code)]
     which_key_overlay: Option<WhichKeyOverlay>,
     #[allow(dead_code)]
@@ -285,6 +289,7 @@ impl App {
             anomaly_rx: None,
             protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
+            filter_template_overlay: None,
             which_key_overlay: None,
             help_scroll_offset: 0,
             export_dialog: None,
@@ -551,6 +556,7 @@ impl App {
             anomaly_rx: None,
             protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
+            filter_template_overlay: None,
             which_key_overlay: None,
             help_scroll_offset: 0,
             export_dialog: None,
@@ -648,6 +654,7 @@ impl App {
             anomaly_rx: None,
             protocol_rx: None,
             command_palette: CommandPaletteOverlay::new(),
+            filter_template_overlay: None,
             which_key_overlay: None,
             help_scroll_offset: 0,
             export_dialog: None,
@@ -1291,6 +1298,9 @@ impl App {
             InputMode::CommandPalette => {
                 return self.handle_command_palette_key(key);
             }
+            InputMode::FilterTemplates => {
+                return self.handle_filter_template_key(key);
+            }
             InputMode::PluginManager => {
                 return self.handle_plugin_manager_key(key);
             }
@@ -1384,6 +1394,14 @@ impl App {
             } else {
                 self.zoomed_pane = Some(self.focus);
             }
+            return false;
+        }
+
+        // F3: Open filter templates dialog
+        if key.code == KeyCode::F(3) {
+            self.input_mode = InputMode::FilterTemplates;
+            let templates = self.filter_state.get_templates();
+            self.filter_template_overlay = Some(FilterTemplateOverlay::new(templates));
             return false;
         }
 
@@ -2163,6 +2181,58 @@ impl App {
                 let mut new_input = self.command_palette.input.clone();
                 new_input.pop();
                 self.command_palette.update_input(new_input);
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_filter_template_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Esc | KeyCode::F(3) => {
+                self.input_mode = InputMode::Normal;
+                self.filter_template_overlay = None;
+                false
+            }
+            KeyCode::Enter => {
+                if let Some(ref overlay) = self.filter_template_overlay {
+                    if let Some(template) = overlay.selected_template() {
+                        // Apply the template filter
+                        self.filter_state.apply_template(template);
+                        self.input_mode = InputMode::Filter;
+                        self.filter_input = Input::new(template.filter.clone());
+                        self.filter_error = None;
+                        self.filter_template_overlay = None;
+                    }
+                }
+                false
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if let Some(ref mut overlay) = self.filter_template_overlay {
+                    overlay.move_selection(1);
+                }
+                false
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Some(ref mut overlay) = self.filter_template_overlay {
+                    overlay.move_selection(-1);
+                }
+                false
+            }
+            KeyCode::Char(c) => {
+                if let Some(ref mut overlay) = self.filter_template_overlay {
+                    let mut new_input = overlay.input.clone();
+                    new_input.push(c);
+                    overlay.update_input(new_input);
+                }
+                false
+            }
+            KeyCode::Backspace => {
+                if let Some(ref mut overlay) = self.filter_template_overlay {
+                    let mut new_input = overlay.input.clone();
+                    new_input.pop();
+                    overlay.update_input(new_input);
+                }
                 false
             }
             _ => false,
@@ -3583,6 +3653,12 @@ impl App {
         // Render CommandPalette overlay
         if self.input_mode == InputMode::CommandPalette {
             self.command_palette.render(area, buf);
+        }
+        // Render FilterTemplate overlay
+        if self.input_mode == InputMode::FilterTemplates {
+            if let Some(ref overlay) = self.filter_template_overlay {
+                overlay.render(area, buf);
+            }
         }
         // Render follow stream overlay
         if let Some(ref overlay) = self.follow_stream_overlay
