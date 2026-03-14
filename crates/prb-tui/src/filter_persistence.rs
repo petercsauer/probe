@@ -20,6 +20,15 @@ pub struct FilterFavorite {
     pub created_at: String,  // Unix timestamp as string
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilterTemplate {
+    pub name: String,
+    pub category: String, // "Protocol", "Performance", "Security", "Network"
+    pub filter: String,
+    pub description: String,
+    pub tags: Vec<String>,
+}
+
 impl FilterPersistence {
     pub fn load() -> Result<Self, String> {
         let path = Self::config_path()?;
@@ -104,6 +113,116 @@ impl FilterPersistence {
             .unwrap()
             .as_secs()
             .to_string()
+    }
+
+    /// Returns the built-in catalog of filter templates
+    pub fn default_templates() -> Vec<FilterTemplate> {
+        vec![
+            // DNS
+            FilterTemplate {
+                name: "DNS Traffic".to_string(),
+                category: "Protocol".to_string(),
+                filter: "udp.port == 53 || tcp.port == 53".to_string(),
+                description: "All DNS queries and responses (UDP and TCP)".to_string(),
+                tags: vec!["dns".to_string(), "protocol".to_string()],
+            },
+            // TLS
+            FilterTemplate {
+                name: "TLS Handshakes".to_string(),
+                category: "Protocol".to_string(),
+                filter: r#"tcp.port == 443 && tcp.payload matches "^\x16\x03""#.to_string(),
+                description: "TLS ClientHello and ServerHello messages".to_string(),
+                tags: vec![
+                    "tls".to_string(),
+                    "https".to_string(),
+                    "security".to_string(),
+                ],
+            },
+            FilterTemplate {
+                name: "HTTPS Traffic".to_string(),
+                category: "Protocol".to_string(),
+                filter: "tcp.port in {443, 8443}".to_string(),
+                description: "All HTTPS connections on standard ports".to_string(),
+                tags: vec!["https".to_string(), "tls".to_string()],
+            },
+            // gRPC
+            FilterTemplate {
+                name: "gRPC Calls".to_string(),
+                category: "Protocol".to_string(),
+                filter: r#"transport == "grpc""#.to_string(),
+                description: "All gRPC unary and streaming calls".to_string(),
+                tags: vec!["grpc".to_string(), "rpc".to_string()],
+            },
+            // ZeroMQ
+            FilterTemplate {
+                name: "ZeroMQ Messages".to_string(),
+                category: "Protocol".to_string(),
+                filter: r#"transport == "zmq""#.to_string(),
+                description: "All ZeroMQ socket traffic".to_string(),
+                tags: vec!["zmq".to_string(), "messaging".to_string()],
+            },
+            // HTTP
+            FilterTemplate {
+                name: "HTTP Requests".to_string(),
+                category: "Protocol".to_string(),
+                filter: r#"tcp.port in {80, 8080} && tcp.payload matches "^(GET|POST|PUT|DELETE)""#
+                    .to_string(),
+                description: "HTTP request methods (unencrypted)".to_string(),
+                tags: vec!["http".to_string(), "web".to_string()],
+            },
+            // Performance
+            FilterTemplate {
+                name: "Large Frames".to_string(),
+                category: "Performance".to_string(),
+                filter: "frame.len > 1500".to_string(),
+                description: "Frames exceeding MTU (potential fragmentation)".to_string(),
+                tags: vec!["performance".to_string(), "fragmentation".to_string()],
+            },
+            FilterTemplate {
+                name: "Small Frames".to_string(),
+                category: "Performance".to_string(),
+                filter: "frame.len < 64".to_string(),
+                description: "Very small frames (possible header-only or ACKs)".to_string(),
+                tags: vec!["performance".to_string()],
+            },
+            // Security
+            FilterTemplate {
+                name: "Unencrypted Traffic".to_string(),
+                category: "Security".to_string(),
+                filter: r#"tcp.port in {80, 21, 23, 25} || udp.port == 69"#.to_string(),
+                description: "Potentially sensitive unencrypted protocols".to_string(),
+                tags: vec!["security".to_string(), "cleartext".to_string()],
+            },
+            // Network
+            FilterTemplate {
+                name: "Localhost Traffic".to_string(),
+                category: "Network".to_string(),
+                filter: r#"ip.src == "127.0.0.1" || ip.dst == "127.0.0.1""#.to_string(),
+                description: "Traffic to/from localhost".to_string(),
+                tags: vec!["localhost".to_string(), "loopback".to_string()],
+            },
+        ]
+    }
+
+    /// Returns all available templates (currently just the built-in ones)
+    pub fn get_templates(&self) -> Vec<FilterTemplate> {
+        Self::default_templates()
+    }
+
+    /// Search templates by name, description, or tags
+    pub fn search_templates(&self, query: &str) -> Vec<FilterTemplate> {
+        let query_lower = query.to_lowercase();
+
+        self.get_templates()
+            .into_iter()
+            .filter(|t| {
+                t.name.to_lowercase().contains(&query_lower)
+                    || t.description.to_lowercase().contains(&query_lower)
+                    || t.tags
+                        .iter()
+                        .any(|tag| tag.to_lowercase().contains(&query_lower))
+            })
+            .collect()
     }
 }
 
