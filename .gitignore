@@ -120,3 +120,4 @@ __pycache__/
 .claude/plans/*/state.db
 .claude/worktrees/*/
 **/*.profraw
+**/*.profdata
