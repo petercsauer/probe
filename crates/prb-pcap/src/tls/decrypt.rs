@@ -37,6 +37,30 @@ impl AeadCipher {
     }
 }
 
+/// TLS session state tracking for improved error reporting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TlsSessionState {
+    /// Initial handshake phase - keys derived but no records decrypted yet
+    Handshake,
+    /// Session established - actively decrypting application data
+    Established,
+    /// Key update in progress (TLS 1.3)
+    Rekeying,
+    /// Session closed or terminated
+    Closed,
+}
+
+impl std::fmt::Display for TlsSessionState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Handshake => write!(f, "handshake"),
+            Self::Established => write!(f, "established"),
+            Self::Rekeying => write!(f, "rekeying"),
+            Self::Closed => write!(f, "closed"),
+        }
+    }
+}
+
 /// TLS decryptor that handles record-level AEAD decryption.
 pub struct TlsDecryptor {
     cipher: AeadCipher,
@@ -45,6 +69,7 @@ pub struct TlsDecryptor {
     server_key: Vec<u8>,
     server_iv: Vec<u8>,
     is_tls13: bool,
+    state: std::cell::Cell<TlsSessionState>,
 }
 
 impl TlsDecryptor {
@@ -68,7 +93,18 @@ impl TlsDecryptor {
             server_key,
             server_iv,
             is_tls13,
+            state: std::cell::Cell::new(TlsSessionState::Handshake),
         }
+    }
+
+    /// Returns the current session state.
+    pub fn state(&self) -> TlsSessionState {
+        self.state.get()
+    }
+
+    /// Transitions to a new state.
+    fn transition_to(&self, new_state: TlsSessionState) {
+        self.state.set(new_state);
     }
 
     /// Creates a new TLS decryptor from session info and key materials.
@@ -169,6 +205,7 @@ impl TlsDecryptor {
             server_key,
             server_iv,
             is_tls13,
+            state: std::cell::Cell::new(TlsSessionState::Handshake),
         })
     }
 
@@ -247,12 +284,28 @@ impl TlsDecryptor {
         record_hdr: &tls_parser::TlsRecordHeader,
         direction: crate::tcp::StreamDirection,
     ) -> Result<Vec<u8>, PcapError> {
+        // Check if session is in a valid state for decryption
+        let current_state = self.state();
+        if current_state == TlsSessionState::Closed {
+            return Err(PcapError::TlsKey(format!(
+                "cannot decrypt: session is in {} state",
+                current_state
+            )));
+        }
+
         let (key, iv) = match direction {
             crate::tcp::StreamDirection::ClientToServer => (&self.client_key, &self.client_iv),
             crate::tcp::StreamDirection::ServerToClient => (&self.server_key, &self.server_iv),
         };
 
-        let nonce = self.construct_nonce(iv, sequence, ciphertext)?;
+        let nonce = self
+            .construct_nonce(iv, sequence, ciphertext)
+            .map_err(|e| {
+                PcapError::TlsKey(format!(
+                    "nonce construction failed in {} state: {}",
+                    current_state, e
+                ))
+            })?;
         let aad = self.construct_aad(record_hdr, ciphertext.len(), sequence);
 
         // For TLS 1.2 GCM, the record payload is: explicit_nonce (8) + encrypted + tag (16).
@@ -261,26 +314,43 @@ impl TlsDecryptor {
             ciphertext
         } else {
             if ciphertext.len() < 8 {
-                return Err(PcapError::TlsKey(
-                    "ciphertext too short for TLS 1.2 explicit nonce".to_string(),
-                ));
+                return Err(PcapError::TlsKey(format!(
+                    "ciphertext too short for TLS 1.2 explicit nonce (got {} bytes, expected at least 8) in {} state",
+                    ciphertext.len(),
+                    current_state
+                )));
             }
             &ciphertext[8..]
         };
 
         let mut in_out = decrypt_input.to_vec();
-        let unbound_key = UnboundKey::new(self.cipher.algorithm(), key)
-            .map_err(|e| PcapError::TlsKey(format!("failed to create key: {e:?}")))?;
+        let unbound_key = UnboundKey::new(self.cipher.algorithm(), key).map_err(|e| {
+            PcapError::TlsKey(format!(
+                "failed to create key in {} state: {e:?}",
+                current_state
+            ))
+        })?;
 
-        let nonce_obj = Nonce::try_assume_unique_for_key(&nonce)
-            .map_err(|e| PcapError::TlsKey(format!("invalid nonce: {e:?}")))?;
+        let nonce_obj = Nonce::try_assume_unique_for_key(&nonce).map_err(|e| {
+            PcapError::TlsKey(format!("invalid nonce in {} state: {e:?}", current_state))
+        })?;
 
         let mut opening_key = OpeningKey::new(unbound_key, FixedNonceSequence(Some(nonce_obj)));
 
         let plaintext_len = opening_key
             .open_in_place(Aad::from(&aad), &mut in_out)
-            .map_err(|e| PcapError::TlsKey(format!("decryption failed: {e:?}")))?
+            .map_err(|e| {
+                PcapError::TlsKey(format!(
+                    "decryption failed in {} state (sequence={}, direction={:?}): {e:?}",
+                    current_state, sequence, direction
+                ))
+            })?
             .len();
+
+        // Transition from Handshake to Established on first successful decryption
+        if current_state == TlsSessionState::Handshake {
+            self.transition_to(TlsSessionState::Established);
+        }
 
         in_out.truncate(plaintext_len);
         Ok(in_out)
@@ -389,6 +459,7 @@ mod tests {
             server_key: vec![0u8; 16],
             server_iv: iv.clone(),
             is_tls13: true,
+            state: std::cell::Cell::new(TlsSessionState::Handshake),
         };
 
         let nonce = decryptor
@@ -416,6 +487,7 @@ mod tests {
             server_key: vec![0u8; 16],
             server_iv: iv.clone(),
             is_tls13: false,
+            state: std::cell::Cell::new(TlsSessionState::Handshake),
         };
 
         let nonce = decryptor.construct_nonce(&iv, 0, &ciphertext).unwrap();
