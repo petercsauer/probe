@@ -10,7 +10,7 @@ categories = ["development-tools"]
 
 [dependencies]
 prb-core = { path = "../prb-core" }
-async-openai = "0.20"
+async-openai = "0.33"
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
