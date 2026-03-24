@@ -38,7 +38,7 @@ repository = "https://github.com/yourusername/prb"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "0.9"
 bytes = { version = "1", features = ["serde"] }
 
 # Error handling
