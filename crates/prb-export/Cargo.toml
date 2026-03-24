@@ -25,7 +25,7 @@ csv = "1.4"
 har = "0.8"
 
 # Parquet support (feature-gated)
-arrow = { version = "54", optional = true, default-features = false, features = ["ipc"] }
+arrow = { version = "58", optional = true, default-features = false, features = ["ipc"] }
 parquet = { version = "54", optional = true, default-features = false, features = ["arrow"] }
 
 [dev-dependencies]
