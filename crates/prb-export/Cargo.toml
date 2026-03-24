@@ -26,7 +26,7 @@ har = "0.8"
 
 # Parquet support (feature-gated)
 arrow = { version = "54", optional = true, default-features = false, features = ["ipc"] }
-parquet = { version = "54", optional = true, default-features = false, features = ["arrow"] }
+parquet = { version = "58", optional = true, default-features = false, features = ["arrow"] }
 
 [dev-dependencies]
 prb-pcap = { path = "../prb-pcap" }
