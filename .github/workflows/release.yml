@@ -22,7 +22,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           name: Release ${{ steps.get_version.outputs.version }}
           draft: false
@@ -106,6 +106,6 @@ jobs:
           mv ${{ matrix.asset_name }} ../../../
 
       - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ matrix.asset_name }}
